@@ -21,7 +21,8 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     return;
   }
   if (message.type === "control_request") {
-    const response = message.request?.subtype === "initialize" ? { commands: [], output_style: "default", available_output_styles: ["default"], models: [], account: {} } : {};
+    const subtype = message.request?.subtype;
+    const response = subtype === "initialize" ? { commands: [], output_style: "default", available_output_styles: ["default"], models: [], account: {} } : subtype === "mcp_status" ? { mcpServers: [] } : {};
     out({ type: "control_response", response: { subtype: "success", request_id: message.request_id, response } });
     return;
   }
