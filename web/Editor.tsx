@@ -66,11 +66,14 @@ import { editorBase, editorOptionExtensions } from "./editorBase";
 import { currentEditorOptions, subscribeEditorOptions } from "./editorOptions";
 import { eolChanged, eolExtension } from "./editorEol";
 import { failedServers, lspSummary } from "./lspServers";
+import { useCommandKey } from "./commandKeys";
 
 // 파일 탭(디스크의 파일을 편집)과 이름 없는 탭(내용은 메모리에만 있다가 저장할 때 경로를 받는다)을 같은 에디터로 그린다.
 type Props = { tab: FileTab | UntitledTab; active: boolean };
 
 export function Editor({ tab, active }: Props) {
+  const backKey = useCommandKey("editor:navigateBack") ?? "⌃-";
+  const forwardKey = useCommandKey("editor:navigateForward") ?? "⌃⇧-";
   const tabKey = tab.key;
   const workspaceId = tab.workspaceId;
   const path = tab.kind === "file" ? tab.path : null;
@@ -298,10 +301,10 @@ export function Editor({ tab, active }: Props) {
   return (
     <div className="editor" data-lsp-info={lspSummary(lspInfo, lspServers)} style={{ display: active ? "flex" : "none" }}>
       <div className="pane-header">
-        <Button size="icon" aria-label={S.backKey} title={S.backKey} onClick={goBack}>
+        <Button size="icon" aria-label={S.backKey(backKey)} title={S.backKey(backKey)} onClick={goBack}>
           <ChevronLeft />
         </Button>
-        <Button size="icon" aria-label={S.forwardKey} title={S.forwardKey} onClick={goForward}>
+        <Button size="icon" aria-label={S.forwardKey(forwardKey)} title={S.forwardKey(forwardKey)} onClick={goForward}>
           <ChevronRight />
         </Button>
         <FileTypeIcon name={path ?? ""} />

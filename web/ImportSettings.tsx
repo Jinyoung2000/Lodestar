@@ -33,6 +33,7 @@ export function ImportSettings({ scroll }: { scroll: boolean }) {
   const selectable = visible.filter((c) => !c.problem && !c.importedAgentId);
   const allSelected = selectable.length > 0 && selectable.every((c) => selected.has(c.key));
   const running = progress !== null;
+  const nothingToImport = list !== null && (!list.available || candidates.length === 0);
 
   const toggle = (key: string, on: boolean) => setSelected((prev) => new Set(on ? [...prev, key] : [...prev].filter((k) => k !== key)));
   const toggleAll = () => setSelected((prev) => (allSelected ? new Set([...prev].filter((k) => !selectable.some((c) => c.key === k))) : new Set([...prev, ...selectable.map((c) => c.key)])));
@@ -63,21 +64,23 @@ export function ImportSettings({ scroll }: { scroll: boolean }) {
 
   return (
     <div className="status-section" ref={ref} data-testid="import-section">
-      <div className="status-row small import-toolbar" data-wide>
-        <input className="input grow" aria-label={S.importFilter} placeholder={S.importFilter} value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <Button size="icon" aria-label={S.importRefresh} title={S.importRefresh} disabled={loading || running} onClick={reload}>
-          <span className={loading ? "spin" : "import-icon"}>
-            <Refresh size={14} />
-          </span>
-        </Button>
-        <Button size="sm" disabled={running || selectable.length === 0} onClick={toggleAll}>
-          {allSelected ? S.importClear : S.importSelectAll}
-        </Button>
-        <Button size="sm" variant="primary" disabled={running || selected.size === 0} onClick={() => void run()}>
-          {S.importRun(selected.size)}
-        </Button>
-      </div>
-      {list?.available && (
+      {!nothingToImport && (
+        <div className="status-row small import-toolbar" data-wide>
+          <input className="input grow" aria-label={S.importFilter} placeholder={S.importFilter} value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <Button size="icon" aria-label={S.importRefresh} title={S.importRefresh} disabled={loading || running} onClick={reload}>
+            <span className={loading ? "spin" : "import-icon"}>
+              <Refresh size={14} />
+            </span>
+          </Button>
+          <Button size="sm" disabled={running || selectable.length === 0} onClick={toggleAll}>
+            {allSelected ? S.importClear : S.importSelectAll}
+          </Button>
+          <Button size="sm" variant="primary" disabled={running || selected.size === 0} onClick={() => void run()}>
+            {S.importRun(selected.size)}
+          </Button>
+        </div>
+      )}
+      {list?.available && !nothingToImport && (
         <div className="status-row muted small import-counts" data-wide>
           {S.importCounts(list.stats.importable, list.stats.alreadyImported)}
         </div>

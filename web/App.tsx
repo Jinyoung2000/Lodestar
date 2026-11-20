@@ -42,6 +42,7 @@ import { Button } from "./ui/button";
 import { ConfirmHost } from "./ConfirmDialog";
 import { visibleCenterView } from "./screenVisibility";
 import { S } from "./strings";
+import { useCommandKey } from "./commandKeys";
 
 export function App() {
   useDockBadge();
@@ -276,6 +277,7 @@ const BOTTOM_MIN = 120;
 const NO_TERMINALS: { id: string; name: string; dir?: string }[] = [];
 
 function BottomPanel({ height, hidden }: { height: number | null; hidden: boolean }) {
+  const bottomKey = useCommandKey("toggleBottom");
   const tab = useStore((s) => s.bottomTab);
   const agent = useStore((s) => activeAgentOf(s.panes, s.activePaneId, s.agents));
   const workspace = useStore((s) => workspaceForTerminal(s));
@@ -341,7 +343,7 @@ function BottomPanel({ height, hidden }: { height: number | null; hidden: boolea
             )}
           </>
         )}
-        <Button size="icon" aria-label={S.close} title={S.closePanelKey} onClick={() => setState({ bottomOpen: false })}>
+        <Button size="icon" aria-label={S.close} title={S.closePanelKey(bottomKey)} onClick={() => setState({ bottomOpen: false })}>
           <ChevronDown />
         </Button>
       </div>

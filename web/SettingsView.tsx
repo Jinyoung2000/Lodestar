@@ -169,7 +169,7 @@ function SettingRow({ def, ctx }: { def: SettingDef; ctx: SettingsCtx }) {
   const source = def.source?.(ctx) ?? null;
   const description = typeof def.description === "function" ? def.description(ctx) : def.description;
   return (
-    <div className="setting-row" data-setting={def.id} data-modified={modified || undefined} data-wide={def.wide || undefined} data-kind={def.kind} data-fixed={def.fixedReason ? true : undefined}>
+    <div className="setting-row" data-setting={def.id} data-modified={modified || undefined} data-wide={def.wide || undefined} data-kind={def.kind}>
       <div className="setting-text">
         <label className="setting-title" htmlFor={def.kind === "custom" ? undefined : `setting-${def.id}`}>
           {def.title}

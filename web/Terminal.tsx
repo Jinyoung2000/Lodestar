@@ -1,5 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { LigaturesAddon } from "@xterm/addon-ligatures";
+import { SearchAddon, type ISearchOptions } from "@xterm/addon-search";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import { terminalKeySequence } from "./keymap";
 import "@xterm/xterm/css/xterm.css";
@@ -9,6 +10,7 @@ import { wsUrl } from "./rpc";
 import { getState } from "./store";
 import { S } from "./strings";
 import { TerminalAsk } from "./TerminalAsk";
+import { TerminalFind } from "./TerminalFind";
 import { FOCUS_EVENT, isTerminalFocusWanted, markAskHandleFocused, registerAskHandle, takeTerminalFocusWanted, type AskHandle } from "./terminalHandles";
 
 // xterm 은 색을 CSS 변수로 못 받으므로, 토큰의 계산값을 읽어 넘긴다. 테마(data-theme)나 색 스타일(data-style)이 바뀌면 다시 읽는다.
@@ -27,6 +29,28 @@ function tokenColor(name: string) {
 }
 // lint-tokens: allow xterm takes literal ANSI colors
 const LIGHT_ANSI: ITheme = { black: "#000000", red: "#cd3131", green: "#00bc00", yellow: "#949800", blue: "#0451a5", magenta: "#bc05bc", cyan: "#0598bc", white: "#555555", brightBlack: "#666666", brightRed: "#cd3131", brightGreen: "#14ce14", brightYellow: "#b5ba00", brightBlue: "#0451a5", brightMagenta: "#bc05bc", brightCyan: "#0598bc", brightWhite: "#a5a5a5" };
+
+function rgbaOf(css: string) {
+  const [r = 0, g = 0, b = 0, a = 1] = (css.match(/[\d.]+/g) ?? []).map(Number);
+  return { r, g, b, a };
+}
+
+function solidTokenColor(name: string) {
+  const top = rgbaOf(tokenColor(name));
+  const base = rgbaOf(tokenColor("--pane-bg"));
+  const mix = (over: number, under: number) => Math.round(under + (over - under) * top.a).toString(16).padStart(2, "0");
+  return `#${mix(top.r, base.r)}${mix(top.g, base.g)}${mix(top.b, base.b)}`;
+}
+
+function findOptions(): ISearchOptions {
+  const match = solidTokenColor("--find-match-bg");
+  const current = solidTokenColor("--find-match-current-bg");
+  return { decorations: { matchBackground: match, matchOverviewRuler: match, activeMatchBackground: current, activeMatchColorOverviewRuler: current } };
+}
+
+function themeFor(finding: boolean): ITheme {
+  return finding ? { ...terminalTheme(), selectionInactiveBackground: solidTokenColor("--find-match-current-bg") } : terminalTheme();
+}
 
 function terminalTheme(): ITheme {
   return {
@@ -101,6 +125,9 @@ export function TerminalView({ scopeKey, params, active, onExit }: { scopeKey: s
   const hostRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const searchRef = useRef<SearchAddon | null>(null);
+  const [find, setFind] = useState<{ initial: string } | null>(null);
+  const findingRef = useRef(false);
   const termRef = useRef<Terminal | null>(null);
   const ptyIdRef = useRef("");
   const [ask, setAsk] = useState<{ selection: string | null } | null>(null);
@@ -121,6 +148,9 @@ export function TerminalView({ scopeKey, params, active, onExit }: { scopeKey: s
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    const search = new SearchAddon();
+    term.loadAddon(search);
+    searchRef.current = search;
     term.open(host);
     applyTerminalFont(term, host, fit);
     let ligatures = syncLigatures(term, null);
@@ -154,7 +184,7 @@ export function TerminalView({ scopeKey, params, active, onExit }: { scopeKey: s
     });
     observer.observe(host);
     const themeObserver = new MutationObserver(() => {
-      term.options.theme = terminalTheme();
+      term.options.theme = themeFor(findingRef.current);
     });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-style", "data-black"] });
 
@@ -192,6 +222,17 @@ export function TerminalView({ scopeKey, params, active, onExit }: { scopeKey: s
         term.clear();
         term.focus();
       },
+      find: () => {
+        const input = paneRef.current?.querySelector<HTMLInputElement>(".terminal-find input");
+        if (input) {
+          input.focus();
+          input.select();
+        } else {
+          findingRef.current = true;
+          term.options.theme = themeFor(true);
+          setFind({ initial: term.getSelection().split("\n")[0] ?? "" });
+        }
+      },
     };
     const unregisterAsk = registerAskHandle(handle);
     const markFocused = () => markAskHandleFocused(handle);
@@ -201,6 +242,7 @@ export function TerminalView({ scopeKey, params, active, onExit }: { scopeKey: s
       unregisterAsk();
       host.removeEventListener("focusin", markFocused);
       termRef.current = null;
+      searchRef.current = null;
       window.removeEventListener(FOCUS_EVENT, takeFocus);
       window.removeEventListener("resize", onWindowResize);
       zoomTimers.forEach(clearTimeout);
@@ -222,6 +264,20 @@ export function TerminalView({ scopeKey, params, active, onExit }: { scopeKey: s
   return (
     <div className="terminal-pane" ref={paneRef} style={{ display: active ? "flex" : "none" }}>
       <div className="terminal-host" ref={hostRef} />
+      {find && searchRef.current && (
+        <TerminalFind
+          search={searchRef.current}
+          initial={find.initial}
+          options={findOptions}
+          onClose={() => {
+            findingRef.current = false;
+            setFind(null);
+            if (!termRef.current) return;
+            termRef.current.options.theme = themeFor(false);
+            termRef.current.focus();
+          }}
+        />
+      )}
       {ask && termRef.current && (
         <TerminalAsk
           term={termRef.current}

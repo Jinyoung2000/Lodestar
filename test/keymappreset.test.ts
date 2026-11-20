@@ -20,9 +20,16 @@ import {
   chordFollowersOf,
   strokeOfAccelerator,
   setKeymapPreset,
+  setKeymapOverrides,
   stepKey,
+  assignKeys,
+  findConflicts,
+  isRecordableStroke,
+  keysOf,
+  resetKeys,
   type KeyContext,
 } from "../web/keymap";
+import { sanitizeKeymapOverrides } from "../shared/keymapOverrides";
 import { titleOf } from "../web/commands";
 import { FOLD_COMMANDS } from "../web/editorFoldRegions";
 import { shortcutRows, strokeLabel } from "../web/shortcutList";
@@ -268,6 +275,70 @@ test("단축키 목록: webstorm 키가 기호로 읽힌다", () => {
   const missing = WEBSTORM_BINDINGS.filter((b) => !rows.some((r) => r.command === b.command));
   expect(missing.length === 0, `목록에 없는 명령 ${missing.map((b) => b.command)}`);
   return `${rows.length}행`;
+});
+
+test("키 바꾸기: 겹치는 맥락의 같은 키만 충돌로 본다", () => {
+  same(findConflicts(BINDINGS, "toggleSidebar", "Meta+KeyJ", undefined), ["toggleBottom"], "⌘J");
+  same(findConflicts(BINDINGS, "terminalFind", "Meta+KeyI", "terminal"), ["terminalAsk", "quickAsk"], "터미널 ⌘I");
+  same(findConflicts(BINDINGS, "terminalFind", "Alt+Meta+BracketLeft", "terminal"), [], "에디터 전용 키는 터미널과 겹치지 않는다");
+  same(findConflicts(BINDINGS, "toggleSidebar", "Meta+KeyB", undefined), [], "자기 키");
+  return "ok";
+});
+
+test("키 바꾸기: Reassign 은 키를 가져오고 다른 명령은 그 키만 잃는다", () => {
+  const overrides = assignKeys(BINDINGS, undefined, "toggleSidebar", "Meta+KeyJ", ["toggleBottom"]);
+  same(overrides, { toggleSidebar: ["Meta+KeyJ"], toggleBottom: [] }, "overrides");
+  const bindings = bindingsFor("vscode", overrides);
+  same(keysOf(bindings, "toggleSidebar"), ["Meta+KeyJ"], "sidebar");
+  same(keysOf(bindings, "toggleBottom"), [], "bottom");
+  expect(verdict("Meta+KeyJ", outside, bindings) === "toggleSidebar", "⌘J 는 사이드바");
+  expect(verdict("Meta+KeyB", outside, bindings) === "pass", "⌘B 는 비었다");
+  expect(menuAccelerator(bindings, "toggleSidebar") === "Cmd+J" && menuAccelerator(bindings, "toggleBottom") === null, "메뉴 가속키");
+  const feedback = assignKeys(BINDINGS, undefined, "toggleSidebar", "Shift+Meta+KeyX", ["feedback"]);
+  same(feedback.feedback, ["Alt+Meta+KeyF"], "키가 둘이면 가져간 키만 빠진다");
+  return "ok";
+});
+
+test("키 바꾸기: 기본값으로 돌리면 덮어쓴 값이 지워지고, 되돌리기는 그 명령만 지운다", () => {
+  same(assignKeys(BINDINGS, { toggleSidebar: ["Meta+KeyJ"] }, "toggleSidebar", "Meta+KeyB"), {}, "기본값과 같다");
+  same(resetKeys({ toggleSidebar: ["Meta+KeyJ"], toggleBottom: [] }, "toggleBottom"), { toggleSidebar: ["Meta+KeyJ"] }, "reset");
+  return "ok";
+});
+
+test("키 바꾸기: chord 를 받고, 프리셋마다 따로 적용된다", () => {
+  const overrides = assignKeys(BINDINGS, undefined, "toggleSidebar", "Meta+KeyK Meta+KeyT");
+  const bindings = bindingsFor("vscode", overrides);
+  const first = stepKey(null, "Meta+KeyK", outside, 0, bindings);
+  expect(first.kind === "pending", "⌘K 대기");
+  const second = stepKey(first.kind === "pending" ? first.pending : null, "Meta+KeyT", outside, 10, bindings);
+  expect(second.kind === "run" && second.command === "toggleSidebar", "⌘K ⌘T");
+  try {
+    setKeymapOverrides({ webstorm: overrides });
+    expect(activeBindings() === BINDINGS, "vscode 활성 표는 그대로");
+    setKeymapPreset("webstorm");
+    same(keysOf(activeBindings(), "toggleSidebar"), ["Meta+KeyK Meta+KeyT"], "webstorm 에 적용");
+  } finally {
+    setKeymapPreset("vscode");
+    setKeymapOverrides(undefined);
+  }
+  return "ok";
+});
+
+test("키 바꾸기: 수정키 없는 첫 키는 기능 키만, 저장 값은 모양을 검사한다", () => {
+  same(["KeyA", "Shift+KeyA", "Meta+KeyK", "Ctrl+Alt+KeyR", "F5", "Shift+F12", "Escape"].map((k) => isRecordableStroke(k, true)), [false, false, true, true, true, true, false], "첫 키");
+  same(["KeyW", "Enter", "Escape"].map((k) => isRecordableStroke(k, false)), [true, true, false], "둘째 키");
+  same(sanitizeKeymapOverrides({ vscode: { toggleSidebar: ["Meta+KeyJ", "Meta+KeyJ"], bad: "x", "x y": ["Meta+KeyA"], toggleBottom: ["meta+j"] }, other: {}, webstorm: [] }), { vscode: { toggleSidebar: ["Meta+KeyJ"] } }, "sanitize");
+  same(sanitizeKeymapOverrides("nope"), {}, "객체가 아니다");
+  return "ok";
+});
+
+test("키 바꾸기: 키를 잃은 명령도 단축키 목록에 남는다", () => {
+  const overrides = { toggleBottom: [] };
+  const rows = shortcutRows(bindingsFor("vscode", overrides), { changed: new Set(Object.keys(overrides)) });
+  const row = rows.find((r) => r.command === "toggleBottom");
+  expect(!!row && row.keys.length === 0 && row.changed, "Toggle Panel 행");
+  expect(rows.find((r) => r.command === "toggleSidebar")?.changed === false, "바뀌지 않은 행");
+  return "ok";
 });
 
 let failed = 0;

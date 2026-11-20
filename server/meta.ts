@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { query, type Query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { versionedDisplayName } from "../shared/modelName";
 import type { EffortLevel, McpActionResult, McpSessionResult, Meta } from "../shared/protocol";
-import { claudeBin, claudeEnv, claudeErrorText } from "./claude";
+import { claudeBin, claudeEnv, claudeErrorText, claudeInstalled } from "./claude";
 import { errorText, reconnectInSessions, settleMcp, type McpControl } from "./mcp";
 import { HOME } from "./store";
 import { T } from "./strings";
@@ -90,7 +90,8 @@ async function startMeta(cwd: string): Promise<{ meta: Meta; query: Query }> {
 export class MetaService {
   meta: Meta = (() => {
     const cached = readCache();
-    return cached ? { ...EMPTY_META, ...cached } : EMPTY_META;
+    const base = cached ? { ...EMPTY_META, ...cached } : EMPTY_META;
+    return { ...base, claudeMissing: !claudeInstalled() };
   })();
   private q: Query | null = null;
   private loading: Promise<Meta> | null = null;
@@ -106,13 +107,13 @@ export class MetaService {
   refresh(): Promise<Meta> {
     this.loading ??= this.load()
       .then((next) => {
-        this.meta = next.meta;
+        this.meta = { ...next.meta, claudeMissing: false };
         this.q = next.query;
         writeCache(next.meta);
         console.log(`[meta] models=${next.meta.models.length} mcp=${next.meta.mcp.map((m) => `${m.name}:${m.status}`).join(",")}`);
       })
       .catch((error: Error) => {
-        this.meta = { ...this.meta, error: claudeErrorText(error.message) };
+        this.meta = { ...this.meta, error: claudeErrorText(error.message), claudeMissing: !claudeInstalled() };
         console.error("[meta] failed", error);
       })
       .finally(() => {

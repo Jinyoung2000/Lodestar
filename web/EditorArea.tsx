@@ -68,6 +68,7 @@ import { FileTypeIcon } from "./FileTypeIcon";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { hint } from "./hint";
+import { useCommandKey } from "./commandKeys";
 
 // 오른쪽 패널의 에디터 영역: 분할 트리(web/editorGroups.ts)대로 에디터 그룹을 그리고, 그룹마다 탭줄과 본문을 가진다.
 // main 그룹은 변경, 파일 탭(과 카드, 인박스 상세)이 있는 첫 탭줄이다. 탭 본문은 한 번 만든 뒤 DOM 을 옮겨 그룹 사이를 오가므로(TabBodies) 에디터의 편집 내용과 되돌리기 기록이 그대로 따라간다.
@@ -260,7 +261,7 @@ function GroupStrip({ id, activeKey, area, onMenu }: { id: string; activeKey: st
       ))}
       <AddTabMenu group={id} />
       <div className="tabs-tail">
-        {main && <MainActions changesTab={activeKey === "changes"} searchTab={activeKey === "search"} narrow={area.narrow} maximized={area.maximized} onMaximize={area.onMaximize} />}
+        {main && <MainActions changesTab={activeKey === "changes"} narrow={area.narrow} maximized={area.maximized} onMaximize={area.onMaximize} />}
         {searchTabKey && <SearchDetailsButton tabKey={searchTabKey} />}
         <SplitButton group={id} activeKey={activeKey} />
         {!(main && activeKey === "changes") && <GroupMoreMenu group={id} activeKey={activeKey} />}
@@ -272,8 +273,9 @@ function GroupStrip({ id, activeKey, area, onMenu }: { id: string; activeKey: st
 }
 
 function ClosePanelButton() {
+  const rightKey = useCommandKey("toggleRight");
   return (
-    <Button size="icon" aria-label={S.close} title={S.closeSidePanel} onClick={() => setState({ rightOpen: false })}>
+    <Button size="icon" aria-label={S.close} title={S.closeSidePanel(rightKey)} onClick={() => setState({ rightOpen: false })}>
       <Close />
     </Button>
   );
@@ -384,21 +386,23 @@ function useStripScroll(activeKey: string | null) {
 }
 
 function SearchDetailsButton({ tabKey }: { tabKey: string }) {
+  const detailsKey = useCommandKey("searchDetails");
   return (
-    <Button size="icon" aria-label={S.toggleDetailsKey} title={S.toggleDetailsKey} onClick={() => toggleSearchDetails(tabKey)}>
+    <Button size="icon" aria-label={S.toggleDetailsKey(detailsKey)} title={S.toggleDetailsKey(detailsKey)} onClick={() => toggleSearchDetails(tabKey)}>
       <Codicon name="list-flat" />
     </Button>
   );
 }
 
 function SplitButton({ group, activeKey }: { group: string; activeKey: string | null }) {
+  const splitKey = useCommandKey("splitEditorRight");
   const tabs = useStore((s) => s.tabs);
   const movable = tabs.some((t) => t.key === activeKey && (t.group ?? MAIN_GROUP) === group);
   return (
     <Button
       size="icon"
-      aria-label={S.splitEditorRightKey}
-      title={S.splitEditorRightKey}
+      aria-label={S.splitEditorRightKey(splitKey)}
+      title={S.splitEditorRightKey(splitKey)}
       disabled={!movable}
       onClick={(e) => {
         if (activeKey) splitEditor(e.altKey ? "column" : "row", activeKey);
@@ -410,6 +414,7 @@ function SplitButton({ group, activeKey }: { group: string; activeKey: string | 
 }
 
 function TabItem({ tab, activeKey, onMenu }: { tab: Tab; activeKey: string | null; onMenu: (x: number, y: number) => void }) {
+  const closeKey = useCommandKey("close");
   const dragging = useTabDrag()?.key === tab.key;
   const dirty = useStore((s) => !!s.dirtyTabs[tab.key]);
   const deleted = !!useDocFlags(tab.key).deleted;
@@ -460,7 +465,7 @@ function TabItem({ tab, activeKey, onMenu }: { tab: Tab; activeKey: string | nul
           <Codicon name="pinned" />
         </Button>
       ) : (
-        <Button size="icon" className="tab-close" aria-label={S.closeTab(closeLabel)} title={dirty ? `${S.tabDirty}. ${S.closeTabKey}` : S.closeTabKey} onClick={() => void requestCloseTab(tab.key)}>
+        <Button size="icon" className="tab-close" aria-label={S.closeTab(closeLabel)} title={dirty ? `${S.tabDirty}. ${S.closeTabKey(closeKey)}` : S.closeTabKey(closeKey)} onClick={() => void requestCloseTab(tab.key)}>
           <Close />
           <span className="tab-dot" aria-hidden="true" />
         </Button>
@@ -852,7 +857,7 @@ export function SideTabs({ narrow, maximized, onMaximize, standalone = false }: 
         )}
         {standalone && <AddTabMenu group={MAIN_GROUP} />}
         <div className="tabs-tail">
-          <MainActions changesTab={key === "changes"} searchTab={key === "search"} narrow={narrow} maximized={maximized} onMaximize={onMaximize} maximize={!pinned && !narrow} />
+          <MainActions changesTab={key === "changes"} narrow={narrow} maximized={maximized} onMaximize={onMaximize} maximize={!pinned && !narrow} />
           {!narrow && <ListToggle changesTab={key === "changes"} />}
           {pinned ? (
             <Button size="icon" aria-label={S.hidePinned} title={S.hidePinned} onClick={pinned.toggle}>

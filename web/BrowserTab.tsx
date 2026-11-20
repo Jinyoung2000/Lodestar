@@ -21,6 +21,7 @@ import type { BrowserSearchEngine } from "../shared/protocol";
 import type { WebviewElement } from "./webview";
 import type { EffectiveStorage } from "./browserUrl";
 import { hint } from "./hint";
+import { useCommandKey } from "./commandKeys";
 
 export function BrowserTabView({ tab, active }: { tab: BrowserTab; active: boolean }) {
   const engineRef = useRef<Engine>(NO_ENGINE);
@@ -619,6 +620,7 @@ type BarProps = {
 };
 
 function BrowserBar({ inputRef, address, committed, url, onAddress, onSubmit, canBack, canForward, onBack, onForward, onReload, onDevTools, actions, native }: BarProps) {
+  const addElementKey = useCommandKey("addElement");
   const onKey = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
     if (event.key === "Enter") onSubmit(address);
@@ -682,7 +684,7 @@ function BrowserBar({ inputRef, address, committed, url, onAddress, onSubmit, ca
           </Button>
         )}
         <div className="browser-extra browser-add-element">
-          <Button size="icon" variant={actions.picking === "element" ? "ghost-on" : "ghost"} aria-label={S.addElementToChat} aria-pressed={actions.picking === "element"} title={native ? S.addElementKey : S.browserDesktopOnly} disabled={!native || !url} onClick={actions.onAddElement}>
+          <Button size="icon" variant={actions.picking === "element" ? "ghost-on" : "ghost"} aria-label={S.addElementToChat} aria-pressed={actions.picking === "element"} title={native ? S.addElementKey(addElementKey) : S.browserDesktopOnly} disabled={!native || !url} onClick={actions.onAddElement}>
             <Codicon name="inspect" />
           </Button>
           <DropdownMenu>

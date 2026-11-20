@@ -47,8 +47,6 @@ type Common = {
   reset?: (c: SettingsCtx) => void;
   // 컨트롤이 길어 설명 아래 한 줄을 다 쓰는 행
   wide?: boolean;
-  // 값을 바꿀 수 없는 행(이유는 title 속성으로)
-  fixedReason?: string;
   // 설명 아래에 붙는 상태 줄(SettingsView 가 그린다). release 는 설치된 버전과 최신 버전, 릴리스 노트 링크
   extra?: "release";
 };
@@ -292,16 +290,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   { ...text("browserAutoReload"), group: "browser", kind: "switch", ...plain("browserAutoReload", true), value: (c) => c.settings.browserAutoReload ?? true, set: (v) => save({ browserAutoReload: v }) },
   { ...text("browserChatTools"), group: "browser", kind: "switch", ...plain("browserChatTools", true), value: (c) => c.settings.browserChatTools ?? true, set: (v) => save({ browserChatTools: v }) },
   {
-    ...text("browserNewTabPlacement"),
-    group: "browser",
-    kind: "enum",
-    fixedReason: S.browserNewTabPlacementWhyFixed,
-    value: () => "activeGroup",
-    set: () => undefined,
-    modified: () => false,
-    options: () => [{ value: "activeGroup", label: S.browserNewTabPlacementChoice }],
-  },
-  {
     ...text("notionLinkTarget"),
     group: "browser",
     kind: "enum",
@@ -316,7 +304,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     ],
   },
   { ...text("browserOpenLocalhostLinks"), group: "browser", kind: "switch", ...plain("browserOpenLocalhostLinks", true), value: (c) => c.settings.browserOpenLocalhostLinks ?? true, set: (v) => save({ browserOpenLocalhostLinks: v }) },
-  { ...text("browserRemoteProxy"), group: "browser", kind: "switch", fixedReason: S.browserRemoteProxyWhyFixed, value: () => false, set: () => undefined, modified: () => false },
   {
     ...text("browserPageZoom"),
     group: "browser",
@@ -355,8 +342,7 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     set: (v) => save({ morningReviewTime: v.trim() }),
     validate: (v) => (parseReviewTime(v) ? null : S.reviewTimeInvalid),
   },
-  { ...text("autoUpdateWhenIdle"), group: "sessions", kind: "switch", ...plain("autoUpdateWhenIdle", false), value: (c) => c.settings.autoUpdateWhenIdle ?? false, set: (v) => save({ autoUpdateWhenIdle: v }), keywords: "update restart install build idle away automatic" },
-  { ...text("useProviderEnv"), group: "sessions", kind: "switch", ...plain("useProviderEnv", false), value: (c) => c.settings.useProviderEnv ?? false, set: (v) => save({ useProviderEnv: v }), keywords: "api key anthropic bedrock vertex foundry billing environment" },
+  { ...text("autoUpdateWhenIdle"), group: "general", kind: "switch", ...plain("autoUpdateWhenIdle", false), value: (c) => c.settings.autoUpdateWhenIdle ?? false, set: (v) => save({ autoUpdateWhenIdle: v }), keywords: "update restart install build idle away automatic" },
   { ...text("notifyOnResponse"), group: "notifications", kind: "switch", ...plain("notifyOnResponse", true), value: (c) => c.settings.notifyOnResponse ?? true, set: (v) => save({ notifyOnResponse: v }) },
   { ...text("notifyOnApproval"), group: "notifications", kind: "switch", ...plain("notifyOnApproval", true), value: (c) => c.settings.notifyOnApproval ?? true, set: (v) => save({ notifyOnApproval: v }) },
   { ...text("notifyNewVersion"), group: "notifications", kind: "switch", ...plain("notifyNewVersion", false), value: (c) => c.settings.notifyNewVersion ?? false, set: (v) => save({ notifyNewVersion: v }), keywords: "update release version github", extra: "release" },
@@ -442,10 +428,10 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   },
   // QUICKENTRY: 전역 빠른 입력창. 등록은 Electron 메인이 하고(web/quickEntrySync.ts 가 설정을 알린다), 상태는 단축키 행이 보인다.
   { ...text("expandSteps"), group: "sessions", kind: "switch", keywords: "steps tools collapse expand finished working", ...plain("expandSteps", false), value: (c) => c.settings.expandSteps === true, set: (v) => save({ expandSteps: v }) },
-  { ...text("quickEntryEnabled"), group: "sessions", kind: "switch", keywords: "global shortcut hotkey option c quick entry launcher", ...plain("quickEntryEnabled", true), value: (c) => c.settings.quickEntryEnabled ?? true, set: (v) => save({ quickEntryEnabled: v }) },
+  { ...text("quickEntryEnabled"), group: "general", kind: "switch", keywords: "global shortcut hotkey option c quick entry launcher", ...plain("quickEntryEnabled", true), value: (c) => c.settings.quickEntryEnabled ?? true, set: (v) => save({ quickEntryEnabled: v }) },
   {
     ...text("quickEntryShortcut"),
-    group: "sessions",
+    group: "general",
     kind: "custom",
     component: "quickEntryShortcut",
     wide: true,
@@ -560,7 +546,8 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     },
   },
 
-  { ...text("feedbackAutoTidy"), group: "sessions", kind: "switch", ...plain("feedbackAutoTidy", false), value: (c) => c.settings.feedbackAutoTidy ?? false, set: (v) => save({ feedbackAutoTidy: v }), keywords: "improvements feedback worktree backup disk cleanup" },
+  { ...text("feedbackAutoTidy"), group: "general", kind: "switch", ...plain("feedbackAutoTidy", false), value: (c) => c.settings.feedbackAutoTidy ?? false, set: (v) => save({ feedbackAutoTidy: v }), keywords: "improvements feedback worktree backup disk cleanup" },
+  { ...text("useProviderEnv"), group: "general", kind: "switch", ...plain("useProviderEnv", false), value: (c) => c.settings.useProviderEnv ?? false, set: (v) => save({ useProviderEnv: v }), keywords: "api key anthropic bedrock vertex foundry billing environment" },
 
   // --- Mobile ---
   { ...text("mobileAccess"), group: "mobile", kind: "switch", ...plain("mobileAccess", false), value: (c) => c.settings.mobileAccess ?? false, set: (v) => save({ mobileAccess: v }), keywords: "iphone phone ios lan qr pairing" },

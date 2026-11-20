@@ -11,7 +11,7 @@ import { highlightLanguageFor } from "./lsp";
 import { viewProblem } from "./markerView";
 import { explainProblem, fixWithClaude, openRelated, problemContext } from "./problemActions";
 import { openQuickFix } from "./quickFix";
-import { strokeLabel } from "./shortcutList";
+import { commandKeyLabel, strokeLabel } from "./shortcutList";
 import { S } from "./strings";
 import { copyResult } from "./typeCopy";
 
@@ -143,7 +143,7 @@ function relatedBlock(data: HoverData) {
 function actionsBlock(view: EditorView, data: HoverData, pos: number, workspaceId: string) {
   const items: { label: string; run: () => void }[] = [];
   const problem = data.diagnostics[0];
-  if (problem) items.push({ label: S.hoverViewProblem, run: () => viewProblem(view, problem) });
+  if (problem) items.push({ label: S.hoverViewProblem(commandKeyLabel("nextProblem")), run: () => viewProblem(view, problem) });
   // 키는 지금 프리셋의 표에서 읽는다. WebStorm 프리셋에서 ⌘. 은 접기라 빠른 수정은 ⌥↵ 다.
   if (data.hasFixes) {
     const fixKey = activeBindings().find((b) => b.command === "quickFix" && b.keys.length === 1)?.keys[0];
@@ -151,7 +151,7 @@ function actionsBlock(view: EditorView, data: HoverData, pos: number, workspaceI
   }
   if (problem) {
     const context = () => problemContext(view, workspaceId, problem, data.related);
-    items.push({ label: S.hoverExplain, run: () => { const ctx = context(); if (ctx) explainProblem(view, ctx); } });
+    items.push({ label: S.hoverExplain(commandKeyLabel("quickAsk")), run: () => { const ctx = context(); if (ctx) explainProblem(view, ctx); } });
     items.push({ label: S.hoverFixWithClaude, run: () => { const ctx = context(); if (ctx) fixWithClaude(ctx); } });
   }
   if (data.type) items.push({ label: S.copyType, run: () => copyResult(data.type, "type") });

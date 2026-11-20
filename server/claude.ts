@@ -13,6 +13,10 @@ export function claudeBin(env: NodeJS.ProcessEnv = process.env): string {
   return findExecutable("claude", withLoginPath(env.PATH)) ?? native;
 }
 
+export function claudeInstalled(env: NodeJS.ProcessEnv = process.env) {
+  return findExecutable(claudeBin(env), withLoginPath(env.PATH)) !== null;
+}
+
 export function claudeErrorText(text: string) {
   return /Claude Code (native binary|executable) not found|spawn \S*claude ENOENT/i.test(text) ? T.claudeNotInstalled : text;
 }

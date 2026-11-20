@@ -10,7 +10,7 @@ import { applyUiType } from "./uiType";
 import { applyHostColors } from "../shared/embed";
 import { EMBED } from "./embed";
 import { QUICK } from "./quickView"; // QUICKENTRY
-import { setKeymapPreset } from "./keymap";
+import { setKeymapOverrides, setKeymapPreset } from "./keymap";
 import * as store from "./store";
 import { getState, subscribe } from "./store";
 import { mark } from "./perfMarks";
@@ -44,7 +44,10 @@ function applyTheme() {
 lightMedia.addEventListener("change", applyTheme);
 subscribe(applyTheme);
 // 단축키 프리셋: settings.keymapPreset 를 단축키 표(web/keymap.ts)에 반영한다. 같은 값이면 아무 일도 하지 않는다.
-subscribe(() => setKeymapPreset(getState().settings?.keymapPreset ?? "vscode"));
+subscribe(() => {
+  setKeymapPreset(getState().settings?.keymapPreset ?? "vscode");
+  setKeymapOverrides(getState().settings?.keymapOverrides);
+});
 // 코드 글꼴: settings 의 editorFont* 를 CSS 변수로 덮는다.
 const applyFont = () => {
   applyEditorFont(getState().settings);

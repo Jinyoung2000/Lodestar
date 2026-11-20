@@ -1,4 +1,4 @@
-import type { KeymapPreset } from "../shared/protocol";
+import type { CommandKeys, KeymapOverrides, KeymapPreset } from "../shared/protocol";
 
 // 단축키 표와 chord(두 단계 키) 상태 기계. DOM 을 건드리지 않아서 Electron 메인(electron/main.ts)과 단위 시험이 그대로 가져다 쓴다.
 // 키는 글자가 아니라 물리 키(KeyboardEvent.code)로 적는다. 한글 입력 중이거나 ₩ 처럼 글자가 다른 배열에서도 같은 키로 읽힌다.
@@ -148,6 +148,7 @@ export const BINDINGS: Binding[] = [
   // 줄로 이동
   { keys: ["Ctrl+KeyG"], command: "gotoLine", when: "editorArea" },
   { keys: ["Meta+KeyI"], command: "terminalAsk", when: "terminal" },
+  { keys: ["Meta+KeyF"], command: "terminalFind", when: "terminal" },
   { keys: ["Meta+KeyI"], command: "quickAsk" },
   { keys: ["Shift+Meta+KeyB"], command: "btw" },
   { keys: ["Shift+Meta+KeyK"], command: "board", when: "notEditor" },
@@ -313,9 +314,26 @@ export const WEBSTORM_DROPS: readonly { command: string; keys: readonly string[]
 ];
 
 const presetCache = new Map<KeymapPreset, Binding[]>();
+const overrideCache = new Map<KeymapPreset, WeakMap<CommandKeys, Binding[]>>();
+
+export function bindingsFor(preset: KeymapPreset, overrides?: CommandKeys): Binding[] {
+  const base = presetBindings(preset);
+  if (!overrides || Object.keys(overrides).length === 0) return base;
+  let cache = overrideCache.get(preset);
+  if (!cache) {
+    cache = new WeakMap();
+    overrideCache.set(preset, cache);
+  }
+  let list = cache.get(overrides);
+  if (!list) {
+    list = applyOverrides(base, overrides);
+    cache.set(overrides, list);
+  }
+  return list;
+}
 
 // 프리셋의 전체 표. 같은 인자면 같은 배열을 돌려준다(키마다 stepKey 가 부른다).
-export function bindingsFor(preset: KeymapPreset): Binding[] {
+export function presetBindings(preset: KeymapPreset): Binding[] {
   if (preset !== "webstorm") return BINDINGS;
   let list = presetCache.get(preset);
   if (!list) {
@@ -328,17 +346,102 @@ export function bindingsFor(preset: KeymapPreset): Binding[] {
 
 // 지금 쓰는 프리셋. 화면이 설정을 받을 때마다 web/main.tsx 가 넣는다. DOM 과 store 에 기대지 않아 이 모듈은 메인 프로세스와 시험이 그대로 쓴다.
 let activePreset: KeymapPreset = "vscode";
+let activeOverrides: KeymapOverrides = {};
 
 export function setKeymapPreset(preset: KeymapPreset) {
   activePreset = preset;
+}
+
+export function setKeymapOverrides(overrides: KeymapOverrides | undefined) {
+  activeOverrides = overrides ?? {};
 }
 
 export function activeKeymapPreset(): KeymapPreset {
   return activePreset;
 }
 
+export function activeCommandKeys(): CommandKeys | undefined {
+  return activeOverrides[activePreset];
+}
+
 export function activeBindings(): Binding[] {
-  return bindingsFor(activePreset);
+  return bindingsFor(activePreset, activeOverrides[activePreset]);
+}
+
+export function applyOverrides(base: readonly Binding[], overrides: CommandKeys): Binding[] {
+  const result: Binding[] = [];
+  const placed = new Set<string>();
+  for (const binding of base) {
+    const keys = Object.hasOwn(overrides, binding.command) ? overrides[binding.command] : undefined;
+    if (!keys) {
+      result.push(binding);
+      continue;
+    }
+    if (placed.has(binding.command)) continue;
+    placed.add(binding.command);
+    for (const sequence of keys) result.push({ keys: sequence.split(" ") as Binding["keys"], command: binding.command, ...(binding.when ? { when: binding.when } : {}) });
+  }
+  return result;
+}
+
+export function keysOf(bindings: readonly Binding[], command: string): string[] {
+  return [...new Set(bindings.filter((b) => b.command === command).map((b) => b.keys.join(" ")))];
+}
+
+export function whenOf(bindings: readonly Binding[], command: string): When | undefined {
+  return bindings.find((b) => b.command === command)?.when;
+}
+
+const CONTEXT_FLAGS = ["inTerminal", "inEditor", "inEditorArea", "inComposer", "inBrowser", "inSearch", "inElectron", "inChat", "approvalPending", "inFocusLayout"] as const;
+let possible: KeyContext[] | null = null;
+
+function possibleContexts(): KeyContext[] {
+  if (possible) return possible;
+  possible = [];
+  for (let mask = 0; mask < 1 << CONTEXT_FLAGS.length; mask++) {
+    const ctx: KeyContext = { inTerminal: false, inEditor: false };
+    CONTEXT_FLAGS.forEach((flag, i) => (ctx[flag] = (mask & (1 << i)) !== 0));
+    if (ctx.inTerminal && (ctx.inEditor || ctx.inEditorArea || ctx.inComposer)) continue;
+    if (ctx.inEditor && ctx.inComposer) continue;
+    possible.push(ctx);
+  }
+  return possible;
+}
+
+export function whenOverlaps(a: When | undefined, b: When | undefined): boolean {
+  return a === b || possibleContexts().some((ctx) => whenOk(a, ctx) && whenOk(b, ctx));
+}
+
+export function findConflicts(bindings: readonly Binding[], command: string, sequence: string, when: When | undefined, base: readonly Binding[] = bindings): string[] {
+  const sharedByDefault = (other: string) => keysOf(base, command).includes(sequence) && keysOf(base, other).includes(sequence);
+  return [...new Set(bindings.filter((b) => b.command !== command && b.keys.join(" ") === sequence && whenOverlaps(b.when, when)).map((b) => b.command))].filter((other) => !sharedByDefault(other));
+}
+
+const sameKeys = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((key) => b.includes(key));
+
+function withoutDefaults(base: readonly Binding[], overrides: CommandKeys): CommandKeys {
+  return Object.fromEntries(Object.entries(overrides).filter(([command, keys]) => base.some((b) => b.command === command) && !sameKeys(keys, keysOf(base, command))));
+}
+
+export function assignKeys(base: readonly Binding[], current: CommandKeys | undefined, command: string, sequence: string, takeFrom: readonly string[] = []): CommandKeys {
+  const effective = current ? applyOverrides(base, current) : base;
+  const next: CommandKeys = { ...current, [command]: [sequence] };
+  for (const other of takeFrom) next[other] = keysOf(effective, other).filter((key) => key !== sequence);
+  return withoutDefaults(base, next);
+}
+
+export function resetKeys(current: CommandKeys | undefined, command: string): CommandKeys {
+  const next: CommandKeys = { ...current };
+  delete next[command];
+  return next;
+}
+
+const FUNCTION_KEY = /(^|\+)F([1-9]|1[0-9]|20)$/;
+
+export function isRecordableStroke(stroke: string, first: boolean): boolean {
+  if (stroke === "Escape") return false;
+  if (!first) return true;
+  return /(^|\+)(Ctrl|Alt|Meta)\+/.test(stroke) || FUNCTION_KEY.test(stroke);
 }
 
 // code 가 비어 오는 합성 입력(검증 창구의 sendInputEvent)을 위해 key 로 code 를 되짚는다.
@@ -458,9 +561,10 @@ export const BROWSER_STROKES: ReadonlySet<string> = browserStrokes(BINDINGS);
 const EDITOR_REACHABLE: ReadonlySet<When | undefined> = new Set<When | undefined>([undefined, "editor", "editorArea", "editorGroupKeys", "electron", "notTerminal", "notComposer"]);
 const PLAIN_EDITING_KEY = /^(Escape|Enter|Tab|Backspace|Delete|Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown|Space)$/;
 
-export function editorTakenStrokes(preset: KeymapPreset): ReadonlySet<string> {
-  if (preset !== "webstorm") return new Set();
-  return new Set(WEBSTORM_BINDINGS.filter((b) => b.keys.length === 1 && EDITOR_REACHABLE.has(b.when)).map((b) => b.keys[0]).filter((stroke) => !PLAIN_EDITING_KEY.test(stroke)));
+export function editorTakenStrokes(preset: KeymapPreset, overrides?: CommandKeys): ReadonlySet<string> {
+  const presetTaken = preset === "webstorm" ? WEBSTORM_BINDINGS : [];
+  const overridden = overrides ? bindingsFor(preset, overrides).filter((b) => Object.hasOwn(overrides, b.command)) : [];
+  return new Set([...presetTaken, ...overridden].filter((b) => b.keys.length === 1 && EDITOR_REACHABLE.has(b.when)).map((b) => b.keys[0]).filter((stroke) => !PLAIN_EDITING_KEY.test(stroke)));
 }
 
 // Electron 메뉴 가속키 표기. 단독 키만 되고 chord 와 모르는 키는 null.

@@ -14,6 +14,7 @@ export type ShortcutRow = {
   when: string | null;
   // 검색에 쓰는 소문자 글. 이름, 범주, 조건 안내, 키 이름(⌘ 은 cmd 도 된다)
   search: string;
+  changed: boolean;
 };
 
 export const GENERAL = "General";
@@ -33,9 +34,17 @@ export function strokeLabel(stroke: string) {
   return parts.map((p) => MODIFIER_SYMBOLS[p] ?? p).join("") + (KEY_SYMBOLS[code] ?? code.replace(/^(Key|Digit)/, ""));
 }
 
+export function preferredBinding(command: string, bindings: readonly Binding[] = activeBindings()): Binding | undefined {
+  return bindings.find((b) => b.command === command && !b.when) ?? bindings.find((b) => b.command === command);
+}
+
 export function commandKeyLabel(command: string, bindings: readonly Binding[] = activeBindings()): string | null {
-  const binding = bindings.find((b) => b.command === command);
+  const binding = preferredBinding(command, bindings);
   return binding ? binding.keys.map(strokeLabel).join(" ") : null;
+}
+
+export function commandKeyLabels(command: string, bindings: readonly Binding[] = activeBindings()): string[] {
+  return [...new Set(bindings.filter((b) => b.command === command).map((b) => b.keys.map(strokeLabel).join(" ")))];
 }
 
 export function categoryOf(title: string) {
@@ -43,13 +52,14 @@ export function categoryOf(title: string) {
   return at > 0 ? title.slice(0, at) : GENERAL;
 }
 
-export function shortcutRows(bindings: Binding[] = BINDINGS, options: { desktop?: boolean; hidden?: ReadonlySet<string> } = {}): ShortcutRow[] {
+export function shortcutRows(bindings: Binding[] = BINDINGS, options: { desktop?: boolean; hidden?: ReadonlySet<string>; changed?: ReadonlySet<string> } = {}): ShortcutRow[] {
   const byCommand = new Map<string, Binding[]>();
   for (const binding of bindings) {
     if (NOT_LISTED.has(binding.command) || options.hidden?.has(binding.command)) continue;
     if (options.desktop === false && binding.when === "electron") continue;
     byCommand.set(binding.command, [...(byCommand.get(binding.command) ?? []), binding]);
   }
+  for (const command of options.changed ?? []) if (!byCommand.has(command) && !NOT_LISTED.has(command) && !options.hidden?.has(command)) byCommand.set(command, []);
   const rows: ShortcutRow[] = [];
   for (const [command, list] of byCommand) {
     const title = titleOf(command);
@@ -65,7 +75,7 @@ export function shortcutRows(bindings: Binding[] = BINDINGS, options: { desktop?
     const when = commonWhen(list.map((b) => b.when));
     const category = categoryOf(title);
     const keyWords = keys.flat().map((step) => `${step} ${[...step].map((ch) => KEY_WORDS[ch] ?? "").join(" ")}`).join(" ");
-    rows.push({ command, title, category, keys, when, search: `${title} ${category} ${when ?? ""} ${keyWords}`.toLowerCase() });
+    rows.push({ command, title, category, keys, when, search: `${title} ${category} ${when ?? ""} ${keyWords}`.toLowerCase(), changed: !!options.changed?.has(command) });
   }
   return rows.sort((a, b) => (a.category === b.category ? a.title.localeCompare(b.title) : a.category === GENERAL ? -1 : b.category === GENERAL ? 1 : a.category.localeCompare(b.category)));
 }

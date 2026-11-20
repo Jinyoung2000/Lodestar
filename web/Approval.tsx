@@ -16,6 +16,7 @@ import type { PermissionItem } from "./timelineModel";
 import { useEditPreview } from "./useEditPreview";
 import { PlanCard } from "./PlanCard";
 import { QuestionCard } from "./QuestionCard";
+import { useAriaKeyShortcut, useCommandKey } from "./commandKeys";
 
 // 입력창 바로 위에 뜨는 승인 카드(B2-16). 대화 안에는 "1 confirmation pending" 한 줄만 남는다.
 // fixB: 질문(AskUserQuestion)과 계획 승인(ExitPlanMode)은 허용 단추가 아니라 전용 카드로 답한다.
@@ -29,6 +30,10 @@ export function ApprovalCard({ agentId, item }: { agentId: string; item: Permiss
 // 버튼: Allow Once = allow(주 단추, 사이드바와 알림의 Allow 와 같은 범위), 분할 항목 Allow in this Session = allowAlways, Skip = deny.
 function ToolApprovalCard({ agentId, item }: { agentId: string; item: PermissionItem }) {
   const [expanded, setExpanded] = useState(false);
+  const acceptKey = useCommandKey("acceptTool");
+  const skipKey = useCommandKey("skipTool");
+  const acceptAria = useAriaKeyShortcut("acceptTool");
+  const skipAria = useAriaKeyShortcut("skipTool");
   const respond = (decision: "allow" | "allowAlways" | "deny") => {
     void rpc.call("agents.respondPermission", { agentId, itemId: item.id, decision }).catch((error: Error) => flash(error.message));
   };
@@ -80,7 +85,7 @@ function ToolApprovalCard({ agentId, item }: { agentId: string; item: Permission
       )}
       <div className="approval-actions">
         <div className="split-button">
-          <Button variant="primary" size="default" data-approval-primary aria-keyshortcuts="Meta+Enter" title={S.allowOnceKey} onClick={() => respond("allow")}>
+          <Button variant="primary" size="default" data-approval-primary aria-keyshortcuts={acceptAria} title={S.allowOnceKey(acceptKey)} onClick={() => respond("allow")}>
             {S.allowOnce}
           </Button>
           <DropdownMenu>
@@ -97,7 +102,7 @@ function ToolApprovalCard({ agentId, item }: { agentId: string; item: Permission
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <Button variant="secondary" size="default" data-approval-skip aria-keyshortcuts="Alt+Meta+Enter" title={S.skipKey} onClick={() => respond("deny")}>
+        <Button variant="secondary" size="default" data-approval-skip aria-keyshortcuts={skipAria} title={S.skipKey(skipKey)} onClick={() => respond("deny")}>
           {S.skip}
         </Button>
         <ApprovalHints hints={S.approvalToolHints} />

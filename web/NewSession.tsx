@@ -36,6 +36,7 @@ export function NewAgentView({ paneId, workspaceId, seed, handoff, closable }: {
   const pickedHarness = useStore((s) => s.draftHarness[paneId] ?? s.lastPicked.harness ?? "claude");
   const harness: Harness = handoff ? "claude" : pickedHarness;
   const codexMeta = useCodexMeta(harness);
+  const claudeMissing = useStore((s) => s.meta?.claudeMissing === true);
   const lastCodexModel = useStore((s) => s.lastPicked.codexModel);
   const lastCodexEffort = useStore((s) => s.lastPicked.codexEffort);
   // 보드 카드의 "Start in Worktree" 로 열렸으면 worktree 와 카드 제목에서 만든 브랜치 이름으로 시작한다.
@@ -128,6 +129,11 @@ export function NewAgentView({ paneId, workspaceId, seed, handoff, closable }: {
             <FolderPill paneId={paneId} workspaceId={workspaceId} name={workspace?.name ?? S.chatPill} />
             {!handoff && <HarnessSwitch paneId={paneId} harness={harness} />}
           </div>
+          {harness === "claude" && claudeMissing && (
+            <div className="new-session-codex-note" role="status">
+              {S.claudeNotInstalled}
+            </div>
+          )}
           {harness === "codex" && codexMeta && (!codexMeta.installed || !codexMeta.loggedIn || codexMeta.error || missingDefault) && (
             <div className="new-session-codex-note" role="status">
               {!codexMeta.installed ? S.codexNotInstalled : !codexMeta.loggedIn ? S.codexNotSignedIn : codexMeta.error ? S.codexLoadFailed(codexMeta.error) : S.codexDefaultModelMissing(codexMeta.defaultModel ?? "")}

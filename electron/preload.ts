@@ -83,6 +83,7 @@ contextBridge.exposeInMainWorld("agentNavNative", {
     ipcRenderer.on("agent-nav:daemon-state", handler);
     return () => ipcRenderer.removeListener("agent-nav:daemon-state", handler);
   },
+  pickFolder: (): Promise<string | null> => ipcRenderer.invoke("agent-nav:pick-folder"),
   windowZoom: (action: "in" | "out" | "reset"): Promise<number> => ipcRenderer.invoke("agent-nav:zoom", action),
   // 여러 창: 새 창 열기(⇧⌘N), 이 창 닫기(⇧⌘W), 이 창 칸에 열린 세션 알리기(알림을 누르면 그 세션이 열린 창으로 간다), 살아 있는 창 id 목록과 그 변화(닫힌 창의 저장본 정리용)
   newWindow: (): Promise<void> => ipcRenderer.invoke("agent-nav:new-window"),

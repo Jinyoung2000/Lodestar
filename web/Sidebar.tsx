@@ -44,6 +44,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { useCommandKey, useCommandKeycaps } from "./commandKeys";
 
 // 우클릭으로 연 메뉴는 마우스 위치(at)에 뜨고, 행의 ... 버튼으로 연 메뉴는 버튼 아래에 뜬다.
 type RowMenu = { id: string; at?: { x: number; y: number } };
@@ -103,33 +104,43 @@ export function Sidebar({ width }: { width: number | null }) {
     previousChatCount.current = chatCount;
   }, [chatCount]);
   const allCollapsed = groups.length > 0 && groups.every((g) => collapsedGroups.includes(g.id));
+  const newSessionKey = useCommandKey("newSession");
+  const newSessionCaps = useCommandKeycaps("newSession");
+  const boardKey = useCommandKey("board");
+  const inboxKey = useCommandKey("inbox");
+  const notesKey = useCommandKey("notes");
 
   return (
     <nav className="sidebar" aria-label={S.sessions} style={width == null ? undefined : { width }}>
       <div className="sidebar-top">
         <button type="button" className="side-item" onClick={() => runCommand("newSession")}>
           <Plus /> {S.newSession}
-          <span className="keycaps" aria-label="Command N">
-            <kbd className="keycap">⌘</kbd>
-            <kbd className="keycap">N</kbd>
-          </span>
+          {newSessionCaps.length > 0 && (
+            <span className="keycaps" aria-label={newSessionKey ?? undefined}>
+              {newSessionCaps.map((cap, n) => (
+                <kbd key={n} className="keycap">
+                  {cap}
+                </kbd>
+              ))}
+            </span>
+          )}
         </button>
         {showBoard && (
-          <button type="button" className="side-item" data-active={centerView === "board" || undefined} aria-pressed={centerView === "board"} title={S.boardKey} onClick={() => toggleBoard()}>
+          <button type="button" className="side-item" data-active={centerView === "board" || undefined} aria-pressed={centerView === "board"} title={S.boardKey(boardKey)} onClick={() => toggleBoard()}>
             <BoardIcon /> {S.board}
             {reviewUnread && <span className="review-dot" role="img" aria-label={S.reviewUnreadDot} />}
-            <span className="kbd">⇧⌘K</span>
+            {boardKey && <span className="kbd">{boardKey}</span>}
           </button>
         )}
         {showSlack && (
-          <button type="button" className="side-item" data-active={centerView === "inbox" || undefined} aria-pressed={centerView === "inbox"} title={S.inboxKey} onClick={() => toggleInbox()}>
+          <button type="button" className="side-item" data-active={centerView === "inbox" || undefined} aria-pressed={centerView === "inbox"} title={S.inboxKey(inboxKey)} onClick={() => toggleInbox()}>
             <Chat /> {S.inbox}
             {inboxUnread > 0 && <span className="inbox-badge" aria-label={`${inboxUnread} unread`}>{inboxUnread}</span>}
-            <span className="kbd">⇧⌘L</span>
+            {inboxKey && <span className="kbd">{inboxKey}</span>}
           </button>
         )}
-        <button type="button" className="side-item" data-active={centerView === "notes" || undefined} aria-pressed={centerView === "notes"} title={S.notesKey} onClick={() => toggleNotes()}>
-          <NoteIcon /> {S.notes} <span className="kbd">⌥⌘N</span>
+        <button type="button" className="side-item" data-active={centerView === "notes" || undefined} aria-pressed={centerView === "notes"} title={S.notesKey(notesKey)} onClick={() => toggleNotes()}>
+          <NoteIcon /> {S.notes} {notesKey && <span className="kbd">{notesKey}</span>}
         </button>
         <button type="button" className="side-item" onClick={() => setAddOpen((v) => !v)}>
           <Plus /> {S.addWorkspace}
@@ -252,6 +263,7 @@ function useMinuteClock() {
 function SessionsHeader({ customView, ordering, allCollapsed, onToggleAll }: { customView: boolean; ordering: Ordering; allCollapsed: boolean; onToggleAll: () => void }) {
   const view = useSessionList((s) => s.view);
   const [compact, setCompact] = useCompactView();
+  const searchKey = useCommandKey("search");
   return (
     <div className="sessions-header">
       <span className="sessions-title">{S.sessions}</span>
@@ -328,7 +340,7 @@ function SessionsHeader({ customView, ordering, allCollapsed, onToggleAll }: { c
       <Button size="icon" aria-label={S.sessionsHistory} title={S.sessionsHistory} onClick={() => setState({ overlay: { kind: "search", tab: "sessions" } })}>
         <Codicon name="history" />
       </Button>
-      <Button size="icon" aria-label={S.searchAll} title={S.searchAllKey} onClick={() => setState({ overlay: { kind: "search", tab: "all" } })}>
+      <Button size="icon" aria-label={S.searchAll} title={S.searchAllKey(searchKey)} onClick={() => setState({ overlay: { kind: "search", tab: "all" } })}>
         <Search />
       </Button>
       <DropdownMenu>

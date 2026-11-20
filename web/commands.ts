@@ -12,7 +12,7 @@ export const KEYLESS_COMMANDS = ["keepFile", "undoFile", "newUntitled", "newFile
 const DESKTOP_ONLY = new Set(["restartDaemon"]);
 
 // hidden 은 설정 Show Board, Show Slack 이 꺼져 숨긴 명령의 이름이다(web/screenVisibility.ts hiddenCommands). 팔레트에서 뺀다.
-export function paletteCommands(bindings: Binding[] = BINDINGS, options: { desktop?: boolean; hidden?: ReadonlySet<string> } = {}): PaletteCommand[] {
+export function paletteCommands(bindings: Binding[] = BINDINGS, options: { desktop?: boolean; hidden?: ReadonlySet<string>; unbound?: readonly string[] } = {}): PaletteCommand[] {
   const seen = new Set<string>();
   const list: PaletteCommand[] = [];
   for (const binding of bindings) {
@@ -23,6 +23,13 @@ export function paletteCommands(bindings: Binding[] = BINDINGS, options: { deskt
     if (!title) continue;
     seen.add(binding.command);
     list.push({ command: binding.command, title, keycaps: keycapsOf(binding) });
+  }
+  for (const command of options.unbound ?? []) {
+    const title = titleOf(command);
+    if (title && !seen.has(command) && !options.hidden?.has(command) && !NOT_LISTED.has(command)) {
+      seen.add(command);
+      list.push({ command, title, keycaps: [] });
+    }
   }
   for (const command of KEYLESS_COMMANDS) if ((options.desktop !== false || !DESKTOP_ONLY.has(command)) && !options.hidden?.has(command)) list.push({ command, title: titleOf(command)!, keycaps: [] });
   // EDPARITY: 에디터 명령 등록부(web/editorCommands.ts)의 명령 중 표에 키가 없는 것도 팔레트에 둔다

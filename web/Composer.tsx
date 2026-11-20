@@ -38,6 +38,7 @@ import { hint } from "./hint";
 import { CODEX_MODE_NOTES } from "../shared/codexPermission"; // CODEX
 import { codexModelChip, useCodexMeta, usePaneHarness } from "./harness"; // CODEX
 import { continueMarkdown as continueMarkdownEdit, indentMarkdown, type MarkdownEdit } from "./composerMarkdown";
+import { useCommandKey } from "./commandKeys";
 
 export { PERMISSION_MODES } from "./PermissionMenu";
 
@@ -435,6 +436,10 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
     if (row) setTip({ text, left: chip.getBoundingClientRect().left - row.getBoundingClientRect().left });
   };
   const hideTip = () => setTip(null);
+  const attachKey = useCommandKey("attach");
+  const modelsKey = useCommandKey("models");
+  const effortKey = useCommandKey("cycleEffort");
+  const stopKey = useCommandKey("interrupt");
   const tipFor = (text: string) => ({
     "aria-label": text,
     onMouseEnter: (e: MouseEvent<HTMLElement>) => showTip(text, e.currentTarget),
@@ -551,15 +556,15 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
           onPaste={onPaste}
         />
         <div className="composer-tools" ref={toolsRef}>
-          <button ref={plusRef} type="button" className="chip chip-icon" data-chip {...tipFor(S.attach)} onClick={() => setAttachOpen((v) => !v)}>
+          <button ref={plusRef} type="button" className="chip chip-icon" data-chip {...tipFor(S.attach(attachKey))} onClick={() => setAttachOpen((v) => !v)}>
             <AddCompact />
           </button>
           <PermissionRow mode={permissionMode} onChange={onPermissionMode} harness={harness} tip={tipFor(harness === "codex" ? `${S.permissionChipTip(permissionLabel)} (${CODEX_MODE_NOTES[permissionMode].split(". ")[0]})` : permissionMode === "bypassPermissions" ? S.permissionBypassNote : S.permissionChipTip(permissionLabel))} />
-          <button type="button" className="chip" data-chip="model" data-model-chip {...tipFor(S.modelChipTip(shown.name, shown.id))} onClick={() => setState({ overlay: { kind: "models" } })}>
+          <button type="button" className="chip" data-chip="model" data-model-chip {...tipFor(S.modelChipTip(shown.name, shown.id, modelsKey))} onClick={() => setState({ overlay: { kind: "models" } })}>
             <ModelIcon />
             <span className="chip-label model-label">{shown.name}</span>
           </button>
-          <button type="button" className="chip" data-chip data-effort-chip {...tipFor(S.effortChipTip(effortLabel))} onClick={() => setState({ overlay: { kind: "effort" } })}>
+          <button type="button" className="chip" data-chip data-effort-chip {...tipFor(S.effortChipTip(effortLabel, effortKey))} onClick={() => setState({ overlay: { kind: "effort" } })}>
             <span className="chip-label">{effortLabel}</span>
           </button>
           {agent && <ContextGauge agent={agent} busy={busy} />}
@@ -569,7 +574,7 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
             className="composer-send"
             data-state={sendState}
             aria-label={stopMode ? S.stop : S.send}
-            title={stopMode ? S.stopTitle : busy ? S.sendBusyTitle(defaults.requestQueuing) : agent ? S.sendTitle : S.sendNewTitle}
+            title={stopMode ? S.stopTitle(stopKey) : busy ? S.sendBusyTitle(defaults.requestQueuing) : agent ? S.sendTitle : S.sendNewTitle}
             disabled={sendState === "empty" || pending}
             onClick={() => {
               if (stopMode && agent) interruptAgent(agent.id);

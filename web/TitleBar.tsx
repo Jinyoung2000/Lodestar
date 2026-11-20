@@ -20,6 +20,7 @@ import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { hint } from "./hint";
 import { visibleCenterView } from "./screenVisibility";
+import { useCommandKey, useCommandKeys } from "./commandKeys";
 
 const APP_TITLE = document.title;
 
@@ -27,6 +28,15 @@ const AUTO_FETCH_MS = 3 * 60_000;
 const lastAutoFetch = new Map<string, number>();
 
 export function TitleBar() {
+  const sidebarKey = useCommandKey("toggleSidebar");
+  const focusSideKey = useCommandKey("toggleFocusSide");
+  const focusChatKey = useCommandKey("toggleFocusChat");
+  const rightKey = useCommandKey("toggleRight");
+  const bottomKey = useCommandKey("toggleBottom");
+  const layoutKey = useCommandKey("toggleLayout");
+  const openFileKey = useCommandKey("quickOpen");
+  const backKeys = useCommandKeys("sessionBack");
+  const forwardKeys = useCommandKeys("sessionForward");
   const agent = useStore((s) => activeAgentOf(s.panes, s.activePaneId, s.agents));
   const workspaces = useStore((s) => s.workspaces);
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
@@ -122,7 +132,7 @@ export function TitleBar() {
         size="icon"
         variant={leftOn ? "ghost-on" : "ghost"}
         aria-label={S.sidebar}
-        title={editorLayout ? (focusSideOpen ? S.hidePrimarySideKey : S.showPrimarySideKey) : sidebarOpen ? S.hideSidebarKey : S.showSidebarKey}
+        title={editorLayout ? (focusSideOpen ? S.hidePrimarySideKey(focusSideKey) : S.showPrimarySideKey(focusSideKey)) : sidebarOpen ? S.hideSidebarKey(sidebarKey) : S.showSidebarKey(sidebarKey)}
         onPointerEnter={(e) => e.pointerType === "mouse" && !getState().sidebarOpen && getState().layoutMode !== "editor" && sidebarPeek.enter("button")}
         onPointerLeave={() => sidebarPeek.leave("button")}
         onClick={() => runCommand("toggleSidebar")}
@@ -130,15 +140,15 @@ export function TitleBar() {
         {sideRight ? <PanelRight /> : <PanelLeft />}
       </Button>
       <div className="titlebar-center flex items-center gap-1">
-        <Button size="icon" aria-label={S.back} title={S.titleBackKey} onClick={goBackSession}>
+        <Button size="icon" aria-label={S.back} title={S.titleBackKey(backKeys)} onClick={goBackSession}>
           <Codicon name="arrow-left" />
         </Button>
-        <Button size="icon" aria-label={S.forward} title={S.titleForwardKey} onClick={goForwardSession}>
+        <Button size="icon" aria-label={S.forward} title={S.titleForwardKey(forwardKeys)} onClick={goForwardSession}>
           <Codicon name="arrow-right" />
         </Button>
         <CommandCenter agent={agent} folder={project?.name ?? null} branch={info?.branch ?? agent?.worktree?.branch ?? null} inRepo={!!info?.repoRoot} viewName={centerView === "sessions" ? null : CENTER_VIEW_NAME[centerView]} />
         <TitleBranch agent={agent} info={info} sessionsView={centerView === "sessions"} />
-        <Button size="icon" aria-label={S.openFile} title={S.openFileKey} onClick={() => runCommand("quickOpen")}>
+        <Button size="icon" aria-label={S.openFile} title={S.openFileKey(openFileKey)} onClick={() => runCommand("quickOpen")}>
           <FileIcon />
         </Button>
         <Button size="icon" aria-label={S.openVSCodeWindow} title={S.openVSCodeWindowKey} disabled={agent ? agent.workspaceId === null : chatDraft || !activeWorkspaceId} onClick={() => void openInVSCode(agent?.id ?? null, activeWorkspaceId)}>
@@ -169,15 +179,15 @@ export function TitleBar() {
         )}
         <BrowserButton />
         <FeedbackButton />
-        <Button size="icon" variant={bottomOpen ? "ghost-on" : "ghost"} aria-label={S.bottomPanel} title={bottomOpen ? S.hidePanelKey : S.bottomPanelKey} onClick={() => runCommand("toggleBottom")}>
+        <Button size="icon" variant={bottomOpen ? "ghost-on" : "ghost"} aria-label={S.bottomPanel} title={bottomOpen ? S.hidePanelKey(bottomKey) : S.bottomPanelKey(bottomKey)} onClick={() => runCommand("toggleBottom")}>
           <PanelBottom />
         </Button>
         {showRightToggle && (
-          <Button size="icon" variant={rightOn ? "ghost-on" : "ghost"} aria-label={editorLayout ? S.chatDockAria : S.rightPanel} title={editorLayout ? (chatShown ? S.hideChatKey : S.showChatKey) : S.rightPanelKey} onClick={() => runCommand("toggleRight")}>
+          <Button size="icon" variant={rightOn ? "ghost-on" : "ghost"} aria-label={editorLayout ? S.chatDockAria : S.rightPanel} title={editorLayout ? (chatShown ? S.hideChatKey(focusChatKey) : S.showChatKey(focusChatKey)) : S.rightPanelKey(rightKey)} onClick={() => runCommand("toggleRight")}>
             {sideRight ? <PanelLeft /> : <PanelRight />}
           </Button>
         )}
-        <Button size="icon" variant={editorLayout ? "ghost-on" : "ghost"} aria-label={S.layoutAria} aria-pressed={editorLayout} title={S.toggleLayoutKey} onClick={() => runCommand("toggleLayout")}>
+        <Button size="icon" variant={editorLayout ? "ghost-on" : "ghost"} aria-label={S.layoutAria} aria-pressed={editorLayout} title={S.toggleLayoutKey(layoutKey)} onClick={() => runCommand("toggleLayout")}>
           <Codicon name="editor-layout" />
         </Button>
         <Button size="icon" variant="ghost" aria-label={S.customizeLayoutAria} title={S.customizeLayoutAria} onClick={() => runCommand("customizeLayout")}>

@@ -1,11 +1,12 @@
 // Settings 화면의 순수 로직: 묶음 목록, 기본값과 다른지 판정, 검색 거르기, 스크롤 위치로 현재 묶음 찾기, 좁은 폭 판정.
 // 화면(SettingsView.tsx)과 항목 정의(settingsItems.ts)는 여기를 부른다. React 와 문구에 의존하지 않아 단독으로 시험한다(test/settingsschema.test.ts).
 
-export const GROUP_IDS = ["appearance", "layout", "editor", "diff", "formatting", "browser", "board", "notifications", "mentions", "sessions", "mobile", "linear", "import", "mcp", "status"] as const;
+export const GROUP_IDS = ["general", "appearance", "layout", "editor", "diff", "formatting", "browser", "board", "notifications", "mentions", "sessions", "mobile", "linear", "import", "mcp", "status"] as const;
 export type GroupId = (typeof GROUP_IDS)[number];
 
 // 목차 아이콘(codicon 이름)
 export const GROUP_ICONS: Record<GroupId, string> = {
+  general: "gear",
   appearance: "symbol-color",
   layout: "layout",
   editor: "code",

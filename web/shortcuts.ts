@@ -26,7 +26,7 @@ import { previewDesignDirection } from "./direction";
 import { reloadWindow, restartDaemon } from "./reload";
 import { morningReviewCommand } from "./reviewActions";
 import { hiddenCommands } from "./screenVisibility";
-import { clearTerminal, openTerminalAsk } from "./terminalHandles";
+import { clearTerminal, openTerminalAsk, openTerminalFind } from "./terminalHandles";
 import { interruptAgent, openAdjacentSession, runSessionShortcut } from "./sessionActions";
 import {
   activeAgent,
@@ -145,6 +145,7 @@ export type Command =
   | "quickAsk"
   | "terminalAsk"
   | "terminalClear"
+  | "terminalFind"
   | "btw"
   | "board"
   | "morningReview"
@@ -296,7 +297,7 @@ export function runShortcut(event: ShortcutEvent) {
     event.preventDefault?.();
     return;
   }
-  const step = stepKey(pending, stroke, { inTerminal: where(".xterm, .termask"), inEditor: where(".cm-editor"), inEditorArea: where(".editor-area"), inComposer: where(".composer textarea"), inBrowser: activeTab()?.kind === "browser" && editorsVisible() && (where(".browser-tab") || !isTextEntry(active)), inSearch: (activeTab()?.kind === "search" && editorsVisible()) || where(".search-view"), inChat: where(".agent"), inElectron: IN_ELECTRON, inSearchOverlay: isSearchOpen(), inFocusLayout: getState().layoutMode === "editor", approvalPending: approvalKeyApplies(active, where(".composer textarea")), hiddenCommands: hiddenCommands(getState().settings) }, Date.now());
+  const step = stepKey(pending, stroke, { inTerminal: where(".xterm, .termask, .terminal-find"), inEditor: where(".cm-editor"), inEditorArea: where(".editor-area"), inComposer: where(".composer textarea"), inBrowser: activeTab()?.kind === "browser" && editorsVisible() && (where(".browser-tab") || !isTextEntry(active)), inSearch: (activeTab()?.kind === "search" && editorsVisible()) || where(".search-view"), inChat: where(".agent"), inElectron: IN_ELECTRON, inSearchOverlay: isSearchOpen(), inFocusLayout: getState().layoutMode === "editor", approvalPending: approvalKeyApplies(active, where(".composer textarea")), hiddenCommands: hiddenCommands(getState().settings) }, Date.now());
   // WebStorm 프리셋: 에디터 안의 입력칸(찾기, 이름 바꾸기)에서 누른 키는 그 입력칸의 것이다. ⌘D, ⌘⌫, ⇧↵ 를 에디터 본문의 줄 복제, 줄 삭제, 줄 삽입으로 보내지 않는다(기본 동작도 막지 않는다).
   if (step.kind === "run" && step.command.startsWith("editor:") && activeKeymapPreset() === "webstorm" && isTextEntry(active) && !active?.matches(".cm-content") && !!active?.closest(".cm-editor")) {
     pending = null;
@@ -653,6 +654,9 @@ export function runCommand(command: Command | string) {
     // C: 터미널 화면 지우기. 키(⌘K)는 터미널에 포커스가 있을 때만 이 명령이 되고, 팔레트에서는 마지막으로 포커스를 가진 터미널을 지운다.
     case "terminalClear":
       clearTerminal();
+      return;
+    case "terminalFind":
+      openTerminalFind();
       return;
     case "btw": {
       const agent = activeAgent();

@@ -25,13 +25,19 @@ export function SearchView() {
   // 다른 폴더에서 돌린 결과는 이 폴더의 것이 아니다
   const shown = run.kind === "done" && !runIsCurrent(run, workspaceId) ? IDLE_RUN : run;
   return (
-    <div className="search-view" aria-label={S.focusSideTitle.search} data-actions={settings.actionsPosition}>
-      <SearchWidget view={view} hasResults={shown.kind === "done" && shown.result.matches > 0} resultQuery={shown.kind === "done" ? shown.query : null} inputRef={inputRef} listRef={listRef} />
-      {view.details && <SearchDetails view={view} />}
-      <div className="sv-progress" data-active={phase !== 0 || undefined} role="progressbar" aria-hidden={phase === 0} />
-      <SearchMessage view={view} run={shown} stale={needsRunLink(view, shown, workspaceId)} noFolder={!workspaceId} />
-      {workspaceId && <SearchResults listRef={listRef} inputRef={inputRef} />}
-    </div>
+    <>
+      <div className="files-header sv-toolbar" role="toolbar" aria-label={SV.actionsAria}>
+        <span className="spacer" />
+        <SearchHeaderActions />
+      </div>
+      <div className="search-view" aria-label={S.focusSideTitle.search} data-actions={settings.actionsPosition}>
+        <SearchWidget view={view} hasResults={shown.kind === "done" && shown.result.matches > 0} resultQuery={shown.kind === "done" ? shown.query : null} inputRef={inputRef} listRef={listRef} />
+        {view.details && <SearchDetails view={view} />}
+        <div className="sv-progress" data-active={phase !== 0 || undefined} role="progressbar" aria-hidden={phase === 0} />
+        <SearchMessage view={view} run={shown} stale={needsRunLink(view, shown, workspaceId)} noFolder={!workspaceId} />
+        {workspaceId && <SearchResults listRef={listRef} inputRef={inputRef} />}
+      </div>
+    </>
   );
 }
 

@@ -7,6 +7,7 @@ import { ensureTimeline, openChatTab, revealChat, setChatDockOpen, useStore, typ
 import { S } from "./strings";
 import { Button } from "./ui/button";
 import "./focusLayout.css";
+import { useCommandKey } from "./commandKeys";
 
 export function DockFrame({ pane }: { pane: Pane }) {
   // 닫힌 채로 입력창에 글을 넣거나(⌥H 첨부, 새 세션) 포커스를 요청하는 길은 패널을 연다. 칸은 닫혀 있어도 마운트되어 있어서 닫힌 채 요청을 받는다.
@@ -24,6 +25,7 @@ export function DockFrame({ pane }: { pane: Pane }) {
 function DockBar({ pane }: { pane: Pane }) {
   const agent = useStore((s) => (pane.kind === "agent" ? s.agents.find((a) => a.id === pane.agentId) : undefined));
   const title = agent?.title ?? S.newSession;
+  const hideKey = useCommandKey("toggleFocusChat");
   return (
     <div className="dock-bar" data-dock-bar>
       {agent ? <PaneStatus agent={agent} /> : <Codicon name="comment" size={14} />}
@@ -40,7 +42,7 @@ function DockBar({ pane }: { pane: Pane }) {
           <Codicon name="go-to-file" />
         </Button>
       )}
-      <Button size="icon" aria-label={S.chatDockHideKey} title={S.chatDockHideKey} onClick={() => setChatDockOpen(false)}>
+      <Button size="icon" aria-label={S.chatDockHideKey(hideKey)} title={S.chatDockHideKey(hideKey)} onClick={() => setChatDockOpen(false)}>
         <Codicon name="layout-sidebar-right-off" />
       </Button>
     </div>

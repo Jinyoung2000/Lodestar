@@ -1,7 +1,7 @@
 import { Prec, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { activeKeymapPreset, editorTakenStrokes, strokeOf } from "./keymap";
-import type { KeymapPreset } from "../shared/protocol";
+import { activeCommandKeys, activeKeymapPreset, editorTakenStrokes, strokeOf } from "./keymap";
+import type { CommandKeys, KeymapPreset } from "../shared/protocol";
 
 // 단축키 프리셋이 표에서 처리하는 키를 CodeMirror 기본 키맵이 또 처리하지 않게 먹는다.
 // 앱의 keydown 은 window 버블 단계라 에디터 키맵이 먼저 돌고 멈추지 않아서, ⌘D 처럼 둘 다 쓰는 키는 selectNextOccurrence 와 표의 duplicateSelection 이 같이 일어난다.
@@ -19,10 +19,11 @@ export const presetKeys: Extension = Prec.highest(
   }),
 );
 
-let cache: { preset: KeymapPreset; strokes: ReadonlySet<string> } | null = null;
+let cache: { preset: KeymapPreset; overrides: CommandKeys | undefined; strokes: ReadonlySet<string> } | null = null;
 
 function takenStrokes() {
   const preset = activeKeymapPreset();
-  if (cache?.preset !== preset) cache = { preset, strokes: editorTakenStrokes(preset) };
+  const overrides = activeCommandKeys();
+  if (cache?.preset !== preset || cache.overrides !== overrides) cache = { preset, overrides, strokes: editorTakenStrokes(preset, overrides) };
   return cache.strokes;
 }

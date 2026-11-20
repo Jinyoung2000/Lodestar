@@ -20,6 +20,7 @@ Lodestar's own code is under the MIT License (see [LICENSE](LICENSE)). It depend
 | @vscode/codicons | 0.0.46-44 | CC-BY-4.0 (icons and font); code under MIT (`LICENSE-CODE`), Copyright Microsoft Corporation |
 | @xterm/addon-fit | 0.11.0 | MIT |
 | @xterm/addon-ligatures | 0.10.0 | MIT |
+| @xterm/addon-search | 0.16.0 | MIT |
 | @xterm/xterm | 6.0.0 | MIT |
 | class-variance-authority | 0.7.1 | Apache-2.0 |
 | clsx | 2.1.1 | MIT |

@@ -18,7 +18,7 @@ export function takeTerminalFocusWanted() {
 }
 
 // TERMASK: ⌘I 가 터미널 명령 질문을 연다. 열려 있는 터미널마다 핸들을 등록해 두고, 포커스가 있는 터미널(없으면 마지막으로 포커스를 받은 보이는 터미널)에 연다.
-export type AskHandle = { pane: () => HTMLElement | null; open: () => void; clear: () => void };
+export type AskHandle = { pane: () => HTMLElement | null; open: () => void; clear: () => void; find: () => void };
 const askHandles = new Set<AskHandle>();
 let lastFocused: AskHandle | null = null;
 export function registerAskHandle(handle: AskHandle) {
@@ -44,6 +44,15 @@ export function openTerminalAsk() {
   }
   target.open();
 }
+export function openTerminalFind() {
+  const target = targetTerminal();
+  if (!target) {
+    hint(S.focusTerminalFirst);
+    return;
+  }
+  target.find();
+}
+
 export function clearTerminal() {
   const target = targetTerminal();
   if (!target) {

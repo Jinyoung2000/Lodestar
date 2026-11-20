@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unwatchFile, watch, watchFile, writeFileSync, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { BrowserWindow, Menu, Notification, app, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, session, shell, utilityProcess, webContents, type MenuItemConstructorOptions, type UtilityProcess } from "electron";
+import { BrowserWindow, Menu, Notification, app, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, session, shell, utilityProcess, webContents, type MenuItemConstructorOptions, type UtilityProcess } from "electron";
 import { categoriesFor, isAlwaysAllowed, PERMISSION_CATEGORIES, PermissionStore, permissionOrigin, type PermissionCategory, type PermissionDecision } from "../web/browserPermissions";
 import { BROWSER_PARTITION, filePathOf, isBrowserPartition, isOwnOrigin, parseBrowsable, parseOpenable } from "../web/browserUrl";
 import { DEVICE_TYPES, type DeviceRequest, type DeviceType } from "../web/browserDevices";
@@ -15,6 +15,8 @@ import { logDirFor } from "./logDir";
 import { LineStamper, stampLine } from "./logStamp";
 import { QuitFlow } from "./quitFlow";
 import { RestartScheduler, restartWaitMs } from "../shared/restartGate";
+import { sanitizeKeymapOverrides } from "../shared/keymapOverrides";
+import type { CommandKeys } from "../shared/protocol";
 import { PICK_READ_SCRIPT, PICK_STOP_SCRIPT, pickScript, type PickMode, type PickTheme } from "./pickScript";
 import { externalOpenUrl } from "../shared/slackLink";
 import { notionOpenPlan } from "../shared/notionLink";
@@ -446,28 +448,30 @@ function send(command: string) {
 }
 
 // 단축키 프리셋(settings.keymapPreset)이 정하는 표와 가로챌 키 집합. 데몬이 쓰는 settings.json 을 읽고, watchBoardMenu 가 2초마다 바뀐 것을 반영한다.
-type KeymapState = { preset: "vscode" | "webstorm"; bindings: Binding[]; intercept: ReadonlySet<string>; guest: ReadonlySet<string> };
+type KeymapState = { preset: "vscode" | "webstorm"; overrides: CommandKeys; overridesKey: string; bindings: Binding[]; intercept: ReadonlySet<string>; guest: ReadonlySet<string> };
 
-function keymapStateOf(value: unknown): KeymapState {
-  const preset = value === "webstorm" ? "webstorm" : "vscode";
-  const bindings = bindingsFor(preset);
+function keymapStateOf(saved: Record<string, unknown>): KeymapState {
+  const preset = saved.keymapPreset === "webstorm" ? "webstorm" : "vscode";
+  const overrides = sanitizeKeymapOverrides(saved.keymapOverrides)[preset] ?? {};
+  const bindings = bindingsFor(preset, overrides);
   const intercept = interceptStrokes(bindings);
-  return { preset, bindings, intercept, guest: new Set([...intercept, ...browserStrokes(bindings), ...keyupAwareStrokes(bindings)]) };
+  return { preset, overrides, overridesKey: JSON.stringify(overrides), bindings, intercept, guest: new Set([...intercept, ...browserStrokes(bindings), ...keyupAwareStrokes(bindings)]) };
 }
 
-let keymapState = keymapStateOf(savedSettings().keymapPreset);
+let keymapState = keymapStateOf(savedSettings());
 
 // 마지막으로 만든 메뉴가 Board 항목을 담았는지. 데몬이 쓰는 settings.json 의 showBoard 를 읽는다.
 let builtBoardMenu = false;
-let builtPreset: KeymapState["preset"] = "vscode";
+let builtKeymap = "";
+const keymapKey = (state: KeymapState) => `${state.preset} ${state.overridesKey}`;
 const boardMenuWanted = () => savedSettings().showBoard === true;
 
 function buildMenu() {
   const boardMenuShown = boardMenuWanted();
   builtBoardMenu = boardMenuShown;
-  builtPreset = keymapState.preset;
+  builtKeymap = keymapKey(keymapState);
   const accel = (command: string, literal?: string, registered = true): Pick<MenuItemConstructorOptions, "accelerator" | "registerAccelerator"> => {
-    if (keymapState.preset === "vscode") return { ...(literal ? { accelerator: literal } : {}), ...(literal && !registered ? { registerAccelerator: false } : {}) };
+    if (keymapState.preset === "vscode" && !Object.hasOwn(keymapState.overrides, command)) return { ...(literal ? { accelerator: literal } : {}), ...(literal && !registered ? { registerAccelerator: false } : {}) };
     const accelerator = menuAccelerator(keymapState.bindings, command);
     return { ...(accelerator ? { accelerator } : {}), registerAccelerator: false };
   };
@@ -1236,6 +1240,11 @@ async function handleE2E(request: { action: string; [key: string]: unknown }) {
     case "notificationClear":
       clearNotification(String(request.agentId));
       return null;
+    case "folderPickAnswer":
+      folderPicks.answers.push(typeof request.path === "string" ? request.path : null);
+      return folderPicks.answers.length;
+    case "folderPicks":
+      return folderPicks;
     case "badgeCount":
       return app.getBadgeCount();
     case "focused":
@@ -1939,9 +1948,9 @@ function watchBoardMenu() {
   unwatchFile(file);
   watchFile(file, { interval: 2000, persistent: false }, () => {
     // 프리셋이 바뀌면 가로챌 키와 메뉴 가속키를 다시 정한다
-    const next = keymapStateOf(savedSettings().keymapPreset);
-    if (next.preset !== keymapState.preset) keymapState = next;
-    if (boardMenuWanted() !== builtBoardMenu || keymapState.preset !== builtPreset) buildMenu();
+    const next = keymapStateOf(savedSettings());
+    if (keymapKey(next) !== keymapKey(keymapState)) keymapState = next;
+    if (boardMenuWanted() !== builtBoardMenu || keymapKey(keymapState) !== builtKeymap) buildMenu();
   });
 }
 
@@ -2090,6 +2099,19 @@ ipcMain.handle("agent-nav:quick-host", (event, message: unknown) => {
     quickEntry.hide();
     openSessionInMainWindow(quickEntry.agentId);
   }
+});
+
+const folderPicks = { answers: [] as (string | null)[], asked: 0 };
+
+ipcMain.handle("agent-nav:pick-folder", async (event) => {
+  const source = appWindowOf(event);
+  if (!source) throw new Error("pick folder refused");
+  if (E2E_PORT !== null) {
+    folderPicks.asked += 1;
+    return folderPicks.answers.shift() ?? null;
+  }
+  const result = await dialog.showOpenDialog(source.win, { properties: ["openDirectory"] });
+  return result.canceled ? null : (result.filePaths[0] ?? null);
 });
 
 // 창 확대와 축소. 확대 단계(-8 에서 8)를 돌려준다.

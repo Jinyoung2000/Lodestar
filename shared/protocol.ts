@@ -283,6 +283,7 @@ export type Meta = {
   commands?: CommandInfo[];
   fetchedAt: string | null;
   error: string | null;
+  claudeMissing?: boolean;
 };
 
 // 데몬이 어느 빌드로 떠 있는지. repo 는 소스 폴더의 빌드 결과, bundle 은 앱 번들 안의 것.
@@ -300,6 +301,8 @@ export type DiffView = (typeof DIFF_VIEWS)[number];
 
 export const KEYMAP_PRESETS = ["vscode", "webstorm"] as const;
 export type KeymapPreset = (typeof KEYMAP_PRESETS)[number];
+export type CommandKeys = Record<string, string[]>;
+export type KeymapOverrides = Partial<Record<KeymapPreset, CommandKeys>>;
 
 export const BROWSER_SEARCH_ENGINES = ["bing", "google", "duckduckgo", "yahoo", "none"] as const;
 export type BrowserSearchEngine = (typeof BROWSER_SEARCH_ENGINES)[number];
@@ -387,6 +390,7 @@ export type Settings = {
   diffView: DiffView;
   // 단축키 프리셋. Electron 메인도 settings.json 에서 직접 읽어 가로챌 키와 메뉴 가속키를 정한다.
   keymapPreset: KeymapPreset;
+  keymapOverrides?: KeymapOverrides;
   browserSearchEngine: BrowserSearchEngine;
   browserMaxHistory: number;
   browserChatTools: boolean;

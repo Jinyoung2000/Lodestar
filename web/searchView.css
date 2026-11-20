@@ -449,3 +449,7 @@
 .sv-list:focus-within .sv-guide {
   opacity: 1;
 }
+
+.focus-side .sv-toolbar {
+  display: none;
+}

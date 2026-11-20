@@ -28,6 +28,7 @@ import { issueTitleFrom, LODESTAR_REPOSITORY, newIssueUrl } from "../shared/rele
 
 import type { DeviceRequest } from "./browserDevices";
 import type { NativeNotification } from "./notifications";
+import { useCommandKey } from "./commandKeys";
 
 // 요소 선택 결과(electron/main.ts 의 agent-nav:browser-pick). html 은 페이지에서 온 믿을 수 없는 글이다.
 export type BrowserPick =
@@ -78,6 +79,7 @@ declare global {
       // FIX3-1: 앱이 죽은 데몬을 다시 띄우는 중인지(restarting) 포기했는지(stopped)
       daemonState?: () => Promise<{ state: "running" | "restarting" | "stopped"; attempt: number; maxAttempts: number }>;
       onDaemonState?: (listener: (state: { state: "running" | "restarting" | "stopped"; attempt: number; maxAttempts: number }) => void) => () => void;
+      pickFolder?: () => Promise<string | null>;
       windowZoom?: (action: "in" | "out" | "reset") => Promise<number>;
       // 여러 창(electron/preload.ts): 새 창 열기, 이 창 닫기, 이 창 칸에 열린 세션 알리기(알림이 그 세션을 연 창으로 가게), 살아 있는 창 id 목록과 그 변화
       newWindow?: () => Promise<void>;
@@ -750,6 +752,7 @@ function FeedbackReport({ text, target, draft, onBack }: { text: string; target:
 // 제목줄의 피드백 버튼. 끝난 피드백을 아직 안 본 게 있으면 점이 뜬다.
 export function FeedbackButton() {
   const mode = useStore((s) => s.feedbackMode);
+  const feedbackKey = useCommandKey("feedback");
   const unseen = useStore((s) => Object.values(s.feedbacks).some((f) => !f.seen && f.status !== "running" && f.status !== "checking" && f.status !== "fixing"));
   return (
     <Button
@@ -758,7 +761,7 @@ export function FeedbackButton() {
       className="feedback-button"
       variant={mode === "off" ? "ghost" : "ghost-on"}
       aria-label={S.feedback}
-      title={S.feedbackKey}
+      title={S.feedbackKey(feedbackKey)}
       onClick={toggleFeedback}
       onContextMenu={(event) => {
         event.preventDefault();

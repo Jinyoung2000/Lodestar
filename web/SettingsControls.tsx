@@ -35,13 +35,13 @@ export function SettingControl({ def, ctx }: { def: SettingDef; ctx: SettingsCtx
 }
 
 function SwitchControl({ def, ctx }: { def: Extract<SettingDef, { kind: "switch" }>; ctx: SettingsCtx }) {
-  return <Switch id={`setting-${def.id}`} aria-label={def.title} checked={def.value(ctx)} disabled={!!def.fixedReason} title={def.fixedReason} onCheckedChange={def.set} />;
+  return <Switch id={`setting-${def.id}`} aria-label={def.title} checked={def.value(ctx)} onCheckedChange={def.set} />;
 }
 
 function EnumControl({ def, ctx }: { def: Extract<SettingDef, { kind: "enum" }>; ctx: SettingsCtx }) {
   return (
-    <Select value={def.value(ctx)} onValueChange={(value) => def.set(value, ctx)} disabled={!!def.fixedReason}>
-      <SelectTrigger id={`setting-${def.id}`} boxed className="setting-select" aria-label={def.title} title={def.fixedReason}>
+    <Select value={def.value(ctx)} onValueChange={(value) => def.set(value, ctx)}>
+      <SelectTrigger id={`setting-${def.id}`} boxed className="setting-select" aria-label={def.title}>
         <SelectValue placeholder={def.placeholder} />
       </SelectTrigger>
       <SelectContent>

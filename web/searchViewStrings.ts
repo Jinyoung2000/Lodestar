@@ -21,6 +21,7 @@ export const SV = {
   onlyChangedFiles: "Search only in Changed Files (Source Control)",
   onlyOpenEditors: "Search only in Open Editors",
   useExcludeSettings: "Use Exclude Settings and Ignore Files",
+  actionsAria: "Search actions",
   refresh: "Refresh",
   cancelSearch: "Cancel Search",
   clearResults: "Clear Search Results",

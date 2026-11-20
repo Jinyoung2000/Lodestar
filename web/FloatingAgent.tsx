@@ -11,6 +11,7 @@ import { ensureTimeline, focusPane, getState, openAgent, setFloatCollapsed, setF
 import { S } from "./strings";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { useCommandKey } from "./commandKeys";
 
 // Editor 배치에서 활성 칸의 대화를 담는 떠 있는 창. 칸(PaneView)은 격자에 그대로 있고 CSS 로 창이 되므로 입력창, 큐, 승인 카드, 체크포인트는 같은 컴포넌트다.
 // 이 파일은 창의 머리, 가장자리 크기 조절 띠, 접힌 알약, 자리 계산(web/floatLayout.ts)을 맡는다.
@@ -125,6 +126,7 @@ function startGesture(event: ReactPointerEvent<HTMLElement>, mode: "move" | Floa
 function FloatBar({ pane }: { pane: Pane }) {
   const agent = useStore((s) => (pane.kind === "agent" ? s.agents.find((a) => a.id === pane.agentId) : undefined));
   const title = agent?.title ?? S.newSession;
+  const floatKey = useCommandKey("toggleFloat");
   return (
     <div
       className="float-bar"
@@ -146,7 +148,7 @@ function FloatBar({ pane }: { pane: Pane }) {
       <FloatSessionMenu pane={pane} title={title} />
       <span className="spacer" />
       {agent && <PaneMenu agent={agent} paneId={pane.id} />}
-      <Button size="icon" aria-label={S.floatCollapseKey} title={S.floatCollapseKey} onClick={() => setFloatCollapsed(true)}>
+      <Button size="icon" aria-label={S.floatCollapseKey(floatKey)} title={S.floatCollapseKey(floatKey)} onClick={() => setFloatCollapsed(true)}>
         <Codicon name="chrome-minimize" />
       </Button>
     </div>
@@ -215,6 +217,7 @@ export function FloatSessionMenu({ pane, title }: { pane: Pane; title: string })
 
 function FloatPill({ pane }: { pane: Pane }) {
   const agent = useStore((s) => (pane.kind === "agent" ? s.agents.find((a) => a.id === pane.agentId) : undefined));
+  const floatKey = useCommandKey("toggleFloat");
   const pending = useStore((s) => (agent ? s.timelines[agent.id]?.find((i) => i.kind === "permission" && i.status === "pending") : undefined));
   const agentId = agent?.id;
   useEffect(() => {
@@ -231,7 +234,7 @@ function FloatPill({ pane }: { pane: Pane }) {
   const asks = needsReview(toolName);
   return (
     <div className="float-pill" role="group" data-state={agent?.status} data-unread={agent?.unread || undefined}>
-      <button type="button" className="float-pill-main" aria-label={S.floatPillAria(title)} title={S.floatExpandKey} onClick={expand}>
+      <button type="button" className="float-pill-main" aria-label={S.floatPillAria(title)} title={S.floatExpandKey(floatKey)} onClick={expand}>
         {agent ? <PaneStatus agent={agent} /> : <Codicon name="comment" size={14} />}
         <span className="float-pill-title">{title}</span>
         {status && <span className="float-pill-status">{status}</span>}

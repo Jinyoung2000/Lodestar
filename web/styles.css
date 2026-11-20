@@ -651,6 +651,15 @@ body[data-electron="1"] .titlebar > button {
   gap: var(--space-1);
 }
 
+.workspace-path-row {
+  display: flex;
+  gap: var(--space-1);
+}
+.workspace-path-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
 /* --- 가운데: 세션 격자 --- */
 
 .panes {
@@ -3107,10 +3116,22 @@ div.tree-node[role="button"] > :first-child {
 }
 /* 터미널 칸(xterm)과 질문 상자를 세로로 쌓는다. 상자가 열리면 xterm 이 그만큼 줄어 글자를 덮지 않는다 */
 .terminal-pane {
+  position: relative;
   height: 100%;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
+}
+.terminal-pane {
+  container-type: inline-size;
+}
+.terminal-find {
+  overflow: hidden;
+}
+@container (max-width: 320px) { /* lint-tokens: allow container queries cannot read var() */
+  .terminal-find .cm-find-count {
+    display: none;
+  }
 }
 .terminal-pane > .terminal-host {
   flex: 1;
@@ -9789,6 +9810,61 @@ button[data-variant]:disabled .codicon {
 .shortcuts-row .keycap {
   background: var(--surface-base);
   border-color: var(--border);
+}
+.shortcuts-actions {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.shortcuts-action {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.shortcuts-action:focus-visible {
+  outline: 1px solid var(--focus-border);
+}
+.shortcuts-row:not([data-active]) .shortcuts-edit:not(:focus-visible) {
+  visibility: hidden;
+}
+.shortcuts-recording {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-1_5);
+  border: 1px solid var(--focus-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-base);
+  color: var(--fg);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  white-space: nowrap;
+}
+.shortcuts-conflict {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-control);
+  padding: var(--space-0_5) var(--space-2) var(--space-1);
+}
+.shortcuts-conflict-text {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  min-width: 0;
+  color: var(--warning);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
 }
 
 /* FIX6C: MCP 서버 행 아래의 도구 목록. 서버 이름 글자와 왼쪽이 맞는다(.mcp-detail 과 같은 들여쓰기). */
