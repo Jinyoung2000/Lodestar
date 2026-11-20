@@ -1,0 +1,46 @@
+.cm-ruler {
+  box-sizing: border-box;
+  overflow: hidden;
+  touch-action: none;
+  cursor: default;
+}
+
+.cm-ruler-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.cm-ruler-slider {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--scrollbar-slider);
+  opacity: 0;
+  transition: opacity 0.8s linear;
+}
+
+.cm-ruler[data-reveal] .cm-ruler-slider {
+  opacity: 1;
+  transition: opacity 0.1s linear;
+}
+
+.cm-ruler-slider:hover {
+  background: var(--scrollbar-slider-hover);
+}
+
+.cm-ruler-slider[data-active] {
+  background: var(--scrollbar-slider-active);
+}
+
+.cm-scroll-decoration {
+  position: absolute;
+  left: 0;
+  right: var(--size-editor-scrollbar-v);
+  z-index: 3;
+  height: var(--size-scroll-decoration);
+  box-shadow: var(--shadow-scroll-decoration);
+  pointer-events: none;
+}

@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+// 실제 GitHub 읽기 시험용 방패. 읽기 호출만 진짜 gh 로 넘기고, 쓰기로 보이는 호출은 기록만 하고 거절한다(종료 코드 1).
+// 허용: gh auth ..., gh pr list/view/diff, gh api graphql (stdin 에 mutation 이 없을 때), gh api <경로> (메서드 지정과 --input 이 없을 때, --paginate 와 --slurp 허용)
+import { spawnSync } from "node:child_process";
+import { appendFileSync } from "node:fs";
+
+const args = process.argv.slice(2);
+const wantsInput = args.includes("--input");
+const stdin = wantsInput ? await new Promise((resolve) => { let t = ""; process.stdin.on("data", (c) => (t += c)); process.stdin.on("end", () => resolve(t)); }) : "";
+const log = process.env.GUARD_GH_LOG;
+const record = (verdict) => log && appendFileSync(log, JSON.stringify({ verdict, args, mutation: /mutation\s/.test(stdin) }) + "\n");
+
+const isGraphql = args[0] === "api" && args[1] === "graphql";
+const allowed =
+  args[0] === "auth" ||
+  (args[0] === "pr" && ["list", "view", "diff"].includes(args[1])) ||
+  (isGraphql && wantsInput && !/mutation\s/.test(stdin)) ||
+  (args[0] === "api" && !isGraphql && !wantsInput && !args.includes("-X") && !args.includes("--method") && !args.includes("-f") && !args.includes("-F") && !args.includes("--field") && !args.includes("--raw-field"));
+if (!allowed) {
+  record("blocked");
+  process.stderr.write("guard-gh: write-like call blocked\n");
+  process.exit(1);
+}
+record("allowed");
+const real = spawnSync("/opt/homebrew/bin/gh", args, { input: wantsInput ? stdin : undefined, stdio: [wantsInput ? "pipe" : "ignore", "inherit", "inherit"] });
+process.exit(real.status ?? 1);

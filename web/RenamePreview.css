@@ -1,0 +1,135 @@
+.rename-preview {
+  position: fixed;
+  z-index: 45; /* lint-tokens: allow 에디터 위, 메뉴(50)와 대화상자(60) 아래 */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--pane-bg);
+  color: var(--fg);
+  border-top: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-overlay);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+}
+
+.rename-preview-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4) var(--space-1) var(--space-2);
+  font-size: var(--text-caption);
+}
+
+.rename-preview-title {
+  color: var(--fg-strong);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.rename-preview-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rename-preview-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.rename-preview-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--size-preview-row);
+  padding: 0 var(--space-2);
+  cursor: pointer;
+  white-space: pre;
+}
+
+.rename-preview-row:hover {
+  background: var(--surface-hover);
+}
+
+.rename-preview-row[data-kind="edit"] {
+  padding-left: var(--space-6);
+}
+
+.rename-preview-row input[type="checkbox"] {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.rename-preview-folder {
+  margin-left: var(--space-1);
+  overflow: hidden;
+  color: var(--fg-muted);
+  opacity: 0.7;
+  font-size: 0.9em;
+  text-overflow: ellipsis;
+}
+
+.rename-preview-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rename-preview-remove {
+  background: var(--diff-del-gutter);
+  text-decoration: line-through;
+}
+
+.rename-preview-insert {
+  background: var(--diff-add-gutter);
+}
+
+.rename-preview-buttons {
+  flex: none;
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+}
+
+.rename-preview-button {
+  padding: var(--space-0_5) var(--space-3);
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  cursor: pointer;
+}
+
+.rename-preview-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.rename-preview-button[data-primary] {
+  color: var(--accent-fg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.rename-preview-button[data-primary]:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.1);
+}
+
+.rename-preview-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rename-preview-button:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: 1px;
+}

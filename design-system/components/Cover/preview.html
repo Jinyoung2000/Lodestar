@@ -1,0 +1,42 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Cover</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&amp;display=swap">
+<style>
+body{margin:0;background:var(--surface-base)}
+.cover{position:relative;width:960px;height:288px;overflow:hidden;background:var(--surface-base)}
+svg{position:absolute;inset:0}
+.accent{fill:var(--accent)}.sel{fill:var(--surface-selected)}.line{fill:var(--border)}.add{fill:var(--success)}.dotc{fill:var(--fg-subtle)}
+.r-md{rx:var(--radius-md)}.r-lg{rx:var(--radius-lg)}.r-sm{rx:var(--radius-sm)}
+.text{position:absolute;left:48px;bottom:40px;max-width:440px}
+.name{font:600 80px/.92 var(--font-sans);color:var(--fg-strong);margin:0;letter-spacing:-.02em}
+.tag{font:400 14px/20px var(--font-sans);color:var(--fg-muted);margin:12px 0 0}
+</style></head>
+<body>
+<div class="cover">
+  <!--
+    blocks: accent 240x96 (radius-lg), surface-selected 112x160 (radius-md), border 112x64 (radius-md), success 48x24 (radius-sm)
+    arrangement: modular grid on the right half, blocks aligned to an 8px grid, one tall pane slab like a sidebar beside a wide accent bar
+    pattern: precise, technical, mono, 4px grid -> a dot grid at space-4 pitch, the editor gutter of a code tool
+    steps and radii: space-2 8, space-4 16, space-6 24, radius-sm 4, radius-md 6, radius-lg 8
+  -->
+  <svg width="960" height="288" viewBox="0 0 960 288" aria-hidden="true">
+    <rect class="sel r-md" x="528" y="40" width="112" height="160"/>
+    <rect class="accent r-lg" x="656" y="40" width="240" height="96"/>
+    <rect class="line r-md" x="656" y="152" width="112" height="64"/>
+    <rect class="add r-sm" x="784" y="152" width="48" height="24"/>
+    <g class="dotc">
+      <circle cx="800" cy="200" r="1.5"/><circle cx="816" cy="200" r="1.5"/><circle cx="832" cy="200" r="1.5"/><circle cx="848" cy="200" r="1.5"/><circle cx="864" cy="200" r="1.5"/><circle cx="880" cy="200" r="1.5"/><circle cx="896" cy="200" r="1.5"/>
+      <circle cx="800" cy="216" r="1.5"/><circle cx="816" cy="216" r="1.5"/><circle cx="832" cy="216" r="1.5"/><circle cx="848" cy="216" r="1.5"/><circle cx="864" cy="216" r="1.5"/><circle cx="880" cy="216" r="1.5"/><circle cx="896" cy="216" r="1.5"/>
+      <circle cx="528" cy="232" r="1.5"/><circle cx="544" cy="232" r="1.5"/><circle cx="560" cy="232" r="1.5"/><circle cx="576" cy="232" r="1.5"/><circle cx="592" cy="232" r="1.5"/><circle cx="608" cy="232" r="1.5"/><circle cx="624" cy="232" r="1.5"/><circle cx="640" cy="232" r="1.5"/><circle cx="656" cy="232" r="1.5"/><circle cx="672" cy="232" r="1.5"/><circle cx="688" cy="232" r="1.5"/><circle cx="704" cy="232" r="1.5"/><circle cx="720" cy="232" r="1.5"/><circle cx="736" cy="232" r="1.5"/><circle cx="752" cy="232" r="1.5"/>
+      <circle cx="528" cy="248" r="1.5"/><circle cx="544" cy="248" r="1.5"/><circle cx="560" cy="248" r="1.5"/><circle cx="576" cy="248" r="1.5"/><circle cx="592" cy="248" r="1.5"/><circle cx="608" cy="248" r="1.5"/><circle cx="624" cy="248" r="1.5"/><circle cx="640" cy="248" r="1.5"/>
+    </g>
+  </svg>
+  <div class="text">
+    <h1 class="name">agent-nav</h1>
+    <p class="tag">세션 여러 개와 코드 탐색을 한 창에.</p>
+  </div>
+</div>
+</body>
+</html>

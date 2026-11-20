@@ -1,0 +1,13 @@
+{
+  "id": "rounded",
+  "name": "Rounded",
+  "summary": "색, 글꼴, 아이콘, 밀도는 그대로 두고 모서리 반경만 한 단계씩 키운 시안. 선택 배경과 칩은 알약 모양.",
+  "radius": {
+    "radius-sm": "6px",
+    "radius-code-inline": "5px",
+    "radius-code-block": "10px",
+    "radius-md": "10px",
+    "radius-lg": "14px",
+    "radius-xl": "20px"
+  }
+}

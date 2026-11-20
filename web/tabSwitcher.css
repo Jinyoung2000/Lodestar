@@ -1,0 +1,133 @@
+.tab-switcher {
+  position: fixed;
+  top: var(--size-titlebar);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60; /* lint-tokens: allow 에디터 영역 위에 뜨는 목록(확인 창 61 아래) */
+  box-sizing: border-box;
+  width: min(var(--size-quickpick-width), 62vw); /* lint-tokens: allow */
+  border: 1px solid var(--quickinput-border);
+  border-radius: var(--radius-xl);
+  background: var(--quickinput-bg);
+  color: var(--fg);
+  box-shadow: var(--shadow-dialog);
+}
+/* 목록 높이는 20행(22px x 20 = 440px)까지, 입력이 없을 때 위 여백 4px */
+.tab-switcher-list {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(var(--size-row) * 20);
+  overflow-y: auto;
+  padding: var(--space-1) var(--space-1_5) calc(var(--space-1) + var(--space-1_5));
+}
+.tab-switcher-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--size-row);
+  padding: 0 var(--space-1_5);
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  font-size: var(--text-ui);
+  line-height: var(--size-row);
+  cursor: pointer;
+}
+.tab-switcher-row[data-separated] {
+  border-top: 1px solid var(--quickinput-group-border);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.tab-switcher-row:hover:not([data-selected]) {
+  background: var(--quickinput-hover-bg);
+}
+.tab-switcher-row[data-selected] {
+  background: var(--quickinput-selected-bg);
+  color: var(--quickinput-selected-fg);
+}
+.tab-switcher-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  margin-right: calc(var(--space-1_5) + var(--space-1));
+}
+.tab-switcher-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-switcher-name[data-preview] {
+  font-style: italic;
+}
+.tab-switcher-dir {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: var(--space-1_5);
+  overflow: hidden;
+  font-size: var(--text-ui-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.7; /* lint-tokens: allow */
+}
+.tab-switcher-row[data-selected] .tab-switcher-dir {
+  opacity: 1;
+}
+/* 묶음 이름: 11px, descriptionForeground. 선택 행에서는 행 글자색을 따른다 */
+.tab-switcher-group {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: var(--space-2);
+  color: var(--quickinput-description);
+  font-size: var(--text-caption);
+}
+.tab-switcher-row[data-selected] .tab-switcher-group {
+  color: inherit;
+}
+/* 닫기 단추: 16px 코디콘에 2px 안쪽 여백. 마우스를 올리거나 고른 행에서만 보이고, 수정된 탭은 늘 점으로 보이다가 행에 마우스를 올리면 X 가 된다 */
+.tab-switcher-close {
+  all: unset;
+  box-sizing: border-box;
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--size-icon) + var(--space-1));
+  height: calc(var(--size-icon) + var(--space-1));
+  margin-left: var(--space-1);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  cursor: pointer;
+}
+.tab-switcher-row:hover .tab-switcher-close,
+.tab-switcher-row[data-selected] .tab-switcher-close,
+.tab-switcher-close[data-dirty] {
+  display: inline-flex;
+}
+.tab-switcher-close:hover {
+  background: var(--quickinput-action-hover);
+}
+.tab-switcher-dot {
+  display: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+.tab-switcher-close[data-dirty] .codicon {
+  display: none;
+}
+.tab-switcher-close[data-dirty] .tab-switcher-dot {
+  display: block;
+}
+.tab-switcher-row:hover .tab-switcher-close[data-dirty] .codicon {
+  display: inline-block;
+}
+.tab-switcher-row:hover .tab-switcher-close[data-dirty] .tab-switcher-dot {
+  display: none;
+}

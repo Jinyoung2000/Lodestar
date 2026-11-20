@@ -1,0 +1,144 @@
+import { FileTypeIcon } from "./FileTypeIcon";
+import { More } from "./icons";
+import { groupIdsOf, MAIN_GROUP, mainTabs, tabsOfGroup } from "./editorGroups";
+import { LAYOUT_PRESETS } from "./editorLayoutOps";
+import { tabLabel } from "./browserUrl";
+import { applyLayoutPreset, closeGroup, closeInGroup, evenGroupSizes, flipGroupLayout, joinAll, joinWithNext, toggleMaximizeGroup } from "./groupActions";
+import { useDefaults } from "./defaults";
+import { rpc } from "./rpc";
+import { runCommand } from "./shortcuts";
+import { focusGroup, setState, shownTabsOf, splitEditor, useStore, type Tab } from "./store";
+import { S } from "./strings";
+import { P } from "./prStrings";
+import { SV } from "./searchViewStrings";
+import { Button } from "./ui/button";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "./ui/dropdown-menu";
+
+
+// 탭에 보이는 이름. 파일은 파일 이름만, diff 와 SCM 탭은 파일 이름 앞에 종류를 붙인다.
+export function tabName(tab: Tab): string {
+  if (tab.kind === "search") return S.searchTabTitle(tab.query);
+  if (tab.kind === "browser") return tabLabel(tab.title);
+  if (tab.kind === "untitled") return S.untitledName(tab.n);
+  if (tab.kind === "pr") return P.tabName(tab.number);
+  if (tab.kind === "chat") return tab.title || S.newSession;
+  const base = tab.path.slice(tab.path.lastIndexOf("/") + 1);
+  return tab.kind === "replace" ? SV.replacePreviewTitle(base, base) : base;
+}
+
+export function GroupMoreMenu({ group, activeKey }: { group: string; activeKey: string | null }) {
+  const tabs = useStore((s) => shownTabsOf(s));
+  const dirtyTabs = useStore((s) => s.dirtyTabs);
+  const groupCount = useStore((s) => groupIdsOf(s.editorLayout).length);
+  const isLast = useStore((s) => groupIdsOf(s.editorLayout).at(-1) === group);
+  const maximized = useStore((s) => s.maximizedGroup === group);
+  const inGroup = group === MAIN_GROUP ? mainTabs(tabs) : tabsOfGroup(tabs, group);
+  const active = inGroup.find((t) => t.key === activeKey);
+  const previewEditors = useDefaults().previewEditors;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="icon" className="group-more" aria-label={S.groupMore} title={S.groupMore} onPointerDown={() => focusGroup(group)}>
+          <More />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" data-testid="group-menu">
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger disabled={!inGroup.length}>{S.showOpenedEditors}</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent data-testid="opened-editors">
+            {inGroup.map((tab) => (
+              <DropdownMenuItem key={tab.key} onSelect={() => setState({ activeTabKey: tab.key })} data-active={tab.key === activeKey || undefined}>
+                <OpenedEditorLabel tab={tab} dirty={!!dirtyTabs[tab.key]} />
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!inGroup.length} onSelect={() => void closeInGroup(group, "all")}>
+          {S.closeAllTabs}
+          <span className="faint xs menu-hint">⌘K W</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!inGroup.length} onSelect={() => void closeInGroup(group, "saved")}>
+          {S.closeSavedTabs}
+          <span className="faint xs menu-hint">⌘K U</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem checked={previewEditors} onCheckedChange={(on) => void rpc.call("settings.set", { previewEditors: on })} data-testid="menu-enable-preview">
+          {S.enablePreviewEditors}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={groupCount < 2} onSelect={() => toggleMaximizeGroup(group)}>
+          {maximized ? S.unmaximizeGroup : S.maximizeGroup}
+          <span className="faint xs menu-hint">⌘K ⌘M</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!active} onSelect={() => active && splitEditor("row", active.key)}>
+          {S.splitRight}
+          <span className="faint xs menu-hint">⌘\</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!active} onSelect={() => active && splitEditor("column", active.key)}>
+          {S.splitDown}
+          <span className="faint xs menu-hint">⌘K ⌘\</span>
+        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>{S.editorLayoutMenu}</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent data-testid="layout-menu">
+            {LAYOUT_PRESETS.map((preset) => (
+              <DropdownMenuItem key={preset} onSelect={() => applyLayoutPreset(preset)}>
+                {S.layoutNames[preset]}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => flipGroupLayout()}>
+              {S.flipGroupLayout}
+              <span className="faint xs menu-hint">⌥⌘0</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => evenGroupSizes()}>{S.resetGroupSizes}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => runCommand("newGroup:right")}>{S.newGroupSide.right}</DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuItem disabled={isLast} onSelect={() => joinWithNext(group)}>
+          {S.joinWithNext}
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={groupCount < 2} onSelect={() => joinAll()}>
+          {S.joinAllGroups}
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={group === MAIN_GROUP && !inGroup.length} onSelect={() => void closeGroup(group)}>
+          {S.closeGroup}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => setState({ overlay: { kind: "status" } })}>{S.configureEditors}</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function OpenedEditorLabel({ tab, dirty }: { tab: Tab; dirty: boolean }) {
+  const name = tabName(tab);
+  return (
+    <>
+      <FileTypeIcon name={tab.kind === "file" || tab.kind === "diff" || tab.kind === "scm" || tab.kind === "untitled" || tab.kind === "replace" ? name : ""} />
+      <span className="opened-editor-name">{name}</span>
+      {dirty && <span className="opened-editor-dot" aria-label={S.tabDirty} />}
+    </>
+  );
+}
+
+// 탭이 하나도 없는 그룹의 본문(배치 명령이나 New Editor Group 이 만든 빈 그룹)
+export function EmptyGroup({ group }: { group: string }) {
+  const lonely = useStore((s) => groupIdsOf(s.editorLayout).length < 2);
+  return (
+    <div className="empty-group" data-testid="empty-group" data-group-empty={group}>
+      <span className="empty-group-title">{S.emptyGroupTitle}</span>
+      <div className="empty-group-hints">
+        <span>{S.emptyGroupOpenFile}</span>
+        <kbd>⌘P</kbd>
+        {!lonely && (
+          <>
+            <span>{S.emptyGroupCloseGroup}</span>
+            <kbd>⌘W</kbd>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

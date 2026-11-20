@@ -1,0 +1,20 @@
+.cm-line.cm-indent-guides {
+  background-image: repeating-linear-gradient(to right, var(--editor-indent-guide) 0, var(--editor-indent-guide) 1px, transparent 1px, transparent var(--editor-indent-step));
+  background-size: calc(var(--guide-n) * var(--editor-indent-step)) 100%;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-origin: content-box;
+}
+.cm-line.cm-indent-guides.cm-indent-guide-active {
+  background-image:
+    linear-gradient(var(--editor-indent-guide-active), var(--editor-indent-guide-active)),
+    repeating-linear-gradient(to right, var(--editor-indent-guide) 0, var(--editor-indent-guide) 1px, transparent 1px, transparent var(--editor-indent-step));
+  background-size:
+    1px 100%,
+    calc(var(--guide-n) * var(--editor-indent-step)) 100%;
+  background-position:
+    calc((var(--guide-active) - 1) * var(--editor-indent-step)) 0,
+    0 0;
+  background-repeat: no-repeat, no-repeat;
+  background-origin: content-box, content-box;
+}

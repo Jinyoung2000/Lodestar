@@ -1,0 +1,15 @@
+.cm-ws-space {
+  background-image: radial-gradient(circle calc(var(--editor-char-w) / 7) at 50% 50%, var(--editor-whitespace) 0, var(--editor-whitespace) 90%, transparent 100%);
+  background-size: var(--editor-char-w) 100%;
+  background-repeat: repeat-x;
+}
+.cm-ws-tab {
+  position: relative;
+}
+.cm-ws-tab::before {
+  content: "\2192";
+  position: absolute;
+  left: 0;
+  color: var(--editor-whitespace);
+  pointer-events: none;
+}

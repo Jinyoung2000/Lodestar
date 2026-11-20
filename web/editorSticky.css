@@ -1,0 +1,65 @@
+/* 배경은 editor.background, 아래 그림자는 editorStickyScroll.shadow(토큰 shadow-sticky). */
+/* 줄 번호는 editorLineNumber.foreground, 줄에 올리면 editorStickyScrollHover.background 와 손가락 커서. */
+
+.cm-sticky {
+  box-sizing: border-box;
+  display: none;
+  overflow: hidden;
+  background-color: var(--editor-bg);
+  box-shadow: var(--shadow-sticky);
+  user-select: none;
+}
+
+/* 거터 열: 줄 번호 열과 같은 폭, 배경은 editorStickyScrollGutter.background(= editor.background) */
+.cm-sticky-numbers {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  background-color: var(--editor-bg);
+}
+
+.cm-sticky-number {
+  position: absolute;
+  box-sizing: border-box;
+  display: block;
+  background-color: var(--editor-bg);
+  color: var(--editor-line-number);
+  text-align: right;
+  white-space: pre;
+}
+
+.cm-sticky-scroll {
+  position: absolute;
+  top: 0;
+  right: 0;
+  overflow: hidden;
+  background-color: var(--editor-bg);
+}
+
+.cm-sticky-lines {
+  position: absolute;
+  top: 0;
+}
+
+.cm-sticky-line {
+  position: absolute;
+  left: 0;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  padding-left: var(--sticky-indent, 0);
+  background-color: var(--editor-bg);
+  color: var(--editor-fg);
+  white-space: pre;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cm-sticky-line:hover {
+  background-color: var(--sticky-hover-bg);
+}
+
+.cm-sticky-plain {
+  color: var(--editor-fg);
+}

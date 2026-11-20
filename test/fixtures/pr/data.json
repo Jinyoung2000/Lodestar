@@ -1,0 +1,707 @@
+{
+ "viewer": {
+  "login": "me-test",
+  "avatarUrl": "https://avatars.example/me-test.png"
+ },
+ "list": {
+  "waiting": {
+   "nodes": [
+    {
+     "number": 42,
+     "title": "Add loud option to greet",
+     "url": "https://github.com/acme/widgets/pull/42",
+     "isDraft": false,
+     "state": "OPEN",
+     "updatedAt": "2026-10-13T09:21:32.404Z",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "baseRefName": "main",
+     "headRefName": "feature/42",
+     "author": {
+      "login": "mina",
+      "avatarUrl": "https://avatars.example/mina.png"
+     },
+     "comments": {
+      "totalCount": 2
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "statusCheckRollup": {
+          "state": "SUCCESS"
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "number": 45,
+     "title": "Bump build tooling",
+     "url": "https://github.com/acme/widgets/pull/45",
+     "isDraft": false,
+     "state": "OPEN",
+     "updatedAt": "2026-10-13T06:21:32.405Z",
+     "reviewDecision": "CHANGES_REQUESTED",
+     "baseRefName": "main",
+     "headRefName": "feature/45",
+     "author": {
+      "login": "jun",
+      "avatarUrl": "https://avatars.example/jun.png"
+     },
+     "comments": {
+      "totalCount": 2
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": null
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "assigned": {
+   "nodes": [
+    {
+     "number": 43,
+     "title": "Rename the widget registry",
+     "url": "https://github.com/acme/widgets/pull/43",
+     "isDraft": true,
+     "state": "OPEN",
+     "updatedAt": "2026-10-13T08:21:32.405Z",
+     "reviewDecision": null,
+     "baseRefName": "main",
+     "headRefName": "feature/43",
+     "author": {
+      "login": "jun",
+      "avatarUrl": "https://avatars.example/jun.png"
+     },
+     "comments": {
+      "totalCount": 2
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "statusCheckRollup": {
+          "state": "PENDING"
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "created": {
+   "nodes": [
+    {
+     "number": 44,
+     "title": "Fix flaky timer test",
+     "url": "https://github.com/acme/widgets/pull/44",
+     "isDraft": false,
+     "state": "OPEN",
+     "updatedAt": "2026-10-13T07:21:32.405Z",
+     "reviewDecision": "APPROVED",
+     "baseRefName": "main",
+     "headRefName": "feature/44",
+     "author": {
+      "login": "me-test",
+      "avatarUrl": "https://avatars.example/me-test.png"
+     },
+     "comments": {
+      "totalCount": 2
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "statusCheckRollup": {
+          "state": "FAILURE"
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "all": {
+   "nodes": [
+    {
+     "number": 42,
+     "title": "Add loud option to greet",
+     "url": "https://github.com/acme/widgets/pull/42",
+     "isDraft": false,
+     "state": "OPEN",
+     "updatedAt": "2026-10-13T09:21:32.404Z",
+     "reviewDecision": "REVIEW_REQUIRED",
+     "baseRefName": "main",
+     "headRefName": "feature/42",
+     "author": {
+      "login": "mina",
+      "avatarUrl": "https://avatars.example/mina.png"
+     },
+     "comments": {
+      "totalCount": 2
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "statusCheckRollup": {
+          "state": "SUCCESS"
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "number": 43,
+     "title": "Rename the widget registry",
+     "url": "https://github.com/acme/widgets/pull/43",
+     "isDraft": true,
+     "state": "OPEN",
+     "updatedAt": "2026-10-13T08:21:32.405Z",
+     "reviewDecision": null,
+     "baseRefName": "main",
+     "headRefName": "feature/43",
+     "author": {
+      "login": "jun",
+      "avatarUrl": "https://avatars.example/jun.png"
+     },
+     "comments": {
+      "totalCount": 2
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "statusCheckRollup": {
+          "state": "PENDING"
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "number": 44,
+     "title": "Fix flaky timer test",
+     "url": "https://github.com/acme/widgets/pull/44",
+     "isDraft": false,
+     "state": "OPEN",
+     "updatedAt": "2026-10-13T07:21:32.405Z",
+     "reviewDecision": "APPROVED",
+     "baseRefName": "main",
+     "headRefName": "feature/44",
+     "author": {
+      "login": "me-test",
+      "avatarUrl": "https://avatars.example/me-test.png"
+     },
+     "comments": {
+      "totalCount": 2
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": {
+         "statusCheckRollup": {
+          "state": "FAILURE"
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "number": 45,
+     "title": "Bump build tooling",
+     "url": "https://github.com/acme/widgets/pull/45",
+     "isDraft": false,
+     "state": "OPEN",
+     "updatedAt": "2026-10-13T06:21:32.405Z",
+     "reviewDecision": "CHANGES_REQUESTED",
+     "baseRefName": "main",
+     "headRefName": "feature/45",
+     "author": {
+      "login": "jun",
+      "avatarUrl": "https://avatars.example/jun.png"
+     },
+     "comments": {
+      "totalCount": 2
+     },
+     "commits": {
+      "nodes": [
+       {
+        "commit": null
+       }
+      ]
+     }
+    }
+   ]
+  }
+ },
+ "detail": {
+  "viewer": {
+   "login": "me-test",
+   "avatarUrl": "https://avatars.example/me-test.png"
+  },
+  "repository": {
+   "mergeCommitAllowed": true,
+   "squashMergeAllowed": true,
+   "rebaseMergeAllowed": false,
+   "deleteBranchOnMerge": false,
+   "viewerPermission": "WRITE",
+   "mergeCommitTitle": "MERGE_MESSAGE",
+   "mergeCommitMessage": "PR_TITLE",
+   "squashMergeCommitTitle": "COMMIT_OR_PR_TITLE",
+   "squashMergeCommitMessage": "COMMIT_MESSAGES",
+   "pullRequest": {
+    "number": 42,
+    "title": "Add loud option to greet",
+    "url": "https://github.com/acme/widgets/pull/42",
+    "isDraft": false,
+    "state": "OPEN",
+    "updatedAt": "2026-10-13T09:21:32.404Z",
+    "reviewDecision": "REVIEW_REQUIRED",
+    "baseRefName": "main",
+    "headRefName": "feature/42",
+    "author": {
+     "login": "mina",
+     "avatarUrl": "https://avatars.example/mina.png"
+    },
+    "comments": {
+     "totalCount": 2
+    },
+    "commits": {
+     "nodes": [
+      {
+       "commit": {
+        "statusCheckRollup": {
+         "state": "SUCCESS"
+        }
+       }
+      }
+     ]
+    },
+    "id": "PR_node_42",
+    "body": "Adds a `loud` flag to `greet`.\n\n- [x] tests\n- [ ] docs\n\n<details><summary>Notes</summary>\n\nUses `toUpperCase`.\n\n</details>",
+    "headRefOid": "abc1234def5678",
+    "additions": 9,
+    "deletions": 4,
+    "changedFiles": 4,
+    "headRepository": {
+     "nameWithOwner": "acme/widgets",
+     "viewerPermission": "WRITE",
+     "defaultBranchRef": { "name": "main" }
+    },
+    "mergeable": "MERGEABLE",
+    "mergeStateStatus": "UNSTABLE",
+    "viewerCanUpdate": true,
+    "headRef": { "id": "REF_feature_42" },
+    "headRepositoryOwner": { "login": "acme" },
+    "baseRef": { "refUpdateRule": { "requiredApprovingReviewCount": 1 } },
+    "reviewsRequestingChanges": { "nodes": [] },
+    "labels": {
+     "nodes": [
+      {
+       "name": "enhancement",
+       "color": "a2eeef"
+      },
+      {
+       "name": "needs-docs",
+       "color": "d93f0b"
+      }
+     ]
+    },
+    "assignees": {
+     "nodes": [
+      {
+       "login": "mina",
+       "avatarUrl": "https://avatars.example/mina.png"
+      }
+     ]
+    },
+    "reviewRequests": {
+     "nodes": [
+      {
+       "requestedReviewer": {
+        "__typename": "User",
+        "login": "me-test",
+        "avatarUrl": "https://avatars.example/me-test.png"
+       }
+      },
+      {
+       "requestedReviewer": {
+        "__typename": "Team",
+        "name": "web-team"
+       }
+      }
+     ]
+    },
+    "latestReviews": {
+     "nodes": [
+      {
+       "state": "APPROVED",
+       "authorCanPushToRepository": true,
+       "author": {
+        "login": "jun",
+        "avatarUrl": "https://avatars.example/jun.png"
+       }
+      }
+     ]
+    },
+    "pendingReviews": {
+     "nodes": []
+    },
+    "reviews": {
+     "nodes": [
+      {
+       "id": "PRR_1",
+       "fullDatabaseId": "7001",
+       "state": "COMMENTED",
+       "body": "Looks good overall, two small notes.",
+       "createdAt": "2026-10-14T09:00:00Z",
+       "author": {
+        "login": "jun",
+        "avatarUrl": "https://avatars.example/jun.png"
+       }
+      }
+     ]
+    },
+    "timelineComments": {
+     "totalCount": 1,
+     "nodes": [
+      {
+       "id": "IC_1",
+       "fullDatabaseId": "5001",
+       "body": "Thanks! I will update the docs next. Related: [PR 43](https://github.com/acme/widgets/pull/43)",
+       "createdAt": "2026-10-14T10:00:00Z",
+       "lastEditedAt": null,
+       "viewerCanUpdate": false,
+       "viewerCanDelete": false,
+       "state": "SUBMITTED",
+       "author": {
+        "login": "mina",
+        "avatarUrl": "https://avatars.example/mina.png"
+       },
+       "pullRequestReview": null
+      }
+     ]
+    },
+    "reviewThreads": {
+     "totalCount": 3,
+     "nodes": [
+      {
+       "id": "RT_1",
+       "path": "src/greet.ts",
+       "isResolved": false,
+       "isOutdated": false,
+       "line": 3,
+       "originalLine": 3,
+       "startLine": null,
+       "originalStartLine": null,
+       "diffSide": "RIGHT",
+       "startDiffSide": null,
+       "viewerCanResolve": true,
+       "viewerCanUnresolve": false,
+       "comments": {
+        "nodes": [
+         {
+          "id": "RC_1",
+          "fullDatabaseId": "9001",
+          "body": "Should `loud` default to false?\n\n```suggestion\nexport function greet(user: string, loud: boolean = false) {\n```",
+          "createdAt": "2026-10-14T09:00:00Z",
+          "lastEditedAt": null,
+          "viewerCanUpdate": false,
+          "viewerCanDelete": false,
+          "state": "SUBMITTED",
+          "author": {
+           "login": "jun",
+           "avatarUrl": "https://avatars.example/jun.png"
+          },
+          "pullRequestReview": {
+           "id": "PRR_1",
+           "state": "COMMENTED"
+          }
+         },
+         {
+          "id": "RC_2",
+          "fullDatabaseId": "9002",
+          "body": "Yes, it does. Added the explicit type.",
+          "createdAt": "2026-10-14T09:30:00Z",
+          "lastEditedAt": null,
+          "viewerCanUpdate": false,
+          "viewerCanDelete": false,
+          "state": "SUBMITTED",
+          "author": {
+           "login": "mina",
+           "avatarUrl": "https://avatars.example/mina.png"
+          },
+          "pullRequestReview": {
+           "id": "PRR_1",
+           "state": "COMMENTED"
+          }
+         },
+         {
+          "id": "RC_3",
+          "fullDatabaseId": "9003",
+          "body": "Thanks, resolving after the next push.",
+          "createdAt": "2026-10-14T09:40:00Z",
+          "lastEditedAt": null,
+          "viewerCanUpdate": true,
+          "viewerCanDelete": true,
+          "state": "SUBMITTED",
+          "author": {
+           "login": "me-test",
+           "avatarUrl": "https://avatars.example/me-test.png"
+          },
+          "pullRequestReview": {
+           "id": "PRR_1",
+           "state": "COMMENTED"
+          }
+         }
+        ]
+       }
+      },
+      {
+       "id": "RT_2",
+       "path": "src/greet.ts",
+       "isResolved": true,
+       "isOutdated": false,
+       "line": 9,
+       "originalLine": 9,
+       "startLine": 8,
+       "originalStartLine": 8,
+       "diffSide": "RIGHT",
+       "startDiffSide": "RIGHT",
+       "viewerCanResolve": false,
+       "viewerCanUnresolve": true,
+       "comments": {
+        "nodes": [
+         {
+          "id": "RC_4",
+          "fullDatabaseId": "9004",
+          "body": "Is a version constant needed here?",
+          "createdAt": "2026-10-14T09:00:00Z",
+          "lastEditedAt": null,
+          "viewerCanUpdate": false,
+          "viewerCanDelete": false,
+          "state": "SUBMITTED",
+          "author": {
+           "login": "jun",
+           "avatarUrl": "https://avatars.example/jun.png"
+          },
+          "pullRequestReview": {
+           "id": "PRR_1",
+           "state": "COMMENTED"
+          }
+         }
+        ]
+       }
+      },
+      {
+       "id": "RT_3",
+       "path": "src/greet.ts",
+       "isResolved": false,
+       "isOutdated": true,
+       "line": null,
+       "originalLine": 12,
+       "startLine": null,
+       "originalStartLine": null,
+       "diffSide": "RIGHT",
+       "startDiffSide": null,
+       "viewerCanResolve": true,
+       "viewerCanUnresolve": false,
+       "comments": {
+        "nodes": [
+         {
+          "id": "RC_5",
+          "fullDatabaseId": "9005",
+          "body": "This line is gone now.",
+          "createdAt": "2026-10-14T09:00:00Z",
+          "lastEditedAt": null,
+          "viewerCanUpdate": false,
+          "viewerCanDelete": false,
+          "state": "SUBMITTED",
+          "author": {
+           "login": "jun",
+           "avatarUrl": "https://avatars.example/jun.png"
+          },
+          "pullRequestReview": {
+           "id": "PRR_1",
+           "state": "COMMENTED"
+          }
+         }
+        ]
+       }
+      },
+      {
+       "id": "RT_4",
+       "path": "src/list.tsx",
+       "isResolved": false,
+       "isOutdated": false,
+       "line": 2,
+       "originalLine": 2,
+       "startLine": null,
+       "originalStartLine": null,
+       "diffSide": "LEFT",
+       "startDiffSide": null,
+       "viewerCanResolve": true,
+       "viewerCanUnresolve": false,
+       "comments": {
+        "nodes": [
+         {
+          "id": "RC_6",
+          "fullDatabaseId": "9006",
+          "body": "Why did the key change?",
+          "createdAt": "2026-10-14T09:00:00Z",
+          "lastEditedAt": null,
+          "viewerCanUpdate": false,
+          "viewerCanDelete": false,
+          "state": "SUBMITTED",
+          "author": {
+           "login": "jun",
+           "avatarUrl": "https://avatars.example/jun.png"
+          },
+          "pullRequestReview": {
+           "id": "PRR_1",
+           "state": "COMMENTED"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "commitList": {
+     "totalCount": 3,
+     "nodes": [
+      { "commit": { "oid": "1111111aaaa", "abbreviatedOid": "1111111", "messageHeadline": "Add loud option to greet", "url": "https://github.com/acme/widgets/commit/1111111aaaa", "authoredDate": "2026-10-13T09:00:00Z", "author": { "name": "Mina", "user": { "login": "mina", "avatarUrl": "https://avatars.example/mina.png" } } } },
+      { "commit": { "oid": "2222222bbbb", "abbreviatedOid": "2222222", "messageHeadline": "Document the loud option", "url": "https://github.com/acme/widgets/commit/2222222bbbb", "authoredDate": "2026-10-13T10:00:00Z", "author": { "name": "Mina", "user": { "login": "mina", "avatarUrl": "https://avatars.example/mina.png" } } } },
+      { "commit": { "oid": "3333333cccc", "abbreviatedOid": "3333333", "messageHeadline": "Fix lint", "url": "https://github.com/acme/widgets/commit/3333333cccc", "authoredDate": "2026-10-14T08:00:00Z", "author": { "name": "A Bot", "user": null } } }
+     ]
+    },
+    "checkRuns": {
+     "nodes": [
+      {
+       "commit": {
+        "statusCheckRollup": {
+         "state": "SUCCESS",
+         "contexts": {
+          "nodes": [
+           {
+            "__typename": "CheckRun",
+            "name": "build",
+            "status": "COMPLETED",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://ci.example/1",
+            "startedAt": "2026-10-14T09:00:00Z",
+            "completedAt": "2026-10-14T09:02:13Z"
+           },
+           {
+            "__typename": "CheckRun",
+            "name": "lint",
+            "status": "COMPLETED",
+            "conclusion": "FAILURE",
+            "detailsUrl": "https://ci.example/2",
+            "startedAt": "2026-10-14T09:00:00Z",
+            "completedAt": "2026-10-14T09:00:41Z"
+           },
+           {
+            "__typename": "CheckRun",
+            "name": "e2e",
+            "status": "IN_PROGRESS",
+            "conclusion": null,
+            "detailsUrl": null
+           },
+           {
+            "__typename": "StatusContext",
+            "context": "license/check",
+            "state": "SUCCESS",
+            "targetUrl": null
+           }
+          ]
+         }
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ },
+ "files": [
+  {
+   "filename": "src/greet.ts",
+   "status": "modified",
+   "additions": 4,
+   "deletions": 2,
+   "patch": "@@ -1,7 +1,9 @@ import-block\n import { name } from \"./name\";\n \n-export function greet(user: string) {\n-  return \"Hello \" + user;\n+export function greet(user: string, loud = false) {\n+  const text = `Hello ${user}`;\n+  return loud ? text.toUpperCase() : text;\n }\n \n export const DEFAULT = name();\n+export const VERSION = 2;",
+   "sha": "s1"
+  },
+  {
+   "filename": "src/list.tsx",
+   "status": "modified",
+   "additions": 1,
+   "deletions": 1,
+   "patch": "@@ -1,4 +1,4 @@\n export function List({ items }) {\n-  return items.map((i) => <li key={i.id}>{i.name}</li>);\n+  return items.map((i) => <li key={i.name}>{i.name}</li>);\n }\n \n export default List;",
+   "sha": "s2"
+  },
+  {
+   "filename": "docs/logo.png",
+   "status": "added",
+   "additions": 0,
+   "deletions": 0,
+   "sha": "s3"
+  },
+  {
+   "filename": "src/new-name.ts",
+   "previous_filename": "src/old-name.ts",
+   "status": "renamed",
+   "additions": 0,
+   "deletions": 0,
+   "sha": "s4"
+  }
+ ],
+ "viewed": {
+  "repository": {
+   "pullRequest": {
+    "files": {
+     "nodes": [
+      {
+       "path": "src/greet.ts",
+       "viewerViewedState": "UNVIEWED"
+      },
+      {
+       "path": "src/list.tsx",
+       "viewerViewedState": "VIEWED"
+      },
+      {
+       "path": "docs/logo.png",
+       "viewerViewedState": "UNVIEWED"
+      },
+      {
+       "path": "src/new-name.ts",
+       "viewerViewedState": "UNVIEWED"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "checkoutInfo": {
+  "repository": {
+   "pullRequest": {
+    "headRefName": "feature/42",
+    "headRepository": {
+     "nameWithOwner": "acme/widgets"
+    }
+   }
+  }
+ }
+}

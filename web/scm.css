@@ -1,0 +1,656 @@
+/* SCM: Source Control 보기(오른쪽 패널의 고정 탭). 값은 전부 토큰이고, 행 높이와 글자는 변경 패널, Files 트리와 같다. */
+
+.scm-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+}
+.scm-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: var(--space-4);
+}
+
+/* 머리줄과 커밋 입력은 위에 고정하고, 그 아래 목록만 스크롤한다 */
+.scm-top {
+  flex-shrink: 0;
+}
+
+/* 머리줄 */
+.scm-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--size-pane-header);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.scm-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  min-width: 0;
+  font-size: var(--text-ui);
+  font-weight: var(--weight-ui-strong);
+  color: var(--fg-strong);
+}
+.scm-branch-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scm-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  flex-shrink: 0;
+  font-size: var(--text-caption);
+  color: var(--fg-muted);
+}
+.scm-counts > span {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 커밋 입력 */
+.scm-commit-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+.scm-input {
+  position: relative;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-lg);
+  background: var(--input-bg);
+}
+.scm-input:focus-within {
+  border-color: var(--focus-border);
+}
+.scm-message {
+  all: unset;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: calc(var(--leading-input) * 2 + var(--space-3));
+  max-height: calc(var(--leading-input) * 8 + var(--space-3));
+  padding: var(--space-1_5) calc(var(--size-control-sm) + var(--space-2)) var(--space-1_5) var(--space-2);
+  overflow-y: auto;
+  field-sizing: content;
+  font-size: var(--text-input);
+  line-height: var(--leading-input);
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.scm-message::placeholder {
+  color: var(--input-placeholder, var(--fg-subtle));
+}
+.scm-generate {
+  position: absolute;
+  right: var(--space-1);
+  bottom: var(--space-1);
+}
+.scm-commit-buttons {
+  display: flex;
+}
+.scm-commit,
+.scm-commit-more {
+  color: var(--accent-fg);
+}
+.scm-commit {
+  flex: 1;
+  min-width: 0;
+  height: var(--size-control);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+.scm-commit-more {
+  width: var(--size-control);
+  height: var(--size-control);
+  padding: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--accent-fg) 40%, transparent);
+}
+.scm-commit:disabled,
+.scm-commit-more:disabled,
+.scm-commit[data-idle],
+.scm-commit-more[data-idle] {
+  background: var(--surface-selected);
+  color: var(--fg-subtle);
+}
+.scm-commit-more:disabled,
+.scm-commit-more[data-idle] {
+  box-shadow: inset 1px 0 0 var(--border);
+}
+
+/* 커밋 실패 */
+.scm-failure {
+  margin: 0 var(--space-3) var(--space-2);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+}
+.scm-failure-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  min-height: var(--size-row-lg);
+  padding: 0 var(--space-1) 0 var(--space-2);
+  color: var(--danger);
+}
+.scm-failure-output {
+  margin: 0;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  max-height: calc(var(--leading-code-sm) * 14);
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-code-sm);
+  line-height: var(--leading-code-sm);
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.scm-failure-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--space-2) var(--space-2);
+}
+
+/* 묶음과 구역 머리 */
+.scm-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--size-row-lg);
+  padding: 0 var(--space-3);
+}
+.scm-section-head:hover {
+  background: var(--surface-hover);
+}
+.scm-section-toggle {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: var(--space-1);
+  min-width: 0;
+  height: 100%;
+  cursor: pointer;
+  font-size: var(--text-ui-sm);
+  font-weight: var(--weight-ui-strong);
+  color: var(--fg-strong);
+}
+.scm-section-toggle:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+.scm-section-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scm-chev {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--fg-subtle);
+  transform: rotate(90deg);
+}
+.scm-chev[data-collapsed] {
+  transform: none;
+}
+.scm-chev-gap {
+  flex-shrink: 0;
+  width: var(--size-icon);
+}
+.scm-head-actions {
+  display: none;
+  align-items: center;
+  flex-shrink: 0;
+}
+.scm-section-head:hover .scm-head-actions,
+.scm-head-actions:focus-within {
+  display: inline-flex;
+}
+.scm-count {
+  flex-shrink: 0;
+  min-width: calc(var(--leading-caption) + var(--space-1));
+  padding: 0 var(--space-1_5);
+  border-radius: var(--radius-full);
+  background: var(--surface-selected);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--fg);
+  text-align: center;
+}
+
+/* 행 (파일, 폴더, worktree, 커밋). 파일 아이콘은 구역 머리의 제목 글자와 같은 x 에서 시작한다 */
+.scm-row {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  width: 100%;
+  height: var(--size-row);
+  padding: 0 var(--space-3) 0 calc(var(--space-3) + var(--size-icon) + var(--space-1));
+  cursor: pointer;
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+  color: var(--fg);
+  white-space: nowrap;
+}
+.scm-row:hover {
+  background: var(--surface-hover);
+}
+.scm-row:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+.scm-row .material-icon,
+.scm-row .codicon {
+  flex-shrink: 0;
+}
+.scm-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scm-dir {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-caption);
+  color: var(--fg-subtle);
+}
+/* 단추는 마우스를 올릴 때만 폭을 가진다. 접혀 있어도 margin-left: auto 가 상태 글자를 오른쪽 끝에 붙인다 */
+.scm-row-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 0;
+  margin-left: auto;
+  overflow: hidden;
+}
+.scm-row:hover .scm-row-actions,
+.scm-row-actions:focus-within {
+  width: auto;
+  overflow: visible;
+}
+.scm-action {
+  all: unset;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-row);
+  height: var(--size-row);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--fg-muted);
+}
+.scm-action:hover {
+  background: var(--surface-selected);
+  color: var(--fg-strong);
+}
+.scm-action:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+/* 상태 글자 열: 모든 행에서 같은 폭이라 글자가 세로로 정렬된다 */
+.scm-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--size-icon);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-ui-strong);
+  color: var(--fg-muted);
+}
+.scm-status[data-s="M"],
+.scm-status[data-s="T"] {
+  color: var(--warning);
+}
+.scm-status[data-s="A"] {
+  color: var(--success);
+}
+.scm-status[data-s="U"] {
+  color: var(--git-added);
+}
+.scm-status[data-s="D"],
+.scm-status[data-s="!"] {
+  color: var(--danger);
+}
+.scm-status[data-s="R"],
+.scm-status[data-s="C"] {
+  color: var(--accent-text);
+}
+.scm-file[data-s="M"] .scm-name,
+.scm-file[data-s="T"] .scm-name {
+  color: var(--warning);
+}
+.scm-file[data-s="A"] .scm-name,
+.scm-file[data-s="U"] .scm-name {
+  color: var(--git-added);
+}
+.scm-file[data-s="D"] .scm-name {
+  color: var(--git-deleted);
+  text-decoration: line-through;
+}
+.scm-file[data-s="!"] .scm-name {
+  color: var(--danger);
+}
+.scm-file[data-s="R"] .scm-name,
+.scm-file[data-s="C"] .scm-name {
+  color: var(--accent-text);
+}
+.scm-delta {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: var(--text-caption);
+  color: var(--fg-muted);
+}
+.scm-delta .plus {
+  color: var(--git-added);
+}
+.scm-delta .minus {
+  color: var(--git-deleted);
+}
+
+.scm-dock {
+  flex-shrink: 0;
+  max-height: 50%;
+  overflow-y: auto;
+  border-top: 1px solid var(--border-subtle);
+}
+.scm-dock > .scm-section:first-child {
+  border-top: 0;
+}
+.scm-section {
+  border-top: 1px solid var(--border-subtle);
+}
+.scm-hint {
+  display: flex;
+  align-items: center;
+  height: var(--size-row);
+  padding: 0 var(--space-3) 0 calc(var(--space-3) + var(--size-icon) + var(--space-1));
+  color: var(--fg-subtle);
+  font-size: var(--text-ui-sm);
+}
+/* 저장소 머리: worktree 행보다 왼쪽에서 시작하고 굵게 보인다 */
+.scm-repo-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  height: var(--size-row-lg);
+  padding: 0 var(--space-3);
+  color: var(--fg-strong);
+  font-size: var(--text-ui-sm);
+  font-weight: var(--weight-ui-strong);
+}
+.scm-repo-name > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scm-worktree[data-current] .scm-name {
+  color: var(--fg-strong);
+  font-weight: var(--weight-ui-strong);
+}
+.scm-worktree .scm-counts,
+.scm-worktree .scm-status {
+  margin-left: auto;
+}
+.scm-worktree .scm-counts + .scm-status {
+  margin-left: 0;
+}
+.scm-commit-row {
+  height: auto;
+  min-height: calc(var(--size-row) + var(--leading-caption));
+  padding-block: var(--space-1);
+  align-items: flex-start;
+}
+.scm-commit-row > .codicon {
+  margin-top: var(--space-0_5);
+  color: var(--fg-muted);
+}
+.scm-commit-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.scm-commit-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  min-width: 0;
+}
+.scm-commit-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--fg-subtle);
+}
+.scm-author {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 제목이 먼저 폭을 가진다. 배지 묶음은 줄에서 40% 까지만 쓰고 넘치는 배지는 가려진다(dogfood 17). */
+.scm-refs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1_5);
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 40%;
+  max-height: var(--leading-caption);
+  overflow: hidden;
+}
+.scm-ref {
+  flex-shrink: 0;
+  max-width: 100%;
+  padding: 0 var(--space-1_5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: var(--radius-full);
+  background: var(--surface-selected);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--fg);
+}
+.scm-ref[data-remote] {
+  color: var(--fg-muted);
+}
+.scm-row.scm-nested,
+.scm-hint.scm-nested {
+  padding-left: calc(var(--space-3) + var(--size-icon) * 2 + var(--space-2));
+}
+.scm-diff-wrap {
+  padding-right: var(--space-3);
+}
+.scm-diff-wrap.scm-nested {
+  padding-left: calc(var(--space-3) + var(--size-icon) * 2 + var(--space-2));
+}
+.scm-diff {
+  margin: 0 0 var(--space-1);
+  max-height: calc(var(--leading-code-sm) * 20);
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: var(--code-block-bg);
+  font-family: var(--font-mono);
+  font-size: var(--text-code-sm);
+  line-height: var(--leading-code-sm);
+  user-select: text;
+}
+.scm-diff-line {
+  display: block;
+  min-width: max-content;
+  padding: 0 var(--space-2);
+  white-space: pre;
+}
+.scm-diff-line[data-k="add"] {
+  background: var(--diff-add-bg);
+}
+.scm-diff-line[data-k="del"] {
+  background: var(--diff-del-bg);
+}
+.scm-diff-line[data-k="hunk"],
+.scm-diff-line[data-k="note"] {
+  color: var(--fg-subtle);
+}
+
+/* 변경이 없을 때 */
+.scm-clean {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-3);
+  color: var(--fg-muted);
+}
+.scm-clean strong {
+  font-size: var(--text-ui);
+  color: var(--fg-strong);
+}
+
+/* FIX6B: 병합이나 리베이스가 진행 중일 때 목록 위의 띠. 충돌 개수와 이어가기, 중단 */
+.scm-operation {
+  margin: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1_5);
+}
+.scm-operation-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  min-width: 0;
+  color: var(--warning);
+}
+.scm-operation-title strong {
+  font-weight: var(--weight-ui-strong);
+  color: var(--fg-strong);
+}
+.scm-operation-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+}
+.scm-operation-state {
+  color: var(--fg-muted);
+}
+.scm-operation-state[data-resolved] {
+  color: var(--success);
+}
+.scm-operation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1_5);
+}
+
+/* FIX6B: diff 탭의 hunk 단추 열. 단추는 줄 번호 왼쪽에 놓이고 hunk 의 첫 줄과 같은 높이다 */
+.cm-scm-hunk-gutter {
+  width: var(--size-row);
+}
+.cm-scm-hunk-gutter .cm-gutterElement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.scm-hunk-button {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--fg-muted);
+}
+.scm-hunk-button .codicon {
+  font-size: var(--size-icon-sm);
+}
+.scm-hunk-button:hover {
+  background: var(--surface-selected);
+  color: var(--fg-strong);
+}
+.scm-hunk-button:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+
+/* FIX6B: 충돌 마커 편집기. 현재 쪽은 초록, 들어오는 쪽은 파랑, 마커 줄은 흐리게 */
+.cm-conflict-current {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+}
+.cm-conflict-incoming {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.cm-conflict-base {
+  background: color-mix(in srgb, var(--fg-muted) 14%, transparent);
+}
+.cm-conflict-marker {
+  background: var(--surface-hover);
+  color: var(--fg-muted);
+}
+.cm-conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-0_5) var(--space-2);
+}
+.cm-conflict-button {
+  all: unset;
+  box-sizing: border-box;
+  padding: 0 var(--space-2);
+  height: var(--size-row);
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--accent-text, var(--accent));
+  cursor: pointer;
+}
+.cm-conflict-button:hover {
+  background: var(--surface-selected);
+  color: var(--fg-strong);
+}
+.cm-conflict-button:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+.conflict-bar .editor-banner-icon {
+  color: var(--warning);
+}
+.conflict-bar[data-resolved] .editor-banner-icon {
+  color: var(--success);
+}

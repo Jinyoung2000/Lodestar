@@ -1,0 +1,39 @@
+/* 줄로 이동, 심볼로 이동, 상태 표시줄 선택 목록의 행. 틀과 행 모양은 파일 열기(styles.css 의 quickopen-*)를 그대로 쓰고, 여기는 그 위에 없는 것만 더한다. */
+
+/* 줄로 이동의 안내 행: 이름 칸의 70% 제한을 풀어 문구 전체를 보인다 */
+.goto-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goto-symbol-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  margin-right: calc(var(--space-1_5) + var(--space-1));
+  color: var(--symbol-default);
+}
+.goto-symbol-icon[data-tone="class"] {
+  color: var(--symbol-class);
+}
+.goto-symbol-icon[data-tone="function"] {
+  color: var(--symbol-function);
+}
+.goto-symbol-icon[data-tone="variable"] {
+  color: var(--symbol-variable);
+}
+
+/* 심볼을 못 찾았을 때 알리는 한 줄(고를 수 없는 행) */
+.goto-message {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-row);
+  padding: 0 var(--space-1_5);
+  color: var(--quickinput-description);
+}

@@ -1,0 +1,72 @@
+.cm-marker {
+  --zone-head-fg: var(--editor-fg);
+  --zone-head-desc: var(--peek-title-desc);
+}
+
+.cm-marker-error {
+  --marker-color: var(--editor-error);
+}
+
+.cm-marker-warning {
+  --marker-color: var(--editor-warning);
+}
+
+.cm-marker-info {
+  --marker-color: var(--editor-info);
+}
+
+.cm-marker {
+  --zone-frame: var(--marker-color);
+  --zone-head-bg: color-mix(in srgb, var(--marker-color) 10%, var(--editor-bg));
+}
+
+.cm-marker .cm-zone-body {
+  background-color: var(--editor-bg);
+}
+
+.cm-marker .cm-zone-title {
+  align-items: center;
+}
+
+.cm-marker .cm-marker-icon {
+  flex: none;
+  margin-right: var(--space-1);
+  color: var(--marker-color);
+}
+
+.cm-marker .cm-zone-title .cm-zone-name {
+  margin-right: var(--space-1_5);
+}
+
+.cm-marker-body {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-2) var(--space-3) 0 calc(var(--space-4) + var(--space-1));
+  overflow: auto;
+  color: var(--editor-fg);
+  font-family: var(--editor-font-family);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+  white-space: pre;
+  user-select: text;
+}
+
+.cm-marker-message {
+  display: flex;
+  flex-direction: column;
+}
+
+.cm-marker-details {
+  padding-left: var(--space-1_5);
+  opacity: 0.6;
+}
+
+.cm-marker-related {
+  padding-top: calc(var(--editor-line-height) * 0.66);
+}
+
+.cm-marker-link {
+  color: var(--hover-link);
+  cursor: pointer;
+}

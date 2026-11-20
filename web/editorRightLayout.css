@@ -1,0 +1,51 @@
+div.cm-editor[data-editor-right] {
+  --editor-minimap-width: 0px;
+}
+
+/* 세로 스크롤바 자리를 항상 비워 두어 글자 폭이 스크롤바 유무로 출렁이지 않게 한다. 오른쪽 안쪽 여백이 미니맵 자리다(스크롤바는 여백 바깥 가장자리에 붙는다). */
+div.cm-editor[data-editor-right] .cm-scroller {
+  overflow-y: scroll;
+  padding-right: var(--editor-minimap-width);
+  /* 스크롤러를 자기 쌓임 맥락으로 만들어, 안쪽 거터(z-index 200)가 위에 겹쳐 놓는 고정 줄, 미니맵, 눈금자를 덮지 않게 한다 */
+  z-index: 0;
+}
+
+div.cm-editor[data-editor-right] .cm-scroller::-webkit-scrollbar {
+  width: var(--size-editor-scrollbar-v);
+  height: var(--size-editor-scrollbar-h);
+}
+div.cm-editor[data-editor-right] .cm-scroller::-webkit-scrollbar-thumb {
+  border: 0;
+  border-radius: 0;
+  background-clip: border-box;
+}
+div.cm-editor[data-editor-right] .cm-scroller::-webkit-scrollbar-thumb:vertical {
+  background-color: transparent;
+}
+
+/* 겹쳐 놓는 요소는 모두 .cm-editor 안에서 스크롤러의 위쪽 가장자리에 맞춘다(top 은 각 플러그인이 스크롤러 위치로 적는다). 쌓는 순서: 고정 스크롤 4, 미니맵 5, 눈금자 6, 찾기 위젯 30. */
+div.cm-editor[data-editor-right] .cm-minimap {
+  position: absolute;
+  right: var(--size-editor-scrollbar-v);
+  z-index: 5;
+}
+div.cm-editor[data-editor-right] .cm-sticky {
+  position: absolute;
+  left: 0;
+  right: var(--size-editor-scrollbar-v);
+  z-index: 4;
+}
+div.cm-editor[data-editor-right] .cm-ruler {
+  position: absolute;
+  right: 0;
+  z-index: 6;
+  width: var(--size-editor-scrollbar-v);
+}
+
+div.cm-editor[data-editor-right] .cm-find {
+  right: calc(var(--size-editor-scrollbar-v) + var(--editor-minimap-width) + var(--space-1));
+  max-width: calc(100% - var(--size-editor-scrollbar-v) - var(--editor-minimap-width) - var(--space-8));
+}
+div.cm-editor[data-editor-right] .cm-find-ruler {
+  display: none;
+}

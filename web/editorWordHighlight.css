@@ -1,0 +1,11 @@
+.cm-wordHighlight {
+  background-color: var(--editor-word-highlight);
+}
+
+.cm-wordHighlightStrong {
+  background-color: var(--editor-word-highlight-strong);
+}
+
+.cm-wordHighlightText {
+  background-color: var(--editor-word-highlight-text);
+}

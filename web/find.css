@@ -1,0 +1,233 @@
+.cm-find {
+  position: absolute;
+  top: 0;
+  right: calc(var(--size-scrollbar) + var(--space-1));
+  z-index: 30; /* diff 보기의 피드백 층(.df-layer 20) 위 */
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: var(--size-find-gap);
+  width: var(--size-find-width);
+  max-width: calc(100% - var(--size-scrollbar) - var(--space-8));
+  margin-top: var(--space-1);
+  padding: var(--size-find-gap) var(--size-find-pad-right) var(--space-1) var(--size-find-pad-left);
+  color: var(--find-widget-fg);
+  background-color: var(--find-widget-bg);
+  border: 1px solid var(--find-widget-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-hover);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+  text-align: left;
+}
+
+.cm-find:not([data-replace]) .cm-find-replace-part {
+  display: none;
+}
+
+/* 입력칸: 오른쪽 안에 토글이 겹쳐 놓이고, 글자는 토글 폭만큼 비켜 시작한다. */
+.cm-find-field {
+  position: relative;
+  box-sizing: border-box;
+  height: var(--size-find-row);
+  background-color: var(--find-input-bg);
+  border: 1px solid var(--find-input-border);
+  border-radius: var(--radius-md);
+}
+
+.cm-find-field:focus-within {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+
+.cm-find-field[data-invalid] {
+  border-color: var(--find-error-border);
+}
+
+.cm-find-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0 calc(var(--toggles, 0) * (var(--size-find-toggle) + var(--space-0_5))) 0 var(--space-1);
+  color: var(--find-widget-fg);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  text-overflow: ellipsis;
+}
+
+.cm-find-input::placeholder {
+  color: var(--find-input-placeholder);
+}
+
+.cm-find-toggles {
+  position: absolute;
+  top: var(--space-0_5);
+  right: 1px;
+  display: flex;
+}
+
+.cm-find-toggle,
+.cm-find-button,
+.cm-find-expand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  color: var(--find-widget-fg);
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cm-find-toggle {
+  width: var(--size-find-toggle);
+  height: var(--size-find-toggle);
+  margin-left: var(--space-0_5);
+  padding: 1px;
+  border: 1px solid transparent;
+  border-radius: var(--size-find-gap); /* lint-tokens: allow */
+}
+
+.cm-find-toggle:hover {
+  background-color: var(--find-option-hover-bg);
+}
+
+.cm-find-toggle:focus-visible {
+  outline: 0;
+  border: 1px dashed var(--focus-border);
+}
+
+.cm-find-button,
+.cm-find-expand {
+  padding: var(--size-find-gap);
+  border: 0;
+  border-radius: 5px; /* lint-tokens: allow */
+}
+
+.cm-find-button {
+  width: var(--size-find-button);
+  height: var(--size-find-button);
+  margin-left: var(--size-find-gap);
+}
+
+.cm-find-button:focus-visible,
+.cm-find-expand:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+
+.cm-find-button:hover,
+.cm-find-expand:hover {
+  background-color: var(--find-button-hover-bg);
+}
+
+/* 켜진 토글과 Find in Selection */
+.cm-find [aria-checked="true"] {
+  color: var(--find-option-active-fg);
+  background-color: var(--find-option-active-bg);
+  border: 1px solid var(--find-option-active-border);
+}
+
+.cm-find-button[aria-checked="true"] {
+  padding: calc(var(--size-find-gap) - 1px);
+}
+
+.cm-find [aria-disabled="true"] {
+  color: var(--find-disabled-fg);
+  background: transparent;
+  cursor: default;
+}
+
+.cm-find-actions {
+  display: flex;
+  align-items: center;
+  height: var(--size-find-row);
+}
+
+.cm-find-count {
+  box-sizing: border-box;
+  flex: none;
+  min-width: var(--size-find-count);
+  height: var(--size-find-row);
+  margin-left: var(--size-find-gap);
+  padding: var(--space-0_5) 0 0 var(--space-0_5);
+  line-height: calc(var(--size-find-row) - 2px); /* lint-tokens: allow 입력칸 안쪽 높이(23px)와 같은 줄 높이 */
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cm-find[data-empty-result] .cm-find-count {
+  color: var(--find-error-fg);
+}
+
+.cm-find[data-reduced] .cm-find-count {
+  display: none;
+}
+
+.cm-find-expand {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--size-find-expand);
+  border-radius: var(--radius-sm);
+}
+
+.cm-find-expand[hidden] {
+  display: none;
+}
+
+.cm-find-close {
+  position: absolute;
+  top: var(--size-find-close-top);
+  right: var(--space-1);
+  margin: 0;
+}
+
+.cm-find-message {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  margin-top: -1px;
+  padding: 0.4em;
+  color: var(--find-widget-fg);
+  background-color: var(--find-error-bg);
+  border: 1px solid var(--find-error-border);
+  line-height: 17px; /* lint-tokens: allow */
+  overflow-wrap: anywhere;
+}
+
+/* 편집기 안: 모든 일치, 현재 일치, Find in Selection 범위, 스크롤바 위 표시 */
+.cm-findMatch {
+  background-color: var(--find-match-bg);
+}
+
+.cm-findMatch-current {
+  background-color: var(--find-match-current-bg);
+}
+
+.cm-findScope {
+  background-color: var(--find-scope-bg);
+}
+
+.cm-find-ruler {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  width: var(--size-scrollbar);
+  height: 100%;
+  pointer-events: none;
+}

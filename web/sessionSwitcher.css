@@ -1,0 +1,86 @@
+/* ⌃Tab 세션 전환 창. 통합 검색(⌘K)과 같은 자리(위에서 10vh, 가운데)에 같은 상자 모양으로 뜨고, 뒤를 어둡게 하지 않는다(macOS ⌘Tab 처럼 가볍게 떴다 사라진다).
+   행은 통합 검색 행(.gs-row)과 같은 높이, 반경, 선택 색이다. 토큰만 쓴다. */
+.session-switcher {
+  position: fixed;
+  top: 10vh; /* lint-tokens: allow 통합 검색 상자(Dialog)와 같은 위치. 뷰포트 비율 */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60; /* lint-tokens: allow 에디터 영역 위, 확인 창(61) 아래에 뜨는 목록. 에디터 탭 전환 창과 같은 층 */
+  box-sizing: border-box;
+  width: min(var(--size-quickpick-width), calc(100% - var(--space-8)));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface-overlay);
+  color: var(--fg);
+  box-shadow: var(--shadow-overlay);
+}
+.session-switcher-list {
+  display: flex;
+  flex-direction: column;
+  max-height: min(calc(var(--size-row-lg) * 12 + var(--space-4)), 80vh); /* lint-tokens: allow 12행까지 보이고 모자라면 스크롤. 뷰포트 비율 */
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+.session-switcher-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  height: var(--size-row-lg);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--fg);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  cursor: pointer;
+}
+.session-switcher-row:hover:not([data-selected]) {
+  background: var(--surface-hover);
+}
+.session-switcher-row[data-selected] {
+  background: var(--surface-selected);
+  color: var(--fg-strong);
+}
+.session-switcher-status {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon);
+  height: var(--size-icon);
+}
+/* 제목이 먼저 자리를 차지하고, 모자라면 흐린 폴더와 브랜치가 먼저 말줄임 된다(통합 검색 행과 같다) */
+.session-switcher-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-switcher-folder,
+.session-switcher-branch {
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-switcher-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.session-switcher-branch-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-switcher-aux {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--text-caption);
+}

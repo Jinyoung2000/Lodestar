@@ -1,0 +1,3370 @@
+{
+ "values": {
+  "kind": "const",
+  "line": "export const values: { [x: string]: string | boolean | undefined } = {};",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "values",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "[",
+    "kind": "punctuation"
+   },
+   {
+    "text": "x",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "string",
+    "kind": "keyword"
+   },
+   {
+    "text": "]",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "string",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "boolean",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "undefined",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   }
+  ]
+ },
+ "makeState": {
+  "kind": "function",
+  "line": "export function makeState(n: number): State {",
+  "parts": [
+   {
+    "text": "function",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "makeState",
+    "kind": "functionName"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "n",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "State",
+    "kind": "aliasName"
+   }
+  ]
+ },
+ "pair": {
+  "kind": "function",
+  "line": "export function pair<T>(a: T, b: T): Pair<T> {",
+  "parts": [
+   {
+    "text": "function",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "pair",
+    "kind": "functionName"
+   },
+   {
+    "text": "<",
+    "kind": "punctuation"
+   },
+   {
+    "text": "T",
+    "kind": "typeParameterName"
+   },
+   {
+    "text": ">",
+    "kind": "punctuation"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "a",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "T",
+    "kind": "typeParameterName"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "b",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "T",
+    "kind": "typeParameterName"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Pair",
+    "kind": "aliasName"
+   },
+   {
+    "text": "<",
+    "kind": "punctuation"
+   },
+   {
+    "text": "T",
+    "kind": "typeParameterName"
+   },
+   {
+    "text": ">",
+    "kind": "punctuation"
+   }
+  ]
+ },
+ "anon": {
+  "kind": "const",
+  "line": "export const anon = { id: 1, tags: [\"a\", \"b\"], nested: { ok: true } };",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "anon",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "id",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "tags",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "string",
+    "kind": "keyword"
+   },
+   {
+    "text": "[",
+    "kind": "punctuation"
+   },
+   {
+    "text": "]",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "nested",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "        ",
+    "kind": "space"
+   },
+   {
+    "text": "ok",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "boolean",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   }
+  ]
+ },
+ "longValue": {
+  "kind": "const",
+  "line": "export const longValue: Long = \"alpha\";",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "longValue",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Long",
+    "kind": "aliasName"
+   }
+  ]
+ },
+ "Long": {
+  "kind": "type",
+  "line": "export type Long = \"alpha\" | \"bravo\" | \"charlie\" | \"delta\" | \"echo\" | \"foxtrot\" | \"golf\" | \"hotel\" | \"india\" | \"juliet\" | \"kilo\" | \"lima\" | \"mike\" | \"november\" | \"oscar\" | \"papa\";",
+  "parts": [
+   {
+    "text": "type",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Long",
+    "kind": "aliasName"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "=",
+    "kind": "operator"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"alpha\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"bravo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"charlie\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"delta\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"echo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"foxtrot\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"golf\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"hotel\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"india\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"juliet\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"kilo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"lima\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"mike\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"november\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"oscar\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"papa\"",
+    "kind": "stringLiteral"
+   }
+  ]
+ },
+ "arrow": {
+  "kind": "const",
+  "line": "export const arrow = (name: string): number => name.length;",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "arrow",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "name",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "string",
+    "kind": "keyword"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "=>",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   }
+  ]
+ },
+ "state": {
+  "kind": "const",
+  "line": "export const state = makeState(1);",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "state",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "State",
+    "kind": "aliasName"
+   }
+  ]
+ },
+ "p": {
+  "kind": "const",
+  "line": "export const p = pair(1, 2);",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "p",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Pair",
+    "kind": "aliasName"
+   },
+   {
+    "text": "<",
+    "kind": "punctuation"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ">",
+    "kind": "punctuation"
+   }
+  ]
+ },
+ "item": {
+  "kind": "const",
+  "line": "export const item = tup[Math.floor(Math.random() * 3)];",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "item",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"alpha\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"bravo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"charlie\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"delta\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"echo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"foxtrot\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"golf\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"hotel\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"india\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"juliet\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"kilo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"lima\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"mike\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"november\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"oscar\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"papa\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"quebec\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"romeo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"sierra\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"tango\"",
+    "kind": "stringLiteral"
+   }
+  ]
+ },
+ "mixed": {
+  "kind": "const",
+  "line": "export const mixed = { a: tup, b: item, c: [1, 2, 3].map((n) => ({ n, s: String(n) })) };",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "mixed",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "a",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "readonly",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "[",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\"alpha\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"bravo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"charlie\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"delta\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"echo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"foxtrot\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"golf\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"hotel\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"india\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"juliet\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"kilo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"lima\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"mike\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"november\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"oscar\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"papa\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"quebec\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"romeo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"sierra\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"tango\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": "]",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "b",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"alpha\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"bravo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"charlie\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"delta\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"echo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"foxtrot\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"golf\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"hotel\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"india\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"juliet\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"kilo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"lima\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"mike\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"november\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"oscar\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"papa\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"quebec\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"romeo\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"sierra\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "\"tango\"",
+    "kind": "stringLiteral"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "c",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "        ",
+    "kind": "space"
+   },
+   {
+    "text": "n",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "        ",
+    "kind": "space"
+   },
+   {
+    "text": "s",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "string",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": "[",
+    "kind": "punctuation"
+   },
+   {
+    "text": "]",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   }
+  ]
+ },
+ "deep": {
+  "kind": "const",
+  "line": "export const deep = { a: { b: { c: { d: { e: { f: { g: { h: 1 } } } } } } } };",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "deep",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "a",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "        ",
+    "kind": "space"
+   },
+   {
+    "text": "b",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "            ",
+    "kind": "space"
+   },
+   {
+    "text": "c",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "                ",
+    "kind": "space"
+   },
+   {
+    "text": "d",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "                    ",
+    "kind": "space"
+   },
+   {
+    "text": "e",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "                        ",
+    "kind": "space"
+   },
+   {
+    "text": "f",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "                            ",
+    "kind": "space"
+   },
+   {
+    "text": "g",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "                                ",
+    "kind": "space"
+   },
+   {
+    "text": "h",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "                            ",
+    "kind": "space"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "                        ",
+    "kind": "space"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "                    ",
+    "kind": "space"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "                ",
+    "kind": "space"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "            ",
+    "kind": "space"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "        ",
+    "kind": "space"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   }
+  ]
+ },
+ "Counter": {
+  "kind": "class",
+  "line": "export class Counter {",
+  "parts": [
+   {
+    "text": "class",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Counter",
+    "kind": "className"
+   }
+  ]
+ },
+ "step": {
+  "kind": "property",
+  "line": "step?: number;",
+  "parts": [
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "property",
+    "kind": "text"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Counter",
+    "kind": "className"
+   },
+   {
+    "text": ".",
+    "kind": "punctuation"
+   },
+   {
+    "text": "step",
+    "kind": "propertyName"
+   },
+   {
+    "text": "?",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "|",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "undefined",
+    "kind": "keyword"
+   }
+  ]
+ },
+ "total": {
+  "kind": "property",
+  "line": "total = 0;",
+  "parts": [
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "property",
+    "kind": "text"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Counter",
+    "kind": "className"
+   },
+   {
+    "text": ".",
+    "kind": "punctuation"
+   },
+   {
+    "text": "total",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   }
+  ]
+ },
+ "add": {
+  "kind": "method",
+  "line": "add(a: string, b?: number): number {",
+  "parts": [
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "method",
+    "kind": "text"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Counter",
+    "kind": "className"
+   },
+   {
+    "text": ".",
+    "kind": "punctuation"
+   },
+   {
+    "text": "add",
+    "kind": "methodName"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "a",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "string",
+    "kind": "keyword"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "b",
+    "kind": "parameterName"
+   },
+   {
+    "text": "?",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   }
+  ]
+ },
+ "Shape": {
+  "kind": "interface",
+  "line": "export interface Shape {",
+  "parts": [
+   {
+    "text": "interface",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Shape",
+    "kind": "interfaceName"
+   }
+  ]
+ },
+ "area": {
+  "kind": "method",
+  "line": "area(): number;",
+  "parts": [
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "method",
+    "kind": "text"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Shape",
+    "kind": "interfaceName"
+   },
+   {
+    "text": ".",
+    "kind": "punctuation"
+   },
+   {
+    "text": "area",
+    "kind": "methodName"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   }
+  ]
+ },
+ "Color": {
+  "kind": "enum",
+  "line": "export enum Color {",
+  "parts": [
+   {
+    "text": "enum",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Color",
+    "kind": "enumName"
+   }
+  ]
+ },
+ "over": {
+  "kind": "function",
+  "line": "export function over(a: string): string;",
+  "parts": [
+   {
+    "text": "function",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "over",
+    "kind": "functionName"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "a",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "string",
+    "kind": "keyword"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "string",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "+",
+    "kind": "operator"
+   },
+   {
+    "text": "1",
+    "kind": "numericLiteral"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "overload",
+    "kind": "text"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   }
+  ]
+ },
+ "withParam": {
+  "kind": "function",
+  "line": "export function withParam(param: { x: number; y?: string }, ...rest: number[]) {",
+  "parts": [
+   {
+    "text": "function",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "withParam",
+    "kind": "functionName"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "param",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "x",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "y",
+    "kind": "propertyName"
+   },
+   {
+    "text": "?",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "string",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "...",
+    "kind": "punctuation"
+   },
+   {
+    "text": "rest",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": "[",
+    "kind": "punctuation"
+   },
+   {
+    "text": "]",
+    "kind": "punctuation"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   }
+  ]
+ },
+ "paramX": {
+  "kind": "parameter",
+  "line": "return param.x + rest.length;",
+  "parts": [
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "parameter",
+    "kind": "text"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "param",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "x",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "y",
+    "kind": "propertyName"
+   },
+   {
+    "text": "?",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "string",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   }
+  ]
+ },
+ "counter": {
+  "kind": "const",
+  "line": "export const counter = new Counter();",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "counter",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Counter",
+    "kind": "className"
+   }
+  ]
+ },
+ "totalConst": {
+  "kind": "const",
+  "line": "export const total = counter.total;",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "total",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   }
+  ]
+ },
+ "fnGeneric": {
+  "kind": "const",
+  "line": "export const fnGeneric = <T extends object>(value: T, key: keyof T): T[keyof T] => value[key];",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "fnGeneric",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "<",
+    "kind": "punctuation"
+   },
+   {
+    "text": "T",
+    "kind": "typeParameterName"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "extends",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "object",
+    "kind": "keyword"
+   },
+   {
+    "text": ">",
+    "kind": "punctuation"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "value",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "T",
+    "kind": "typeParameterName"
+   },
+   {
+    "text": ",",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "key",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "keyof",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "T",
+    "kind": "typeParameterName"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "=>",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "T",
+    "kind": "typeParameterName"
+   },
+   {
+    "text": "[",
+    "kind": "punctuation"
+   },
+   {
+    "text": "keyof",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "T",
+    "kind": "typeParameterName"
+   },
+   {
+    "text": "]",
+    "kind": "punctuation"
+   }
+  ]
+ },
+ "asyncFn": {
+  "kind": "const",
+  "line": "export const asyncFn = async (id: number) => ({ id });",
+  "parts": [
+   {
+    "text": "const",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "asyncFn",
+    "kind": "localName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "id",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "=>",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "Promise",
+    "kind": "localName"
+   },
+   {
+    "text": "<",
+    "kind": "punctuation"
+   },
+   {
+    "text": "{",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "    ",
+    "kind": "space"
+   },
+   {
+    "text": "id",
+    "kind": "propertyName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ";",
+    "kind": "punctuation"
+   },
+   {
+    "text": "\n",
+    "kind": "lineBreak"
+   },
+   {
+    "text": "}",
+    "kind": "punctuation"
+   },
+   {
+    "text": ">",
+    "kind": "punctuation"
+   }
+  ]
+ },
+ "stateUse": {
+  "kind": "function",
+  "line": "export const state = makeState(1);",
+  "parts": [
+   {
+    "text": "function",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "makeState",
+    "kind": "functionName"
+   },
+   {
+    "text": "(",
+    "kind": "punctuation"
+   },
+   {
+    "text": "n",
+    "kind": "parameterName"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "number",
+    "kind": "keyword"
+   },
+   {
+    "text": ")",
+    "kind": "punctuation"
+   },
+   {
+    "text": ":",
+    "kind": "punctuation"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "State",
+    "kind": "aliasName"
+   }
+  ]
+ },
+ "importAlias": {
+  "kind": "alias",
+  "line": "import { parseArgs } from \"node:util\";",
+  "parts": [
+   {
+    "text": "import",
+    "kind": "keyword"
+   },
+   {
+    "text": " ",
+    "kind": "space"
+   },
+   {
+    "text": "parseArgs",
+    "kind": "aliasName"
+   }
+  ]
+ }
+}

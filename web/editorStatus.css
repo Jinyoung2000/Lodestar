@@ -1,0 +1,69 @@
+/* 위 선은 높이를 차지하지 않고 맨 위에 겹쳐 그리며, 항목은 오른쪽 끝에 붙는다. 숫자는 고정 폭이다. */
+.editor-status {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--size-statusbar);
+  padding-right: var(--space-0_5);
+  overflow: hidden;
+  background: var(--statusbar-bg);
+  color: var(--statusbar-fg);
+  font-size: var(--text-ui-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+  user-select: none;
+}
+.editor-status::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  width: 100%;
+  height: 1px;
+  background: var(--statusbar-border);
+  pointer-events: none;
+}
+
+/* 항목은 바깥 여백(size-statusbar-gap)과 안쪽 여백(size-statusbar-pad)을 갖고, 가장 오른쪽 항목은 바깥 여백 없이 안쪽 space-2 다. */
+.editor-status-item {
+  display: flex;
+  flex: none;
+  align-items: center;
+  box-sizing: border-box;
+  height: 100%;
+  max-width: 40vw;
+  margin: 0 var(--size-statusbar-gap);
+  padding: 0 var(--size-statusbar-pad);
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: var(--size-statusbar);
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+.editor-status-item:last-child {
+  margin: 0;
+  padding: 0 var(--space-2);
+}
+button.editor-status-item {
+  cursor: pointer;
+}
+button.editor-status-item:hover {
+  background: var(--statusbar-item-hover-bg);
+  color: var(--statusbar-item-hover-fg);
+}
+button.editor-status-item:active {
+  background: var(--statusbar-item-active-bg);
+}
+button.editor-status-item:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}

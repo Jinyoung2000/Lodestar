@@ -1,0 +1,15 @@
+.cm-vsc-selectionLayer .cm-sel-top-left {
+  border-top-left-radius: var(--radius-selection);
+}
+.cm-vsc-selectionLayer .cm-sel-bottom-left {
+  border-bottom-left-radius: var(--radius-selection);
+}
+.cm-vsc-selectionLayer .cm-sel-top-right {
+  border-top-right-radius: var(--radius-selection);
+}
+.cm-vsc-selectionLayer .cm-sel-bottom-right {
+  border-bottom-right-radius: var(--radius-selection);
+}
+.cm-vsc-selectionLayer .cm-selectionBackdrop {
+  background-color: var(--editor-bg);
+}

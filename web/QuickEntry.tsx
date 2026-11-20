@@ -1,0 +1,364 @@
+import "./quickEntry.css";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { Agent, ImageRef, ResolvedDefaults, Settings, Workspace } from "../shared/protocol";
+import { checkImage, clipboardImageFiles, imageProblemText } from "../shared/images";
+import { ArrowUpCompact, Check, ChevronDown, Close, Codicon, CommentDiscussion, DotSpinner, FolderCompact } from "./icons";
+import { makeThumb, readBase64 } from "./imageAttach";
+import { canQuickSend, parseDraft, planQuickSend, quickDefaults, quickKeyAction, sameTarget, targetLabel, targetRows, validTarget, type QuickTarget, type TargetRow } from "./quickEntryModel";
+import { rpc } from "./rpc";
+import { S } from "./strings";
+
+// 어느 앱에서나 단축키로 띄우는 빠른 입력창(electron/quickEntry.ts 가 만든 별도 창의 ?view=quick 화면).
+// 보내기는 메인 창의 새 세션 화면과 같은 RPC 를 쓴다: 새 세션과 빠른 채팅은 agents.create, 이어 보내기는 agents.send. 이미지는 images.upload 로 먼저 올린다.
+// 보낸 뒤에는 메인이 같은 창의 주소를 그 세션의 대화 화면으로 바꾼다(electron/quickEntry.ts finishSend, web/MiniChat.tsx).
+// 창은 한 번 만들어 숨겨 두고 다시 쓰므로, 열 때마다(onQuickEntryShow) 목록을 새로 읽고 쓰던 글은 그대로 둔다.
+
+const DRAFT_KEY = "agent-nav:quick-entry-draft";
+
+type QuickData = { workspaces: Workspace[]; agents: Agent[]; settings: Settings | null; resolved: ResolvedDefaults | null };
+type QuickImage = { mediaType: string; data: string; thumb: string; name: string };
+
+export function QuickEntry() {
+  const [data, setData] = useState<QuickData>({ workspaces: [], agents: [], settings: null, resolved: null });
+  const [connected, setConnected] = useState<boolean | null>(null);
+  const [initial] = useState(() => parseDraft(readDraft()));
+  const [text, setText] = useState(initial.text);
+  const [picked, setPicked] = useState<QuickTarget | null>(initial.target);
+  const [images, setImages] = useState<QuickImage[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [shown, setShown] = useState(0);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const draftRef = useRef({ text, hasImages: false });
+  draftRef.current = { text, hasImages: images.length > 0 };
+
+  const target = useMemo(() => validTarget(picked, data.workspaces, data.agents), [picked, data.workspaces, data.agents]);
+  const rows = useMemo(() => targetRows(data.workspaces, data.agents, target), [data.workspaces, data.agents, target]);
+  const label = targetLabel(target, data.workspaces, data.agents);
+  const sendable = canQuickSend({ connected: connected !== false, busy, text, imageCount: images.length });
+
+  const load = useCallback(async () => {
+    try {
+      const [workspaces, agents, settings, resolved] = await Promise.all([rpc.call("workspaces.list", {}), rpc.call("agents.list", {}), rpc.call("settings.get", {}), rpc.call("defaults.get", {}).catch(() => null)]);
+      setData({ workspaces, agents, settings, resolved });
+    } catch {
+      // 연결이 끊겼으면 아래 안내가 보이고, 다시 연결되면 load 를 다시 부른다
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const offStatus = rpc.onStatus((up) => {
+      setConnected(up);
+      if (up) void load();
+    });
+    // 창이 열릴 때마다: 목록을 새로 읽고, 보내기 전의 글이 없으면 대상도 최근 쓴 워크스페이스로 다시 정하고, 입력칸에 포커스를 준다.
+    const offShow = window.agentNavNative?.onQuickEntryShow?.(() => {
+      setMenuOpen(false);
+      setError(null);
+      if (draftRef.current.text.trim() === "" && !draftRef.current.hasImages) setPicked(null);
+      setShown((n) => n + 1);
+      void load();
+    });
+    return () => {
+      offStatus();
+      offShow?.();
+    };
+  }, [load]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [shown]);
+
+  useTheme(data.settings?.theme, data.settings?.themeStyle);
+
+  // 카드 높이가 바뀔 때마다(글이 늘거나 목록이 열릴 때) 창 높이를 맞춘다.
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const report = () => void window.agentNavNative?.quickEntryResize?.(Math.ceil(card.getBoundingClientRect().height))?.catch(() => undefined);
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, []);
+
+  // 입력칸은 글이 늘면 높이가 따라 커진다(상한은 CSS)
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text]);
+
+  useEffect(() => {
+    writeDraft({ text, target: picked });
+  }, [text, picked]);
+
+  // 목록이 열리면 지금 대상이 있는 줄부터 시작한다
+  useEffect(() => {
+    if (menuOpen) setActive(Math.max(0, rows.findIndex((row) => sameTarget(row.target, target))));
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (menuOpen) document.getElementById(`quick-row-${active}`)?.scrollIntoView({ block: "nearest" });
+  }, [menuOpen, active]);
+
+  const close = () => void window.agentNavNative?.quickEntryClose?.();
+
+  const pick = (row: TargetRow) => {
+    setPicked(row.target);
+    setMenuOpen(false);
+    inputRef.current?.focus();
+  };
+
+  const addImages = async (files: File[]) => {
+    let count = images.length;
+    for (const file of files) {
+      const problem = checkImage(file.type, file.size, count);
+      if (problem) {
+        setError(imageProblemText(problem, file.name || "image"));
+        if (problem === "count") break;
+        continue;
+      }
+      try {
+        const [data64, thumb] = await Promise.all([readBase64(file), makeThumb(file)]);
+        setImages((list) => [...list, { mediaType: file.type, data: data64, thumb, name: file.name || "image" }]);
+        count++;
+      } catch {
+        setError(imageProblemText("format", file.name || "image"));
+      }
+    }
+  };
+
+  // stay: ⌘Enter. 보낸 뒤 패널이 대화로 커지지 않고 숨는다. ⌥C 는 새 막대로 열리니, 그 대화는 막대의 Continue 목록이나 답 알림으로 다시 연다.
+  const submit = async (stay: boolean) => {
+    if (!sendable) return;
+    const plan = planQuickSend({ target, text, imageCount: images.length, defaults: quickDefaults(data.settings, data.resolved) });
+    if (!plan) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const refs: ImageRef[] = [];
+      for (const image of images) {
+        const { id } = await rpc.call("images.upload", { mediaType: image.mediaType, data: image.data, name: image.name });
+        refs.push({ id, label: image.name, thumb: image.thumb });
+      }
+      const withImages = refs.length ? { images: refs } : {};
+      let agentId: string;
+      if (plan.method === "agents.create") agentId = (await rpc.call("agents.create", { ...plan.params, ...withImages })).id;
+      else {
+        await rpc.call("agents.send", { ...plan.params, ...withImages });
+        agentId = plan.params.agentId;
+      }
+      writeDraft({ text: "", target: picked });
+      setText("");
+      setImages([]);
+      await window.agentNavNative?.quickEntryFinish?.({ agentId, stay });
+    } catch (e) {
+      setError(S.quickEntryFailed((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const inInput = e.target === inputRef.current;
+    const composing = e.nativeEvent.isComposing || e.keyCode === 229;
+    if (menuOpen && !composing) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setActive((i) => Math.max(0, Math.min(rows.length - 1, i + (e.key === "ArrowDown" ? 1 : -1))));
+        return;
+      }
+      if (e.key === "Enter" && inInput && rows[active]) {
+        e.preventDefault();
+        pick(rows[active]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMenuOpen(false);
+        return;
+      }
+    }
+    const action = quickKeyAction({ key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, isComposing: e.nativeEvent.isComposing, keyCode: e.keyCode });
+    if (action === "close") {
+      e.preventDefault();
+      close();
+    } else if (action === "menu") {
+      e.preventDefault();
+      setMenuOpen(true);
+    } else if ((action === "send-open" || action === "send-stay") && inInput) {
+      e.preventDefault();
+      void submit(action === "send-stay");
+    }
+  };
+
+  return (
+    <div className="quick-root" onKeyDown={onKeyDown} onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div ref={cardRef} className="quick-card" role="dialog" aria-label={S.quickEntryAria}>
+        <div className="quick-bar">
+          <span className="quick-mark" aria-hidden="true">
+            <LodestarMark />
+          </span>
+          <textarea
+            ref={inputRef}
+            className="quick-input"
+            rows={1}
+            value={text}
+            placeholder={S.quickEntryPlaceholder}
+            aria-label={S.quickEntryInputAria}
+            spellCheck={false}
+            autoFocus
+            onChange={(e) => setText(e.target.value)}
+            onPaste={(e) => {
+              const files = clipboardImageFiles(e.clipboardData);
+              if (files.length === 0) return;
+              e.preventDefault();
+              void addImages(files);
+            }}
+          />
+          <button type="button" className="pill" aria-haspopup="listbox" aria-expanded={menuOpen} aria-label={S.quickEntryTargetAria(label)} title={S.quickEntryTargetTip} onMouseDown={(e) => e.preventDefault()} onClick={() => setMenuOpen((open) => !open)}>
+            <TargetIcon target={target} />
+            <span>{label}</span>
+            <ChevronDown size={12} />
+          </button>
+          <button type="button" className="quick-send" aria-label={S.quickEntrySendAria} title={S.quickEntrySendTip} disabled={!sendable} onMouseDown={(e) => e.preventDefault()} onClick={() => void submit(false)}>
+            {busy ? <DotSpinner size={14} /> : <ArrowUpCompact />}
+          </button>
+        </div>
+        {images.length > 0 && (
+          <div className="quick-attachments">
+            {images.map((image, index) => (
+              <div key={`${image.name}-${index}`} className="quick-chip">
+                <img src={image.thumb} alt={image.name} />
+                <button type="button" aria-label={S.quickEntryRemoveImage(image.name)} onMouseDown={(e) => e.preventDefault()} onClick={() => setImages((list) => list.filter((_, i) => i !== index))}>
+                  <Close size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {connected === false && (
+          <p className="quick-notice" role="status">
+            {S.quickEntryDaemonDown}
+          </p>
+        )}
+        {error && (
+          <p className="quick-notice" data-kind="error" role="alert">
+            {error}
+          </p>
+        )}
+        {text.trim() !== "" && !menuOpen && (
+          <div className="quick-hints">
+            <span>
+              <kbd>Enter</kbd> {S.quickEntryHintSend}
+            </span>
+            <span>
+              <kbd>Cmd+Enter</kbd> {S.quickEntryHintStay}
+            </span>
+            <span>
+              <kbd>Shift+Enter</kbd> {S.quickEntryHintNewline}
+            </span>
+          </div>
+        )}
+        {menuOpen && <TargetList rows={rows} target={target} active={active} onActive={setActive} onPick={pick} />}
+      </div>
+    </div>
+  );
+}
+
+function TargetList({ rows, target, active, onActive, onPick }: { rows: TargetRow[]; target: QuickTarget; active: number; onActive: (index: number) => void; onPick: (row: TargetRow) => void }) {
+  return (
+    <div className="quick-list" role="listbox" aria-label={S.quickEntryTargetTip}>
+      {rows.map((row, index) => (
+        <div key={row.key}>
+          {row.section === "new" && row.key === rows[0].key && <div className="quick-list-title">{S.quickEntryNewIn}</div>}
+          {row.section === "session" && row.key === rows.find((r) => r.section === "session")?.key && <div className="quick-list-title">{S.quickEntryContinue}</div>}
+          <TargetRowButton row={row} index={index} selected={sameTarget(row.target, target)} active={index === active} onActive={onActive} onPick={onPick} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TargetRowButton({ row, index, selected, active, onActive, onPick }: { row: TargetRow; index: number; selected: boolean; active: boolean; onActive: (index: number) => void; onPick: (row: TargetRow) => void }) {
+  return (
+    <button id={`quick-row-${index}`} type="button" role="option" aria-selected={selected} className="quick-row" data-active={active} onMouseDown={(e) => e.preventDefault()} onMouseMove={() => onActive(index)} onClick={() => onPick(row)}>
+      <span className="quick-row-icon">
+        <TargetIcon target={row.target} />
+      </span>
+      <span className="quick-row-label">{row.label}</span>
+      <span className="quick-row-hint">{row.hint}</span>
+      {selected && <Check className="quick-row-check" size={14} />}
+    </button>
+  );
+}
+
+function TargetIcon({ target }: { target: QuickTarget }) {
+  if (target.kind === "new") return <FolderCompact size={14} />;
+  if (target.kind === "chat") return <CommentDiscussion size={14} />;
+  return <Codicon name="comment" size={14} />;
+}
+
+// Lodestar 앱 아이콘(public/favicon.svg)의 별 모양. 판 없이 별만 그린다.
+function LodestarMark() {
+  return (
+    <svg viewBox="200 160 624 704" fill="currentColor" aria-hidden="true">
+      <path d="M512 170 Q564 460 814 512 Q564 564 512 854 Q460 564 210 512 Q460 460 512 170 Z" />
+    </svg>
+  );
+}
+
+// settings.theme 를 <html data-theme> 에, settings.themeStyle 을 <html data-style> 에 반영한다. system 은 OS 설정을 따른다. 설정을 읽기 전에는 창을 만들 때 쿼리로 받은 값(initQuickView)이 그대로 있다.
+function useTheme(theme: Settings["theme"] | undefined, style: Settings["themeStyle"] | undefined) {
+  // 색 스타일은 속성이 없으면 lodestar 다
+  useEffect(() => {
+    if (style === "webstorm") document.documentElement.dataset.style = style;
+    else delete document.documentElement.dataset.style;
+  }, [style]);
+  useEffect(() => {
+    if (!theme) return;
+    const media = window.matchMedia("(prefers-color-scheme: light)");
+    const apply = () => {
+      document.documentElement.dataset.theme = theme === "system" ? (media.matches ? "light" : "dark") : theme === "black" ? "dark" : theme;
+      if (theme === "black") document.documentElement.dataset.black = "true";
+      else delete document.documentElement.dataset.black;
+    };
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [theme]);
+}
+
+function readDraft(): string | null {
+  try {
+    return localStorage.getItem(DRAFT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(draft: { text: string; target: QuickTarget | null }) {
+  try {
+    if (draft.text === "" && draft.target === null) localStorage.removeItem(DRAFT_KEY);
+    else localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // 저장소를 못 쓰면 이번 창에서만 남는다
+  }
+}
+
+// 빠른 입력창 페이지의 시작. 메인 앱의 initStore 는 부르지 않는다(창 상태와 초안 저장본이 메인 창 것과 섞이면 안 된다). 연결만 연다.
+export function initQuickView() {
+  document.documentElement.classList.add("quick-entry");
+  const theme = new URLSearchParams(location.search).get("theme");
+  document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
+  rpc.connect();
+}

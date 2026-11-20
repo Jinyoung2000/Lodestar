@@ -1,0 +1,286 @@
+{
+  "name": "lodestar",
+  "displayName": "Lodestar",
+  "description": "Continue Lodestar sessions for the folder open in VS Code.",
+  "version": "0.1.0",
+  "publisher": "lodestar",
+  "private": true,
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "type": "commonjs",
+  "main": "./dist/extension.js",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [
+    "onView:lodestar.sessions",
+    "onView:lodestar.chat",
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "lodestar",
+          "title": "Lodestar",
+          "icon": "media/activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "lodestar": [
+        {
+          "id": "lodestar.sessions",
+          "name": "Sessions",
+          "initialSize": 2
+        },
+        {
+          "type": "webview",
+          "id": "lodestar.chat",
+          "name": "Chat",
+          "initialSize": 5
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "lodestar.sessions",
+        "contents": "Open a folder to see its Lodestar sessions.",
+        "when": "lodestar.state == noFolder"
+      },
+      {
+        "view": "lodestar.sessions",
+        "contents": "Lodestar is not running.\n[Open Lodestar](command:lodestar.openApp)",
+        "when": "lodestar.state == offline"
+      },
+      {
+        "view": "lodestar.sessions",
+        "contents": "No Lodestar token found. Start Lodestar once so it creates one, or set lodestar.home.\n[Open Lodestar](command:lodestar.openApp)",
+        "when": "lodestar.state == noToken"
+      },
+      {
+        "view": "lodestar.sessions",
+        "contents": "Lodestar refused the connection. Check lodestar.port and lodestar.home.\n[Open Settings](command:workbench.action.openSettings?%5B%22lodestar%22%5D)",
+        "when": "lodestar.state == rejected"
+      },
+      {
+        "view": "lodestar.sessions",
+        "contents": "No sessions for this folder yet.\n[New Session](command:lodestar.newSession)",
+        "when": "lodestar.state == empty"
+      }
+    ],
+    "commands": [
+      {
+        "command": "lodestar.newSession",
+        "title": "New Session",
+        "category": "Lodestar",
+        "icon": "$(add)"
+      },
+      {
+        "command": "lodestar.refresh",
+        "title": "Refresh",
+        "category": "Lodestar",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "lodestar.openSession",
+        "title": "Open",
+        "category": "Lodestar"
+      },
+      {
+        "command": "lodestar.openInEditor",
+        "title": "Open in Editor Tab",
+        "category": "Lodestar",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "lodestar.openInApp",
+        "title": "Open in Lodestar app",
+        "category": "Lodestar"
+      },
+      {
+        "command": "lodestar.showSessions",
+        "title": "Show Sessions",
+        "category": "Lodestar",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "lodestar.rename",
+        "title": "Rename",
+        "category": "Lodestar"
+      },
+      {
+        "command": "lodestar.markDone",
+        "title": "Mark as Done",
+        "category": "Lodestar"
+      },
+      {
+        "command": "lodestar.markNotDone",
+        "title": "Mark as Not Done",
+        "category": "Lodestar"
+      },
+      {
+        "command": "lodestar.openApp",
+        "title": "Open Lodestar",
+        "category": "Lodestar"
+      },
+      {
+        "command": "lodestar.addSelection",
+        "title": "Add Selection to Session",
+        "category": "Lodestar"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "lodestar.newSession",
+          "when": "view == lodestar.sessions",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lodestar.refresh",
+          "when": "view == lodestar.sessions",
+          "group": "navigation@2"
+        },
+        {
+          "command": "lodestar.showSessions",
+          "when": "view == lodestar.chat",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lodestar.newSession",
+          "when": "view == lodestar.chat",
+          "group": "navigation@2"
+        },
+        {
+          "command": "lodestar.openInEditor",
+          "when": "view == lodestar.chat && lodestar.chatHasSession",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "lodestar.openSession",
+          "when": "view == lodestar.sessions && viewItem =~ /^session/",
+          "group": "1_open@1"
+        },
+        {
+          "command": "lodestar.openInEditor",
+          "when": "view == lodestar.sessions && viewItem =~ /^session/",
+          "group": "1_open@2"
+        },
+        {
+          "command": "lodestar.openInApp",
+          "when": "view == lodestar.sessions && viewItem =~ /^session/",
+          "group": "1_open@3"
+        },
+        {
+          "command": "lodestar.rename",
+          "when": "view == lodestar.sessions && viewItem =~ /^session/",
+          "group": "2_edit@1"
+        },
+        {
+          "command": "lodestar.markDone",
+          "when": "view == lodestar.sessions && viewItem == session",
+          "group": "2_edit@2"
+        },
+        {
+          "command": "lodestar.markNotDone",
+          "when": "view == lodestar.sessions && viewItem == session.done",
+          "group": "2_edit@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "lodestar.addSelection",
+          "when": "editorHasSelection && resourceScheme == file",
+          "group": "9_lodestar"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "lodestar.openSession",
+          "when": "lodestar.hasSelection"
+        },
+        {
+          "command": "lodestar.openInApp",
+          "when": "lodestar.hasSelection"
+        },
+        {
+          "command": "lodestar.openInEditor",
+          "when": "lodestar.hasSelection || lodestar.chatHasSession"
+        },
+        {
+          "command": "lodestar.rename",
+          "when": "lodestar.hasSelection"
+        },
+        {
+          "command": "lodestar.markDone",
+          "when": "lodestar.hasSelection"
+        },
+        {
+          "command": "lodestar.markNotDone",
+          "when": "lodestar.hasSelection"
+        },
+        {
+          "command": "lodestar.addSelection",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Lodestar",
+      "properties": {
+        "lodestar.port": {
+          "type": "number",
+          "default": 7788,
+          "description": "Port of the Lodestar daemon on 127.0.0.1."
+        },
+        "lodestar.home": {
+          "type": "string",
+          "default": "",
+          "description": "Folder that holds the Lodestar token. Empty uses $AGENT_NAV_HOME, then ~/.agent-nav."
+        },
+        "lodestar.openSessionIn": {
+          "type": "string",
+          "enum": [
+            "sidebar",
+            "editor"
+          ],
+          "enumDescriptions": [
+            "Open sessions in the Chat view of the Lodestar side bar.",
+            "Open sessions in an editor tab."
+          ],
+          "default": "sidebar",
+          "description": "Where a session opens when you pick it in the list or start a new one. Open in Editor Tab in the row menu always opens a tab."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node scripts/build.mjs",
+    "package": "npm run typecheck && npm run check && npm run build && vsce package --no-dependencies --allow-missing-repository --skip-license -o lodestar-0.1.0.vsix",
+    "check": "../node_modules/.bin/tsx scripts/check-manifest.ts"
+  },
+  "dependencies": {
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.100.0",
+    "@types/ws": "8.18.2",
+    "@vscode/vsce": "4.0.0",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "minimatch@>=7.0.0 <11.0.1": "11.0.9"
+  }
+}

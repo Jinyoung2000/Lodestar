@@ -1,0 +1,30 @@
+<!-- @dsCard group="Chat" height=230 subtitle="접힘 기본, 단계 한 줄" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>StepGroup</title>
+<style>
+body{margin:0;background:var(--surface-raised);font-family:var(--font-sans);color:var(--fg)}
+.wrap{padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);max-width:var(--size-chat)}
+.sum{height:var(--size-row-lg);display:flex;align-items:center;gap:var(--space-1);font-size:13px;color:var(--fg-muted);cursor:pointer}
+.steps{display:flex;flex-direction:column;gap:var(--space-1);padding-left:var(--space-6)}
+.step{display:flex;align-items:center;gap:var(--space-2);font-size:13px;line-height:20px;min-width:0}
+.chip{font:12px/18px var(--font-mono);background:var(--surface-inset);color:var(--fg-muted);border-radius:var(--radius-sm);padding:0 var(--space-1_5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px}
+.file{font:12px/18px var(--font-mono);color:var(--accent-text);text-decoration:none}
+.dot{width:6px;height:6px;border-radius:var(--radius-full);background:var(--running)}
+svg{width:16px;height:16px;stroke:var(--fg-subtle);stroke-width:1.5;fill:none;flex:none;stroke-linecap:round;stroke-linejoin:round}
+.body{font-size:14px;line-height:22px;margin:0}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="sum"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>Completed 2 steps in 56s</div>
+  <div class="sum"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>Completed 4 steps in 26s</div>
+  <div class="steps">
+    <div class="step"><svg viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"/></svg>Ran<span class="chip">zsh -c 'source ~/.app-env; for app in app-pulled…'</span></div>
+    <div class="step"><svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/></svg>Read<a class="file" href="#">src/worker/processors/checkPromiseSuggestion.ts:144</a></div>
+    <div class="step"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>Searched<span class="chip">ChatMessageInputV2</span></div>
+    <div class="step"><span class="dot"></span>Ran<span class="chip">gh pr checks 8151</span></div>
+  </div>
+  <p class="body">프로덕션 감시를 걸어 뒀습니다. 배포가 나가면 Loki 에서 새 로그를 확인하고 보고합니다.</p>
+</div>
+</body>
+</html>

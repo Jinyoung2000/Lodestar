@@ -1,0 +1,24 @@
+<!-- @dsCard group="Controls" height=110 subtitle="28px / 24px" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Button</title>
+<style>
+body{margin:0;background:var(--surface-raised);font-family:var(--font-sans)}
+.grid{padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3)}
+.row{display:flex;align-items:center;gap:var(--space-2)}
+.b{height:var(--size-control);padding:0 var(--space-3);border-radius:var(--radius-md);font:12px/18px var(--font-sans);border:1px solid transparent;cursor:pointer}
+.b.sm{height:var(--size-control-sm);padding:0 var(--space-2)}
+.p{background:var(--accent);color:var(--accent-fg);font-weight:600}
+.s{background:var(--surface-overlay);border-color:var(--border);color:var(--fg)}
+.g{background:transparent;color:var(--fg-muted)}
+.g:hover,.s:hover{background:var(--surface-hover)}
+.b:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.b:disabled{background:transparent;border-color:transparent;color:var(--fg-subtle);cursor:default}
+</style></head>
+<body>
+<div class="grid">
+  <div class="row"><button class="b p">허용</button><button class="b s">이 세션에서 항상 허용</button><button class="b g">거절</button><button class="b p" disabled>보내기</button></div>
+  <div class="row"><button class="b sm p">Sync 2↑</button><button class="b sm s">유지</button><button class="b sm g">되돌리기</button></div>
+</div>
+</body>
+</html>

@@ -1,0 +1,10 @@
+/* 생성 파일. scripts/build-directions.mjs 가 design-system/directions/rounded.json 에서 만든다. 직접 고치지 않는다. */
+/* lint-tokens: generated */
+html[data-direction="rounded"] {
+  --radius-sm: 6px;
+  --radius-code-inline: 5px;
+  --radius-code-block: 10px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+}

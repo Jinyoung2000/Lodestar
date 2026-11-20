@@ -1,0 +1,138 @@
+.cm-vsc-cursorLayer {
+  pointer-events: none;
+  display: none;
+}
+.cm-focused > .cm-scroller > .cm-vsc-cursorLayer {
+  display: block;
+}
+.cm-vsc-cursor {
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: none;
+  background-color: var(--editor-cursor);
+  border-color: var(--editor-cursor);
+  color: var(--editor-cursor-text);
+}
+.cm-vsc-cursor-block-outline {
+  background: transparent;
+  border-style: solid;
+  border-width: 1px;
+}
+.cm-vsc-cursor-underline {
+  background: transparent;
+  border-bottom: var(--space-0_5) solid var(--editor-cursor);
+}
+.cm-vsc-cursor-underline-thin {
+  background: transparent;
+  border-bottom: 1px solid var(--editor-cursor);
+}
+
+/* 깜빡임. blink 는 번들이 500ms 마다 visibility 를 뒤집는다(1초 주기, 반은 보이고 반은 숨김).
+   smooth, phase, expand 는 커서가 움직인 뒤 500ms 고정으로 보이다가 .5s ease-in-out alternate 를 20번 돈다(애니메이션 지연으로 같은 효과). */
+@keyframes cm-vsc-blink-a {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes cm-vsc-blink-b {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes cm-vsc-smooth-a {
+  0%,
+  20% {
+    opacity: 1;
+  }
+  60%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes cm-vsc-smooth-b {
+  0%,
+  20% {
+    opacity: 1;
+  }
+  60%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes cm-vsc-phase-a {
+  0%,
+  20% {
+    opacity: 1;
+  }
+  90%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes cm-vsc-phase-b {
+  0%,
+  20% {
+    opacity: 1;
+  }
+  90%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes cm-vsc-expand-a {
+  0%,
+  20% {
+    transform: scaleY(1);
+  }
+  80%,
+  100% {
+    transform: scaleY(0);
+  }
+}
+@keyframes cm-vsc-expand-b {
+  0%,
+  20% {
+    transform: scaleY(1);
+  }
+  80%,
+  100% {
+    transform: scaleY(0);
+  }
+}
+.cm-focused.cm-vsc-blink-blink.cm-vsc-phase-a > .cm-scroller > .cm-vsc-cursorLayer {
+  animation: cm-vsc-blink-a 1s step-end infinite;
+}
+.cm-focused.cm-vsc-blink-blink.cm-vsc-phase-b > .cm-scroller > .cm-vsc-cursorLayer {
+  animation: cm-vsc-blink-b 1s step-end infinite;
+}
+.cm-focused.cm-vsc-blink-smooth.cm-vsc-phase-a > .cm-scroller > .cm-vsc-cursorLayer {
+  animation: cm-vsc-smooth-a 0.5s ease-in-out 0.5s 20 alternate;
+}
+.cm-focused.cm-vsc-blink-smooth.cm-vsc-phase-b > .cm-scroller > .cm-vsc-cursorLayer {
+  animation: cm-vsc-smooth-b 0.5s ease-in-out 0.5s 20 alternate;
+}
+.cm-focused.cm-vsc-blink-phase.cm-vsc-phase-a > .cm-scroller > .cm-vsc-cursorLayer {
+  animation: cm-vsc-phase-a 0.5s ease-in-out 0.5s 20 alternate;
+}
+.cm-focused.cm-vsc-blink-phase.cm-vsc-phase-b > .cm-scroller > .cm-vsc-cursorLayer {
+  animation: cm-vsc-phase-b 0.5s ease-in-out 0.5s 20 alternate;
+}
+.cm-focused.cm-vsc-blink-expand.cm-vsc-phase-a > .cm-scroller > .cm-vsc-cursorLayer > .cm-vsc-cursor {
+  animation: cm-vsc-expand-a 0.5s ease-in-out 0.5s 20 alternate;
+}
+.cm-focused.cm-vsc-blink-expand.cm-vsc-phase-b > .cm-scroller > .cm-vsc-cursorLayer > .cm-vsc-cursor {
+  animation: cm-vsc-expand-b 0.5s ease-in-out 0.5s 20 alternate;
+}

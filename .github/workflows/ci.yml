@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: Daemon, web and Electron
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Several tests create commits in temporary repositories.
+      - name: Git identity for test repositories
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.com"
+          git config --global init.defaultBranch main
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Design token lint
+        run: npm run lint:tokens
+
+      - name: React hooks lint
+        run: npm run lint:hooks
+
+      # The daemon serves the web build, and one test loads a page from it,
+      # so the build comes before the tests. It also proves the bundles compile.
+      - name: Build
+        run: npm run build
+
+      # The tests use fakes for the Claude CLI, gh, Codex, the keychain and xcrun,
+      # and start their own daemon on a temporary data folder and a free port.
+      - name: Tests
+        run: npm test
+
+  mobile:
+    name: Phone client
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test

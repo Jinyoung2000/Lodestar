@@ -1,0 +1,41 @@
+<!-- @dsCard group="Chat" height=210 subtitle="radius-lg, 패딩 12px" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Composer</title>
+<style>
+body{margin:0;background:var(--surface-raised);font-family:var(--font-sans);color:var(--fg)}
+.wrap{padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);max-width:var(--size-chat)}
+.meta{display:flex;gap:var(--space-2)}
+.chip{height:var(--size-control-sm);display:inline-flex;align-items:center;gap:var(--space-1);padding:0 var(--space-1_5);border-radius:var(--radius-sm);font-size:12px;color:var(--fg-muted);border:1px solid var(--border-subtle);background:transparent}
+.add{color:var(--success)}.del{color:var(--danger)}
+.box{background:var(--surface-overlay);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2)}
+.box:focus-within{border-color:var(--accent)}
+.att{align-self:flex-start;font:12px/18px var(--font-mono);background:var(--surface-inset);border-radius:var(--radius-sm);padding:0 var(--space-1_5);color:var(--fg-muted)}
+textarea{border:0;outline:0;background:transparent;resize:none;color:var(--fg);font:13px/20px var(--font-sans);min-height:40px}
+textarea::placeholder{color:var(--fg-muted)}
+.ctl{display:flex;align-items:center;gap:var(--space-1)}
+.g{height:var(--size-control-sm);display:inline-flex;align-items:center;gap:var(--space-1);padding:0 var(--space-1_5);border:0;border-radius:var(--radius-sm);background:transparent;color:var(--fg-muted);font:12px/18px var(--font-sans);cursor:pointer}
+.g:hover{background:var(--surface-hover);color:var(--fg)}
+.send{margin-left:auto;width:var(--size-control-sm);height:var(--size-control-sm);border:0;border-radius:var(--radius-sm);background:var(--accent);color:var(--accent-fg);display:grid;place-items:center}
+.perm{font-size:11px;line-height:16px;color:var(--warning);display:flex;align-items:center;gap:var(--space-1)}
+svg{width:16px;height:16px;stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="meta"><span class="chip">318 Files <span class="add">+15274</span> <span class="del">−3232</span></span><span class="chip">2 Pull Requests</span></div>
+  <div class="box">
+    <span class="att">checkPromiseSuggestion.ts:144-150</span>
+    <label for="cmp" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">메시지</label>
+    <textarea id="cmp" rows="2" placeholder="Chat with Claude"></textarea>
+    <div class="ctl">
+      <button class="g" aria-label="첨부"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="g">Agent</button>
+      <button class="g">Sonnet 5.5</button>
+      <button class="g">High</button>
+      <button class="send" aria-label="보내기"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+    </div>
+  </div>
+  <div class="perm"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/></svg>Bypass Permissions</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,116 @@
+.editor-group > .tabs {
+  border-bottom: 0;
+  background: var(--tab-strip-bg);
+  box-shadow: inset 0 -1px 0 var(--tab-strip-border);
+}
+.editor-group > .tabs > .tab {
+  position: relative;
+  box-sizing: border-box;
+  height: 100%;
+  padding-bottom: 1px;
+  border: 1px solid transparent;
+  border-right-color: transparent;
+  background: transparent;
+  color: var(--tab-inactive-fg);
+}
+.editor-group > .tabs > .tab > .tab-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+}
+.editor-group:not([data-focused]) > .tabs > .tab {
+  color: var(--tab-inactive-fg-unfocused);
+}
+/* 마우스를 올린 비활성 탭: 바탕이 깔리고 글자가 밝아진다(modernEditorTab.hoverBackground, hoverForeground) */
+.editor-group > .tabs > .tab:not([data-active]):hover {
+  border-radius: var(--radius-sm);
+  background: var(--tab-hover-bg);
+  color: var(--tab-active-fg);
+}
+.editor-group:not([data-focused]) > .tabs > .tab:not([data-active]):hover {
+  background: var(--tab-hover-bg-unfocused);
+}
+/* 붙박이 탭 뒤 첫 일반 탭의 왼쪽 1 픽셀 선(tab.lastPinnedBorder) */
+.editor-group > .tabs > .tab[data-sticky] + .tab:not([data-sticky]):not([data-active]) {
+  box-shadow: inset 1px 0 0 var(--tab-last-pinned-border);
+}
+.editor-group > .tabs > .tabs-tail {
+  background: var(--tab-strip-bg);
+  box-shadow: inset 0 -1px 0 var(--tab-strip-border);
+}
+
+/* 활성 탭: 에디터와 이어진다 */
+.editor-group > .tabs > .tab[data-active] {
+  z-index: 1;
+  border-color: var(--tab-strip-border);
+  border-bottom-color: transparent;
+  border-radius: calc(var(--radius-md) + 1px) calc(var(--radius-md) + 1px) 0 0;
+  background: var(--tab-active-bg);
+  color: var(--tab-active-fg);
+  box-shadow: none;
+}
+.editor-group > .tabs > .tab[data-active]::before,
+.editor-group > .tabs > .tab[data-active]::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  box-sizing: border-box;
+  width: calc(var(--radius-md) + 1px);
+  height: calc(var(--radius-md) + 1px);
+  border-bottom: 1px solid var(--tab-strip-border);
+  clip-path: inset(0);
+  pointer-events: none;
+}
+.editor-group > .tabs > .tab[data-active]::before {
+  right: 100%;
+  border-right: 1px solid var(--tab-strip-border);
+  border-bottom-right-radius: calc(var(--radius-md) + 1px);
+  box-shadow: calc((var(--radius-md) + 1px) / 2) calc((var(--radius-md) + 1px) / 2) 0 calc((var(--radius-md) + 1px) / 2) var(--tab-active-bg);
+}
+.editor-group > .tabs > .tab[data-active]::after {
+  left: 100%;
+  border-left: 1px solid var(--tab-strip-border);
+  border-bottom-left-radius: calc(var(--radius-md) + 1px);
+  box-shadow: calc((var(--radius-md) + 1px) / -2) calc((var(--radius-md) + 1px) / 2) 0 calc((var(--radius-md) + 1px) / 2) var(--tab-active-bg);
+}
+/* 첫 탭은 왼쪽 윤곽과 어깨가 없고 왼쪽 위 모서리가 더 크다(cornerRadius.large) */
+.editor-group > .tabs > .tab:first-child,
+.editor-group > .tabs > :not(.tab):first-child + .tab {
+  border-left-width: 0;
+  border-top-left-radius: var(--radius-lg);
+}
+.editor-group > .tabs > .tab[data-active]:first-child::before,
+.editor-group > .tabs > :not(.tab):first-child + .tab[data-active]::before {
+  content: none;
+}
+
+/* 에디터 탭만(Changes, Files, Card 같은 고정 칸 탭은 앱 고유라 안쪽 여백을 따로 둔다) */
+.editor-group > .tabs > .tab[data-editor-tab] > .tab-label {
+  flex: 1 1 auto;
+  padding: 0 calc(var(--space-1_5) + 1px) 0 calc(var(--space-1_5) - 1px);
+}
+.editor-group > .tabs > .tab[data-editor-tab] > .tab-close {
+  width: calc(var(--size-icon) + var(--space-1));
+  height: calc(var(--size-icon) + var(--space-1));
+  margin: 0 calc(var(--space-1_5) - 1px) 0 0;
+  color: inherit;
+  opacity: 0;
+}
+.editor-group > .tabs > .tab[data-editor-tab] .tab-close .codicon {
+  font-size: var(--size-icon);
+}
+/* 닫기 단추는 활성 탭, 마우스를 올린 탭, 수정된 탭, 붙박이 탭에서 보인다. 포커스가 있는 그룹에서는 또렷하게, 아니면 반투명으로 */
+.editor-group > .tabs > .tab[data-editor-tab][data-active] > .tab-close,
+.editor-group > .tabs > .tab[data-editor-tab]:hover > .tab-close,
+.editor-group > .tabs > .tab[data-editor-tab][data-dirty] > .tab-close,
+.editor-group > .tabs > .tab[data-editor-tab][data-sticky] > .tab-close,
+.editor-group > .tabs > .tab[data-editor-tab] > .tab-close:focus-visible {
+  opacity: 0.5; /* lint-tokens: allow */
+}
+.editor-group[data-focused] > .tabs > .tab[data-editor-tab][data-active] > .tab-close,
+.editor-group[data-focused] > .tabs > .tab[data-editor-tab]:hover > .tab-close,
+.editor-group[data-focused] > .tabs > .tab[data-editor-tab][data-dirty] > .tab-close,
+.editor-group[data-focused] > .tabs > .tab[data-editor-tab][data-sticky] > .tab-close,
+.editor-group[data-focused] > .tabs > .tab[data-editor-tab] > .tab-close:focus-visible {
+  opacity: 1;
+}

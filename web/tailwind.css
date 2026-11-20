@@ -1,0 +1,146 @@
+/* Tailwind 테마는 web/tokens.css 의 변수만 가리킨다. 디자인 시스템에 없는 단계는 기본값에서도 지운다. */
+@import "tailwindcss";
+
+@theme {
+  /* 간격: 4px 격자 여덟 단계뿐 */
+  --spacing-*: initial;
+  --spacing-0: 0;
+  --spacing-px: 1px;
+  --spacing-0\.5: var(--space-0_5);
+  --spacing-1: var(--space-1);
+  --spacing-1\.5: var(--space-1_5);
+  --spacing-2: var(--space-2);
+  --spacing-3: var(--space-3);
+  --spacing-4: var(--space-4);
+  --spacing-6: var(--space-6);
+  --spacing-8: var(--space-8);
+
+  /* 글자: 다섯 단계 + 코드 둘 */
+  --text-*: initial;
+  --text-caption: var(--text-caption);
+  --text-caption--line-height: var(--leading-caption);
+  --text-ui-sm: var(--text-ui-sm);
+  --text-ui-sm--line-height: var(--leading-ui-sm);
+  --text-ui: var(--text-ui);
+  --text-ui--line-height: var(--leading-ui);
+  --text-body: var(--text-body);
+  --text-body--line-height: var(--leading-body);
+  --text-title: var(--text-title);
+  --text-title--line-height: var(--leading-title);
+  --text-code: var(--text-code);
+  --text-code--line-height: var(--leading-code);
+  --text-code-sm: var(--text-code-sm);
+  --text-code-sm--line-height: var(--leading-code-sm);
+  --text-chat: var(--text-chat);
+  --text-chat--line-height: var(--leading-chat);
+  --text-session-title: var(--text-session-title);
+  --text-session-title--line-height: var(--leading-session-title);
+  --text-session-detail: var(--text-session-detail);
+  --text-session-detail--line-height: var(--leading-session-detail);
+  --text-section-label: var(--text-section-label);
+  --text-section-label--line-height: var(--leading-section-label);
+  --text-tool-detail: var(--text-tool-detail);
+  --text-tool-detail--line-height: var(--leading-tool-detail);
+  --text-micro: var(--text-micro);
+  --text-micro--line-height: var(--leading-micro);
+  --text-input: var(--text-input);
+  --text-input--line-height: var(--leading-input);
+  --text-code-inline: var(--text-code-inline);
+  --text-code-inline--line-height: var(--leading-code-inline);
+
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-semibold: 600;
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* 반경: 세 단계 + 원 */
+  --radius-*: initial;
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-full: var(--radius-full);
+
+  /* 색: 토큰 이름 그대로 (bg-surface-raised, text-fg-muted, border-border …) */
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-surface-base: var(--surface-base);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-inset: var(--surface-inset);
+  --color-border-subtle: var(--border-subtle);
+  --color-border: var(--border);
+  --color-fg-strong: var(--fg-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-focus-border: var(--focus-border);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
+  --color-running: var(--running);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-diff-add-bg: var(--diff-add-bg);
+  --color-diff-add-gutter: var(--diff-add-gutter);
+  --color-diff-del-bg: var(--diff-del-bg);
+  --color-diff-del-gutter: var(--diff-del-gutter);
+  --color-chat-user-bg: var(--chat-user-bg);
+  --color-chat-user-bg-hover: var(--chat-user-bg-hover);
+  --color-input-bg: var(--input-bg);
+  --color-input-border: var(--input-border);
+  --color-row-selected: var(--row-selected);
+  --color-row-selected-fg: var(--row-selected-fg);
+  --color-inline-code-bg: var(--inline-code-bg);
+  --color-inline-code-fg: var(--inline-code-fg);
+  --color-diff-count-add: var(--diff-count-add);
+  --color-diff-count-del: var(--diff-count-del);
+  --color-git-added: var(--git-added);
+  --color-git-deleted: var(--git-deleted);
+  --color-unread: var(--unread);
+  --color-status-spinner-running: var(--status-spinner-running);
+  --color-status-spinner-waiting: var(--status-spinner-waiting);
+  /* shadcn/ui 가 쓰는 이름 */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+
+  /* 높이와 폭: size 토큰 */
+  --size-row: var(--size-row);
+  --size-row-lg: var(--size-row-lg);
+  --size-control-sm: var(--size-control-sm);
+  --size-control: var(--size-control);
+  --size-pane-header: var(--size-pane-header);
+  --size-titlebar: var(--size-titlebar);
+  --size-sidebar: var(--size-sidebar);
+  --size-chat: var(--size-chat);
+  --size-session-row: var(--size-session-row);
+  --size-section-row: var(--size-section-row);
+  --size-composer-editor: var(--size-composer-editor);
+  --size-composer-tools: var(--size-composer-tools);
+  --size-panel-narrow: var(--size-panel-narrow);
+  --size-panel-wide: var(--size-panel-wide);
+  --size-icon: var(--size-icon);
+  --size-icon-sm: var(--size-icon-sm);
+  --size-session-row-compact: var(--size-session-row-compact);
+
+  --shadow-*: initial;
+  --shadow-overlay: var(--shadow-overlay);
+}

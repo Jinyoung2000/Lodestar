@@ -1,0 +1,286 @@
+.cm-zone {
+  position: sticky;
+  z-index: 1;
+  box-sizing: border-box;
+  --zone-frame: var(--editor-info);
+  --zone-head-bg: var(--peek-title-bg);
+  --zone-head-fg: var(--peek-title-fg);
+  --zone-head-desc: var(--peek-title-desc);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  text-align: left;
+}
+
+.cm-zone-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-color: transparent transparent var(--zone-frame) transparent;
+  border-top-width: 0;
+  pointer-events: none;
+}
+
+.cm-zone-container {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-top: 1px solid var(--zone-frame);
+  border-bottom: 1px solid var(--zone-frame);
+  box-shadow: var(--shadow-hover);
+}
+
+.cm-zone-head {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  color: var(--zone-head-fg);
+  background-color: var(--zone-head-bg);
+}
+
+.cm-zone-title {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  margin-left: calc(var(--space-4) + var(--space-1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cm-zone-title .cm-zone-dir {
+  margin-left: 0.5em;
+  font-size: 0.9em;
+  color: var(--zone-head-desc);
+}
+
+.cm-zone-title .cm-zone-meta:not(:empty)::before {
+  content: "-";
+  padding: 0 0.3em;
+}
+
+.cm-zone-title .cm-zone-meta {
+  color: var(--zone-head-desc);
+}
+
+.cm-zone-title > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cm-zone-actions {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: var(--space-0_5);
+}
+
+.cm-zone-action {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-row);
+  height: var(--size-row);
+  border-radius: var(--radius-md);
+  color: var(--zone-head-fg);
+  cursor: pointer;
+}
+
+.cm-zone-action:hover {
+  background-color: var(--surface-hover);
+}
+
+.cm-zone-action:focus-visible {
+  outline: 1px solid var(--focus-ring, var(--accent));
+  outline-offset: -1px;
+}
+
+.cm-zone-body {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  overflow: hidden;
+  border-top: 1px solid var(--zone-frame);
+}
+
+.cm-zone-sash {
+  position: absolute;
+  right: 0;
+  bottom: calc(-1 * var(--space-1));
+  left: 0;
+  z-index: 2;
+  height: var(--space-1);
+  cursor: ns-resize;
+}
+
+/* 참조 peek: 왼쪽 미리보기 에디터와 오른쪽 결과 목록 */
+.cm-peek-preview {
+  position: relative;
+  flex: none;
+  min-width: 0;
+  background-color: var(--peek-editor-bg);
+}
+
+.cm-peek-preview .cm-editor {
+  height: 100%;
+  background-color: var(--peek-editor-bg);
+}
+
+.cm-peek-preview .cm-gutters {
+  background-color: var(--peek-editor-bg);
+}
+
+.cm-peek-preview .cm-peek-match {
+  background-color: var(--peek-editor-match-bg);
+}
+
+.cm-peek-message {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  color: var(--peek-result-line-fg);
+  background-color: var(--peek-result-bg);
+}
+
+.cm-peek-split {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: var(--space-1);
+  margin-left: calc(-1 * var(--space-0_5));
+  cursor: ew-resize;
+}
+
+/* 좁은 띠: 미리보기 아래에 목록을 쌓는다(web/peekView.ts STACK_BELOW_WIDTH). 가운데 끌기 경계는 숨긴다. */
+.cm-zone-body[data-stacked] {
+  flex-direction: column;
+}
+
+.cm-zone-body[data-stacked] .cm-peek-split {
+  display: none;
+}
+
+.cm-zone-body[data-stacked] .cm-peek-results {
+  border-top: 1px solid var(--zone-frame);
+}
+
+.cm-peek-results {
+  flex: none;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  color: var(--peek-result-line-fg);
+  background-color: var(--peek-result-bg);
+  line-height: var(--size-peek-row);
+  outline: none;
+}
+
+.cm-peek-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: var(--size-peek-row);
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cm-peek-row .codicon {
+  flex: none;
+  width: var(--size-icon);
+  margin-right: 0;
+}
+
+.cm-peek-row-file {
+  color: var(--peek-result-file-fg);
+}
+
+.cm-peek-row-file .cm-peek-name {
+  flex: none;
+  margin-left: var(--space-1);
+}
+
+.cm-peek-row-file .cm-peek-dir {
+  min-width: 0;
+  margin-left: var(--space-1_5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+  font-size: 0.9em;
+}
+
+.cm-peek-row-ref {
+  padding-left: var(--space-4);
+}
+
+.cm-peek-results[data-grouped] .cm-peek-row-ref {
+  padding-left: var(--space-6);
+}
+
+.cm-peek-row-ref .cm-peek-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cm-peek-hl {
+  color: var(--peek-result-file-fg);
+  background-color: var(--peek-result-match-bg);
+}
+
+.cm-peek-count {
+  box-sizing: border-box;
+  flex: none;
+  min-width: var(--size-peek-badge);
+  height: var(--size-peek-badge);
+  margin-right: var(--space-3);
+  margin-left: auto;
+  padding: 0 var(--space-1_5);
+  border-radius: var(--radius-full);
+  color: var(--peek-badge-fg);
+  background-color: var(--peek-badge-bg);
+  font-size: var(--text-caption);
+  line-height: var(--size-peek-badge);
+  text-align: center;
+}
+
+.cm-peek-row[aria-selected="true"] {
+  background-color: var(--peek-result-selection-inactive-bg);
+}
+
+.cm-peek-results:focus-within .cm-peek-row[aria-selected="true"] {
+  color: var(--peek-result-selection-fg);
+  background-color: var(--peek-result-selection-bg);
+}
+
+.cm-peek-results:focus-within .cm-peek-row[aria-selected="true"] .cm-peek-hl {
+  color: inherit;
+}
+
+/* 에디터 상자(hover 등)는 web/hoverSpace.ts 가 알려 준 에디터 안쪽 폭을 넘지 않는다. */
+.cm-editor div.cm-tooltip {
+  max-width: min(var(--size-hover-max), var(--hover-space-width, var(--size-hover-max)));
+}
+
+/* 상자 폭은 위치(창 오른쪽까지 남은 폭)가 아니라 내용에서 정한다. 아니면 오른쪽 가장자리 근처에서 상자가 좁게 잡혀 위치 보정이 그 폭으로 계산된다. */
+.cm-editor div.cm-tooltip:not(.cm-tooltip-autocomplete) {
+  width: max-content;
+}
+
+.cm-editor .cm-hover-actions {
+  flex-wrap: wrap;
+  row-gap: var(--space-0_5);
+}

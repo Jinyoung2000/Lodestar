@@ -1,0 +1,102 @@
+.cm-quickfix {
+  position: fixed;
+  z-index: 50; /* lint-tokens: allow 메뉴 층(50) */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: var(--size-action-min);
+  max-width: 80vw;
+  padding: var(--space-1);
+  color: var(--action-widget-fg);
+  background-color: var(--action-widget-bg);
+  border: 1px solid var(--hover-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-hover);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  user-select: none;
+}
+
+.cm-quickfix-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.cm-quickfix-header {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: var(--size-action-row);
+  padding: 0 var(--space-3) 0 var(--space-1_5);
+  color: var(--action-widget-desc);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+
+.cm-quickfix-header:not(:first-child) {
+  margin-top: var(--space-0_5);
+}
+
+.cm-quickfix-item {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  height: var(--size-action-row);
+  padding: 0 var(--space-3) 0 var(--space-1_5);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cm-quickfix-item[aria-selected="true"]:not([data-disabled]) {
+  background-color: var(--action-widget-hover-bg);
+}
+
+.cm-quickfix-item[data-disabled] {
+  color: var(--action-widget-disabled);
+  cursor: default;
+}
+
+.cm-quickfix .cm-quickfix-item .cm-quickfix-icon {
+  flex: none;
+  font-size: var(--size-icon-sm);
+  color: inherit;
+}
+
+.cm-quickfix .cm-quickfix-item .cm-quickfix-icon[data-bulb] {
+  color: var(--editor-lightbulb);
+}
+
+.cm-quickfix-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cm-quickfix-hint {
+  margin-left: 0.5em;
+  color: var(--action-widget-desc);
+  font-size: var(--text-ui-sm);
+  letter-spacing: 0.5px; /* lint-tokens: allow */
+}
+
+.cm-quickfix-bar {
+  flex: none;
+  margin-top: var(--space-1);
+  padding: var(--space-0_5) var(--space-2) 0 var(--size-action-bar-pad);
+  border-top: 1px solid var(--hover-border);
+}
+
+.cm-quickfix-bar-label {
+  padding: 0;
+  color: var(--action-widget-link);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: var(--text-ui-sm);
+  line-height: var(--size-action-bar-line);
+  cursor: pointer;
+}

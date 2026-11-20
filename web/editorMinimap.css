@@ -1,0 +1,64 @@
+.cm-minimap {
+  box-sizing: border-box;
+  display: none;
+  cursor: default;
+  user-select: none;
+  touch-action: none;
+}
+
+.cm-minimap canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0.9;
+}
+
+/* 보이는 범위를 나타내는 상자. 평소(mouseover)엔 숨겼다가 미니맵에 올리거나 끄는 동안 0.1s 에 걸쳐 나타난다. */
+.cm-minimap-slider {
+  position: absolute;
+  left: 0;
+  contain: strict;
+}
+
+.cm-minimap[data-slider="mouseover"] .cm-minimap-slider {
+  opacity: 0;
+  transition: opacity 0.1s linear;
+}
+
+.cm-minimap[data-slider="mouseover"]:hover .cm-minimap-slider,
+.cm-minimap[data-slider="mouseover"] .cm-minimap-slider[data-active] {
+  opacity: 1;
+}
+
+.cm-minimap-slider-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--minimap-slider);
+}
+
+.cm-minimap-slider:hover .cm-minimap-slider-fill {
+  background: var(--minimap-slider-hover);
+}
+
+.cm-minimap-slider[data-active] .cm-minimap-slider-fill {
+  background: var(--minimap-slider-active);
+}
+
+/* 글자가 옆으로 스크롤돼 있을 때만 미니맵 왼쪽에 그림자(.minimap-shadow-visible) */
+.cm-minimap-shadow {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-1 * var(--size-minimap-shadow));
+  width: var(--size-minimap-shadow);
+  pointer-events: none;
+  box-shadow: var(--shadow-minimap);
+}
+
+.cm-minimap[data-shadow] .cm-minimap-shadow {
+  display: block;
+}

@@ -1,0 +1,59 @@
+/* Rounded 시안의 모양 규칙. 반경 토큰 값은 rounded.css(생성)가 덮고, 여기서는 토큰만으로 안 되는 알약 모양을 고른다.
+   html[data-direction="rounded"] 일 때만 적용되므로 기본 화면에 영향이 없다. */
+
+/* 선택 배경과 행 hover 는 알약 */
+html[data-direction="rounded"] .row,
+html[data-direction="rounded"] .side-item,
+html[data-direction="rounded"] .list-row,
+html[data-direction="rounded"] .popup-row,
+html[data-direction="rounded"] .palette-option,
+html[data-direction="rounded"] .quickpick-row,
+html[data-direction="rounded"] .permission-row,
+html[data-direction="rounded"] .df-menu-item,
+html[data-direction="rounded"] .gs-row,
+html[data-direction="rounded"] .gs-tab {
+  border-radius: var(--radius-full);
+}
+
+/* 칩과 태그는 알약 */
+html[data-direction="rounded"] .chip,
+html[data-direction="rounded"] .chip.agents-chip,
+html[data-direction="rounded"] .chip.changes-chip,
+html[data-direction="rounded"] .file-chip,
+html[data-direction="rounded"] .code-chip,
+html[data-direction="rounded"] .label-chip,
+html[data-direction="rounded"] .page-chip,
+html[data-direction="rounded"] .place-chip,
+html[data-direction="rounded"] .import-chip,
+html[data-direction="rounded"] .feedback-chip,
+html[data-direction="rounded"] .agent-tag,
+html[data-direction="rounded"] .kind-badge,
+html[data-direction="rounded"] .settings-tag {
+  border-radius: var(--radius-full);
+}
+
+/* 두 줄짜리 세션 행은 끝이 완전한 반원이면 무거워서 한 단계 작은 반경 */
+html[data-direction="rounded"] .session-row {
+  border-radius: var(--radius-xl);
+}
+
+/* 말풍선, 메뉴, 팝업, 도구 출력 상자는 한 단계 더 둥글게 */
+html[data-direction="rounded"] .row-user,
+html[data-direction="rounded"] .popup,
+html[data-direction="rounded"] .df-menu {
+  border-radius: var(--radius-lg);
+}
+html[data-direction="rounded"] .step-output,
+html[data-direction="rounded"] .step-terminal,
+html[data-direction="rounded"] .popup-input,
+html[data-direction="rounded"] .icon-button {
+  border-radius: var(--radius-md);
+}
+html[data-direction="rounded"] .confirm-dialog {
+  border-radius: var(--radius-xl);
+}
+
+/* 선택된 탭은 위쪽 모서리만 둥글게 */
+html[data-direction="rounded"] .tab {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}

@@ -1,0 +1,158 @@
+// CODEX: Codex 앱 서버 항목 -> 타임라인 항목 대응(server/codex/mapping.ts), 권한 모드 표(shared/codexPermission.ts), 옛 저장본 호환을 단독 시험한다. 데몬도 Codex 도 필요 없다.
+// 실행: npm test
+import { CODEX_FALLBACK_MODE, CODEX_MODE_NOTES, codexPermission, codexSupportsMode } from "../shared/codexPermission";
+import { harnessOf, PERMISSION_MODE_VALUES, type Agent, type TimelineItem } from "../shared/protocol";
+import { toolChanges } from "../web/timelineModel";
+import { previewEdit } from "../web/approvalPreview";
+import { commandApproval, diffHunks, displayCommand, editToolOf, fileChangeApproval, itemToTimeline, mcpResultText, planToTool, summarizeDiff, turnErrorOf } from "../server/codex/mapping";
+import { taskState } from "../shared/tasks";
+
+const cases: { name: string; run: () => void }[] = [];
+const test = (name: string, run: () => void) => cases.push({ name, run });
+const expect = (condition: boolean, detail: string) => {
+  if (!condition) throw new Error(detail);
+};
+const ctx = { cwd: "/repo" };
+const tool = (items: TimelineItem[], index = 0) => {
+  const item = items[index];
+  if (item?.kind !== "tool") throw new Error(`도구 항목이 아니다: ${JSON.stringify(item)}`);
+  return item;
+};
+
+test("명령 실행: 셸 래퍼를 벗기고 Bash 도구 항목으로, 출력과 종료 코드가 상태가 된다", () => {
+  expect(displayCommand(`/bin/zsh -lc "git status"`) === "git status", "큰따옴표 래퍼");
+  expect(displayCommand(`bash -lc 'echo "hi"'`) === `echo "hi"`, "작은따옴표 래퍼");
+  expect(displayCommand("ls -la") === "ls -la", "래퍼 없는 명령은 그대로");
+  const running = tool(itemToTimeline({ type: "commandExecution", id: "c1", command: "/bin/zsh -lc \"ls\"", cwd: "/repo", status: "inProgress", aggregatedOutput: null, exitCode: null }, "started", ctx));
+  expect(running.name === "Bash" && running.input.command === "ls" && running.status === "running" && running.output === null, `시작 ${JSON.stringify(running)}`);
+  const done = tool(itemToTimeline({ type: "commandExecution", id: "c1", command: "ls", cwd: "/repo", status: "completed", aggregatedOutput: "a.txt\n", exitCode: 0 }, "completed", ctx));
+  expect(done.status === "done" && done.output === "a.txt\n", "정상 종료");
+  const failed = tool(itemToTimeline({ type: "commandExecution", id: "c2", command: "false", cwd: "/repo", status: "completed", aggregatedOutput: "", exitCode: 1 }, "completed", ctx));
+  expect(failed.status === "error" && failed.output === "Exit code 1", `비정상 종료 ${JSON.stringify(failed)}`);
+  const declined = tool(itemToTimeline({ type: "commandExecution", id: "c3", command: "rm x", cwd: "/repo", status: "declined", aggregatedOutput: null, exitCode: null }, "completed", ctx));
+  expect(declined.status === "error" && declined.cancelled === true, "거절은 취소로");
+});
+
+test("파일 변경: add 는 Write, update 는 hunk 수에 따라 Edit 또는 MultiEdit, delete 는 Edit", () => {
+  const add = editToolOf({ path: "a.txt", kind: { type: "add" }, diff: "one\ntwo\n" }, "/repo");
+  expect(add.name === "Write" && add.input.file_path === "/repo/a.txt" && add.input.content === "one\ntwo\n", `add ${JSON.stringify(add)}`);
+  const update = editToolOf({ path: "src/b.ts", kind: { type: "update", move_path: null }, diff: "--- a/src/b.ts\n+++ b/src/b.ts\n@@ -1,2 +1,3 @@\n keep\n-old\n+new\n+extra\n" }, "/repo");
+  expect(update.name === "Edit" && update.input.old_string === "keep\nold\n" && update.input.new_string === "keep\nnew\nextra\n", `update ${JSON.stringify(update)}`);
+  const multi = editToolOf({ path: "c.ts", kind: { type: "update", move_path: null }, diff: "@@ -1,1 +1,1 @@\n-a\n+b\n@@ -9,1 +9,1 @@\n-x\n+y\n" }, "/repo");
+  expect(multi.name === "MultiEdit" && Array.isArray(multi.input.edits) && (multi.input.edits as unknown[]).length === 2, "hunk 둘은 MultiEdit");
+  const del = editToolOf({ path: "d.txt", kind: { type: "delete" }, diff: "bye\n" }, "/repo");
+  expect(del.name === "Edit" && del.input.new_string === "" && del.input.old_string === "bye\n", "delete");
+  expect(diffHunks("no hunks here").length === 0, "hunk 없는 글은 빈 목록");
+  const moved = editToolOf({ path: "e.ts", kind: { type: "update", move_path: "f.ts" }, diff: "@@ -1 +1 @@\n-a\n+b\n" }, "/repo");
+  expect(moved.input.moved_to === "/repo/f.ts", "이름 변경은 moved_to");
+});
+
+test("파일 변경 항목: 파일이 여럿이면 파일마다 도구 항목이고 id 는 항목 id 에 번호를 붙인다. 기존 변경량 계산이 그대로 읽는다", () => {
+  const item = { type: "fileChange", id: "p1", status: "completed", changes: [{ path: "a.txt", kind: { type: "add" }, diff: "x\ny\n" }, { path: "b.ts", kind: { type: "update", move_path: null }, diff: "@@ -1,2 +1,2 @@\n keep\n-old\n+new\n" }] };
+  const items = itemToTimeline(item, "completed", ctx);
+  expect(items.length === 2 && items[0].id === "p1:0" && items[1].id === "p1:1", `id ${items.map((i) => i.id)}`);
+  const a = tool(items, 0);
+  const b = tool(items, 1);
+  expect(a.name === "Write" && JSON.stringify(toolChanges(a.name, a.input)) === JSON.stringify({ additions: 2, deletions: 0 }), `Write 변경량 ${JSON.stringify(toolChanges(a.name, a.input))}`);
+  const countB = toolChanges(b.name, b.input);
+  expect(countB?.additions === 1 && countB.deletions === 1, `Edit 변경량 ${JSON.stringify(countB)}`);
+  const single = itemToTimeline({ type: "fileChange", id: "p2", status: "inProgress", changes: [{ path: "a.txt", kind: { type: "add" }, diff: "x" }] }, "started", ctx);
+  expect(single.length === 1 && single[0].id === "p2" && tool(single).status === "running", "하나면 항목 id 그대로");
+  expect(tool(itemToTimeline({ ...item, status: "failed" }, "completed", ctx)).status === "error", "실패");
+});
+
+test("파일 변경 승인: 카드는 첫 파일의 Edit 입력을 갖고 나머지 파일은 입력에 적히며, 미리보기가 현재 파일에 변경을 적용한다", () => {
+  const started = { type: "fileChange", id: "p3", changes: [{ path: "n.txt", kind: { type: "update", move_path: null }, diff: "@@ -1,1 +1,2 @@\n existing line\n+added by codex\n" }, { path: "m.txt", kind: { type: "add" }, diff: "m" }] };
+  const card = fileChangeApproval(7, { itemId: "p3", reason: null }, started, "/repo");
+  expect(card.kind === "permission" && card.id === "codex-approval:7" && card.toolUseId === "p3:0" && card.toolName === "Edit" && card.status === "pending", JSON.stringify(card));
+  expect(JSON.stringify(card.input.other_files) === JSON.stringify(["/repo/m.txt"]), "나머지 파일");
+  const preview = previewEdit(card.toolName, card.input, "existing line\ntail\n");
+  expect(preview?.after === "existing line\nadded by codex\ntail\n" && preview.before === "existing line\ntail\n", `미리보기 ${JSON.stringify(preview)}`);
+});
+
+test("명령 승인 카드: Bash 도구로, 이유와 작업 폴더는 입력에 둔다", () => {
+  const card = commandApproval(3, { command: `/bin/zsh -lc "npm test"`, reason: "needs network", cwd: "/repo" }, "c9");
+  expect(card.toolName === "Bash" && card.toolUseId === "c9" && card.input.command === "npm test" && card.input.description === "needs network" && card.input.cwd === "/repo", JSON.stringify(card));
+});
+
+test("MCP 호출, 웹 검색, 이미지 보기, 추론, 어시스턴트 글, 컨텍스트 압축", () => {
+  const mcp = tool(itemToTimeline({ type: "mcpToolCall", id: "m1", server: "docs", tool: "search", arguments: { query: "x" }, status: "completed", result: { content: [{ type: "text", text: "hit" }] }, error: null }, "completed", ctx));
+  expect(mcp.name === "mcp__docs__search" && mcp.input.query === "x" && mcp.output === "hit" && mcp.status === "done", JSON.stringify(mcp));
+  expect(mcpResultText(null, { message: "boom" }) === "boom", "MCP 오류 문구");
+  expect(tool(itemToTimeline({ type: "mcpToolCall", id: "m2", server: "s", tool: "t", arguments: {}, status: "failed", result: null, error: { message: "boom" } }, "completed", ctx)).status === "error", "MCP 실패");
+  const web = tool(itemToTimeline({ type: "webSearch", id: "w1", query: "", action: { type: "search", query: "relay hooks", queries: null } }, "completed", ctx));
+  expect(web.name === "WebSearch" && web.input.query === "relay hooks", "웹 검색");
+  expect(tool(itemToTimeline({ type: "imageView", id: "i1", path: "shot.png" }, "completed", ctx)).input.file_path === "/repo/shot.png", "이미지 보기는 Read");
+  const thinking = itemToTimeline({ type: "reasoning", id: "r1", summary: ["first", "second"], content: [] }, "completed", ctx)[0];
+  expect(thinking.kind === "thinking" && thinking.text === "first\n\nsecond", "추론 요약");
+  expect(itemToTimeline({ type: "reasoning", id: "r2", summary: [], content: [] }, "completed", ctx).length === 0, "빈 추론은 그리지 않는다");
+  const live = itemToTimeline({ type: "agentMessage", id: "a1", text: "" }, "started", ctx);
+  expect(live.length === 0, "빈 시작 글은 델타가 올 때 만든다");
+  const final = itemToTimeline({ type: "agentMessage", id: "a1", text: "done" }, "completed", ctx)[0];
+  expect(final.kind === "assistant" && final.text === "done" && final.streaming === false, "확정 글");
+  expect(itemToTimeline({ type: "userMessage", id: "u1", content: [] }, "completed", ctx).length === 0, "사용자 메시지는 이미 넣었다");
+  expect(itemToTimeline({ type: "somethingNew", id: "z" }, "completed", ctx).length === 0, "모르는 항목은 무시");
+  expect(itemToTimeline({ type: "contextCompaction", id: "k" }, "completed", ctx)[0]?.kind === "notice", "압축 알림");
+});
+
+test("계획 갱신: 기존 TodoWrite 항목이 되고 할 일 표시가 그대로 읽는다", () => {
+  const todo = planToTool("t1", [{ step: "Read", status: "completed" }, { step: "Edit", status: "inProgress" }, { step: "Test", status: "pending" }]);
+  expect(todo.name === "TodoWrite" && todo.id === "plan:t1", "이름과 id");
+  const state = taskState([todo]);
+  expect(state.total === 3 && state.done === 1 && state.current?.subject === "Edit", JSON.stringify(state));
+});
+
+test("턴 diff 요약: 파일 수와 추가, 삭제 줄을 센다", () => {
+  const diff = "--- a/x.txt\n+++ b/x.txt\n@@ -1 +1,2 @@\n a\n+b\n--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1,1 @@\n+hello\n--- a/gone.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-bye\n";
+  const summary = summarizeDiff(diff, "/repo");
+  expect(summary?.files === 3 && summary.additions === 2 && summary.deletions === 1, JSON.stringify(summary));
+  expect(summary?.list?.[0].path === "/repo/x.txt" && summary.list[2].path === "/repo/gone.txt", "경로는 절대 경로");
+  expect(summarizeDiff("", "/repo") === undefined, "빈 diff");
+});
+
+test("턴 오류: 인증 문제는 auth 로 표시한다", () => {
+  expect(turnErrorOf({ message: "boom", codexErrorInfo: "other" }).auth === false, "일반 오류");
+  expect(turnErrorOf({ message: "Please log in", codexErrorInfo: null }).auth === true, "로그인 문구");
+  expect(turnErrorOf({ message: "x", codexErrorInfo: "unauthorized" }).auth === true, "unauthorized");
+  expect(turnErrorOf(null).text.length > 0, "오류 정보가 없어도 문구가 있다");
+  const api = turnErrorOf({ message: '{"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The model is not supported when using Codex with a ChatGPT account.","code":"model_not_found"}}' });
+  expect(api.text === "The model is not supported when using Codex with a ChatGPT account.", `API 오류 JSON 은 안쪽 문구만 ${api.text}`);
+});
+
+test("권한 모드 표: plan 만 없고, 나머지는 승인 정책과 샌드박스가 스키마 값이다", () => {
+  expect(PERMISSION_MODE_VALUES.filter((m) => !codexSupportsMode(m)).join() === "plan", "plan 만 없다");
+  const d = codexPermission("default")!;
+  expect(d.approvalPolicy === "untrusted" && d.sandbox === "workspace-write" && d.sandboxPolicy.type === "workspaceWrite" && d.approvalsReviewer === "user", "default");
+  const e = codexPermission("acceptEdits")!;
+  expect(e.approvalPolicy === "on-request" && e.sandbox === "workspace-write", "acceptEdits");
+  const a = codexPermission("auto")!;
+  expect(a.approvalPolicy === "on-request" && a.approvalsReviewer === "auto_review", "auto");
+  const b = codexPermission("bypassPermissions")!;
+  expect(b.approvalPolicy === "never" && b.sandbox === "danger-full-access" && b.sandboxPolicy.type === "dangerFullAccess", "bypass");
+  expect(codexSupportsMode(CODEX_FALLBACK_MODE), "대체 모드는 쓸 수 있다");
+  expect(PERMISSION_MODE_VALUES.every((m) => CODEX_MODE_NOTES[m].length > 0), "모드마다 설명이 있다");
+});
+
+test("옛 저장본 호환: harness 가 없는 세션은 claude 이고, 새 필드는 JSON 으로 저장해도 옛 필드를 건드리지 않는다", () => {
+  const old = { id: "a", workspaceId: "w", cwd: "/x", worktree: null, forkedFrom: null, resumeFrom: null, startCommit: null, feedbackId: null, title: "t", sessionId: "s1", status: "idle", permissionMode: "default", model: null, effort: null, activeModel: null, activeEffort: null, backgroundTasks: 0, createdAt: "", updatedAt: "" } as Agent;
+  expect(harnessOf(old) === "claude" && !("harness" in old), "필드 없음 = claude");
+  const codex = { ...old, harness: "codex" as const, codexThreadId: "th-1", sessionId: null };
+  const round = JSON.parse(JSON.stringify(codex)) as Agent;
+  expect(harnessOf(round) === "codex" && round.codexThreadId === "th-1", "저장 후에도 유지");
+  // 모바일 앱과 옛 화면은 모르는 필드를 무시한다: 옛 필드 집합은 그대로 들어 있다
+  const keys = Object.keys(old);
+  expect(keys.every((k) => k in round), "옛 필드가 모두 남아 있다");
+});
+
+let failed = 0;
+for (const c of cases) {
+  try {
+    c.run();
+    console.log(`ok   ${c.name}`);
+  } catch (error) {
+    failed++;
+    console.log(`FAIL ${c.name}: ${(error as Error).message}`);
+  }
+}
+console.log(failed ? `${failed} failed` : `${cases.length} passed`);
+process.exit(failed ? 1 : 0);

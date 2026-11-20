@@ -1,0 +1,157 @@
+{
+  "name": "agent-nav",
+  "private": true,
+  "version": "0.3.0",
+  "description": "Local macOS app for running many Claude Code sessions side by side, with diffs, an editor, a terminal and git in one window.",
+  "license": "MIT",
+  "author": "Jinyoung Sung",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jinyoung2000/Lodestar.git"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "type": "module",
+  "main": "dist-electron/main.mjs",
+  "scripts": {
+    "dev": "concurrently -k -n daemon,web \"npm:dev:daemon\" \"npm:dev:web\"",
+    "dev:daemon": "tsx watch server/index.ts",
+    "dev:web": "vite",
+    "build": "vite build && npm run build:electron && tsx scripts/write-build-stamp.ts",
+    "build:web": "npm run tokens && vite build",
+    "build:electron": "esbuild electron/main.ts --bundle --platform=node --format=esm --external:electron --outfile=dist-electron/main.mjs && esbuild electron/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/preload.cjs && esbuild electron/pwPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/pw-preload.cjs && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-electron/daemon.mjs",
+    "app": "electron .",
+    "dist": "npm run build && electron-builder --mac --dir",
+    "start": "tsx server/index.ts",
+    "test": "npm run lint:tokens && npm run lint:hooks && tsx test/board.test.ts && tsx test/toboard.test.ts && tsx test/checkpoint.test.ts && tsx test/checkpointrestore.test.ts && tsx test/queue.test.ts && tsx test/queuecancel.test.ts && tsx test/cwdwatch.test.ts && tsx test/changesscope.test.ts && tsx test/sessiontouch.test.ts && tsx test/worktreeflow.test.ts && tsx test/workspacewatch.test.ts && tsx test/snapshotdiff.test.ts && tsx test/baseload.test.ts && tsx test/forkbase.test.ts && tsx test/diffcount.test.ts && tsx test/forkagent.test.ts && tsx test/paths.test.ts && tsx test/defaults.test.ts && tsx test/icons.test.ts && tsx test/diffchunks.test.ts && tsx test/diffmarks.test.ts && tsx test/inbox.test.ts && tsx test/mentions.test.ts && tsx test/mentiongate.test.ts && tsx test/screenvisibility.test.ts && tsx test/tasknotice.test.ts && tsx test/markdownparse.test.ts && tsx test/mcp.test.ts && tsx test/keymap.test.ts && tsx test/keymappreset.test.ts && tsx test/termask.test.ts && tsx test/editorkeys.test.ts && tsx test/builtinsnippets.test.ts && tsx test/definitionlink.test.ts && tsx test/typeparts.test.ts && tsx test/sidebar.test.ts && tsx test/sidebarpeek.test.ts && tsx test/draftdefaults.test.ts && tsx test/permission.test.ts && tsx test/overlays.test.ts && tsx test/chat.test.ts && tsx test/browser.test.ts && tsx test/browserview.test.ts && tsx test/search.test.ts && tsx test/changespanel.test.ts && tsx test/browsertools.test.ts && tsx test/browserperm.test.ts && tsx test/browserfeatures.test.ts && tsx test/tabgroups.test.ts && tsx test/editorlayoutops.test.ts && tsx test/filesview.test.ts && tsx test/filesave.test.ts && tsx test/format.test.ts && tsx test/vscodeimport.test.ts && tsx test/appenv.test.ts && tsx test/vsext.test.ts && tsx test/vsextdaemon.test.ts && tsx test/float.test.ts && tsx test/tabmru.test.ts && tsx test/pinnedlayout.test.ts && tsx test/tabfolder.test.ts && tsx test/approvalpreview.test.ts && tsx test/pr.test.ts && tsx test/prmerge.test.ts && tsx test/prlsp.test.ts && tsx test/find.test.ts && tsx test/peek.test.ts && tsx test/diffFeedback.test.ts && tsx test/feedbacknoel.test.ts && tsx test/feedbackflow.test.ts && tsx test/feedbackretry.test.ts && tsx test/feedbackautofix.test.ts && tsx test/feedbackmerge.test.ts && tsx test/feedbackbadge.test.ts && tsx test/feedbackquestion.test.ts && tsx test/feedbackneedsinput.test.ts && tsx test/feedbackresume.test.ts && tsx test/feedbackresolve.test.ts && tsx test/feedbackrebase.test.ts && tsx test/loginpath.test.ts && tsx test/feedbackblocked.test.ts && tsx test/improvements.test.ts && tsx test/checkbaseline.test.ts && tsx test/logdir.test.ts && tsx test/notices.test.ts && tsx test/codespan.test.ts && tsx test/contextusage.test.ts && tsx test/subagents.test.ts && tsx test/handoff.test.ts && tsx test/slacklink.test.ts && tsx test/branchswitch.test.ts && tsx test/splitpanels.test.ts && tsx test/globalsearch.test.ts && tsx test/dragsplit.test.ts && tsx test/panemin.test.ts && tsx test/tabfocus.test.ts && tsx test/wsremove.test.ts && tsx test/uitype.test.ts && tsx test/themestyle.test.ts &&tsx test/settingsschema.test.ts && tsx test/tsresolve.test.ts && tsx test/hoverparts.test.ts && tsx test/lspbridge.test.ts && tsx test/lspmux.test.ts && tsx test/lsprelay.test.ts && tsx test/lspservers.test.ts && tsx test/languageid.test.ts && tsx test/fileicons.test.ts && tsx test/scm.test.ts && tsx test/gitproblems.test.ts && tsx test/conflicts.test.ts && tsx test/scmhunks.test.ts && tsx test/scmsync.test.ts && tsx test/previewtabs.test.ts && tsx test/filesmenu.test.ts && tsx test/filestrash.test.ts && tsx test/timelinescroll.test.ts && tsx test/stuckbubble.test.ts && tsx test/synctext.test.ts && tsx test/fileview.test.ts && tsx test/chatfind.test.ts && tsx test/tabstrip.test.ts && tsx test/interactive.test.ts && tsx test/sidechats.test.ts && tsx test/windowstate.test.ts && tsx test/fix53.test.ts && tsx test/fix5tasks.test.ts && tsx test/sessiontitle.test.ts && tsx test/attention.test.ts && tsx test/approvalkeys.test.ts && tsx test/feedbacknoticememory.test.ts && tsx test/quitflow.test.ts && tsx test/logstamp.test.ts && tsx test/daemonshutdown.test.ts && tsx test/hotexit.test.ts && tsx test/fix6c.test.ts && tsx test/attachdedupe.test.ts && tsx test/sessionlayout.test.ts && tsx test/sessiontabs.test.ts && tsx test/hint.test.ts && tsx test/editormessage.test.ts && tsx test/quiettoasts.test.ts && tsx test/editoroptions.test.ts && tsx test/editordrawing.test.ts && tsx test/filerefresolve.test.ts && tsx test/quickopen.test.ts && tsx test/walkfolder.test.ts && tsx test/modelname.test.ts && tsx test/graphqlembed.test.ts && tsx test/filesoutside.test.ts && tsx test/codeactionmodel.test.ts && tsx test/renamemodel.test.ts && tsx test/wordhighlight.test.ts && tsx test/viewmirror.test.ts && tsx test/diagnosticviews.test.ts && tsx test/breadcrumbs.test.ts && tsx test/security.test.ts && tsx test/editorindent.test.ts && tsx test/savetransforms.test.ts && tsx test/tabswitcher.test.ts && tsx test/tabdropmark.test.ts && tsx test/editorstatus.test.ts && tsx test/editorediting.test.ts && tsx test/completionkinds.test.ts && tsx test/editorcolor.test.ts && tsx test/editorruler.test.ts && tsx test/editorminimap.test.ts && tsx test/editorsticky.test.ts && tsx test/notionlink.test.ts && tsx test/notionpins.test.ts && tsx test/guestpopup.test.ts && tsx test/notionfetch.test.ts && tsx test/notionwrite.test.ts && tsx test/notionservice.test.ts && tsx test/restartgate.test.ts && tsx test/feedbacksummary.test.ts && tsx test/feedbacksettle.test.ts && tsx test/draftsave.test.ts && tsx test/notes.test.ts && tsx test/focusguard.test.ts && tsx test/asideview.test.ts && tsx test/focuslayout.test.ts && tsx test/layoutconfig.test.ts && tsx test/morningreview.test.ts && tsx test/sessionswitcher.test.ts && tsx test/quickentry.test.ts && tsx test/minichat.test.ts && tsx test/mobileaccess.test.ts && tsx test/titlebranch.test.ts && tsx test/windows.test.ts && tsx test/linear.test.ts && tsx test/openpath.test.ts && tsx test/searchview.test.ts && tsx test/searchreplace.test.ts && tsx test/searchtree.test.ts && tsx test/searchranges.test.ts && tsx test/sessionorder.test.ts && tsx test/perfdaemon.test.ts && tsx test/feedbackretention.test.ts && tsx test/warmcap.test.ts && tsx test/diffmirror.test.ts && tsx test/renderperf.test.ts && tsx test/linkintent.test.ts && tsx test/simulator.test.ts && tsx test/prurl.test.ts && tsx test/skills.test.ts && tsx test/changeslistnav.test.ts && tsx test/resizedrag.test.ts && tsx test/fileattach.test.ts && tsx test/mediapaths.test.ts && tsx test/mediaresolve.test.ts && tsx test/media.test.ts && tsx test/codexmapping.test.ts && tsx test/codexrunner.test.ts && tsx test/codexweb.test.ts && tsx test/gitblame.test.ts && tsx test/notificationpreview.test.ts && tsx test/idleupdate.test.ts && tsx test/sessionref.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "tokens": "node scripts/build-tokens.mjs && node scripts/build-directions.mjs",
+    "icon": "node scripts/build-icon.mjs",
+    "lint:tokens": "node scripts/lint-tokens.mjs",
+    "prebuild": "npm run tokens && npm run lint:hooks",
+    "predev": "npm run tokens",
+    "lint:hooks": "oxlint -c .oxlintrc.json web",
+    "postdist": "codesign --force --deep --sign - release/mac-arm64/Lodestar.app && codesign --verify --deep --strict release/mac-arm64/Lodestar.app"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.296",
+    "@codemirror/merge": "6.12.2",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@lydell/node-pty": "1.2.0-beta.15",
+    "@radix-ui/react-checkbox": "1.3.12",
+    "@radix-ui/react-dialog": "1.2.0",
+    "@radix-ui/react-dropdown-menu": "2.1.25",
+    "@radix-ui/react-select": "2.3.8",
+    "@radix-ui/react-slot": "1.4.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@vscode/codicons": "0.0.46-44",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/addon-ligatures": "0.10.0",
+    "@xterm/xterm": "6.0.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "cm6-graphql": "0.2.2",
+    "graphql": "16.14.2",
+    "tailwind-merge": "3.7.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "typescript-language-server": "6.0.2",
+    "ws": "8.22.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "6.20.3",
+    "@codemirror/lang-css": "6.3.1",
+    "@codemirror/lang-go": "6.0.1",
+    "@codemirror/lang-html": "6.4.12",
+    "@codemirror/lang-java": "6.0.2",
+    "@codemirror/lang-javascript": "6.2.5",
+    "@codemirror/lang-json": "6.0.2",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/lang-python": "6.2.1",
+    "@codemirror/lang-sql": "6.10.0",
+    "@codemirror/lang-xml": "6.1.0",
+    "@codemirror/lang-yaml": "6.1.3",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/legacy-modes": "6.5.4",
+    "@codemirror/lsp-client": "6.3.0",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.14",
+    "@lezer/common": "1.5.3",
+    "@lezer/highlight": "1.2.5",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/ws": "8.18.2",
+    "@vitejs/plugin-react": "6.1.2",
+    "codemirror": "6.0.2",
+    "concurrently": "10.0.6",
+    "dompurify": "3.4.18",
+    "electron": "44.11.5",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "marked": "18.1.0",
+    "oxlint": "1.74.0",
+    "qrcode-generator": "2.0.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tsx": "4.23.15",
+    "vite": "8.3.4"
+  },
+  "build": {
+    "appId": "dev.gene.agent-nav",
+    "productName": "Lodestar",
+    "asar": false,
+    "npmRebuild": false,
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json",
+      "node_modules/**",
+      "!node_modules/@anthropic-ai/claude-agent-sdk-*/**",
+      "!node_modules/lightningcss*/**",
+      "!node_modules/tailwindcss/**",
+      "!node_modules/@tailwindcss/**",
+      "!node_modules/@xterm/**",
+      "!node_modules/@vscode/**",
+      "!node_modules/@fontsource-variable/**",
+      "!node_modules/@radix-ui/**",
+      "!node_modules/@codemirror/**",
+      "!node_modules/class-variance-authority/**",
+      "!node_modules/clsx/**",
+      "!node_modules/tailwind-merge/**"
+    ],
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "extendInfo": {
+        "NSUserNotificationAlertStyle": "alert",
+        "CFBundleDocumentTypes": [
+          {
+            "CFBundleTypeName": "Folder",
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Alternate",
+            "LSItemContentTypes": [
+              "public.folder"
+            ]
+          }
+        ]
+      }
+    },
+    "directories": {
+      "output": "release"
+    },
+    "electronLanguages": [
+      "en",
+      "ko"
+    ]
+  },
+  "overrides": {
+    "minimatch@>=7.0.0 <11.0.1": "11.0.9"
+  }
+}
