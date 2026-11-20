@@ -10,7 +10,6 @@ mkdirSync(process.env.AGENT_NAV_HOME, { recursive: true });
 
 const { allToolsExcept, classifyTool, isBlockedNotionWrite, isNotionProposeTool, notionDisallowedTools, OWN_PREFIX } = await import("../shared/notionMcp");
 const { applyUpdates, cleanCreateArgs, cleanUpdateArgs, previewCreate, previewUpdate, rejectionMessage } = await import("../shared/notionWrite");
-const { parseFetchResult } = await import("../shared/notionFetch");
 const { notionWriteGuard } = await import("../server/notionGuard");
 const { notionWriteGate } = await import("../shared/notionApproval");
 const { gatedWrite, writeResultText } = await import("../server/notionWrite");

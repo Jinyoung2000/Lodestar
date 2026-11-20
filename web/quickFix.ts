@@ -229,7 +229,6 @@ const menuOverlay = ViewPlugin.fromClass(
   class {
     private dom: HTMLElement | null = null;
     private rowEls: HTMLElement[] = [];
-    private rowIndexes: number[] = [];
     private stop: (() => void) | null = null;
 
     constructor(private view: EditorView) {}
@@ -413,12 +412,12 @@ export async function applyWorkspaceEdit(view: EditorView, plugin: LSPPlugin, ed
       view.dispatch({ changes: edits.map((e) => ({ from: offsetIn(mapping, uri, plugin, e.range.start), to: offsetIn(mapping, uri, plugin, e.range.end), insert: e.newText })), userEvent: "input.quickfix" });
       continue;
     }
-    await editOtherFile(plugin, uri, edits, mapping);
+    await editOtherFile(uri, edits, mapping);
   }
 }
 
 // 다른 파일: 열려 있으면 그 에디터에, 닫혀 있으면 읽어서 고쳐 저장한다.
-async function editOtherFile(plugin: LSPPlugin, uri: string, edits: TextEdit[], mapping?: WorkspaceMapping) {
+async function editOtherFile(uri: string, edits: TextEdit[], mapping?: WorkspaceMapping) {
   const workspaceId = getState().activeWorkspaceId ?? "";
   const target = toTarget(uriToPath(uri), workspaceId);
   const open = viewFor(fileTabKey(target.workspaceId, target.path));

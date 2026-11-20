@@ -3,7 +3,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { PR_QUERIES, type PrQueryName, type PrRepo, type PrSummary } from "../shared/prTypes";
 import { CheckIcon, checkKindOf, PrAvatar, PrStateIcon, ReviewIcon, useNow } from "./PrBits";
 import { ChevronDown, ChevronRight, More, Refresh } from "./icons";
-import { openPr, PR_REFRESH_CHOICES, queryPrs, refreshLists, setCollapsed, setRefreshMinutes, startAutoRefresh, usePr } from "./prStore";
+import { openPr, PR_REFRESH_CHOICES, refreshLists, setCollapsed, setRefreshMinutes, startAutoRefresh, usePr } from "./prStore";
 import { P } from "./prStrings";
 import { SectionMoveItems } from "./SectionMoveItems";
 import { relativeTime } from "./sessionList";

@@ -7,7 +7,7 @@ import type { AddressInfo } from "node:net";
 import { MOBILE_METHODS } from "../shared/mobile";
 import { linearIssueDraft, type LinearIssue, type LinearRpcMethods } from "../shared/linear";
 import { LinearApi } from "../server/linearApi";
-import { keychainStore, keyStoreFor, memoryStore, systemSecurity, validKeyShape, type KeyStore, type SecurityRunner } from "../server/linearKey";
+import { keychainStore, keyStoreFor, memoryStore, systemSecurity, validKeyShape, type SecurityRunner } from "../server/linearKey";
 import { linearHandlers, ISSUES_TTL_MS, META_TTL_MS } from "../server/linear";
 import { buildIssueFilter, normalizeFilter } from "../server/linearFilter";
 

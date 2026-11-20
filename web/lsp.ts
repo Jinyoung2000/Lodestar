@@ -2,7 +2,7 @@ import { autocompletion } from "@codemirror/autocomplete";
 import { LSPPlugin, serverCompletionSource, serverDiagnostics, signatureHelp, type LSPClient, type Transport } from "@codemirror/lsp-client";
 import type { Language } from "@codemirror/language";
 import { setDiagnostics } from "@codemirror/lint";
-import { EditorState, type Extension } from "@codemirror/state";
+import type { Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import DOMPurify from "dompurify";
 import { rpc, wsUrl } from "./rpc";

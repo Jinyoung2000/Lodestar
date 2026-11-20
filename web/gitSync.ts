@@ -101,14 +101,14 @@ function report(target: ScmTarget, result: Extract<ScmSyncResult, { ok: false }>
     detail: detailOf(problem),
     severity: "error",
     key: NOTICE_KEY,
-    actions: actionsFor(target, problem, output, retry),
+    actions: actionsFor(problem, output, retry),
   });
   return "failed";
 }
 
 const detailOf = (problem: GitProblem) => (problem.files?.length ? `${problem.hint} ${M.dirtyFiles(problem.files)}` : problem.hint);
 
-function actionsFor(target: ScmTarget, problem: GitProblem, output: string, retry: () => void): NoticeAction[] {
+function actionsFor(problem: GitProblem, output: string, retry: () => void): NoticeAction[] {
   const copy = (text: string) => () => {
     void navigator.clipboard?.writeText(text).then(() => hint(M.copied, undefined, { check: true }));
   };

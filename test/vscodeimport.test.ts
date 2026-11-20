@@ -49,7 +49,6 @@ function writeState(cached: unknown[]) {
 
 // --- 가짜 세션 기록 만들기 ---
 
-let tick = 0;
 const stamp = (n: number) => new Date(Date.UTC(2026, 9, 1, 0, 0, 0) + n * 1000).toISOString();
 type Line = Record<string, unknown>;
 

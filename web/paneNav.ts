@@ -4,7 +4,7 @@ import { removeEmptyGroup } from "./groupActions";
 import { terminalScopeOf } from "./terminalScope";
 import { sessionPanelShown } from "./centerPanels";
 import { isPinnedTab } from "./floatLayout";
-import { activeAgent, closeTerminal, closeFocusedPane, getState, setState, closeCard, shownTabsOf } from "./store";
+import { closeTerminal, closeFocusedPane, getState, setState, closeCard, shownTabsOf } from "./store";
 import { S } from "./strings";
 import { hint } from "./hint";
 

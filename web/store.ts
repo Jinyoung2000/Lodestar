@@ -34,7 +34,7 @@ import { findDuplicate } from "./attachDedupe";
 import { flashAttachment } from "./attachFlash";
 import { WINDOW_ID, windowStorage } from "./windowStorage";
 import { requestIdleReload } from "./idleReload";
-import { collectExtras, forLaunch, loadHotExit, parseWindowState, pruneExtras, pruneTabState, restoreHandoffs, setPendingHot, setPendingRestore, snapshotHandoffs, WINDOW_STATE_KEY, WINDOW_STATE_VERSION, type WindowExtras } from "./windowState";
+import { collectExtras, forLaunch, loadHotExit, parseWindowState, pruneTabState, restoreHandoffs, setPendingHot, setPendingRestore, snapshotHandoffs, WINDOW_STATE_KEY, WINDOW_STATE_VERSION, type WindowExtras } from "./windowState";
 import { revealPinned, setPinnedDrawer, setPinnedSide } from "./pinnedPanel";
 import { cacheChatDock, cacheLayoutSettings, cachePerSession, loadCachedChatDock, loadCachedDefaultLayout, loadCachedPerSession, loadCachedRemember, loadFloatRect, loadFocusedLayout, loadLastLayout, saveFloatRect, saveFocusedLayout, saveLastLayout } from "./layoutPrefs";
 import { chatDockOf, parseDockWidth, type ChatDock } from "./focusLayout";
@@ -988,11 +988,6 @@ function sanitizeEditorGroups(s: State): State {
 
 export const fileTabKey = (workspaceId: string, path: string) => `${workspaceId}:${path}`;
 export const diffTabKey = (agentId: string, path: string) => `diff:${agentId}:${path}`;
-
-// 새 탭은 활성 그룹의 맨 끝에 붙는다.
-function appendToActiveGroup(s: State, tab: Tab): Tab[] {
-  return [...s.tabs, s.activeGroupId === MAIN_GROUP ? tab : { ...tab, group: s.activeGroupId }];
-}
 
 export type OpenOptions = { preview?: boolean; side?: boolean; preserveFocus?: boolean; keepDrawer?: boolean; scope?: ChangeScope; activeGroup?: boolean };
 

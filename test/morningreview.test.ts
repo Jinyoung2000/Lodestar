@@ -15,7 +15,6 @@ type Board = import("../shared/protocol").Board;
 type BoardCard = import("../shared/protocol").BoardCard;
 type TimelineItem = import("../shared/protocol").TimelineItem;
 type MorningReview = import("../shared/morningReview").MorningReview;
-type ReviewInput = import("../shared/morningReview").ReviewInput;
 
 const cases: { name: string; run: () => string | Promise<string> }[] = [];
 const test = (name: string, run: () => string | Promise<string>) => cases.push({ name, run });

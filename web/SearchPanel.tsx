@@ -28,7 +28,6 @@ export type SearchPanelProps = {
 };
 
 export function SearchPanel({ idPrefix, options, run, stale, compact = false, hidden = false, inputRef, onChange, onRun, onOpen, notice = null }: SearchPanelProps) {
-  const toggles: SearchToggles = options;
   const toggle = (key: keyof SearchToggles) => onChange({ [key]: !options[key] }, options.query.trim() !== "");
   const onEnter = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && !event.nativeEvent.isComposing) onRun();

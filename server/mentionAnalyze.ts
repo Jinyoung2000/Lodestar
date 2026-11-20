@@ -13,7 +13,6 @@ import {
   SLACK_DISALLOWED_TOOLS,
   SLACK_WRITE_PATTERN,
 } from "./inboxParse";
-import { analysisBudgetUsd } from "../shared/analysisBudget";
 import { HOME } from "./store";
 import { spawnInGroup } from "./processGroups";
 

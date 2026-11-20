@@ -1,4 +1,4 @@
-import { useContext, useMemo, useRef, useState } from "react";
+import { useContext, useRef, useState } from "react";
 import type { TimelineItem } from "../shared/protocol";
 import { taskRunView, taskState, taskStateFrom, taskStep, type TaskEntry, type TaskState, type TaskStatus, type TaskStep } from "../shared/tasks";
 import { sourcePart } from "../shared/toBoard";

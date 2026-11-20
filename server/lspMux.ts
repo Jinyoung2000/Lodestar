@@ -129,9 +129,7 @@ export class LspMultiplexer {
   private serverRequests = new Map<string, { child: Child; id: number | string }>();
   private diagnostics = new Map<string, Map<string, { version: number | null; items: unknown[] }>>();
   private initParams: any = null;
-  private browserSync: SyncInfo = { kind: 0, openClose: true, save: false };
   private browserInitId: number | string | null = null;
-  private browserInitialized = false;
   private serial = 0;
   private lastStatus = "";
   private disposed = false;
@@ -282,7 +280,6 @@ export class LspMultiplexer {
   private onBrowserNotification(message: Msg) {
     switch (message.method) {
       case "initialized":
-        this.browserInitialized = true;
         for (const child of this.children) if (child.def.eager && child.state === "ready") child.link!.send(JSON.stringify(message));
         return;
       case "textDocument/didOpen":
@@ -396,7 +393,6 @@ export class LspMultiplexer {
     child.capabilities = capabilities;
     child.sync = textDocumentSyncOf(capabilities.textDocumentSync);
     if (child.def.primary) {
-      this.browserSync = child.sync;
       child.state = "ready";
       const merged = mergeCapabilities(capabilities, this.children.filter((c) => c !== child).map((c) => c.def.staticCapabilities ?? {}));
       this.reply(this.browserInitId!, { ...message.result, capabilities: merged });

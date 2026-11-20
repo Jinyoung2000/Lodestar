@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import { PaneView } from "./AgentView";
 import type { GridRow } from "./gridLayout";
 import { DOCK_DEFAULT } from "./focusLayout";

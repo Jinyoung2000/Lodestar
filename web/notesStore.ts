@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { Note } from "../shared/notes";
 import { rpc } from "./rpc";
 import { confirmDialog } from "./ConfirmDialog";
-import { flash, getState, openNotes, setState, subscribe } from "./store";
+import { flash, getState, openNotes, subscribe } from "./store";
 import { S } from "./strings";
 
 // NOTES: 메모장의 화면 상태와 저장. 목록과 본문의 정본은 데몬(notes.*)이고, 여기는 목록 사본, 열린 메모, 편집 중인 글(초안)과 저장 상태를 든다.

@@ -87,7 +87,7 @@ const out = (path: string) => `Last login: Mon\nwelcome banner from .zshrc\n\n__
   check("user folders that exist are listed", index(".local/bin") === 0 && index(".volta/bin") === 1 && index(".bun/bin") === 2, dirs.join(","));
   check("nvm default alias 20 picks the newest 20.x", index("v20.11.1/bin") === 3 && index("v20.9.0/bin") === -1 && index("v18.19.0/bin") === -1, dirs.join(","));
   check("folders that do not exist are left out", !dirs.some((d) => d.includes(".fnm") || d.includes("Application Support")));
-  check("homebrew folders come last when they exist", dirs.filter((d) => d.startsWith("/opt/homebrew") || d.startsWith("/usr/local")).every((d, i, all) => dirs.indexOf(d) >= dirs.length - all.length));
+  check("homebrew folders come last when they exist", dirs.filter((d) => d.startsWith("/opt/homebrew") || d.startsWith("/usr/local")).every((d, _i, all) => dirs.indexOf(d) >= dirs.length - all.length));
 
   writeFileSync(join(home, ".nvm/alias/default"), "v18\n");
   check("alias v18 picks 18.19.0", candidateDirs(home).some((d) => d.endsWith("v18.19.0/bin")) && !candidateDirs(home).some((d) => d.endsWith("v20.11.1/bin")));

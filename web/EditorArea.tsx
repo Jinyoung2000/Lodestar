@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { BrowserTabView } from "./BrowserTab";
-import { tabLabel, tabTooltip } from "./browserUrl";
+import { tabTooltip } from "./browserUrl";
 import { CardDetail } from "./CardDetail";
 import { setChangesListOpen, setTreeView, setWordWrap, useChangesView } from "./changesState";
 import { ChangesPanel, ChatChanges, WIDE_MIN } from "./ChangesPanel";

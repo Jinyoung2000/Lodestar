@@ -36,7 +36,7 @@ import { languageFor } from "./languages";
 import { ChevronLeft, ChevronRight, Codicon, External, References } from "./icons";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
-import { findAllReferences, goToDefinition, goToImplementation, goToReferences, peekDefinition, peekImplementation, revealDefinitionAside } from "./peekCommands";
+import { goToReferences, revealDefinitionAside } from "./peekCommands";
 import { cmdClickDefinition, lspDocument, lspKeys, lspViewExtensions } from "./editorLsp";
 import { LspMenuItems } from "./LspMenu";
 import { closeEditorWidgets, intellisenseExtension } from "./intellisenseKeys";

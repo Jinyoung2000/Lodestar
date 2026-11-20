@@ -96,7 +96,6 @@ test("요약: 긴 결과는 long", () => {
   expect(!asideSummary({ input: {}, output: "a\nb\nc", status: "done" }).long, "short is not long");
 });
 
-const HOME = process.env.AGENT_NAV_HOME as string;
 test("이미지 읽기 허용 범위: 정해진 폴더의 이미지 파일만", () => {
   const h = "/Users/x";
   const ok = (p: string) => asideImageAllowed(p, h, "/data") !== null;

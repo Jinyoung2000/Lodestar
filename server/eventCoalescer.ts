@@ -35,7 +35,7 @@ export function createCoalescer(send: (event: ServerEvent) => void, options: Coa
   const intervalFor = options.intervalFor ?? draftInterval;
   const slots = new Map<string, Slot>();
 
-  const release = (key: string, slot: Slot) => {
+  const release = (slot: Slot) => {
     if (slot.timer !== null) clearTimer(slot.timer);
     slot.timer = null;
     const event = slot.pending;
@@ -46,7 +46,7 @@ export function createCoalescer(send: (event: ServerEvent) => void, options: Coa
   };
 
   const flushAgent = (agentId: string) => {
-    for (const [key, slot] of slots) if (slot.agentId === agentId && slot.pending) release(key, slot);
+    for (const slot of slots.values()) if (slot.agentId === agentId && slot.pending) release(slot);
   };
 
   // 턴이 끝났거나 멈춘 세션의 초안 자리는 비운다(초안은 timelineRemove 로 지워지는데, 그 전에 끝난 것이 쌓이지 않게).
@@ -74,7 +74,7 @@ export function createCoalescer(send: (event: ServerEvent) => void, options: Coa
         slot.pending = event;
         slot.timer ??= setTimer(() => {
           slot.timer = null;
-          release(key, slot);
+          release(slot);
         }, Math.max(1, wait));
         return;
       }
@@ -93,7 +93,7 @@ export function createCoalescer(send: (event: ServerEvent) => void, options: Coa
     },
     // 밀린 초안을 지금 보낸다(종료 직전, 시험).
     flush() {
-      for (const [key, slot] of slots) release(key, slot);
+      for (const slot of slots.values()) release(slot);
     },
     pendingCount: () => [...slots.values()].filter((slot) => slot.pending).length,
     slotCount: () => slots.size,

@@ -4,7 +4,7 @@
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, join } from "node:path";
+import { delimiter, join } from "node:path";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "fbblock-")));
 process.env.AGENT_NAV_HOME = join(root, "home");

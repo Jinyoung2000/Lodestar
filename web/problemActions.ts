@@ -1,6 +1,6 @@
 import { LSPPlugin } from "@codemirror/lsp-client";
 import { EditorView } from "@codemirror/view";
-import { diagnosticLabel, diagnosticsOf, type LspDiagnostic } from "./diagnosticsStore";
+import { diagnosticLabel, type LspDiagnostic } from "./diagnosticsStore";
 import { toTarget, uriToPath, viewFor } from "./lsp";
 import { setQuickAnchor } from "./quickAnchor";
 import { rpc } from "./rpc";

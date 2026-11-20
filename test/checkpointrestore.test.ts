@@ -3,7 +3,7 @@
 // dogfood 5회차 24번: Start Over 가 에이전트가 만든 파일에 사람이 덧붙인 한 줄을 확인 없이 지웠다. 15번: 동시 실행 때 세지 못한 Bash 변경에 안내가 없었다.
 // 실행: npm test
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -83,7 +83,6 @@ try {
   expect(plan2.revert.map((f) => f.rel).join() === "keep.txt", `되돌릴 파일: ${JSON.stringify(plan2.revert)}`);
   expect(plan2.remove.map((f) => f.rel).join() === "new.txt", `지울 파일: ${JSON.stringify(plan2.remove)}`);
   expect(plan2.skip.map((f) => f.rel).join() === "mix.txt", `건너뛸 파일: ${JSON.stringify(plan2.skip)}`);
-  const redoBefore = { "keep.txt": Buffer.from(read("keep.txt")).toString("base64"), "new.txt": Buffer.from(read("new.txt")).toString("base64") };
   await guard.applyRestore(plan2, fakeRewind({ "keep.txt": "keep0\n", "new.txt": null, "mix.txt": "mix0\n" }));
   expect(read("keep.txt") === "keep0\n", "안 고친 파일은 체크포인트 내용으로");
   expect(!existsSync(file("new.txt")) && trashed().join() === "new.txt", "새 파일은 휴지통");

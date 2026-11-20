@@ -36,7 +36,6 @@ import {
   closeCard,
   dispatchBrowserAction,
   closeAllPanes,
-  flash,
   focusPaneDirection,
   focusPaneIndex,
   focusPaneStep,

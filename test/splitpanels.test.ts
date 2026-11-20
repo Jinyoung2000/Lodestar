@@ -5,10 +5,6 @@ import { inboxKindCounts, inboxRows, matchesShow, neighborRowId } from "../web/i
 
 const cases: { name: string; run: () => string }[] = [];
 const test = (name: string, run: () => string) => cases.push({ name, run });
-const expect = (condition: boolean, detail: string) => {
-  if (!condition) throw new Error(detail);
-  return detail;
-};
 const same = (actual: unknown, wanted: unknown, label: string) => {
   const a = JSON.stringify(actual);
   const b = JSON.stringify(wanted);

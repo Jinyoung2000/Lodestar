@@ -114,7 +114,7 @@ function localized(dir: string, value: string | undefined) {
 // `${userHome}` 과 `${env:이름}` 을 푼다. 셸 메타문자가 남으면 확장이 그 경로를 버리므로 null.
 export function expandSettingPath(value: unknown, home: string, env: NodeJS.ProcessEnv = process.env): string | null {
   if (typeof value !== "string" || !value) return null;
-  const expanded = value.replaceAll(/\$\{(userHome|env:([^}]+))\}/g, (_all, name: string, variable: string | undefined) => (variable === undefined ? home : (env[variable] ?? "")));
+  const expanded = value.replaceAll(/\$\{(userHome|env:([^}]+))\}/g, (_all, _name: string, variable: string | undefined) => (variable === undefined ? home : (env[variable] ?? "")));
   return /[$&;|`><!%^]/.test(expanded) ? null : expanded;
 }
 
