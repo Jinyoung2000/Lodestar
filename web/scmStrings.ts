@@ -1,11 +1,9 @@
 export const M = {
   tab: "Source Control",
   viewAria: "Source Control",
-  cancel: "Cancel",
   loading: "Loading...",
   noRepoTitle: "No repository",
   noRepoText: "The folder of this session is not a git repository.",
-  noFolderTitle: "No folder",
   noFolderText: "Open a session in a folder to see its source control.",
   chatNoRepo: "Chats have no folder, so there is no repository to show.",
   statusFailed: (message: string) => `Source control failed: ${message}`,
@@ -22,11 +20,9 @@ export const M = {
   pull: "Pull",
   push: "Push",
   fetch: "Fetch",
-  needSession: "Open a session to use this.",
   pullDone: "Pulled.",
   pushDone: "Pushed.",
   fetchDone: "Fetched.",
-  gitFailed: (verb: string, message: string) => `${verb} failed: ${message}`,
   // 커밋 입력
   messageLabel: "Commit message",
   messagePlaceholder: (branch: string | null) => (branch ? `Message (⌘Enter to commit on "${branch}")` : "Message (⌘Enter to commit)"),
@@ -117,7 +113,6 @@ export const M = {
   mergeCommit: "Merge commit. Showing changes against the first parent.",
   // FIX6B: pull, push, fetch 흐름
   upToDate: "Already up to date.",
-  synced: "Synced.",
   pullMerge: "Pull (Merge)",
   pullRebase: "Pull (Rebase)",
   divergedTitle: (branch: string, upstream: string) => `"${branch}" and "${upstream}" have diverged`,

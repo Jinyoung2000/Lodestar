@@ -17,7 +17,6 @@ export const SV = {
   filesToInclude: "files to include",
   filesToExclude: "files to exclude",
   placeholderInclude: "e.g. *.ts, src/**/include",
-  placeholderExclude: "e.g. *.ts, src/**/exclude",
   onlyChangedFiles: "Search only in Changed Files (Source Control)",
   onlyOpenEditors: "Search only in Open Editors",
   useExcludeSettings: "Use Exclude Settings and Ignore Files",

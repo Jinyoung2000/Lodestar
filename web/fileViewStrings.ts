@@ -1,7 +1,6 @@
 // Q2: 이미지와 바이너리 미리보기, 읽기 전용과 삭제된 파일 표시, 저장 충돌 배너, 대화 안 찾기 문구. 영어 UI 문구만 둔다.
 export const FV = {
   previewAria: "File preview",
-  previewTitle: "Image preview",
   zoomIn: "Zoom In",
   zoomOut: "Zoom Out",
   actualSize: "Actual Size (100%)",
@@ -29,12 +28,10 @@ export const FV = {
   saveAs: "Save As…",
   saveAsTitle: "Save As",
   saveAsConfirm: "Save",
-  readOnlyTab: "Read-only",
 
   // 지워진 파일
   deletedSuffix: "(Deleted)",
   deletedTip: "This file was deleted on disk. Saving creates it again.",
-  deletedBanner: "This file was deleted on disk. Saving creates it again.",
 } as const;
 
 export const CF = {

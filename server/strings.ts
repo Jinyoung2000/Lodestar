@@ -75,7 +75,6 @@ export const T = {
   codexExtraPermission: "Codex asked for extra permissions (network or file access beyond the sandbox). This is not supported yet, so it was denied.",
   codexUserInput: "Codex asked a question through a tool that Lodestar does not show yet, so it was skipped.",
   codexElicitation: (server: string) => `The MCP server ${server} asked for input that Lodestar does not show yet, so it was declined.`,
-  codexInterruptedByServer: "Codex stopped this turn.",
   errPermissionHandled: "This permission request was already handled",
   errWorktreeShared: "Other sessions still use this worktree",
   errChatNoWorktree: "A chat without a folder cannot use a worktree",
@@ -187,7 +186,6 @@ export const T = {
   fbErrRevertConflict: (files: string) => `Changed again after this feedback was applied, so it was not reverted:\n${files}`,
   fbErrDependency: "The feedback changed package.json or the lockfile, which is never applied automatically",
   fbErrAgent: "The improvement session ended with an error, so nothing was applied",
-  fbErrInterrupted: "The daemon restarted while this feedback was running",
   // FBREDO: 데몬 재시작에 끊긴 피드백을 이어 가는 길
   fbResumed: "The daemon restarted while this feedback was running. The session continues where it stopped",
   fbResumedChecks: "The daemon restarted while the checks were running. Running them again",

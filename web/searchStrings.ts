@@ -37,7 +37,6 @@ export const G = {
     card: "Start session",
     mention: "Open in Slack",
   },
-  enterTip: "Open",
   sessionsCount: (n: number) => `${n} ${n === 1 ? "session" : "sessions"}`,
   resultCount: (n: number) => `${n} ${n === 1 ? "result" : "results"}`,
   actions: {
