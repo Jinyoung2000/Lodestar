@@ -83,6 +83,7 @@ Environment variables that matter:
 | `AGENT_NAV_HOME` | `~/.agent-nav` | Data folder: settings, sessions index, board, logs, the access token |
 | `AGENT_NAV_CLAUDE` | `~/.local/bin/claude`, then `claude` on `PATH` | Claude Code CLI to run |
 | `AGENT_NAV_CODEX` | `~/.local/bin/codex` | Codex CLI to run |
+| `AGENT_NAV_GH` | `gh` on `PATH` | GitHub CLI to run |
 | `AGENT_NAV_SRC` | `~/Repository/agent-nav` when the app is installed | Source folder that the self-improvement and idle-update features build from |
 | `AGENT_NAV_MOBILE_PORT` | daemon port + 1 | Port for the phone client, only opened when phone access is turned on |
 

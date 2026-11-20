@@ -11,9 +11,13 @@ export class GhError extends Error {
   }
 }
 
+export function ghBin(env: NodeJS.ProcessEnv = process.env): string {
+  return env.AGENT_NAV_GH || "gh";
+}
+
 export function runGh(args: string[], options: { stdin?: string; cwd?: string } = {}): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("gh", args, { cwd: options.cwd, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" }, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(ghBin(), args, { cwd: options.cwd, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" }, stdio: ["pipe", "pipe", "pipe"] });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     child.stdout.on("data", (chunk: Buffer) => out.push(chunk));

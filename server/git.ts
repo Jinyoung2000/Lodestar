@@ -1,3 +1,4 @@
+import { ghBin } from "./ghExec";
 import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
@@ -434,7 +435,7 @@ export async function pullRequests(cwd: string): Promise<{ available: boolean; r
     if (await isDefaultBranch(cwd, branch)) return { available: true, reason: null, prs: [] };
     try {
       const { stdout } = await execFileAsync(
-        "gh",
+        ghBin(),
         ["pr", "list", "--head", branch, "--state", "all", "--json", "number,title,url,state,statusCheckRollup", "--limit", "5"],
         { cwd, maxBuffer: 4 * 1024 * 1024 },
       );
