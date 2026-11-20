@@ -691,7 +691,7 @@ test("모바일 허용 목록과 에이전트 도구에 없다", () => {
   assert.ok(!(MOBILE_METHODS as readonly string[]).includes("search.replace"));
   const files = readdirSync("server").filter((name) => name.endsWith(".ts"));
   const mentioning = files.filter((name) => readFileSync(join("server", name), "utf8").includes('"search.replace"'));
-  assert.deepStrictEqual(mentioning, ["index.ts"], "RPC 핸들러 등록 한 곳뿐");
+  assert.deepStrictEqual(mentioning, ["fileHandlers.ts"], "RPC 핸들러 등록 한 곳뿐");
   const toolFiles = files.filter((name) => /Tools?\.ts$|^mcp|Host\.ts$/.test(name));
   for (const name of toolFiles) assert.ok(!/searchReplace|replaceInWorkspace/.test(readFileSync(join("server", name), "utf8")), `${name} 이 쓰지 않는다`);
 });

@@ -4,10 +4,10 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage } from "node:http";
 import { homedir, hostname } from "node:os";
 import { fileURLToPath } from "node:url";
-import { extname, join, relative, resolve } from "node:path";
+import { extname, join, resolve } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { MobileStatus } from "../shared/mobile";
-import { defaultChangeScope, type Agent, type ChangedFile, type ChangeScope, type GitInfo, type ImageRef, type UserAttachment, RuntimeInfo, RpcMethod, RpcMethods, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
+import { type ImageRef, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
 import { AgentRunner } from "./agents";
 import { BoardStore } from "./board";
 import { NoteStore } from "./notes"; // NOTES
@@ -16,35 +16,27 @@ import { createNotion } from "./notionHost"; // NOTION2
 import { defaultsReader, describeDefaults } from "./defaults";
 import { FeedbackRunner } from "./feedback";
 import { IdleUpdater } from "./idleUpdate";
-import { generateHandoff, readHandoff, saveHandoff } from "./handoff";
 import { BrowserBridge } from "./browserBridge";
 import { readBrowserShot, saveBrowserShot } from "./browserShot";
 import { readAsideImage } from "./asideImages"; // ASIDEVIEW
 import { probeFrame } from "./frameProbe";
 import { InboxFetcher, InboxStore } from "./inbox";
 import { realDir } from "./paths";
-import { busyAgents } from "./removedFolders";
-import { headTextOf } from "./headText";
-import { blameOf } from "./gitBlame";
-import { revealInFileManager } from "./reveal";
-import { saveImage, saveImageBytes } from "./images";
+import { saveImageBytes } from "./images";
 import { mediaKey, mentionedMedia, resolveMediaBatch, type MediaContext } from "./media"; // INLINEMEDIA
 import { handleMedia } from "./mediaHttp"; // INLINEMEDIA
-import { discardUpload, handleUpload, resolveFiles } from "./fileAttach"; // FILEATTACH
+import { handleUpload } from "./fileAttach"; // FILEATTACH
 import { lanHosts, makeOffer, MobileDevices, MobileServer, PairingCodes } from "./mobileAccess"; // MOBILE
 import { listFolder } from "./mobileFolders"; // MOBILE
 import { pageOfTimeline } from "../shared/mobile";
-import { worktreeParentDir } from "../shared/openPath"; // OPENFOLDER
-import { createWorkspaceEntry, listEmptyDirs, listFiles, listIgnoredFiles, openFolderInVSCode, openInVSCode, readWorkspaceBinary, readWorkspaceFileWithStat, resolveInside, renameWorkspaceEntry, resolveReadable, terminalDir, saveWorkspaceFile, statWorkspaceFile, trashWorkspaceEntry, writeWorkspaceFile } from "./files";
-import { formatLanguages, formatOnSaveOf, readFormatSettings, runFormat } from "./format";
+import { resolveReadable, terminalDir } from "./files";
 import * as gitOps from "./git";
 import { forgetForkBase } from "./forkBase";
-import { beginTurn as beginLastTurn, forget as forgetLastTurn, lastTurnOriginal } from "./lastTurn";
+import { beginTurn as beginLastTurn, forget as forgetLastTurn } from "./lastTurn";
 import { createWorkspaceWatch } from "./workspaceWatch";
 import { perfNote, perfReset, perfSnapshot } from "./perfStats";
 import { createCoalescer } from "./eventCoalescer";
-import { createPullRequest, mergeInfo, mergeIntoBase, unmergedCount } from "./worktreeFlow";
-import { beginTurn as beginTouchTurn, checkUndo, ensureLedger, forgetLedger, forgetTouched, isTouched, sessionFiles, TOUCH_BASE, touchedChanges, touchedLastTurn, touchedOriginal } from "./sessionTouch";
+import { beginTurn as beginTouchTurn, forgetLedger } from "./sessionTouch";
 import { bridgeLsp } from "./lsp";
 import { BUNDLED_LANGUAGE_SERVERS, languageServersFor } from "./lspRegistry";
 import { ReviewCheckouts, runsFolderCode } from "./folderTrust";
@@ -53,6 +45,19 @@ import { linearHandlers } from "./linear"; // LINEAR
 import { simulatorHandlers } from "./simulator"; // CMDT
 import { skillCatalogHandlers } from "./skillCatalog"; // SKILLS
 import { scmHandlers } from "./scmHandlers";
+import type { Handlers } from "./rpcHandlers";
+import { agentHandlers } from "./agentHandlers";
+import { boardHandlers } from "./boardHandlers";
+import { feedbackHandlers } from "./feedbackHandlers";
+import { fileHandlers } from "./fileHandlers";
+import { gitHandlers } from "./gitHandlers";
+import { inboxHandlers } from "./inboxHandlers";
+import { notesHandlers } from "./notesHandlers";
+import { notionPinHandlers } from "./notionPinHandlers";
+import { settingsHandlers, type SettingsEffect } from "./settingsHandlers";
+import { terminalHandlers } from "./terminalHandlers";
+import { workspaceHandlers } from "./workspaceHandlers";
+import { createSessionChanges } from "./sessionChanges";
 import { runAnalysis } from "./mentionAnalyze";
 import { judgeMentions } from "./mentionJudge";
 import { MentionPipeline } from "./mentions";
@@ -64,16 +69,12 @@ import { localCommands } from "./skills";
 import { liveGroupLeaders, systemKillDeps, terminateGroups } from "./processGroups";
 import { createDaemonShutdown } from "./shutdown";
 import { RestartScheduler, restartWaitMs } from "../shared/restartGate";
-import { detectWorktree, importActivity, importVscodeSessions, listVscodeSessions, markSynced, reconcileBeforeTurn, type ImportDeps } from "./vscodeImport";
-import { bridgePty, ptyInfo } from "./pty";
+import { importActivity, importVscodeSessions, listVscodeSessions, markSynced, reconcileBeforeTurn, type ImportDeps } from "./vscodeImport";
+import { bridgePty } from "./pty";
 import { TermAskRunner } from "./termask";
 import { QuickRunner } from "./quick";
-import { searchWorkspace } from "./search";
-import { searchSettings } from "./searchSettings";
-import { replaceInWorkspace } from "./searchReplace"; // SEARCHREPLACE
 import { T } from "./strings";
 import { SideRunner } from "./side";
-import { applyKeptCounts, snapshotChanges, usesSnapshots } from "./snapshots";
 import { HOME, Store, loadToken } from "./store";
 import { RepoMirrors } from "./repoMirror";
 import { primeLoginPath, withLoginPath } from "./loginPath";
@@ -350,7 +351,7 @@ runner.setBoardHooks({
     if (!cardIds.length) return;
     void (async () => {
       try {
-        const { files } = await changesOf(store.agent(agentId), "session");
+        const { files } = await sessionChanges.changesOf(store.agent(agentId), "session");
         if (files.length && board.moveToRole(cardIds, ["inProgress"], "review")) publishBoard();
       } catch (error) {
         console.error("[board] auto-move to Review failed", error);
@@ -445,114 +446,29 @@ for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal
 // 백그라운드 작업 하나의 처리되지 않은 거절이 데몬과 돌고 있는 세션 전부를 끝내지 않게 기록만 한다.
 process.on("unhandledRejection", (reason) => console.error("[daemon] unhandled rejection:", reason instanceof Error ? (reason.stack ?? reason.message) : reason));
 
-// 변경 패널의 기준 커밋: worktree 면 기준 브랜치와의 merge-base, 아니면 세션 시작 시점 HEAD.
-async function baseOf(agent: Agent) {
-  // 피드백 개선 세션: 시작 시점의 파일 해시가 기준이다 (커밋 없이도 된다). 실제 비교는 feedback.changes 가 한다.
-  if (agent.feedbackId) return { ref: `feedback:${agent.feedbackId}`, label: T.baseFeedback };
-  if (agent.worktree) {
-    const ref = await gitOps.mergeBase(agent.cwd, agent.worktree.base);
-    return ref ? { ref, label: agent.worktree.base } : null;
-  }
-  if (!agent.startCommit) return null;
-  // 세션 시작 뒤 pull 로 들어온 남의 커밋은 세션의 변경이 아니라서 기준을 그만큼 앞으로 옮긴다
-  const ref = await gitOps.sessionBase(agent.cwd, agent.startCommit);
-  return { ref, label: T.baseLabel(ref.slice(0, 7)) };
-}
+const sessionChanges = createSessionChanges({ store, feedback });
 
-// 쓰기(files.write, changes.undo)가 허용되는 파일: 세션의 변경 집합(장부, git 기준 커밋 대비, Uncommitted, Branch)에 들었거나 유지 기록이 있는 파일.
-// 기준 커밋이 없는 레포(커밋 0개)는 모든 파일이 untracked 라 변경 집합이 곧 전체 파일이므로, 그때는 장부와 유지 기록만 인정한다.
-async function changeSetHas(agent: Agent, absolute: string) {
-  if (await isTouched(agent, store, absolute)) return true;
-  if (store.change(agent.id, absolute)) return true;
-  const base = (await baseOf(agent))?.ref ?? null;
-  if (base === null) return false;
-  if (agent.feedbackId) return (await feedback.changes(agent.feedbackId)).some((f) => f.path === absolute);
-  return (await gitOps.changes(agent.cwd, base)).files.some((f) => f.path === absolute) || (await uncommittedHas(agent, absolute)) || (await branchHas(agent, absolute));
-}
-
-// Uncommitted Changes 범위(B4-04)에서 보이는 파일도 되돌릴 수 있어야 한다: HEAD 대비 바뀐 파일은 이미 변경 집합이다.
-async function uncommittedHas(agent: Agent, absolute: string) {
-  return (await gitOps.headCommit(agent.cwd)) ? (await gitOps.changes(agent.cwd, "HEAD")).files.some((f) => f.path === absolute) : false;
-}
-
-// 변경 패널의 처음 범위(Branch)에서 보이는 파일도 되돌릴 수 있어야 한다: 기준 브랜치와의 merge-base 대비 바뀐 파일이다.
-async function branchHas(agent: Agent, absolute: string) {
-  const base = await scopedBase(agent, "branch");
-  return base ? (await gitOps.changes(agent.cwd, base)).files.some((f) => f.path === absolute) : false;
-}
-
-// 기준 커밋이 없을 때 변경 패널의 기준은 수정 직전 스냅샷이다. 패널이 "기준 없음" 으로 읽지 않게 base 를 채운다.
-const SNAPSHOT_BASE = "snapshots";
-function withSnapshotBase(agent: Agent, info: GitInfo): GitInfo {
-  if (info.base || !usesSnapshots(agent)) return info;
-  return { ...info, base: SNAPSHOT_BASE, baseLabel: T.baseSnapshots };
-}
-
-// 변경 패널과 칩(범위를 안 보내면 기본 범위 Branch), 사이드바 행과 보드 자동 이동("session")이 같이 쓰는 변경 파일 계산.
-// 세션의 작업 폴더 밖 파일(모노레포의 다른 폴더)은 기본으로 뺀다. 빠진 개수는 outsideCount 로 알려, 패널이 "Show changes outside this folder" 를 보이게 한다.
-async function changesOf(agent: Agent, requested?: ChangeScope, includeOutside = false) {
-  return gitOps.limitToFolder(agent.cwd, await changesWithinRepo(agent, requested), includeOutside);
-}
-
-async function changesWithinRepo(agent: Agent, requested?: ChangeScope) {
-  // 폴더 없는 세션(퀵 챗)은 변경 대상이 없다
-  if (agent.workspaceId === null) return { base: null, files: [] };
-  if (agent.feedbackId) return { base: `feedback:${agent.feedbackId}`, files: await feedback.changes(agent.feedbackId) };
-  const scope = requested ?? defaultChangeScope(agent);
-  // FIX4A: Session 범위는 이 세션의 에이전트가 만진 파일 장부(server/sessionTouch.ts)로 만든다. 폴더 전체를 비교하지 않는다.
-  if (await listsFromLedger(agent, scope)) return withKeptCounts(agent, scope, await touchedChanges(agent, store));
-  const scoped = await scopedBase(agent, scope);
-  if (scope === "lastTurn") return touchedLastTurn(agent, store);
-  if (scoped) return withKeptCounts(agent, scope, await gitOps.changes(agent.cwd, scoped));
-  const base = (await baseOf(agent))?.ref ?? null;
-  if (!base && usesSnapshots(agent)) return { base: SNAPSHOT_BASE, files: await snapshotChanges(agent, store) };
-  return withKeptCounts(agent, scope, await gitOps.changes(agent.cwd, base));
-}
-
-// Keep 한 변경은 +/- 에서 빠진다. 유지 기록이 기준으로 쓰이는 Branch 와 Session 범위만(web/DiffView.tsx 의 useOriginal 과 같은 규칙)이다. Uncommitted 와 Last Turn 은 자기 기준이 따로 있다.
-async function withKeptCounts<T extends { files: ChangedFile[] }>(agent: Agent, scope: ChangeScope, result: T): Promise<T> {
-  if (scope !== "branch" && scope !== "session") return result;
-  return { ...result, files: await applyKeptCounts(agent, store, result.files) };
-}
-
-// Session 범위의 목록을 장부로 만드는 세션: 일반 세션과 갈래. worktree 세션과 커밋 0개 폴더는 Branch 와 같은 git 기준(또는 수정 직전 스냅샷)이다. Branch 와 Uncommitted 는 git 기준 그대로다.
-async function listsFromLedger(agent: Agent, scope: ChangeScope) {
-  return scope === "session" && (await ensureLedger(agent, store))?.listsSession === true;
-}
-
-// 변경 범위 메뉴(B4-04)의 기준 커밋. session 과 git 이 아닌 폴더는 null 이라 기존 계산(baseOf)을 쓴다.
-// branch: 기준 브랜치와 HEAD 의 merge-base, uncommitted: HEAD.
-async function scopedBase(agent: Agent, scope: ChangeScope) {
-  if (scope === "uncommitted") return (await gitOps.headCommit(agent.cwd)) ? "HEAD" : null;
-  if (scope !== "branch") return null;
-  if (agent.worktree) return (await gitOps.mergeBase(agent.cwd, agent.worktree.base)) ?? null;
-  const base = await gitOps.defaultBase(agent.cwd);
-  return base ? ((await gitOps.mergeBase(agent.cwd, base)) ?? null) : null;
-}
-
-// 패널 머리와 제목줄이 쓰는 git 상태. baseBranch 는 Branch Changes 메뉴 설명에 보인다.
-async function infoOf(agent: Agent): Promise<GitInfo> {
-  if (agent.workspaceId === null) return { repoRoot: null, hasHead: false, branch: null, upstream: null, ahead: 0, behind: 0, base: null, baseLabel: null, baseBranch: null };
-  const gitInfo = withSnapshotBase(agent, await gitOps.info(agent.cwd, await baseOf(agent)));
-  const info = (await listsFromLedger(agent, defaultChangeScope(agent))) ? { ...gitInfo, base: TOUCH_BASE, baseLabel: T.baseTouched } : gitInfo;
-  return { ...info, baseBranch: agent.worktree?.base ?? (info.repoRoot ? await gitOps.defaultBase(agent.cwd) : null) };
-}
-
-// BRANCH-SWITCH: dir 와 같은 저장소 작업 트리를 쓰는 세션. 폴더가 저장소 안에 있는 세션만 git 으로 다시 확인한다(worktree 세션은 저장소 밖 폴더라 빠진다).
-async function agentsSharingRepo(dir: string) {
-  const root = await gitOps.repoRoot(dir);
-  if (!root) return [];
-  const realRoot = realDir(root);
-  const inside = store.agents.filter((a) => {
-    const cwd = realDir(a.cwd);
-    return cwd === realRoot || cwd.startsWith(`${realRoot}/`);
-  });
-  const same = await Promise.all(inside.map(async (a) => ((await gitOps.repoRoot(a.cwd)) === root ? a : null)));
-  return same.filter((a): a is Agent => a !== null);
-}
-
-// client 는 요청을 보낸 연결이다. 공유 목록과 도구 결과처럼 어느 화면이 보냈는지가 중요한 요청만 쓴다.
-type Handlers = { [M in RpcMethod]: (params: RpcMethods[M]["params"], client: WebSocket) => Promise<RpcMethods[M]["result"]> | RpcMethods[M]["result"] };
+const settingsEffects: SettingsEffect[] = [
+  // MOBILE: 켜기와 끄기는 포트를 열고 닫는 일이라 끝난 뒤에 답한다(화면이 바로 상태를 다시 읽는다).
+  { keys: ["mobileAccess"], apply: () => applyMobileAccess() },
+  // Slack 을 켜고 끄면 주기 가져오기를 다시 맞춘다. 켤 때는 꺼져 있는 동안 멈춰 있던 분석 큐도 이어서 돈다.
+  { keys: ["inboxIntervalMinutes", "showSlack"], apply: () => armInboxTimer() },
+  { keys: ["showSlack"], apply: () => mentions.kick() },
+  { keys: ["keepIdleSessionsWarmMinutes"], apply: () => runner.rearmIdleCloses() },
+  { keys: ["maxWarmSessions"], apply: () => runner.enforceWarmCap() },
+  { keys: ["feedbackAutoTidy"], apply: () => armFeedbackTidy() },
+  // 끌 때는 타이머를 걷고, 꺼져 있다가 켤 때만 바로 한 번 묻는다
+  {
+    apply: (next, previous) => {
+      if ((previous.notifyNewVersion === true) !== (next.notifyNewVersion === true)) releaseCheck.settingChanged();
+    },
+  },
+  { apply: (next) => allowProviderEnv(next.useProviderEnv === true) },
+  // 자동 추가를 다시 켜면 꺼져 있는 동안 멈춰 있던 분석 큐가 이어서 돈다.
+  { keys: ["autoAddRequests"], apply: () => mentions.kick() },
+  // NOTION3: Notion 쓰기를 "Apply automatically" 로 바꾸면 Bypass Permissions 세션에서 떠 있던 승인 카드도 바로 반영된다.
+  { keys: ["notionBypassWrites"], apply: () => runner.releaseNotionCards() },
+];
 
 const handlers: Handlers = {
   // CMDT: ⌘T 입력창의 Open in Simulator (server/simulator.ts). 모바일 허용 목록에는 없다.
@@ -581,19 +497,17 @@ const handlers: Handlers = {
     addWorkspace: (dir, parentId, name) => store.addWorkspace(dir, parentId, name),
     announce: () => broadcast({ type: "workspaces", workspaces: store.workspaces }),
   }),
-  "workspaces.list": () => store.workspaces,
-  // SESSIONORDER: 사이드바 세션 순서. 바꾸면 모든 화면(다른 창 포함)에 새 목록을 보낸다. 모바일 허용 목록에는 없다.
-  "sessionOrder.list": () => store.sessionOrders,
-  "sessionOrder.set": ({ scope, ids }) => {
-    const orders = store.setSessionOrder(scope, ids);
-    broadcast({ type: "sessionOrders", orders });
-    return orders;
-  },
-  "sessionOrder.reset": ({ scopes }) => {
-    const orders = store.resetSessionOrders(scopes);
-    broadcast({ type: "sessionOrders", orders });
-    return orders;
-  },
+  ...workspaceHandlers({ store, runner, broadcast, reviewCheckouts, workspaceWatch, pruneBoard }),
+  ...agentHandlers({ store, runner, board, broadcast }),
+  ...fileHandlers({ store, broadcast, folderCodeAllowed }),
+  ...gitHandlers({ store, feedback, broadcast, sessionChanges }),
+  ...settingsHandlers({ store, broadcast, effects: settingsEffects }),
+  ...feedbackHandlers({ feedback }),
+  ...boardHandlers({ store, board, publishBoard, topWorkspaceOf }),
+  ...notesHandlers({ notes, publishNotes }),
+  ...inboxHandlers({ inbox, inboxStore, mentions, broadcast, topWorkspaceOf }),
+  ...notionPinHandlers({ notionPins, broadcast }),
+  ...terminalHandlers({ termAsk }),
   "perf.stats": ({ reset }) => {
     const snapshot = perfSnapshot();
     if (reset) perfReset();
@@ -612,92 +526,7 @@ const handlers: Handlers = {
     mobile.revokeDevice(id);
     return mobileStatus();
   },
-  "workspaces.add": ({ dir }) => {
-    const absolute = resolve(dir.replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
-    if (!existsSync(absolute) || !statSync(absolute).isDirectory()) throw new Error(T.errFolderNotFound(absolute));
-    const workspace = store.addWorkspace(absolute);
-    // 사용자가 직접 추가한 폴더는 PR 리뷰 체크아웃이었더라도 이제 신뢰한다
-    reviewCheckouts.forget(workspace.dir);
-    broadcast({ type: "workspaces", workspaces: store.workspaces });
-    return workspace;
-  },
-  "workspaces.open": async ({ dir }) => {
-    const absolute = realDir(resolve(dir.replace(/^~(?=\/|$)/, process.env.HOME ?? "~")));
-    if (!existsSync(absolute) || !statSync(absolute).isDirectory()) throw new Error(T.errFolderNotFound(absolute));
-    let workspace = store.workspaces.find((w) => w.dir === absolute);
-    if (!workspace) {
-      const tree = await detectWorktree(absolute);
-      if (tree) {
-        const parent = store.addWorkspace(worktreeParentDir(absolute, tree));
-        workspace = store.addWorkspace(absolute, parent.id, `${parent.name} (${tree.branch})`);
-      } else workspace = store.addWorkspace(absolute);
-    }
-    reviewCheckouts.forget(workspace.dir);
-    broadcast({ type: "workspaces", workspaces: store.workspaces });
-    return workspace;
-  },
-  // fix5-3: 사라진 폴더를 새 경로에 다시 잇는다. 폴더를 지금 쓰는 세션이 돌고 있으면 그 작업 폴더가 바뀌므로 거절한다.
-  "workspaces.relocate": ({ id, dir }) => {
-    const absolute = resolve(String(dir).trim().replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
-    if (!existsSync(absolute) || !statSync(absolute).isDirectory()) throw new Error(T.errFolderNotFound(absolute));
-    const running = busyAgents(store.agents.filter((a) => a.workspaceId === id && !a.worktree));
-    if (running.length) throw new Error(T.errRelocateBusy(running.length));
-    const { workspace, moved } = store.relocateWorkspace(id, absolute);
-    for (const agent of moved) {
-      runner.closeIdle(agent.id);
-      broadcast({ type: "agent", agent });
-    }
-    broadcast({ type: "workspaces", workspaces: store.workspaces });
-    return workspace;
-  },
-  // WSMENU: 세션은 지우지 않고 숨긴다. 열려 있던 화면은 agentRemoved 로 그 세션 칸을 비우고, 폴더를 다시 추가하면 store.onRestored 가 돌려준다.
-  "workspaces.remove": ({ id }) => {
-    const { hidden, agents } = store.removeFolderFromList(id);
-    for (const agent of agents) runner.closeIdle(agent.id);
-    for (const agent of agents) broadcast({ type: "agentRemoved", agentId: agent.id });
-    broadcast({ type: "workspaces", workspaces: store.workspaces });
-    pruneBoard();
-    return { hidden };
-  },
-  "workspaces.reveal": async ({ workspaceId }) => {
-    await revealInFileManager(store.workspace(workspaceId).dir);
-    return null;
-  },
-  "files.list": ({ workspaceId }) => listFiles(store.workspace(workspaceId).dir),
-  "files.ignored": ({ workspaceId }) => listIgnoredFiles(store.workspace(workspaceId).dir),
   "browser.probe": ({ url }) => probeFrame(url),
-  // NOTION: 사이드바 고정 페이지. 바뀔 때마다 목록 전체를 모든 화면에 보낸다.
-  "notion.pins.list": () => notionPins.list(),
-  "notion.pins.add": (params) => {
-    const result = notionPins.add(params);
-    if (result.added) broadcast({ type: "notionPins", pins: notionPins.list() });
-    return result;
-  },
-  "notion.pins.update": ({ id, patch }) => {
-    const pin = notionPins.update(String(id), patch);
-    broadcast({ type: "notionPins", pins: notionPins.list() });
-    return pin;
-  },
-  "notion.pins.remove": ({ id }) => {
-    notionPins.remove(String(id));
-    broadcast({ type: "notionPins", pins: notionPins.list() });
-    return null;
-  },
-  "notion.pins.move": ({ id, index }) => {
-    const pins = notionPins.move(String(id), index);
-    broadcast({ type: "notionPins", pins });
-    return pins;
-  },
-  "files.search": ({ workspaceId, query, matchCase, wholeWord, regex, context, include, exclude, ignore, ranges }) =>
-    searchWorkspace(store.workspace(workspaceId).dir, { query: String(query ?? ""), matchCase: !!matchCase, wholeWord: !!wholeWord, regex: !!regex, context: Number(context), include: typeof include === "string" ? include : "", exclude: typeof exclude === "string" ? exclude : "", ignore: ignore !== false, ranges: ranges === true, excludeGlobs: searchSettings().exclude }),
-  "search.settings": () => searchSettings(),
-  // SEARCHREPLACE: Search 뷰의 바꾸기. 모바일 허용 목록(shared/mobile.ts)에도 에이전트 도구에도 없다.
-  "search.replace": async ({ workspaceId, files }) => {
-    const workspace = store.workspace(workspaceId);
-    const response = await replaceInWorkspace(workspace.dir, files);
-    if (response.results.some((result) => result.status === "applied" && result.applied > 0)) broadcast({ type: "workspaceChanged", workspaceIds: [workspace.id] });
-    return response;
-  },
   "browser.saveShot": ({ png }) => saveBrowserShot(String(png)),
   "browser.readShot": async ({ path }) => ({ png: await readBrowserShot(String(path)) }),
   "aside.readImage": ({ paths }) => readAsideImage(paths),
@@ -709,64 +538,11 @@ const handlers: Handlers = {
     browserBridge.settle(client, String(id), result, error === undefined ? undefined : String(error));
     return null;
   },
-  "files.read": ({ workspaceId, path }) => readWorkspaceFileWithStat(store.workspace(workspaceId).dir, path),
-  "files.readBinary": ({ workspaceId, path }) => readWorkspaceBinary(store.workspace(workspaceId).dir, path),
   // INLINEMEDIA: 대화 속 이미지와 영상 경로 확인. 허용 규칙은 server/media.ts 머리말.
   "media.resolve": ({ agentId, paths }) => resolveMediaBatch(paths, mediaContext(agentId), MEDIA_KEY),
-  "files.readOfAgent": async ({ agentId, path }) => ({ text: (await readWorkspaceFileWithStat(store.agent(agentId).cwd, path)).text }),
-  "files.stat": ({ workspaceId, path }) => statWorkspaceFile(store.workspace(workspaceId).dir, path),
   "repos.mirrorDir": ({ repo, request }) => {
     if (request === true) repoMirrors.request(String(repo));
     return { dir: repoMirrors.dirOf(String(repo)) };
-  },
-  "files.headText": ({ workspaceId, path }) => headTextOf(store.workspace(workspaceId).dir, String(path)),
-  "files.save": ({ workspaceId, path, text, baseMtimeMs, force }) => saveWorkspaceFile(store.workspace(workspaceId).dir, path, String(text), baseMtimeMs ?? null, force === true),
-  "files.create": ({ workspaceId, path, kind, text }) => createWorkspaceEntry(store.workspace(workspaceId).dir, String(path), kind === "folder" ? "folder" : "file", typeof text === "string" ? text : ""),
-  "files.dirs": ({ workspaceId }) => listEmptyDirs(store.workspace(workspaceId).dir),
-  // R4FIX: Files 트리 우클릭 메뉴
-  "files.rename": async ({ workspaceId, from, to }) => {
-    await renameWorkspaceEntry(store.workspace(workspaceId).dir, String(from), String(to));
-    return null;
-  },
-  "files.trash": ({ workspaceId, path }) => trashWorkspaceEntry(store.workspace(workspaceId).dir, String(path)),
-  "files.reveal": async ({ workspaceId, path }) => {
-    await revealInFileManager(resolveInside(store.workspace(workspaceId).dir, String(path)));
-    return null;
-  },
-  "format.run": ({ workspaceId, path, text, range, formatter }) => {
-    const dir = store.workspace(workspaceId).dir;
-    const absolute = resolveInside(dir, path);
-    // 파일이 워크스페이스 안의 받은 클론이나 리뷰 체크아웃에 들어 있어도 같다(포맷터는 파일 폴더에서 위로 도구와 설정을 찾는다)
-    const own = folderCodeAllowed(dir) && folderCodeAllowed(absolute);
-    return runFormat({ dir, absolute, text: String(text), range, formatter, settings: readFormatSettings(own ? dir : null), chosen: store.settings.formatters ?? {}, bundledOnly: !own });
-  },
-  "format.config": ({ workspaceId } = {}) => {
-    const dir = workspaceId ? store.workspace(workspaceId).dir : null;
-    const settings = readFormatSettings(dir && folderCodeAllowed(dir) ? dir : null);
-    const languages = formatLanguages(settings, store.settings.formatters ?? {});
-    const chosen = store.settings.formatOnSave;
-    if (typeof chosen === "boolean") return { formatOnSave: chosen, source: "agent-nav" as const, languages };
-    const fromVscode = formatOnSaveOf(settings);
-    return fromVscode === null ? { formatOnSave: false, source: "builtin" as const, languages } : { formatOnSave: fromVscode, source: "vscode" as const, languages };
-  },
-  // 그 세션의 변경 집합(git 기준 커밋 대비)에 든 파일이나 유지 기록이 있는 파일만, 세션 cwd 안에서만 쓴다.
-  // 기준 커밋이 없는 레포(커밋 0개)는 모든 파일이 untracked 라 변경 집합이 곧 전체 파일이므로, 그때는 유지 기록만 인정한다.
-  "files.write": async ({ agentId, path, text }) => {
-    const agent = store.agent(agentId);
-    const absolute = resolveInside(agent.cwd, path);
-    if (!(await changeSetHas(agent, absolute))) throw new Error(T.errNotChangedFile);
-    await writeWorkspaceFile(agent.cwd, absolute, text);
-    return null;
-  },
-  "workspaces.openInVSCode": async ({ agentId, workspaceId }) => {
-    const dir = agentId ? store.agent(agentId).cwd : workspaceId ? store.workspace(workspaceId).dir : null;
-    if (!dir) throw new Error(T.errNoFolderToOpen);
-    await openFolderInVSCode(dir);
-    return null;
-  },
-  "files.openInVSCode": async ({ workspaceId, path, line, column }) => {
-    await openInVSCode(store.workspace(workspaceId).dir, path, line, column);
-    return null;
   },
   "commands.local": ({ workspaceId }) => localCommands(store.workspace(workspaceId).dir),
   "meta.get": () => metaService.meta,
@@ -776,265 +552,7 @@ const handlers: Handlers = {
   "mcp.reconnect": ({ name }) => metaService.reconnect(name),
   "mcp.toggle": ({ name, enabled }) => metaService.toggle(name, enabled),
   "runtime.info": () => RUNTIME,
-  "settings.get": () => store.settings,
-  "defaults.get": () => defaultsReader.resolve(store.settings, true),
-  "settings.set": async (patch) => {
-    const releaseWasOn = store.settings.notifyNewVersion === true;
-    const settings = store.updateSettings(patch);
-    // MOBILE: 켜기와 끄기는 포트를 열고 닫는 일이라 끝난 뒤에 답한다(화면이 바로 상태를 다시 읽는다).
-    if (patch && typeof patch === "object" && "mobileAccess" in patch) await applyMobileAccess();
-    // Slack 을 켜고 끄면 주기 가져오기를 다시 맞춘다. 켤 때는 꺼져 있는 동안 멈춰 있던 분석 큐도 이어서 돈다.
-    if (patch && typeof patch === "object" && ("inboxIntervalMinutes" in patch || "showSlack" in patch)) armInboxTimer();
-    if (patch && typeof patch === "object" && "showSlack" in patch) mentions.kick();
-    if (patch && typeof patch === "object" && "keepIdleSessionsWarmMinutes" in patch) runner.rearmIdleCloses();
-    if (patch && typeof patch === "object" && "maxWarmSessions" in patch) runner.enforceWarmCap();
-    if (patch && typeof patch === "object" && "feedbackAutoTidy" in patch) armFeedbackTidy();
-    // 끌 때는 타이머를 걷고, 꺼져 있다가 켤 때만 바로 한 번 묻는다
-    if (releaseWasOn !== (settings.notifyNewVersion === true)) releaseCheck.settingChanged();
-    allowProviderEnv(settings.useProviderEnv === true);
-    // 자동 추가를 다시 켜면 꺼져 있는 동안 멈춰 있던 분석 큐가 이어서 돈다.
-    if (patch && typeof patch === "object" && "autoAddRequests" in patch) mentions.kick();
-    // NOTION3: Notion 쓰기를 "Apply automatically" 로 바꾸면 Bypass Permissions 세션에서 떠 있던 승인 카드도 바로 반영된다.
-    if (patch && typeof patch === "object" && "notionBypassWrites" in patch) runner.releaseNotionCards();
-    broadcast({ type: "settings", settings, defaults: defaultsReader.resolve(settings, true) });
-    return settings;
-  },
   "logs.tail": ({ lines }) => logRing.slice(-Math.max(1, Math.min(lines, LOG_LINES))),
-  "agents.list": () => store.agents,
-  "agents.create": (params) => {
-    if (params.workspaceId !== null) store.workspace(params.workspaceId);
-    if (params.boardCardId !== undefined) board.card(params.boardCardId);
-    return runner.create(params);
-  },
-  // HANDOFF: 인계 문서. 만드는 데 모델을 한 번 부르므로 응답이 늦을 수 있다(화면이 칩에 진행 표시를 둔다).
-  "handoff.create": async ({ agentId }) => {
-    runner.assertClaude(agentId, "Handoff"); // CODEX
-    const agent = store.agent(agentId);
-    // FIX4A: 문서 질문이 이 세션이 만진 파일을 폴더 전체의 변경과 구분하게, Session 범위와 같은 장부의 목록을 넘긴다
-    const files = agent.workspaceId === null ? null : (await sessionFiles(agent, store).catch(() => null))?.map((f) => f.rel) ?? null;
-    return generateHandoff(agent, files);
-  },
-  "handoff.read": ({ id }) => readHandoff(id),
-  "handoff.save": ({ id, text }) => {
-    saveHandoff(id, text);
-    return null;
-  },
-  // B3: 응답 중이면 steer 가 아닌 한 큐에 들어간다. 전송 자체(모델 호출)는 기다리지 않고, 큐에 들어갔는지만 바로 돌려준다.
-  "agents.send": async ({ agentId, prompt, steer, images, files }) => {
-    // FILEATTACH: 파일은 여기서 먼저 확인한다(사라졌으면 이 호출이 실패해 화면이 입력을 그대로 두고 알린다). 모델에는 글 뒤에 경로 블록이 붙은 메시지가 가고, 말풍선에는 글(display)과 파일 칩이 보인다.
-    const attached = await resolveFiles(files);
-    const queued = runner.willQueue(agentId, steer === true);
-    // fixB: 이미지는 칩(말풍선 위 썸네일)과 모델에 가는 image 블록으로 함께 간다. 글이 없는 메시지의 말풍선은 칩만 둔다.
-    const chips: UserAttachment[] = [...(images ?? []).map((image) => ({ kind: "image" as const, ...image })), ...attached.chips];
-    const attach = chips.length ? { display: prompt, attachments: chips } : {};
-    void runner.send(agentId, attached.model(prompt),{ steer: steer === true, ...attach }).catch((error) => console.error("[agent] send failed", error));
-    return { queued };
-  },
-  // fixB: 입력창 이미지 저장
-  "images.upload": (params) => saveImage(params),
-  // FILEATTACH: 보내기 전에 칩을 지운 업로드 폴백 파일 정리
-  "attachments.discard": ({ id }) => discardUpload(id),
-  "agents.dequeue": ({ agentId, queueId }) => runner.dequeue(agentId, queueId),
-  "agents.cancelSteering": ({ agentId, steeringId }) => runner.cancelSteering(agentId, steeringId),
-  // DIFFFB: 쌓인 diff 피드백
-  "diffFeedback.list": ({ agentId }) => store.diffFeedback(store.agent(agentId).id),
-  "diffFeedback.add": ({ agentId, item }) => runner.addDiffFeedback(agentId, item),
-  "diffFeedback.update": ({ agentId, id, text }) => {
-    runner.updateDiffFeedback(agentId, id, text);
-    return null;
-  },
-  "diffFeedback.remove": ({ agentId, id }) => {
-    runner.removeDiffFeedback(agentId, id);
-    return null;
-  },
-  "diffFeedback.clear": ({ agentId }) => {
-    runner.clearDiffFeedback(agentId);
-    return null;
-  },
-  "diffFeedback.send": ({ agentId, text, steer, ids }) => runner.sendDiffFeedback(agentId, { text, steer, ids }),
-  "agents.sendQueuedNow": async ({ agentId, queueId }) => {
-    void runner.sendQueuedNow(agentId, queueId).catch((error) => console.error("[agent] send queued failed", error));
-    return null;
-  },
-  "agents.interrupt": async ({ agentId }) => {
-    await runner.interrupt(agentId);
-    return null;
-  },
-  "agents.timeline": ({ agentId }) => store.timeline(agentId),
-  "agents.setPermissionMode": async ({ agentId, mode }) => {
-    await runner.setPermissionMode(agentId, mode);
-    return null;
-  },
-  "agents.setModel": ({ agentId, model }) => {
-    runner.setModel(agentId, model);
-    return null;
-  },
-  "agents.setEffort": ({ agentId, effort }) => {
-    runner.setEffort(agentId, effort);
-    return null;
-  },
-  "agents.respondPermission": ({ agentId, itemId, decision }) => {
-    runner.respondPermission(agentId, itemId, decision);
-    return null;
-  },
-  // fixB: 질문 답과 계획 승인
-  "agents.answerQuestion": ({ agentId, itemId, answers }) => {
-    runner.answerQuestion(agentId, itemId, answers);
-    return null;
-  },
-  "agents.respondPlan": (params) => {
-    runner.respondPlan(params.agentId, params.itemId, params.approve ? { approve: true, mode: params.mode } : { approve: false, feedback: params.feedback });
-    return null;
-  },
-  "agents.remove": async ({ agentId, removeWorktree }) => {
-    await runner.remove(agentId, removeWorktree);
-    return null;
-  },
-  "agents.worktreeStatus": async ({ agentId }) => {
-    const agent = store.agent(agentId);
-    if (!agent.worktree) return null;
-    return { ...(await gitOps.worktreeStatus(agent.worktree.root)), unmerged: await unmergedCount(agent.worktree), branch: agent.worktree.branch, base: agent.worktree.base };
-  },
-  "worktree.mergeInfo": async ({ agentId }) => {
-    const { worktree } = store.agent(agentId);
-    return worktree ? mergeInfo(worktree) : null;
-  },
-  "worktree.merge": async ({ agentId, confirmed }) => {
-    if (confirmed !== true) throw new Error(T.errNotConfirmed);
-    const { worktree } = store.agent(agentId);
-    if (!worktree) throw new Error(T.errNotWorktreeSession);
-    const merged = await mergeIntoBase(worktree);
-    // 합친 작업 트리를 쓰는 세션들의 변경 목록이 바뀐다
-    const affected = merged.dir ? (await agentsSharingRepo(merged.dir)).map((a) => a.id) : [];
-    return { target: merged.target, fastForward: merged.fastForward, commits: merged.commits, affectedAgentIds: affected };
-  },
-  "worktree.createPr": async ({ agentId, confirmed }) => {
-    if (confirmed !== true) throw new Error(T.errNotConfirmed);
-    const { worktree } = store.agent(agentId);
-    if (!worktree) throw new Error(T.errNotWorktreeSession);
-    return createPullRequest(worktree);
-  },
-  "agents.fork": ({ agentId, beforeItemId }) => (beforeItemId ? runner.forkBefore(agentId, beforeItemId) : runner.fork(agentId)),
-  // B2: 체크포인트 복원과 Redo
-  "agents.restoreCheckpoint": ({ agentId, itemId }) => runner.restoreCheckpoint(agentId, itemId),
-  "agents.previewCheckpoint": ({ agentId, itemId }) => runner.previewCheckpoint(agentId, itemId),
-  "agents.cancelRestore": ({ agentId }) => {
-    runner.cancelRestore(agentId);
-    return null;
-  },
-  "agents.redoCheckpoint": ({ agentId }) => runner.redoCheckpoint(agentId),
-  "agents.checkpointModes": ({ agentId }) => runner.checkpointModes(agentId),
-  "app.showAgent": ({ agentId }) => {
-    store.agent(agentId);
-    broadcast({ type: "showAgent", agentId });
-    return null;
-  },
-  "agents.markRead": ({ agentId, read }) => {
-    runner.setRead(agentId, read);
-    return null;
-  },
-  "workspaces.watch": async ({ workspaceIds }, client) => {
-    const roots = new Set<string>();
-    const linked: Record<string, string> = {};
-    for (const id of Array.isArray(workspaceIds) ? workspaceIds : []) {
-      const workspace = store.workspaces.find((w) => w.id === id);
-      if (!workspace) continue;
-      const root = realDir((await gitOps.repoRoot(workspace.dir)) ?? workspace.dir);
-      roots.add(root);
-      const gitDir = await gitOps.linkedGitDir(root);
-      if (gitDir) linked[root] = gitDir;
-    }
-    workspaceWatch.setClient(client, [...roots], linked);
-    return null;
-  },
-  "agents.setOpen": ({ agentIds }, client) => {
-    runner.setOpenAgents(client, Array.isArray(agentIds) ? agentIds.filter((id) => typeof id === "string") : []);
-    return null;
-  },
-  "agents.setPinned": ({ agentId, pinned }) => {
-    runner.setPinned(agentId, pinned);
-    return null;
-  },
-  "agents.setDone": ({ agentId, done }) => {
-    runner.setDone(agentId, done);
-    return null;
-  },
-  "agents.rename": ({ agentId, title }) => {
-    runner.rename(agentId, title);
-    return null;
-  },
-  "changes.list": ({ agentId }) => store.changes(agentId),
-  "changes.setOriginal": ({ agentId, path, original }) => {
-    broadcast({ type: "changes", agentId, changes: store.setChange(agentId, path, original) });
-    return null;
-  },
-  "changes.clear": ({ agentId, path }) => {
-    broadcast({ type: "changes", agentId, changes: store.clearChanges(agentId, path) });
-    return null;
-  },
-  // FIX4A: Undo. 서버가 장부로 "에이전트의 마지막 쓰기 뒤 아무도 안 고친 파일" 만 허용한다(화면의 확인 창은 checkUndo 결과로 파일 이름을 보인다).
-  "changes.checkUndo": ({ agentId, paths }) => {
-    const agent = store.agent(agentId);
-    return checkUndo(agent, store, paths.map((path) => resolveInside(agent.cwd, path)));
-  },
-  "changes.undo": async ({ agentId, items }) => {
-    const agent = store.agent(agentId);
-    const texts = new Map(items.map((item) => [resolveInside(agent.cwd, item.path), item.text]));
-    const check = await checkUndo(agent, store, [...texts.keys()]);
-    for (const path of check.allowed) if (!(await changeSetHas(agent, path))) throw new Error(T.errNotChangedFile);
-    for (const path of check.allowed) await writeWorkspaceFile(agent.cwd, path, texts.get(path) ?? null);
-    await forgetTouched(agent, store, check.allowed);
-    for (const path of check.allowed) broadcast({ type: "changes", agentId, changes: store.clearChanges(agentId, path) });
-    return { ...check, reverted: check.allowed };
-  },
-  "git.info": ({ agentId }) => infoOf(store.agent(agentId)),
-  // fetch, push, pull 은 사용자가 버튼을 눌렀을 때만 온다. 강제 옵션은 없다.
-  "git.fetch": async ({ agentId }) => {
-    const agent = store.agent(agentId);
-    await gitOps.fetch(agent.cwd);
-    return infoOf(agent);
-  },
-  "git.push": async ({ agentId }) => ({ output: await gitOps.push(store.agent(agentId).cwd) }),
-  "git.pull": async ({ agentId }) => ({ output: await gitOps.pull(store.agent(agentId).cwd) }),
-  "git.changes": ({ agentId, scope, includeOutside }) => changesOf(store.agent(agentId), scope, includeOutside === true),
-  "git.workspaceChanges": async ({ workspaceId }) => {
-    const dir = store.workspace(workspaceId).dir;
-    const result = gitOps.limitToFolder(dir, await gitOps.changes(dir, (await gitOps.headCommit(dir)) ? "HEAD" : null), false);
-    return { files: result.files };
-  },
-  "git.original": async ({ agentId, path, scope, from }) => {
-    const agent = store.agent(agentId);
-    if (agent.feedbackId) return { text: await feedback.original(agent.feedbackId, relative(agent.cwd, resolveInside(agent.cwd, path))) };
-    const absolute = await resolveReadable(agent.cwd, path);
-    // 이름이 바뀐 파일(R)의 기준 내용은 옛 이름으로 읽는다
-    const source = from ? await resolveReadable(agent.cwd, from) : absolute;
-    const resolved = scope ?? defaultChangeScope(agent);
-    if (resolved === "lastTurn") return { text: await lastTurnOriginal(agent, store, absolute) };
-    if (await listsFromLedger(agent, resolved)) {
-      const before = await touchedOriginal(agent, store, absolute);
-      if (before !== undefined) return { text: before };
-    }
-    const scoped = await scopedBase(agent, resolved);
-    if (scoped) return { text: await gitOps.original(agent.cwd, scoped, source, { strict: true }) };
-    const base = (await baseOf(agent))?.ref ?? null;
-    if (!base && usesSnapshots(agent)) return { text: store.change(agentId, absolute)?.original ?? null };
-    return { text: await gitOps.original(agent.cwd, base, source, { strict: true }) };
-  },
-  "git.blame": async ({ workspaceId, path, text }) => ({ blame: await blameOf(store.workspace(workspaceId).dir, String(path), typeof text === "string" ? text : undefined) }),
-  "git.checkBranchName": async ({ workspaceId, branch }) => {
-    const root = await gitOps.repoRoot(store.workspace(workspaceId).dir);
-    return { problem: root ? await gitOps.branchNameProblem(root, branch) : T.errNotGitRepoForWorktree };
-  },
-  "git.branches": ({ workspaceId }) => gitOps.branches(store.workspace(workspaceId).dir),
-  "git.switchBranch": async ({ workspaceId, branch, allowBusy }) => {
-    const dir = store.workspace(workspaceId).dir;
-    const sharing = await agentsSharingRepo(dir);
-    const busy = sharing.filter((a) => a.status === "running" || a.status === "waiting");
-    if (busy.length > 0 && !allowBusy) return { switched: false, busy: busy.map((a) => a.title), affectedAgentIds: [], info: await gitOps.branches(dir) };
-    await gitOps.switchBranch(dir, branch);
-    return { switched: true, busy: [], affectedAgentIds: sharing.map((a) => a.id), info: await gitOps.branches(dir) };
-  },
-  "git.prs": ({ agentId }) => gitOps.pullRequests(store.agent(agentId).cwd),
   "quick.ask": ({ id, workspaceId, model, question, context }) => {
     quick.ask(id, workspaceId, model, question, context);
     return null;
@@ -1044,15 +562,6 @@ const handlers: Handlers = {
     return null;
   },
   "quick.adopt": ({ id }) => quick.adopt(id),
-  "termask.ask": ({ id, model, question, context }) => {
-    termAsk.ask(id, model, question, context);
-    return null;
-  },
-  "termask.cancel": ({ id }) => {
-    termAsk.cancel(id);
-    return null;
-  },
-  "pty.info": ({ ptyId }) => ptyInfo(ptyId),
   "side.ask": ({ id, agentId, model, question }) => {
     runner.assertClaude(agentId, "Side question (/btw)"); // CODEX
     side.ask(id, agentId, model, question);
@@ -1063,111 +572,6 @@ const handlers: Handlers = {
     return null;
   },
   "side.adopt": ({ id }) => side.adopt(id),
-  "inbox.get": () => inbox.state(),
-  "inbox.refresh": () => inbox.refresh(),
-  "inbox.markRead": ({ ids, read }) => {
-    const list = inboxIds(ids);
-    if (typeof read !== "boolean") throw new Error(T.errInboxFlag("read"));
-    inboxStore.setRead(list, read);
-    return publishInbox();
-  },
-  "inbox.archive": ({ ids, archived }) => {
-    const list = inboxIds(ids);
-    if (typeof archived !== "boolean") throw new Error(T.errInboxFlag("archived"));
-    inboxStore.setArchived(list, archived);
-    return publishInbox();
-  },
-  "inbox.thread": ({ id }) => inbox.thread(id),
-  "inbox.addToBoard": ({ id, workspaceId }) => mentions.addToBoard(id, topWorkspaceOf(workspaceId)),
-  "inbox.reanalyze": ({ id }) => {
-    mentions.reanalyze(id);
-    return inbox.state();
-  },
-  "inbox.notRequest": ({ id }) => {
-    mentions.notRequest(id);
-    return inbox.state();
-  },
-  // NOTES: 메모장. 바뀐 뒤에는 전체 목록을 모든 창에 알린다(본문은 싣지 않는다).
-  "notes.list": ({ query }) => notes.list(typeof query === "string" ? query : ""),
-  "notes.get": ({ id }) => notes.get(id),
-  "notes.create": ({ text }) => {
-    const note = notes.create(text);
-    publishNotes();
-    return note;
-  },
-  "notes.save": ({ id, text }) => {
-    const before = notes.get(id).rev;
-    const note = notes.save(id, text);
-    if (note.rev !== before) publishNotes();
-    return note;
-  },
-  "notes.delete": ({ id }) => {
-    notes.delete(id);
-    publishNotes();
-    return null;
-  },
-  "board.get": () => board.get(),
-  "board.createCard": (params) => {
-    const input = params && typeof params === "object" ? params : ({} as typeof params);
-    const workspaceId = topWorkspaceOf(input.workspaceId);
-    for (const agentId of Array.isArray(input.agentIds) ? input.agentIds : []) store.agent(agentId);
-    if (input.source) store.agent(input.source.agentId);
-    const card = board.createCard({ ...input, workspaceId });
-    publishBoard();
-    return card;
-  },
-  "board.updateCard": ({ id, patch }) => {
-    const next = patch && typeof patch === "object" && patch.workspaceId !== undefined ? { ...patch, workspaceId: topWorkspaceOf(patch.workspaceId) } : patch;
-    const card = board.updateCard(id, next);
-    publishBoard();
-    return card;
-  },
-  "board.deleteCard": ({ id }) => {
-    board.deleteCard(id);
-    publishBoard();
-    return null;
-  },
-  "board.moveCard": ({ id, columnId, index }) => {
-    const card = board.moveCard(id, columnId, index);
-    publishBoard();
-    return card;
-  },
-  "board.linkAgent": ({ cardId, agentId }) => {
-    store.agent(agentId);
-    const card = board.linkAgent(cardId, agentId);
-    publishBoard();
-    return card;
-  },
-  "board.unlinkAgent": ({ cardId, agentId }) => {
-    const card = board.unlinkAgent(cardId, agentId);
-    publishBoard();
-    return card;
-  },
-  "board.addColumn": ({ name }) => {
-    const column = board.addColumn(name);
-    publishBoard();
-    return column;
-  },
-  "board.renameColumn": ({ id, name }) => {
-    const column = board.renameColumn(id, name);
-    publishBoard();
-    return column;
-  },
-  "board.deleteColumn": ({ id }) => {
-    board.deleteColumn(id);
-    publishBoard();
-    return null;
-  },
-  "board.moveColumn": ({ id, index }) => {
-    board.moveColumn(id, index);
-    publishBoard();
-    return null;
-  },
-  "board.setLabelColor": ({ label, color }) => {
-    board.setLabelColor(label, color);
-    publishBoard();
-    return null;
-  },
   "review.get": () => morningReview.state(),
   "release.get": () => releaseCheck.state(),
   "release.dismiss": ({ version }) => {
@@ -1183,15 +587,6 @@ const handlers: Handlers = {
   "import.vscodeList": () => listVscodeSessions(importDeps),
   "import.vscodeRun": ({ keys }) => importVscodeSessions(importDeps, Array.isArray(keys) ? keys.filter((k): k is string => typeof k === "string") : []),
   "import.activity": ({ agentId }) => importActivity(importDeps, agentId),
-  "feedback.create": (params) => feedback.create(params),
-  "feedback.sourceReady": async () => ({ ready: await feedback.sourceReady() }),
-  "feedback.list": () => feedback.list(),
-  "feedback.revert": ({ id }) => feedback.revert(id),
-  "feedback.restart": ({ id }) => feedback.requestRestart(id),
-  "feedback.retryChecks": ({ id }) => feedback.retryChecks(id),
-  "feedback.runAgain": ({ id }) => feedback.runAgain(id),
-  "feedback.resolve": ({ id }) => feedback.resolve(id),
-  "feedback.dismiss": ({ id }) => feedback.dismiss(id),
   // 코디네이터 배포 감시가 새 빌드를 반영할 때 쓴다. 도는 세션이나 검사 중인 피드백이 있으면 거절한다.
   // 직전 재시작 뒤 쿨다운 안이면 지금 하지 않고 합쳐서 나중에 한다(deferred).
   "daemon.restartIfIdle": () => {
@@ -1200,12 +595,6 @@ const handlers: Handlers = {
     const outcome = restartScheduler.request();
     return outcome.deferred ? { restarted: false, busy: 0, deferred: true, inMs: outcome.inMs } : { restarted: true, busy: 0 };
   },
-  "feedback.markSeen": ({ id }) => {
-    feedback.markSeen(id);
-    return null;
-  },
-  "feedback.tidyPlan": ({ policy }) => feedback.tidyPlan(policy ?? {}),
-  "feedback.tidyRun": ({ policy }) => feedback.tidyRun(policy ?? {}),
 };
 
 // MOBILE: 폰 연결이 데스크톱 핸들러보다 먼저 받는 호출. 폰에는 피드백 개선 세션을 보이지 않고, 새 세션은 폴더(와 worktree)와 첫 글만 받아 나머지는 데스크톱 기본값으로 채운다.
@@ -1223,7 +612,7 @@ function phoneAgent(id: string) {
   return agent;
 }
 
-const mobileHandlers: { [method: string]: (params: any, client: WebSocket) => unknown } = {
+const mobileHandlers: Record<string, (params: never, client: WebSocket) => unknown> = {
   "mobile.ping": () => ({ now: Date.now() }),
   "workspaces.list": () => store.workspaces.filter((w) => !w.feedback),
   "agents.list": () => store.agents.filter((a) => !a.feedbackId),
@@ -1281,17 +670,6 @@ async function applyMobileAccess() {
 
 function mobileStatus(): MobileStatus {
   return { enabled: store.settings.mobileAccess === true, listening: mobile.listening, port: mobile.listening ? mobile.port : MOBILE_PORT, bind: mobile.listening ? mobile.bind : MOBILE_BIND, hosts: lanHosts(), devices: mobile.devices(), error: mobile.error };
-}
-
-function inboxIds(ids: unknown): string[] {
-  if (!Array.isArray(ids) || ids.length > 1000 || ids.some((id) => typeof id !== "string")) throw new Error(T.errInboxIds);
-  return ids as string[];
-}
-
-function publishInbox() {
-  const state = inbox.state();
-  broadcast({ type: "inbox", inbox: state });
-  return state;
 }
 
 // 카드의 워크스페이스는 사이드바의 프로젝트 단위다. worktree 워크스페이스를 받으면 원래 프로젝트로 바꿔 저장한다.
