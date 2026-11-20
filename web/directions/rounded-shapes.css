@@ -27,8 +27,7 @@ html[data-direction="rounded"] .place-chip,
 html[data-direction="rounded"] .import-chip,
 html[data-direction="rounded"] .feedback-chip,
 html[data-direction="rounded"] .agent-tag,
-html[data-direction="rounded"] .kind-badge,
-html[data-direction="rounded"] .settings-tag {
+html[data-direction="rounded"] .kind-badge {
   border-radius: var(--radius-full);
 }
 

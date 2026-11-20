@@ -577,10 +577,6 @@ body[data-electron="1"] .titlebar > button {
   text-transform: uppercase;
   color: var(--fg-subtle);
 }
-.session-filter {
-  margin: 0 var(--space-2) var(--space-1);
-  height: var(--size-control-sm);
-}
 
 .row {
   display: flex;
@@ -619,22 +615,6 @@ body[data-electron="1"] .titlebar > button {
   line-height: var(--leading-caption);
   color: var(--fg-subtle);
   font-family: var(--font-mono);
-}
-.row-main {
-  all: unset;
-  box-sizing: border-box;
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1_5);
-  height: 100%;
-  cursor: pointer;
-}
-.row-icon {
-  display: inline-flex;
-  color: var(--fg-muted);
-  flex-shrink: 0;
 }
 .row .more {
   display: none;
@@ -1228,9 +1208,6 @@ a,
 .composer-tools .spacer {
   min-width: 0;
 }
-.composer-tools .send-button {
-  flex: none;
-}
 /* 곁다리 대화의 입력줄은 버튼 높이(24px)를 따른다 */
 .side-input .composer-tools {
   height: auto;
@@ -1784,12 +1761,6 @@ a,
   outline: var(--space-0_5) solid var(--accent);
   outline-offset: 1px;
 }
-.place-static {
-  cursor: default;
-}
-.place-static:hover {
-  background: none;
-}
 .place-sep {
   width: 1px;
   height: var(--space-3);
@@ -2247,12 +2218,6 @@ a,
 .changes-head .strong {
   font-weight: var(--weight-ui-strong);
   color: var(--fg-strong);
-}
-.changes-head .base-label {
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 /* 변경 범위 메뉴 버튼: 라벨 · 개수 · 변경량 ⌄ */
 .scope-button {
@@ -3265,18 +3230,6 @@ div.tree-node[role="button"] > :first-child {
   color: var(--fg-muted);
   cursor: default;
 }
-.palette-session {
-  display: flex;
-  gap: var(--space-2);
-  align-items: baseline;
-  min-width: 0;
-  overflow: hidden;
-}
-.palette-session > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .palette-footer {
   padding: var(--space-1_5) var(--space-3);
   border-top: 1px solid var(--border-subtle);
@@ -3295,15 +3248,6 @@ div.tree-node[role="button"] > :first-child {
 }
 
 /* 설정과 상태 */
-.status-panel {
-  flex: 1;
-  min-height: 0;
-  padding: var(--space-3);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
 .status-row {
   display: flex;
   align-items: center;
@@ -3326,9 +3270,6 @@ div.tree-node[role="button"] > :first-child {
   align-items: flex-start;
   min-height: 0;
   padding: var(--space-1) 0;
-}
-.number-input {
-  width: calc(var(--space-8) * 2);
 }
 .warning-text {
   color: var(--warning);
@@ -6457,12 +6398,6 @@ pre.approval-json {
 .quickpick-row[data-active] .quickpick-section {
   color: var(--row-selected-fg);
 }
-.quickpick-status {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-self: flex-start;
-  padding-top: var(--space-0_5);
-}
 .quickpick-text {
   display: flex;
   flex-direction: column;
@@ -6691,8 +6626,7 @@ pre.approval-json {
   color: var(--fg-strong);
   font-weight: var(--weight-ui-strong);
 }
-.search-note,
-.search-summary {
+.search-note {
   padding: var(--space-1) var(--space-3);
   color: var(--fg-muted);
 }
@@ -6817,9 +6751,6 @@ pre.approval-json {
 .search-details-label {
   font-size: var(--text-ui-sm);
   color: var(--fg-muted);
-}
-.browser-settings-number {
-  width: calc(var(--size-control) * 3);
 }
 
 .quickpick-title-bar {
@@ -7033,15 +6964,6 @@ pre.approval-json {
   top: 0;
   bottom: 0;
   border-left: 1px solid var(--border);
-}
-
-.settings-tag {
-  display: inline-block;
-  padding: 0 var(--space-1_5);
-  border-radius: var(--radius-sm);
-  background: var(--surface-selected);
-  color: var(--fg-muted);
-  font-style: italic;
 }
 
 /* scrollbar-width, scrollbar-color 를 쓰면 아래 ::-webkit-scrollbar 가 무시되므로 어디에도 쓰지 않는다. */
@@ -7387,11 +7309,6 @@ body[data-sidebar-side="right"] .sidebar-peek:not([data-shown]) {
   }
 }
 
-.import-hint {
-  align-items: flex-start;
-  line-height: var(--leading-caption);
-  padding-bottom: var(--space-1);
-}
 .import-toolbar .input {
   min-width: 0;
 }
@@ -8939,7 +8856,6 @@ body[data-session-dragging] iframe {
   color: var(--fg-strong);
 }
 .settings-chip:focus-visible,
-.settings-reset:focus-visible,
 .settings-toc .side-item:focus-visible {
   outline: var(--space-0_5) solid var(--accent);
   outline-offset: 1px;
