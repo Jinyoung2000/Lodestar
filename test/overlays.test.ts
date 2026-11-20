@@ -145,10 +145,11 @@ test("Developer 명령: Reload Window 는 ⌘R, Restart Daemon 은 키 없이 �
 test("Developer 명령: preload 의 IPC 이름마다 메인에 핸들러가 있고 메뉴가 같은 명령을 보낸다", () => {
   const preload = readFileSync(join(import.meta.dirname, "../electron/preload.ts"), "utf8");
   const main = readFileSync(join(import.meta.dirname, "../electron/main.ts"), "utf8");
+  const menu = readFileSync(join(import.meta.dirname, "../electron/appMenu.ts"), "utf8");
   for (const channel of ["agent-nav:reload-window", "agent-nav:restart-daemon"]) {
     expect(preload.includes(`invoke("${channel}")`) && main.includes(`ipcMain.handle("${channel}"`), channel);
   }
-  expect(main.includes('send("reloadWindow")') && main.includes('send("restartDaemon")') && !main.includes('role: "reload"'), "메뉴");
+  expect(main.includes('send("reloadWindow")') && menu.includes('actions.reloadCurrentWindow()') && menu.includes('send("restartDaemon")') && !menu.includes('role: "reload"') && !main.includes('role: "reload"'), "메뉴");
   return "ok";
 });
 

@@ -1,23 +1,25 @@
-import { createServer } from "node:http";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unwatchFile, watch, watchFile, writeFileSync, type FSWatcher } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unwatchFile, watchFile, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { BrowserWindow, Menu, Notification, app, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, session, shell, utilityProcess, webContents, type MenuItemConstructorOptions, type UtilityProcess } from "electron";
-import { categoriesFor, isAlwaysAllowed, PERMISSION_CATEGORIES, PermissionStore, permissionOrigin, type PermissionCategory, type PermissionDecision } from "../web/browserPermissions";
-import { BROWSER_PARTITION, filePathOf, isBrowserPartition, isOwnOrigin, parseBrowsable, parseOpenable } from "../web/browserUrl";
-import { DEVICE_TYPES, type DeviceRequest, type DeviceType } from "../web/browserDevices";
-import { bindBluetooth, bindDeviceSession, DeviceRequests } from "./browserDevices";
-import { answerDialog, applyTouch, bindBeforeUnload, fullPageScreenshot, onDialogChange, pendingDialog } from "./guestDebugger";
+import { BrowserWindow, Menu, app, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, session, shell, utilityProcess, webContents, type UtilityProcess } from "electron";
+import { categoriesFor, isAlwaysAllowed, permissionOrigin } from "../web/browserPermissions";
+import { BROWSER_PARTITION, isBrowserPartition, isOwnOrigin, parseBrowsable, parseOpenable } from "../web/browserUrl";
+import { bindBluetooth, bindDeviceSession } from "./browserDevices";
+import { bindBeforeUnload } from "./guestDebugger";
 import { closeRunners, closeRunnersFor } from "./pwRunner";
-import { bindingsFor, browserStrokes, CHORD_TIMEOUT_MS, chordFollowersOf, interceptStrokes, keyupAwareStrokes, menuAccelerator, strokeOf, strokeOfAccelerator, type Binding } from "../web/keymap";
-import { consoleLogs, formatConsole, recordConsole, runGuestTool } from "./browserTools";
+import { strokeOf } from "../web/keymap";
+import { buildAppMenu, completesChord, keymapKey, keymapStateOf, registeredMenuStrokes, type AppMenuActions } from "./appMenu";
+import { recordConsole } from "./browserTools";
 import { logDirFor } from "./logDir";
+import { dataHome, savedSettings, settingsFile } from "./dataHome";
 import { LineStamper, stampLine } from "./logStamp";
 import { QuitFlow } from "./quitFlow";
+import { createE2EHandler, startE2E, type E2EContext } from "./e2eChannel";
+import { registerBrowserGuestIpc } from "./browserGuestIpc";
+import { loadPermissions, permissions, registerSitePermissions } from "./sitePermissions";
+import { NOTIFY_FOCUSED, NOTIFY_STUB, Notifier, validNotify, type NotifyAction, type NotifyMode, type NotifyPayload } from "./notifications";
 import { RestartScheduler, restartWaitMs } from "../shared/restartGate";
-import { sanitizeKeymapOverrides } from "../shared/keymapOverrides";
-import type { CommandKeys } from "../shared/protocol";
-import { PICK_READ_SCRIPT, PICK_STOP_SCRIPT, pickScript, type PickMode, type PickTheme } from "./pickScript";
+import type { PickTheme } from "./pickScript";
 import { externalOpenUrl } from "../shared/slackLink";
 import { notionOpenPlan } from "../shared/notionLink";
 import { parsePrUrl } from "../shared/prUrl";
@@ -447,164 +449,48 @@ function send(command: string) {
   void target.win.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent("agent-nav:command", { detail: ${JSON.stringify(command)} }))`);
 }
 
-// 단축키 프리셋(settings.keymapPreset)이 정하는 표와 가로챌 키 집합. 데몬이 쓰는 settings.json 을 읽고, watchBoardMenu 가 2초마다 바뀐 것을 반영한다.
-type KeymapState = { preset: "vscode" | "webstorm"; overrides: CommandKeys; overridesKey: string; bindings: Binding[]; intercept: ReadonlySet<string>; guest: ReadonlySet<string> };
-
-function keymapStateOf(saved: Record<string, unknown>): KeymapState {
-  const preset = saved.keymapPreset === "webstorm" ? "webstorm" : "vscode";
-  const overrides = sanitizeKeymapOverrides(saved.keymapOverrides)[preset] ?? {};
-  const bindings = bindingsFor(preset, overrides);
-  const intercept = interceptStrokes(bindings);
-  return { preset, overrides, overridesKey: JSON.stringify(overrides), bindings, intercept, guest: new Set([...intercept, ...browserStrokes(bindings), ...keyupAwareStrokes(bindings)]) };
-}
-
 let keymapState = keymapStateOf(savedSettings());
 
 // 마지막으로 만든 메뉴가 Board 항목을 담았는지. 데몬이 쓰는 settings.json 의 showBoard 를 읽는다.
 let builtBoardMenu = false;
 let builtKeymap = "";
-const keymapKey = (state: KeymapState) => `${state.preset} ${state.overridesKey}`;
 const boardMenuWanted = () => savedSettings().showBoard === true;
+
+const menuActions: AppMenuActions = {
+  send,
+  openNewWindow: () => void openNewWindow(),
+  closeCurrentWindow: () => closeWindowEntry(currentWindow()),
+  reloadCurrentWindow: () => void reloadWindowCommand(currentWindow(), () => send("reloadWindow")),
+};
 
 function buildMenu() {
   const boardMenuShown = boardMenuWanted();
   builtBoardMenu = boardMenuShown;
   builtKeymap = keymapKey(keymapState);
-  const accel = (command: string, literal?: string, registered = true): Pick<MenuItemConstructorOptions, "accelerator" | "registerAccelerator"> => {
-    if (keymapState.preset === "vscode" && !Object.hasOwn(keymapState.overrides, command)) return { ...(literal ? { accelerator: literal } : {}), ...(literal && !registered ? { registerAccelerator: false } : {}) };
-    const accelerator = menuAccelerator(keymapState.bindings, command);
-    return { ...(accelerator ? { accelerator } : {}), registerAccelerator: false };
-  };
-  const template: MenuItemConstructorOptions[] = [
-    {
-      label: "Lodestar",
-      submenu: [{ role: "about" }, { type: "separator" }, { role: "hide" }, { role: "hideOthers" }, { type: "separator" }, { role: "quit" }],
-    },
-    {
-      label: S.menu.file,
-      submenu: [
-        // 가속키는 표시용이다: 같은 키를 INTERCEPT_STROKES 가 먼저 가로채 페이지의 newWindow, closeWindow 명령으로 보낸다(web/keymap.ts).
-        { label: S.menu.newWindow, ...accel("newWindow", "Shift+Cmd+N", false), click: () => void openNewWindow() },
-        { label: S.menu.closeWindow, ...accel("closeWindow", "Shift+Cmd+W", false), click: () => closeWindowEntry(currentWindow()) },
-      ],
-    },
-    {
-      label: S.menu.session,
-      submenu: [
-        { label: S.menu.newSession, ...accel("newSession", "Cmd+N"), click: () => send("newSession") },
-        { label: S.menu.searchSessions, ...accel("sessions", "Ctrl+Alt+R"), click: () => send("sessions") },
-        { label: S.menu.model, ...accel("models", "Shift+Cmd+M"), click: () => send("models") },
-        { label: S.menu.effort, ...accel("cycleEffort", "Shift+Cmd+I"), click: () => send("cycleEffort") },
-        { label: S.menu.splitChat, ...accel("split", "Cmd+\\"), click: () => send("split") },
-        // B5: ⌘K 로 시작하는 chord 는 메뉴 가속키로 쓸 수 없어 키 표시 없이 둔다. 키는 web/keymap.ts 가 받는다.
-        { label: S.menu.splitChatDown, click: () => send("splitDown") },
-        { label: S.menu.reopenClosedChat, ...accel("reopenClosed", "Shift+Cmd+T"), click: () => send("reopenClosed") },
-        { label: S.menu.closeAllChats, click: () => send("closeAllChats") },
-        // ⌥⌘←→ 는 단축키 표에서 이전, 다음 에디터 탭이고 메인이 먼저 가로채 페이지로 넘긴다(web/keymap.ts). 메뉴에 그 키를 보이면 누른 키와 다른 일을 알리고,
-        // 키를 페이지로 넘기지 않는 미니 채팅 창에서는 이 가속키가 그대로 먹어 메인 창의 세션을 바꿨다. 그래서 키 표시 없이 둔다.
-        { label: S.menu.previousSession, ...accel("sessionPrev"), click: () => send("sessionPrev") },
-        { label: S.menu.nextSession, ...accel("sessionNext"), click: () => send("sessionNext") },
-        { label: S.menu.sideChat, ...accel("btw", "Shift+Cmd+B"), click: () => send("btw") },
-        ...(boardMenuShown ? [{ label: S.menu.board, click: () => send("board") }] : []),
-        { label: S.menu.feedback, click: () => send("feedback") },
-        // ⌃C 는 메뉴에 두지 않는다. 터미널 안에서는 셸로 가야 하므로 페이지의 전역 키 처리가 맡는다.
-      ],
-    },
-    {
-      label: S.menu.edit,
-      submenu: [
-        { role: "undo" },
-        { role: "redo" },
-        { type: "separator" },
-        { role: "cut" },
-        { role: "copy" },
-        { role: "paste" },
-        { role: "selectAll" },
-        { type: "separator" },
-        { label: S.menu.attach, ...accel("attach", "Alt+H"), click: () => send("attach") },
-        { label: S.menu.askAboutSelection, ...accel("quickAsk", "Cmd+I"), click: () => send("quickAsk") },
-      ],
-    },
-    {
-      label: S.menu.code,
-      submenu: [
-        // QUICKOPEN: 표시용 가속키: ⌘P 는 가로채지 않고 페이지가 받는다(빠른 열기가 ⌘ 를 뗄 때 동작하려면 뒤따르는 keyup 이 페이지에 가야 한다. web/keymap.ts 의 KEYUP_AWARE_STROKES)
-        { label: S.menu.openFile, ...accel("quickOpen", "Cmd+P", false), click: () => send("quickOpen") },
-        { label: S.menu.gotoLine, ...accel("gotoLine", "Ctrl+G", false), click: () => send("gotoLine") },
-        { label: S.menu.gotoSymbol, ...accel("gotoSymbol", "Shift+Cmd+O"), click: () => send("gotoSymbol") },
-        { label: S.menu.searchSymbols, ...accel("symbols", "Cmd+T"), click: () => send("symbols") },
-        { label: S.menu.closeFocused, ...accel("close", "Cmd+W"), click: () => send("close") },
-      ],
-    },
-    {
-      label: S.menu.view,
-      submenu: [
-        // 가속키는 표시용이다: 같은 키를 INTERCEPT_STROKES 가 먼저 가로채 페이지가 포커스를 보고(Browser 탭이면 페이지 확대) 처리한다. 클릭은 창 확대다.
-        { label: S.menu.zoomIn, ...accel("zoomIn", "Cmd+="), click: () => send("zoomIn") },
-        { label: S.menu.zoomOut, ...accel("zoomOut", "Cmd+-"), click: () => send("zoomOut") },
-        { label: S.menu.zoomReset, ...accel("zoomReset", "Cmd+0"), click: () => send("zoomReset") },
-      ],
-    },
-    {
-      label: S.menu.window,
-      submenu: [
-        { label: S.menu.sidebar, ...accel("toggleSidebar", "Cmd+B"), click: () => send("toggleSidebar") },
-        { label: S.menu.bottomPanel, ...accel("toggleBottom", "Cmd+J"), click: () => send("toggleBottom") },
-        { label: S.menu.rightPanel, ...accel("toggleRight", "Alt+Cmd+B"), click: () => send("toggleRight") },
-        { type: "separator" },
-        { label: S.menu.toggleLayout, ...accel("toggleLayout", "Ctrl+Alt+L"), click: () => send("toggleLayout") },
-        { label: S.menu.toggleFloat, ...accel("toggleFloat", "Ctrl+Cmd+J"), click: () => send("toggleFloat") },
-        { label: S.menu.focusSession, ...accel("focusSession", "Ctrl+Cmd+I"), click: () => send("focusSession") },
-        { type: "separator" },
-        { role: "minimize" },
-        { role: "zoom" },
-      ],
-    },
-    {
-      label: S.menu.developer,
-      submenu: [
-        // 클릭은 페이지의 명령으로 넘어가 저장 안 한 변경 확인과 진행 중인 세션 확인을 거친다. ⌘R 은 web/keymap.ts 표에도 있어 메인이 가로채 같은 길로 보낸다.
-        { label: S.menu.reloadWindow, ...accel("reloadWindow", "Cmd+R"), click: () => void reloadWindowCommand(currentWindow(), () => send("reloadWindow")) },
-        { label: S.menu.restartDaemon, click: () => send("restartDaemon") },
-        { type: "separator" },
-        { role: "toggleDevTools", label: S.menu.toggleDevTools },
-      ],
-    },
-  ];
-  const menu = Menu.buildFromTemplate(template);
+  const menu = buildAppMenu(keymapState, boardMenuShown, menuActions);
   Menu.setApplicationMenu(menu);
   menuStrokes = registeredMenuStrokes(menu);
 }
 
 let menuStrokes: ReadonlySet<string> = new Set();
 
-function registeredMenuStrokes(menu: Electron.Menu): ReadonlySet<string> {
-  const strokes = new Set<string>();
-  const visit = (items: Electron.MenuItem[]) => {
-    for (const item of items) {
-      if (item.submenu) visit(item.submenu.items);
-      const accelerator = item.accelerator;
-      const stroke = item.registerAccelerator !== false && accelerator ? strokeOfAccelerator(accelerator) : null;
-      if (stroke) strokes.add(stroke);
-    }
-  };
-  visit(menu.items);
-  return strokes;
-}
-
 // 창 바탕색은 페이지가 뜨기 전 잠깐 보이는 색이라, 설정의 테마와 색 스타일에 맞춰 디자인 토큰 chrome-bg 를 쓴다 (esbuild 가 tokens.json 을 번들에 넣는다).
 function windowBackground() {
-  const home = process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav");
+  const { theme, style } = savedLook();
+  return styledTokenColor("chrome-bg", theme, style);
+}
+
+function savedLook(): { theme: "dark" | "light"; style: string } {
   let theme: "dark" | "light" = "dark";
   let style = "lodestar";
   try {
-    const saved = JSON.parse(readFileSync(join(home, "settings.json"), "utf8")) as { theme?: string; themeStyle?: string };
+    const saved = JSON.parse(readFileSync(settingsFile(), "utf8")) as { theme?: string; themeStyle?: string };
     theme = saved.theme === "light" || (saved.theme === "system" && !nativeTheme.shouldUseDarkColors) ? "light" : "dark";
     style = saved.themeStyle ?? style;
   } catch {
     // 설정 파일이 없으면 다크
   }
-  return styledTokenColor("chrome-bg", theme, style);
+  return { theme, style };
 }
 
 // 토큰 색. 색 스타일(webstorm)의 값이 있으면 그것을, 없으면 기본 값을 쓴다. 빌드가 CSS 로 하는 폴백(build-tokens.mjs)과 같은 규칙이다.
@@ -616,23 +502,14 @@ function styledTokenColor(name: string, theme: "dark" | "light", style: string |
 
 // 요소 선택 화면(페이지 안에 그려지는 윤곽, 라벨, 댓글 입력줄)의 색. 앱 테마에 맞춰 디자인 토큰에서 읽는다.
 function pickTheme(): PickTheme {
-  const home = process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav");
-  let theme: "dark" | "light" = "dark";
-  let style = "lodestar";
-  try {
-    const saved = JSON.parse(readFileSync(join(home, "settings.json"), "utf8")) as { theme?: string; themeStyle?: string };
-    theme = saved.theme === "light" || (saved.theme === "system" && !nativeTheme.shouldUseDarkColors) ? "light" : "dark";
-    style = saved.themeStyle ?? style;
-  } catch {
-    // 설정 파일이 없으면 다크
-  }
+  const { theme, style } = savedLook();
   const pick = (name: string) => styledTokenColor(name, theme, style);
   return { focus: pick("accent"), buttonBg: pick("accent"), buttonFg: pick("accent-fg"), widgetBg: pick("pick-widget-bg"), widgetFg: pick("fg"), widgetBorder: pick("pick-widget-border"), widgetShadow: pick("pick-widget-shadow"), placeholder: pick("fg-muted"), hover: pick("surface-hover"), font: `-apple-system, "system-ui", sans-serif` };
 }
 
 const ZOOM_MIN = -8;
 const ZOOM_MAX = 8;
-const zoomFile = () => join(process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav"), "window-zoom.json");
+const zoomFile = () => join(dataHome(), "window-zoom.json");
 
 function savedZoom(): number {
   try {
@@ -947,21 +824,12 @@ async function whenAppReady(entry: AppWindow, timeoutMs = 20_000): Promise<boole
 }
 
 // 단축키 표의 키를 메뉴가 먹기 전에 가로채 날 키로 페이지에 넘긴다. strokes 는 가로챌 키 집합이고, source 는 키가 들어온 창 페이지(또는 그 안의 guest)다. 넘기는 곳은 그 창 하나다.
-const chordStarts = new WeakMap<Electron.WebContents, { prefix: string; at: number }>();
-
-function completesChord(source: Electron.WebContents, stroke: string) {
-  const started = chordStarts.get(source);
-  chordStarts.delete(source);
-  if (keymapState.bindings.some((b) => b.keys.length === 2 && b.keys[0] === stroke)) chordStarts.set(source, { prefix: stroke, at: Date.now() });
-  return !!started && Date.now() - started.at <= CHORD_TIMEOUT_MS && chordFollowersOf(keymapState.bindings, started.prefix, menuStrokes).has(stroke);
-}
-
 function forwardKey(event: Electron.Event, input: Electron.Input, strokes: ReadonlySet<string>, source: Electron.WebContents) {
   if (input.type !== "keyDown" || input.isComposing) return;
   const key = { code: input.code, key: input.key, metaKey: input.meta, ctrlKey: input.control, altKey: input.alt, shiftKey: input.shift };
   const stroke = strokeOf(key);
   if (!stroke) return;
-  if (!completesChord(source, stroke) && !strokes.has(stroke)) return;
+  if (!completesChord(source, stroke, keymapState.bindings, menuStrokes) && !strokes.has(stroke)) return;
   event.preventDefault();
   const target = windowByContents(source);
   if (!target) return;
@@ -977,7 +845,7 @@ function forwardKey(event: Electron.Event, input: Electron.Input, strokes: Reado
 function openExternalLink(url: string, from?: AppWindow | null) {
   let saved: { slackLinkTarget?: unknown; slackTeamId?: unknown; notionLinkTarget?: unknown } = {};
   try {
-    saved = JSON.parse(readFileSync(join(process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav"), "settings.json"), "utf8"));
+    saved = JSON.parse(readFileSync(settingsFile(), "utf8"));
   } catch {
     // 설정 파일이 없거나 깨졌으면 기본 브라우저로 연다
   }
@@ -1068,309 +936,6 @@ app.on("web-contents-created", (_event, contents) => {
   contents.on("before-input-event", (event, input) => forwardKey(event, input, keymapState.guest, contents));
 });
 
-// 검증용 조작 창구. AGENT_NAV_E2E_PORT 가 있을 때만 127.0.0.1 에 열린다.
-// {action:"key"} 는 실제 입력 이벤트를 창에 넣으므로 메뉴 단축키(⌘W, ⌘N)까지 그대로 탄다.
-function startE2E(port: number) {
-  const server = createServer((req, res) => {
-    // 이 창구는 eval, cdp, 파일 쓰기를 받는다. 웹 페이지도 사전 확인 없는 POST(text/plain)로 여기 닿으므로 Origin 이 붙은 요청(브라우저)과 다른 Host(DNS rebinding)는 거절한다. curl 과 node 시험 스크립트는 Origin 을 보내지 않는다.
-    const host = req.headers.host ?? "";
-    if (req.headers.origin !== undefined || (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`)) {
-      res.writeHead(403).end();
-      req.resume();
-      return;
-    }
-    let body = "";
-    req.on("data", (chunk) => (body += chunk));
-    req.on("end", async () => {
-      try {
-        const request = JSON.parse(body || "{}") as { action: string; [key: string]: unknown };
-        const result = await handleE2E(request);
-        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, result }));
-      } catch (error) {
-        res.writeHead(500, { "content-type": "application/json" }).end(JSON.stringify({ ok: false, error: String(error) }));
-      }
-    });
-  });
-  server.on("error", (error) => {
-    console.error(`[e2e] could not listen on ${port}, exiting:`, error);
-    app.exit(1);
-  });
-  server.listen(port, "127.0.0.1");
-}
-
-const fakeDeviceResults: { deviceType: string; deviceId: string | null }[] = [];
-
-// 창 없이도 도는 시험 창구 동작. 나머지는 대상 창이 있어야 한다.
-const WINDOWLESS_E2E = new Set(["openPath", "openOutcomes", "windows", "newWindow", "activate", "registry", "quitState", "menu", "notifications", "notificationClick", "realNotifications", "notificationEmit", "notificationClear", "notificationRoutes", "badgeCount", "deviceRequest", "deviceAdd", "deviceRemove", "deviceResults", "quickToggle", "quickOpen", "quickHide", "quickDestroy", "quickState", "quickBlur", "quickSetBounds", "quickConfigure", "quickEval", "quickKey", "quickType", "quickShot", "procInfo"]);
-
-// 창 id(request.window)로 대상 창을 고른다. 없으면 포커스된 창, 마지막 활성 창 순이다(예전 시험 스크립트가 그대로 돈다).
-async function handleE2E(request: { action: string; [key: string]: unknown }) {
-  const wanted = request.window === undefined ? null : String(request.window);
-  const target = wanted ? (appWindows.get(wanted) ?? null) : currentWindow();
-  if (wanted && !target && !WINDOWLESS_E2E.has(request.action)) throw new Error(`no such window: ${wanted}`);
-  if (!target && !WINDOWLESS_E2E.has(request.action)) throw new Error(S.electronNoWindow);
-  const win = target?.win as BrowserWindow;
-  const contents = win?.webContents as Electron.WebContents;
-  switch (request.action) {
-    // 여러 창 시험: 창 목록, 새 창, 창 닫기, 명령 대상 창 바꾸기(OS 포커스는 건드리지 않는다), Dock 클릭(activate)
-    case "windows":
-      return {
-        target: currentWindow()?.id ?? null,
-        lastActive: lastActiveId,
-        windows: liveWindows().map((w) => ({ id: w.id, title: w.win.getTitle(), url: w.win.webContents.getURL(), bounds: w.win.getBounds(), focused: w.win.isFocused(), openAgents: [...(openAgents.get(w.id) ?? [])], loads: w.loadCount })),
-      };
-    case "newWindow": {
-      const entry = openNewWindow();
-      await whenAppReady(entry);
-      return { id: entry.id };
-    }
-    case "closeWindow": {
-      closeWindowEntry(target);
-      await new Promise((r) => setTimeout(r, 500));
-      return { open: liveWindows().map((w) => w.id) };
-    }
-    case "focusWindow": {
-      lastActiveId = target!.id;
-      return lastActiveId;
-    }
-    case "activate": {
-      app.emit("activate");
-      await new Promise((r) => setTimeout(r, 500));
-      const entry = currentWindow();
-      if (entry) await whenAppReady(entry);
-      return { open: liveWindows().map((w) => w.id) };
-    }
-    // OPENFOLDER: open-file 이 온 것처럼 같은 처리 함수를 부른다(open -g -a 는 설치 앱을 부르게 되어 쓰지 않는다). cwd 는 상대 경로를 풀 작업 폴더. 처리 결과를 돌려준다.
-    case "openPath":
-      return requestOpen(String(request.path), request.source === "argv" ? "argv" : "e2e", typeof request.cwd === "string" ? request.cwd : process.cwd());
-    case "openOutcomes":
-      return { queueReady: openQueue.isReady, pending: openQueue.pending, outcomes: openOutcomes };
-    case "registry":
-      return { registry, file: registryFile() };
-    case "quitState":
-      return { quitting: quitFlow.quitting, windows: liveWindows().length, daemonPid: daemon?.pid ?? null };
-    case "procInfo":
-      return { mainPid: process.pid, daemonPid: daemon?.pid ?? null };
-    case "notificationRoutes":
-      return notifyRoutes;
-    case "key": {
-      const keyCode = String(request.key);
-      const modifiers = (request.modifiers as Electron.InputEvent["modifiers"]) ?? [];
-      // phase 가 있으면 키를 누르기만(down) 또는 떼기만(up) 한다. 수정키를 누른 채 마우스를 움직이는 시험(⌘ hover)용.
-      if (request.phase !== "up") contents.sendInputEvent({ type: "keyDown", keyCode, modifiers });
-      if (!request.phase && keyCode.length === 1) contents.sendInputEvent({ type: "char", keyCode, modifiers });
-      if (request.phase !== "down") contents.sendInputEvent({ type: "keyUp", keyCode, modifiers });
-      await new Promise((r) => setTimeout(r, 300));
-      return null;
-    }
-    // 앱 이름 점검용: 창 제목, 앱 메뉴 항목 이름, 데이터 폴더 경로
-    case "appInfo": {
-      const appMenu = Menu.getApplicationMenu()?.items[0];
-      return {
-        name: app.getName(),
-        windowTitle: win.getTitle(),
-        userData: app.getPath("userData"),
-        logs: app.getPath("logs"),
-        menuTitle: appMenu?.label,
-        menuItems: appMenu?.submenu?.items.map((item) => item.label || item.role || "-"),
-      };
-    }
-    case "eval":
-      return contents.executeJavaScript(String(request.js));
-    // 실제 마우스 입력(창을 앞으로 가져오지 않는다). type: mouseDown | mouseUp | mouseMove, 좌표는 CSS px.
-    case "mouse": {
-      const type = String(request.type) as "mouseDown" | "mouseUp" | "mouseMove";
-      contents.sendInputEvent({ type, x: Number(request.x), y: Number(request.y), button: request.button === "right" ? "right" : "left", clickCount: Number(request.clickCount ?? 1), modifiers: (request.modifiers as Electron.InputEvent["modifiers"]) ?? [] });
-      await new Promise((r) => setTimeout(r, 50));
-      return null;
-    }
-    case "screenshot": {
-      const image = await contents.capturePage();
-      const { writeFile } = await import("node:fs/promises");
-      await writeFile(String(request.path), image.toPNG());
-      return String(request.path);
-    }
-    // 창 크기 변경(창을 앞으로 가져오지 않는다). 떠 있는 창의 화면 안 보정과 좁은 폭 시험용.
-    case "setSize":
-      win.setSize(Number(request.width), Number(request.height));
-      await new Promise((r) => setTimeout(r, 300));
-      return win.getSize();
-    // 메뉴 가속키(⌘Z, ⇧⌘Z, ⌘X, ⌘C, ⌘V, ⌘A)가 창이 포커스를 가졌을 때 하는 일을 그대로 부른다(앱 메뉴 항목의 click 은 포커스 창이 없으면 아무것도 안 한다).
-    case "edit": {
-      const command = String(request.command);
-      if (!["undo", "redo", "cut", "copy", "paste", "selectAll"].includes(command)) throw new Error("bad edit command");
-      contents[command as "undo"]();
-      await new Promise((r) => setTimeout(r, 200));
-      return null;
-    }
-    case "title":
-      return win.getTitle();
-    case "loads":
-      return target!.loadCount;
-    // 앱 메뉴 조회(path 가 없으면 최상위 이름과 그 아래 항목)와 클릭. path 는 ["Developer", "Restart Daemon"] 처럼 메뉴 이름에서 항목 이름까지다.
-    case "menu": {
-      const top = Menu.getApplicationMenu()?.items ?? [];
-      if (!Array.isArray(request.path)) return top.map((item) => ({ label: item.label, items: item.submenu?.items.map((sub) => ({ label: sub.label || sub.role || "-", accelerator: sub.accelerator ?? null })) }));
-      const [menuName, itemName] = request.path.map(String);
-      const target = top.find((item) => item.label === menuName)?.submenu?.items.find((sub) => sub.label === itemName);
-      if (!target) throw new Error("no such menu item");
-      target.click();
-      return null;
-    }
-    // 가로챈 알림 인자(AGENT_NAV_NOTIFY_STUB=1). index 번째 알림을 누른 것처럼 처리하는 click 도 있다(button: body 또는 action).
-    case "notifications":
-      return stubbed;
-    case "notificationClick": {
-      const entry = stubbed[Number(request.index)];
-      if (!entry) throw new Error("no such notification");
-      onNotificationUsed(entry.payload, request.button === "action" ? "action" : "body");
-      return null;
-    }
-    // 실제 알림 기록과 이벤트. notificationEmit 은 사람이 누르는 것 대신 그 알림에 click 또는 action 을 낸다(창은 앞으로 오지 않는다).
-    case "realNotifications":
-      return realShown;
-    case "notificationEmit": {
-      const notification = shownNotifications.get(String(request.agentId));
-      if (!notification) throw new Error("no such notification");
-      notification.emit(request.event === "action" ? "action" : "click", {}, 0);
-      // 사람이 누르면 macOS 가 알림을 치우지만 emit 은 그러지 않으므로 직접 닫는다.
-      notification.close();
-      return null;
-    }
-    case "notificationClear":
-      clearNotification(String(request.agentId));
-      return null;
-    case "folderPickAnswer":
-      folderPicks.answers.push(typeof request.path === "string" ? request.path : null);
-      return folderPicks.answers.length;
-    case "folderPicks":
-      return folderPicks;
-    case "badgeCount":
-      return app.getBadgeCount();
-    case "focused":
-      return win.isFocused();
-    // 첫 Browser 탭(guest)에 직접 입력을 넣고 화면을 찍는다(요소 선택 화면과 에뮬레이션을 시험한다). guest 좌표는 CSS px 이다.
-    // 창에 CDP 로 마우스 이벤트를 넣는다. 이 Electron 에서는 mousePressed 가 응답하지 않고 멈춰서 쓰지 않는다. 끌기는 합성 PointerEvent 로 시험한다.
-    // 시험 전용(창구가 열린 실행에서만): 창의 CDP 명령을 그대로 보낸다. 파일 끌어다 놓기(Input.dispatchDragEvent)와 파일 선택(DOM.setFileInputFiles)처럼 디스크 경로를 가진 File 이 필요한 시험이 쓴다.
-    case "cdp": {
-      if (!contents.debugger.isAttached()) contents.debugger.attach("1.3");
-      return await contents.debugger.sendCommand(String(request.method), (request.params as Record<string, unknown> | undefined) ?? {});
-    }
-    case "cdpMouse": {
-      if (!contents.debugger.isAttached()) contents.debugger.attach("1.3");
-      const type = String(request.type);
-      await contents.debugger.sendCommand("Input.dispatchMouseEvent", { type, x: Number(request.x), y: Number(request.y), button: type === "mouseMoved" && !request.pressed ? "none" : "left", buttons: type === "mousePressed" || request.pressed ? 1 : 0, clickCount: 1 });
-      return null;
-    }
-    case "guestShot": {
-      const guest = webContents.getAllWebContents().find((c) => c.getType() === "webview" && c.hostWebContents === win?.webContents && !c.isDestroyed());
-      if (!guest) throw new Error("no browser tab");
-      const { writeFile } = await import("node:fs/promises");
-      await writeFile(String(request.path), (await guest.capturePage()).toPNG());
-      return String(request.path);
-    }
-    case "guestMouse": {
-      const guest = webContents.getAllWebContents().find((c) => c.getType() === "webview" && c.hostWebContents === win?.webContents && !c.isDestroyed());
-      if (!guest) throw new Error("no browser tab");
-      const type = String(request.type) as "mouseDown" | "mouseUp" | "mouseMove";
-      guest.sendInputEvent({ type, x: Number(request.x), y: Number(request.y), button: "left", clickCount: 1 });
-      await new Promise((r) => setTimeout(r, 60));
-      return null;
-    }
-    case "guestKey": {
-      const guest = webContents.getAllWebContents().find((c) => c.getType() === "webview" && c.hostWebContents === win?.webContents && !c.isDestroyed());
-      if (!guest) throw new Error("no browser tab");
-      const keyCode = String(request.key);
-      guest.sendInputEvent({ type: "keyDown", keyCode });
-      if (keyCode.length === 1) guest.sendInputEvent({ type: "char", keyCode });
-      guest.sendInputEvent({ type: "keyUp", keyCode });
-      await new Promise((r) => setTimeout(r, 120));
-      return null;
-    }
-    // 가짜 기기 요청(실제 USB 나 블루투스 없이 선택창을 시험한다). deviceResults 가 응답을 돌려준다.
-    case "deviceRequest": {
-      const deviceType = String(request.deviceType) as DeviceType;
-      if (!DEVICE_TYPES.includes(deviceType)) throw new Error("bad device type");
-      return deviceRequests.begin({ guest: null, origin: String(request.origin ?? "http://localhost:7801"), deviceType, devices: request.devices as never, invoke: (deviceId) => fakeDeviceResults.push({ deviceType, deviceId }) });
-    }
-    case "deviceAdd":
-      deviceRequests.add(null, String(request.deviceType) as DeviceType, request.device as never);
-      return null;
-    case "deviceRemove":
-      deviceRequests.remove(null, String(request.deviceType) as DeviceType, String(request.deviceId));
-      return null;
-    case "deviceResults":
-      return fakeDeviceResults;
-    // QUICKENTRY 시험 창구. 단축키 대신 이 동작으로 연다(시험 인스턴스는 단축키를 등록하지 않는다). 창은 showInactive 라 포커스를 뺏지 않는다.
-    case "quickToggle":
-      quickEntry.toggle();
-      await new Promise((r) => setTimeout(r, 400));
-      return quickEntry.visible;
-    case "quickOpen":
-      quickEntry.show();
-      await new Promise((r) => setTimeout(r, 600));
-      return quickEntry.bounds;
-    case "quickHide":
-      quickEntry.hide();
-      return null;
-    case "quickDestroy":
-      quickEntry.destroy();
-      return null;
-    case "quickState":
-      return { visible: quickEntry.visible, bounds: quickEntry.bounds, shortcut: quickShortcut.status, probe: quickProbe, focused: quickEntry.webContents?.isFocused() ?? false, mode: quickEntry.mode, agentId: quickEntry.agentId, pinned: quickEntry.pinned, resizable: quickEntry.resizable, zoom: quickEntry.webContents?.getZoomFactor() ?? null, url: quickEntry.webContents?.getURL() ?? null, saved: quickEntry.readSaved(), displays: screen.getAllDisplays().map((d) => d.workArea) };
-    // MINICHAT 시험 창구: 포커스가 없는 시험 인스턴스에서 blur 판정(핀, 입력 막대)을 강제로 돌린다. 끌기와 크기 조절은 OS 가 하는 일이라 setBounds 로 같은 이벤트 경로를 태운다.
-    case "quickBlur": {
-      await new Promise((r) => setTimeout(r, Number(request.waitMs ?? 300)));
-      return quickEntry.handleBlur(true);
-    }
-    case "quickSetBounds":
-      quickEntry.setBoundsForTest(request.bounds as Electron.Rectangle);
-      await new Promise((r) => setTimeout(r, 700));
-      return quickEntry.readSaved();
-    case "quickConfigure":
-      return applyQuickConfig({ enabled: request.enabled !== false, accelerator: String(request.accelerator ?? "Alt+C") });
-    case "quickEval": {
-      const quick = quickEntry.webContents;
-      if (!quick) throw new Error("no quick entry window");
-      return quick.executeJavaScript(String(request.js));
-    }
-    case "quickKey": {
-      const quick = quickEntry.webContents;
-      if (!quick) throw new Error("no quick entry window");
-      const keyCode = String(request.key);
-      const modifiers = (request.modifiers as Electron.InputEvent["modifiers"]) ?? [];
-      quick.sendInputEvent({ type: "keyDown", keyCode, modifiers });
-      // 글자 입력은 keyDown 뒤의 char 이벤트가 넣는다. Enter 의 줄바꿈도 \r char 가 넣는다(⌘ 와 Ctrl 이 눌렸으면 실제 키보드도 글자를 만들지 않는다).
-      const typed = !modifiers.some((m) => m === "meta" || m === "cmd" || m === "control" || m === "ctrl");
-      if (keyCode.length === 1) quick.sendInputEvent({ type: "char", keyCode, modifiers });
-      else if (typed && (keyCode === "Enter" || keyCode === "Return")) quick.sendInputEvent({ type: "char", keyCode: "\r", modifiers });
-      quick.sendInputEvent({ type: "keyUp", keyCode, modifiers });
-      await new Promise((r) => setTimeout(r, 300));
-      return null;
-    }
-    case "quickType": {
-      const quick = quickEntry.webContents;
-      if (!quick) throw new Error("no quick entry window");
-      for (const ch of String(request.text)) {
-        quick.sendInputEvent({ type: "keyDown", keyCode: ch });
-        quick.sendInputEvent({ type: "char", keyCode: ch });
-        quick.sendInputEvent({ type: "keyUp", keyCode: ch });
-      }
-      await new Promise((r) => setTimeout(r, 200));
-      return null;
-    }
-    case "quickShot": {
-      const quick = quickEntry.webContents;
-      if (!quick) throw new Error("no quick entry window");
-      const { writeFile } = await import("node:fs/promises");
-      await writeFile(String(request.path), (await quick.capturePage()).toPNG());
-      return String(request.path);
-    }
-    default:
-      throw new Error(S.electronUnknownAction(String(request.action)));
-  }
-}
-
 // 요소 스크린샷: 우리 페이지(데몬 주소)에서 온 요청만, 창 안의 영역만 받는다. capturePage 는 창을 앞으로 가져오지 않는다.
 ipcMain.handle("agent-nav:capture", async (event, rect: { x: number; y: number; width: number; height: number }) => {
   const source = appWindowOf(event);
@@ -1384,315 +949,11 @@ ipcMain.handle("agent-nav:capture", async (event, rect: { x: number; y: number; 
   return image.isEmpty() ? null : image.toPNG().toString("base64");
 });
 
-// --- Browser 탭 guest 조작 ---
-// 요청은 우리 페이지(데몬 주소)에서 온 것만, 대상은 이 창에 붙은 webview 뿐이다. guest 에는 preload 도 데몬 토큰도 닿지 않고, 요소 선택 스크립트는 격리된 세계에서 돈다.
-const PICK_WORLD = 1000;
-const PICK_TIMEOUT_MS = 120_000;
-const PICK_POLL_MS = 120;
-const MAX_CAPTURE_WIDTH = 1600;
-const picking = new Map<number, () => void>();
+const hostContents = (contents: Electron.WebContents | null | undefined) => (windowByContents(contents) ?? currentWindow())?.win.webContents ?? null;
+const { resolvePermission } = registerSitePermissions({ fromOurPage, hostContents });
+const { deviceRequests, stopWatchingFile } = registerBrowserGuestIpc({ fromOurPage, hostContents, pickTheme, browsable: isBrowsableInGuest, devicesAllowed: (origin) => permissions.isAllowed(origin, "devices") });
 
-function guestContents(event: Electron.IpcMainInvokeEvent, id: unknown) {
-  if (!fromOurPage(event) || typeof id !== "number") throw new Error("browser request refused");
-  const contents = webContents.fromId(id);
-  if (!contents || contents.isDestroyed() || contents.getType() !== "webview" || contents.hostWebContents !== event.sender) throw new Error("not a browser tab");
-  return contents;
-}
-
-const clip = (value: unknown, max: number) => (typeof value === "string" ? value.slice(0, max) : "");
-
-// 영역(CSS px)을 PNG base64 로. 쪽 확대 배율을 곱해 화면 좌표로 맞추고 너무 넓으면 줄인다.
-async function captureRect(guest: Electron.WebContents, rect: { x: number; y: number; width: number; height: number } | undefined) {
-  if (!rect) return null;
-  const zoom = guest.getZoomFactor();
-  const [x, y, width, height] = [rect.x * zoom, rect.y * zoom, rect.width * zoom, rect.height * zoom].map((n) => Math.round(Number(n)));
-  if (![x, y, width, height].every(Number.isFinite) || width < 1 || height < 1) return null;
-  let image = await guest.capturePage({ x: Math.max(0, x), y: Math.max(0, y), width, height });
-  if (image.isEmpty()) return null;
-  if (image.getSize().width > MAX_CAPTURE_WIDTH) image = image.resize({ width: MAX_CAPTURE_WIDTH });
-  return image.toPNG().toString("base64");
-}
-
-type PickItem = { type: string; url?: string; title?: string; tag?: string; selector?: string; html?: string; text?: string; comment?: string; number?: number; rect?: { x: number; y: number; width: number; height: number } };
-
-// 요소 선택(element), 요소 댓글(comment), 영역 선택(area). 사용자가 끝낼 때까지(클릭, Esc, 페이지 이동, 시간 초과) 기다렸다가 결과를 돌려준다.
-// element 와 area 는 결과 하나(취소는 null), comment 는 댓글이 달릴 때마다 화면에 agent-nav:browser-comment 를 보내고 끝나면 댓글 수를 돌려준다.
-ipcMain.handle("agent-nav:browser-pick", async (event, id: unknown, mode: unknown, options: unknown) => {
-  const guest = guestContents(event, id);
-  const pickMode: PickMode = mode === "comment" || mode === "area" ? mode : "element";
-  const withImage = !!(options && typeof options === "object" && (options as { image?: unknown }).image === true);
-  picking.get(guest.id)?.();
-  let cancelled = false;
-  const cancel = () => {
-    cancelled = true;
-  };
-  picking.set(guest.id, cancel);
-  const onNavigate = (_event: Electron.Event, _url: string, _inPlace: boolean, isMainFrame: boolean) => {
-    if (isMainFrame) cancel();
-  };
-  guest.on("did-start-navigation", onNavigate);
-  let comments = 0;
-  try {
-    await guest.executeJavaScriptInIsolatedWorld(PICK_WORLD, [{ code: pickScript(pickMode, pickTheme()) }]);
-    const deadline = Date.now() + PICK_TIMEOUT_MS;
-    while (!cancelled && !guest.isDestroyed() && Date.now() < deadline) {
-      const raw = (await guest.executeJavaScriptInIsolatedWorld(PICK_WORLD, [{ code: PICK_READ_SCRIPT }])) as string | null;
-      for (const item of raw ? (JSON.parse(raw) as PickItem[]) : []) {
-        if (item.type === "commentRemoved") {
-          event.sender.send("agent-nav:browser-comment-removed", { id: guest.id, number: Number(item.number) });
-          continue;
-        }
-        if (item.type === "cancelled") return pickMode === "comment" ? { kind: "comments", count: comments } : null;
-        if (item.type === "done") return pickMode === "comment" ? { kind: "comments", count: comments } : null;
-        const base = { url: clip(item.url, 2000), title: clip(item.title, 300) };
-        if (item.type === "area") return { kind: "area", ...base, png: await captureRect(guest, item.rect) };
-        const element = { ...base, tag: clip(item.tag, 40), selector: clip(item.selector, 1000), html: clip(item.html, 20000), text: clip(item.text, 200), png: withImage ? await captureRect(guest, item.rect) : null };
-        if (item.type === "element") return { kind: "element", ...element };
-        if (item.type === "comment") {
-          comments++;
-          event.sender.send("agent-nav:browser-comment", { id: guest.id, item: { ...element, comment: clip(item.comment, 2000), number: Number(item.number) || comments } });
-        }
-      }
-      await new Promise((r) => setTimeout(r, PICK_POLL_MS));
-    }
-    return pickMode === "comment" ? { kind: "comments", count: comments } : null;
-  } finally {
-    guest.removeListener("did-start-navigation", onNavigate);
-    if (picking.get(guest.id) === cancel) picking.delete(guest.id);
-    if (!guest.isDestroyed()) await guest.executeJavaScriptInIsolatedWorld(PICK_WORLD, [{ code: PICK_STOP_SCRIPT }]).catch(() => undefined);
-  }
-});
-
-ipcMain.handle("agent-nav:browser-pick-cancel", (event, id: unknown) => {
-  guestContents(event, id);
-  picking.get(id as number)?.();
-});
-
-// 페이지 스크린샷(PNG base64)과 주소, 제목. 너무 넓으면 줄인다.
-ipcMain.handle("agent-nav:browser-capture", async (event, id: unknown) => {
-  const guest = guestContents(event, id);
-  let image = await guest.capturePage();
-  if (image.isEmpty()) return null;
-  if (image.getSize().width > MAX_CAPTURE_WIDTH) image = image.resize({ width: MAX_CAPTURE_WIDTH });
-  return { png: image.toPNG().toString("base64"), url: clip(guest.getURL(), 2000), title: clip(guest.getTitle(), 300) };
-});
-
-// Browser 탭 전용 partition 의 쿠키, 저장소, 캐시를 모두 지운다(Clear Storage (Global)).
-ipcMain.handle("agent-nav:browser-clear-storage", async (event, partition: unknown) => {
-  if (!fromOurPage(event)) throw new Error("browser request refused");
-  const browserSession = session.fromPartition(isBrowserPartition(partition) ? partition : BROWSER_PARTITION);
-  await browserSession.clearStorageData();
-  await browserSession.clearCache();
-});
-
-// 기기 에뮬레이션: 화면 크기, 배율(dpr 0 은 기본값), 모바일 여부, 사용자 에이전트. params 가 null 이면 끈다.
-// 모바일이 아닐 때 "desktop" 위치를 쓰는 이유: "mobile" 위치는 메타 뷰포트가 없는 페이지를 980px 로 그리므로 고른 폭이 그대로 보이지 않는다.
-type EmulationParams = { width: number; height: number; dpr: number; mobile?: boolean; userAgent?: string | null };
-const defaultUserAgents = new Map<number, string>();
-
-ipcMain.handle("agent-nav:browser-emulate", (event, id: unknown, params: EmulationParams | null) => {
-  const guest = guestContents(event, id);
-  if (!defaultUserAgents.has(guest.id)) defaultUserAgents.set(guest.id, guest.getUserAgent());
-  const base = defaultUserAgents.get(guest.id)!;
-  if (!params) {
-    guest.disableDeviceEmulation();
-    if (guest.getUserAgent() !== base) guest.setUserAgent(base);
-    void applyTouch(guest, false, false).catch(() => undefined);
-    return;
-  }
-  const [width, height] = [params.width, params.height].map((n) => Math.round(Number(n)));
-  const dpr = Number(params.dpr) || 0;
-  if (![width, height].every((n) => Number.isFinite(n) && n >= 1 && n <= 10000) || dpr < 0 || dpr > 8) throw new Error("bad emulation size");
-  const userAgent = typeof params.userAgent === "string" && params.userAgent.trim() ? params.userAgent.trim().slice(0, 500) : base;
-  if (guest.getUserAgent() !== userAgent) guest.setUserAgent(userAgent);
-  const frame = { screenSize: { width, height }, viewSize: { width, height }, viewPosition: { x: 0, y: 0 }, deviceScaleFactor: dpr, scale: 1 };
-  if (params.mobile && !mobileApplied.has(guest.id)) guest.enableDeviceEmulation({ ...frame, screenPosition: "desktop" });
-  if (params.mobile) mobileApplied.add(guest.id);
-  else mobileApplied.delete(guest.id);
-  guest.enableDeviceEmulation({ ...frame, screenPosition: params.mobile ? "mobile" : "desktop" });
-  // 모바일이면 터치 이벤트, 거친 포인터 미디어 질의, 마우스를 터치로 보내기를 켠다
-  void applyTouch(guest, true, params.mobile === true).catch(() => undefined);
-});
-const mobileApplied = new Set<number>();
-
-// 에이전트의 Browser 도구. 데몬이 공유된 탭에 보낸 요청을 화면이 여기로 넘긴다. 대상은 이 창의 webview 뿐이고, 이동은 Browser 탭이 여는 주소와 같은 기준으로 거른다.
-ipcMain.handle("agent-nav:browser-tool", async (event, id: unknown, tool: unknown, args: unknown) => {
-  const guest = guestContents(event, id);
-  return runGuestTool(guest, String(tool), args && typeof args === "object" ? (args as Record<string, unknown>) : {}, (url) => isBrowsableInGuest(url));
-});
-
-// Add Console Logs to Chat: 페이지의 최근 console 출력을 글로.
-ipcMain.handle("agent-nav:browser-console", (event, id: unknown) => {
-  const guest = guestContents(event, id);
-  return { url: clip(guest.getURL(), 2000), title: clip(guest.getTitle(), 300), text: formatConsole(consoleLogs(guest.id, 100)) };
-});
-
-// 공유 중인 탭에서 페이지가 띄운 대화상자(alert, confirm, prompt, beforeunload)는 사용자도 답할 수 있게 화면에 알린다(에이전트는 handle_dialog 로 답한다).
-onDialogChange((id, dialog) => (windowByContents(webContents.fromId(id)) ?? currentWindow())?.win.webContents.send("agent-nav:browser-dialog", { id, dialog }));
-ipcMain.handle("agent-nav:browser-dialog-answer", async (event, id: unknown, accept: unknown, text: unknown) => {
-  const guest = guestContents(event, id);
-  if (!pendingDialog(guest)) return;
-  await answerDialog(guest, accept === true, typeof text === "string" ? text : undefined);
-});
-
-// Add Full Page Screenshot to Chat (Experimental): 스크롤 밖까지 담은 페이지 전체
-ipcMain.handle("agent-nav:browser-capture-full", async (event, id: unknown) => {
-  const guest = guestContents(event, id);
-  return { png: await fullPageScreenshot(guest), url: clip(guest.getURL(), 2000), title: clip(guest.getTitle(), 300) };
-});
-
-// 설정 Auto Reload On File Change: file: 주소를 보여 주는 탭은 그 파일이 바뀌면 다시 읽는다. enabled 가 false 이거나 file: 이 아니면 지켜보지 않는다.
-const fileWatchers = new Map<number, { path: string; watcher: FSWatcher; timer: ReturnType<typeof setTimeout> | null }>();
-const FILE_RELOAD_DEBOUNCE_MS = 300;
-function stopWatchingFile(id: number) {
-  const entry = fileWatchers.get(id);
-  if (!entry) return;
-  if (entry.timer) clearTimeout(entry.timer);
-  entry.watcher.close();
-  fileWatchers.delete(id);
-}
-ipcMain.handle("agent-nav:browser-watch-file", (event, id: unknown, enabled: unknown) => {
-  const guest = guestContents(event, id);
-  const path = enabled === true ? filePathOf(guest.getURL()) : null;
-  const current = fileWatchers.get(guest.id);
-  if (current && current.path === path) return;
-  stopWatchingFile(guest.id);
-  if (!path) return;
-  try {
-    const watcher = watch(path, () => {
-      const entry = fileWatchers.get(guest.id);
-      if (!entry || guest.isDestroyed()) return;
-      if (entry.timer) clearTimeout(entry.timer);
-      entry.timer = setTimeout(() => (windowByContents(guest) ?? currentWindow())?.win.webContents.send("agent-nav:browser-file-changed", { id: guest.id }), FILE_RELOAD_DEBOUNCE_MS);
-    });
-    watcher.on("error", () => stopWatchingFile(guest.id));
-    fileWatchers.set(guest.id, { path, watcher, timer: null });
-  } catch {
-    // 파일을 지켜볼 수 없으면(삭제됨 등) 자동 새로고침은 꺼진 채로 둔다
-  }
-});
-
-// 기기 선택창(USB, 시리얼, HID, 블루투스): 화면이 고른 기기(취소는 null)를 요청에 돌려준다.
-const deviceRequests = new DeviceRequests(
-  (request: DeviceRequest, guest) => {
-    // 기기 선택창은 요청한 <webview> 가 있는 창에 띄운다
-    const host = windowByContents(guest) ?? currentWindow();
-    if (!host) return false;
-    host.win.webContents.send("agent-nav:browser-device", request);
-    return true;
-  },
-  (origin) => permissions.isAllowed(origin, "devices"),
-);
-ipcMain.handle("agent-nav:browser-device-answer", (event, requestId: unknown, deviceId: unknown) => {
-  if (!fromOurPage(event) || typeof requestId !== "string") throw new Error("device refused");
-  deviceRequests.resolve(requestId, typeof deviceId === "string" ? deviceId : null);
-});
-
-// --- 사이트 권한 ---
-// 판정은 web/browserPermissions.ts. 기록은 $AGENT_NAV_HOME/browser-permissions.json 에 둔다. 묻는 요청은 화면에 보내 확인 창으로 받는다(30초 안에 답이 없으면 허용하지 않는다).
-const permissions = new PermissionStore();
-const PERMISSIONS_FILE = join(process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav"), "browser-permissions.json");
-const PERMISSION_ASK_MS = 30_000;
-const permissionAsks = new Map<string, (answer: PermissionDecision | null) => void>();
-
-function loadPermissions() {
-  try {
-    permissions.hydrate(JSON.parse(readFileSync(PERMISSIONS_FILE, "utf8")));
-  } catch {
-    // 기록이 없으면 기본값
-  }
-}
-
-function savePermissions() {
-  try {
-    mkdirSync(join(PERMISSIONS_FILE, ".."), { recursive: true });
-    writeFileSync(PERMISSIONS_FILE, JSON.stringify(permissions.serialize(), null, 2));
-  } catch (error) {
-    console.error("[permissions] save failed", error);
-  }
-}
-
-function askPermission(origin: string, category: PermissionCategory, requester: Electron.WebContents | null): Promise<PermissionDecision | null> {
-  return new Promise((resolve) => {
-    const host = windowByContents(requester) ?? currentWindow();
-    if (!host) return resolve(null);
-    const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const timer = setTimeout(() => finish(null), PERMISSION_ASK_MS);
-    const finish = (answer: PermissionDecision | null) => {
-      clearTimeout(timer);
-      permissionAsks.delete(requestId);
-      resolve(answer);
-    };
-    permissionAsks.set(requestId, finish);
-    host.win.webContents.send("agent-nav:browser-permission", { requestId, origin, category });
-  });
-}
-
-// 권한 요청 하나. 사용자가 답하지 않은 범주를 하나씩 묻고, 끝나면 다시 판정한다(허용은 모든 범주가 허용일 때뿐).
-async function resolvePermission(permission: string, url: string, mediaTypes: readonly string[] | undefined, requester: Electron.WebContents | null): Promise<boolean> {
-  if (isAlwaysAllowed(permission)) return true;
-  const origin = permissionOrigin(url);
-  const categories = categoriesFor(permission, mediaTypes);
-  let verdict = permissions.decide(origin, categories);
-  if (verdict === "ask") {
-    for (const category of categories) {
-      if (permissions.getDecision(origin, category) || permissions.isAllowed(origin, category)) continue;
-      const answer = await askPermission(origin, category, requester);
-      if (answer) permissions.set(origin, category, answer);
-      if (answer === "deny") break;
-    }
-    savePermissions();
-    verdict = permissions.decide(origin, categories);
-  }
-  return verdict === "allow";
-}
-
-ipcMain.handle("agent-nav:browser-permission-answer", (event, requestId: unknown, answer: unknown) => {
-  if (!fromOurPage(event) || typeof requestId !== "string") throw new Error("permission refused");
-  permissionAsks.get(requestId)?.(answer === "allow" || answer === "deny" ? answer : null);
-});
-
-// Site Permissions 선택창이 읽고 쓰는 목록. url 은 Browser 탭의 주소.
-ipcMain.handle("agent-nav:browser-permissions-get", (event, url: unknown) => {
-  if (!fromOurPage(event)) throw new Error("permission refused");
-  const origin = permissionOrigin(String(url));
-  return { origin, items: PERMISSION_CATEGORIES.map((category) => ({ category, decision: permissions.getDecision(origin, category) ?? null, state: permissions.stateOf(origin, category) })) };
-});
-
-ipcMain.handle("agent-nav:browser-permissions-set", (event, url: unknown, changes: unknown) => {
-  if (!fromOurPage(event) || !Array.isArray(changes)) throw new Error("permission refused");
-  const origin = permissionOrigin(String(url));
-  for (const change of changes as { category?: unknown; state?: unknown }[]) {
-    if (!(PERMISSION_CATEGORIES as readonly string[]).includes(String(change.category))) continue;
-    permissions.set(origin, change.category as PermissionCategory, change.state === "allow" || change.state === "deny" ? change.state : null);
-  }
-  savePermissions();
-});
-
-type NotifyPayload = { agentId: string; kind: "response" | "approval"; title: string; body: string; itemId?: string; actionLabel?: string };
-type NotifyAction = { agentId: string; action: "open" | "allow"; itemId?: string };
-
-const shownNotifications = new Map<string, Notification>();
-// AGENT_NAV_NOTIFY_STUB=1 이면 실제 OS 알림을 만들지 않고 인자만 기록한다(검증 창구가 읽는다).
-const NOTIFY_STUB = process.env.AGENT_NAV_NOTIFY_STUB === "1";
-// AGENT_NAV_NOTIFY_FOCUSED=1 이면 창이 포커스인 것처럼 OS 알림을 띄우지 않는다(앱 안 토스트 대체 경로 시험용. 창 포커스는 건드리지 않는다).
-const NOTIFY_FOCUSED = process.env.AGENT_NAV_NOTIFY_FOCUSED === "1";
-// 시험 알림임을 알 수 있게 제목 앞에 붙일 문구(AGENT_NAV_NOTIFY_PREFIX). 없으면 그대로.
-const NOTIFY_PREFIX = process.env.AGENT_NAV_NOTIFY_PREFIX ?? "";
-// 실제로 띄운 알림의 기록(검증 창구가 읽는다). 받은 이벤트(click, action, close, failed)도 쌓는다.
-const realShown: { agentId: string; title: string; body: string; actions: string[]; events: string[] }[] = [];
-const stubbed: { payload: NotifyPayload; options: { title: string; body: string; silent: boolean; actions: string[] }; bounce: boolean; closed: boolean }[] = [];
-
-function notificationOptions(payload: NotifyPayload) {
-  return { title: payload.title, body: payload.body, silent: true, actions: payload.actionLabel ? [payload.actionLabel] : [] };
-}
-
-function validNotify(value: unknown): value is NotifyPayload {
-  if (!value || typeof value !== "object") return false;
-  const v = value as Record<string, unknown>;
-  const text = (x: unknown, max: number) => typeof x === "string" && x.length <= max;
-  return text(v.agentId, 100) && (v.kind === "response" || v.kind === "approval") && text(v.title, 500) && text(v.body, 1000) && (v.itemId === undefined || text(v.itemId, 100)) && (v.actionLabel === undefined || text(v.actionLabel, 50));
-}
+const notifier = new Notifier(dispatchNotificationAction);
 
 // 알림이 향하는 창: 그 세션이 칸에 열려 있는 창(여럿이면 포커스, 마지막 활성 순), 어디에도 안 열려 있으면 명령 대상 창이다.
 function windowForNotification(agentId: string): AppWindow | null {
@@ -1704,7 +965,7 @@ function windowForNotification(agentId: string): AppWindow | null {
 // 기록: 알림이나 빠른 입력창이 어느 창으로 갔는지(시험 창구가 읽는다)
 const notifyRoutes: { agentId: string; action: string; windowId: string; opened: boolean }[] = [];
 
-async function dispatchNotificationAction(action: NotifyAction, mode: "route" | "route-and-show" = "route") {
+async function dispatchNotificationAction(action: NotifyAction, mode: NotifyMode = "route") {
   // MINICHAT: 미니 대화의 세션이면 메인 창이 아니라 미니 패널로 간다. 열 때만 패널을 띄우고(Allow 는 띄우지 않는다), 미니 페이지가 같은 이벤트로 받는다.
   if (action.agentId === quickEntry.agentId && quickEntry.webContents) {
     notifyRoutes.push({ agentId: action.agentId, action: action.action, windowId: "mini", opened: false });
@@ -1715,7 +976,7 @@ async function dispatchNotificationAction(action: NotifyAction, mode: "route" | 
   await routeToMainWindow(action, mode);
 }
 
-async function routeToMainWindow(action: NotifyAction, mode: "route" | "route-and-show" = "route-and-show") {
+async function routeToMainWindow(action: NotifyAction, mode: NotifyMode = "route-and-show") {
   let target = windowForNotification(action.agentId);
   // 창이 하나도 없으면(macOS 는 창 없이 남는다) 새로 열고 앱 화면이 뜬 뒤에 보낸다
   const opened = !target;
@@ -1794,7 +1055,7 @@ async function handleOpenRequest(request: OpenRequest): Promise<OpenOutcome> {
     if (target.kind === "missing" || target.kind === "unsupported") {
       outcome.result = "rejected";
       outcome.notice = target.kind === "missing" ? { title: S.openPathMissingTitle, body: S.openPathMissing(target.path) } : { title: S.openPathUnsupportedTitle, body: S.openPathUnsupported(target.path) };
-      showOpenNotice(outcome.notice);
+      notifier.showOpenNotice(outcome.notice);
       return finish();
     }
     outcome.dir = target.dir;
@@ -1824,7 +1085,7 @@ async function handleOpenRequest(request: OpenRequest): Promise<OpenOutcome> {
     outcome.result = "failed";
     const reason = error instanceof Error ? error.message : String(error);
     outcome.notice = { title: S.openPathFailedTitle, body: S.openPathFailed(request.raw, reason) };
-    showOpenNotice(outcome.notice);
+    notifier.showOpenNotice(outcome.notice);
   }
   return finish();
 }
@@ -1865,59 +1126,6 @@ function raiseForOpen(entry: AppWindow | null): boolean {
   return true;
 }
 
-// 열지 못한 이유는 OS 알림으로 보인다. 창이 하나도 없어도 보이고, 시험 알림 스텁(AGENT_NAV_NOTIFY_STUB)일 때는 띄우지 않고 outcome.notice 에만 남는다.
-function showOpenNotice(notice: { title: string; body: string }) {
-  if (NOTIFY_STUB || !Notification.isSupported()) return;
-  new Notification({ title: `${NOTIFY_PREFIX}${notice.title}`, body: notice.body, silent: true }).show();
-}
-
-function onNotificationUsed(payload: NotifyPayload, button: "body" | "action") {
-  shownNotifications.delete(payload.agentId);
-  if (button === "action" && payload.itemId) {
-    void dispatchNotificationAction({ agentId: payload.agentId, action: "allow", itemId: payload.itemId });
-    return;
-  }
-  void dispatchNotificationAction({ agentId: payload.agentId, action: "open" }, "route-and-show");
-}
-
-function showNotification(payload: NotifyPayload) {
-  clearNotification(payload.agentId);
-  const bounce = payload.kind === "approval";
-  if (NOTIFY_STUB) {
-    stubbed.push({ payload, options: notificationOptions(payload), bounce, closed: false });
-    return true;
-  }
-  if (!Notification.isSupported()) return false;
-  const title = `${NOTIFY_PREFIX}${payload.title}`;
-  const notification = new Notification({ title, body: payload.body, silent: true, ...(payload.actionLabel ? { actions: [{ type: "button", text: payload.actionLabel }] } : {}) });
-  const record = { agentId: payload.agentId, title, body: payload.body, actions: payload.actionLabel ? [payload.actionLabel] : [], events: [] as string[] };
-  realShown.push(record);
-  notification.on("show", () => record.events.push("show"));
-  notification.on("failed", (_event, error) => record.events.push(`failed: ${error}`));
-  notification.on("click", () => {
-    record.events.push("click");
-    onNotificationUsed(payload, "body");
-  });
-  notification.on("action", () => {
-    record.events.push("action");
-    onNotificationUsed(payload, "action");
-  });
-  notification.on("close", () => {
-    record.events.push("close");
-    if (shownNotifications.get(payload.agentId) === notification) shownNotifications.delete(payload.agentId);
-  });
-  shownNotifications.set(payload.agentId, notification);
-  notification.show();
-  if (bounce) app.dock?.bounce("informational");
-  return true;
-}
-
-function clearNotification(agentId: string) {
-  shownNotifications.get(agentId)?.close();
-  shownNotifications.delete(agentId);
-  for (const entry of stubbed) if (entry.payload.agentId === agentId) entry.closed = true;
-}
-
 // 이 IPC 를 보낸 앱 창. 앱 창의 데몬 주소 페이지가 아니면 null.
 function appWindowOf(event: Electron.IpcMainInvokeEvent): AppWindow | null {
   const entry = liveWindows().find((w) => w.win.webContents === event.sender) ?? null;
@@ -1934,17 +1142,9 @@ function fromOurPage(event: Electron.IpcMainInvokeEvent) {
 const tokenPx = (group: "size" | "spacing", name: string) => parseInt(tokens[group].tokens.find((t) => t.name === name)!.value, 10);
 const tokenColor = (name: string, theme: "dark" | "light") => styledTokenColor(name, theme, savedSettings().themeStyle as string | undefined);
 
-function savedSettings(): Record<string, unknown> {
-  try {
-    return JSON.parse(readFileSync(join(process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav"), "settings.json"), "utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
 // 설정을 바꾸면 앱을 다시 띄우지 않아도 Session 메뉴의 Board 항목이 나타나거나 사라지게(단축키 프리셋도 같다), 설정 파일이 바뀌면 메뉴를 다시 만든다. 파일 이름을 바꿔 쓰는 저장에도 견디도록 감시 대신 2초 간격 stat 이다.
 function watchBoardMenu() {
-  const file = join(process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav"), "settings.json");
+  const file = settingsFile();
   unwatchFile(file);
   watchFile(file, { interval: 2000, persistent: false }, () => {
     // 프리셋이 바뀌면 가로챌 키와 메뉴 가속키를 다시 정한다
@@ -1964,7 +1164,7 @@ const quickEntry = new QuickEntryWindow({
   preload: join(import.meta.dirname, "preload.cjs"),
   sizes: { cardWidth: tokenPx("size", "size-quick-entry-width"), pad: tokenPx("spacing", "space-8"), minCard: tokenPx("size", "size-control") + tokenPx("spacing", "space-4") * 2, maxCard: tokenPx("size", "size-quick-entry-max") },
   chat: { width: tokenPx("size", "size-float-width"), height: tokenPx("size", "size-float-height"), minWidth: tokenPx("size", "size-float-min-width"), minHeight: tokenPx("size", "size-float-min-height"), pad: 0 },
-  savedFile: join(process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav"), "mini-chat.json"),
+  savedFile: join(dataHome(), "mini-chat.json"),
   initialPinned: pinnedFromSetting(savedSettings().miniChatHideOnBlur as boolean | undefined),
   zoomFactor: () => currentWindow()?.win.webContents.getZoomFactor() ?? 1.2 ** savedZoom(),
   inactive: INACTIVE,
@@ -2184,7 +1384,7 @@ ipcMain.handle("agent-nav:notify", (event, payload: unknown) => {
   const previous = recentNotify.get(key);
   recentNotify.set(key, { at: Date.now(), windowId: sourceId });
   if (previous && previous.windowId !== sourceId && Date.now() - previous.at < NOTIFY_DEDUPE_MS) return true;
-  return showNotification(payload);
+  return notifier.show(payload);
 });
 
 // Dock 배지. 사람이 봐야 하는 세션(승인 대기)의 수를 화면이 계산해 보내 준다(web/useDockBadge.ts). 0 이면 지운다.
@@ -2195,7 +1395,7 @@ ipcMain.handle("agent-nav:badge", (event, count: unknown) => {
 
 ipcMain.handle("agent-nav:notify-clear", (event, agentId: unknown) => {
   if (!(fromQuickPage(event) || fromOurPage(event)) || typeof agentId !== "string") throw new Error("notify refused");
-  clearNotification(agentId);
+  notifier.clear(agentId);
 });
 
 const configured = new WeakSet<Electron.Session>();
@@ -2229,6 +1429,35 @@ function configureBrowserSession(browserSession: Electron.Session) {
     const url = frame?.url;
     return webContents.getAllWebContents().find((c) => c.getType() === "webview" && !c.isDestroyed() && c.session === browserSession && (!url || c.getURL() === url)) ?? null;
   });
+}
+
+function e2eContext(): E2EContext<AppWindow, NotifyPayload> {
+  return {
+    windowById: (id) => appWindows.get(id) ?? null,
+    currentWindow,
+    liveWindows,
+    lastActiveId: () => lastActiveId,
+    setLastActiveId: (id) => {
+      lastActiveId = id;
+    },
+    openAgentsOf: (windowId) => openAgents.get(windowId) ?? [],
+    openNewWindow,
+    whenAppReady: (entry) => whenAppReady(entry),
+    closeWindow: closeWindowEntry,
+    requestOpen,
+    openState: () => ({ queueReady: openQueue.isReady, pending: openQueue.pending, outcomes: openOutcomes }),
+    registryState: () => ({ registry, file: registryFile() }),
+    quitting: () => quitFlow.quitting,
+    daemonPid: () => daemon?.pid ?? null,
+    notifyRoutes,
+    notifier,
+    folderPicks,
+    deviceRequests,
+    quickEntry,
+    quickShortcutStatus: () => quickShortcut.status,
+    quickProbe,
+    applyQuickConfig,
+  };
 }
 
 // 개발 실행(electron .)에서는 번들 아이콘이 없어 Dock 에 Electron 기본 아이콘이 뜬다. 패키징된 앱은 Info.plist 의 icns 를 쓴다.
@@ -2287,7 +1516,7 @@ app.whenReady().then(async () => {
   startupMark("pages-loading");
   logLine(`[electron] startup ms since process start: ${startupMarks.map(([name, ms]) => `${name}=${ms}`).join(" ")}`);
   startQuickEntry();
-  if (E2E_PORT) startE2E(E2E_PORT);
+  if (E2E_PORT) startE2E(E2E_PORT, createE2EHandler(e2eContext()));
   // OPENFOLDER: 데몬이 응답하고 창이 만들어졌다. 그 전에 온 폴더 열기 요청(open-file, 실행 인자)을 들어온 순서대로 처리한다.
   void openQueue.ready().finally(() => {
     launchSpareId = null;
