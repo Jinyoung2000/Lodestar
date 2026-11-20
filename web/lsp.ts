@@ -17,7 +17,6 @@ import { hasGroup } from "./editorGroups";
 import { baseKeyOf } from "./editorTabs";
 import { fileTabKey, focusGroup, getState, openFile, setState, type FileTarget, type LspServerState, type ReferenceGroup } from "./store";
 import { S } from "./strings";
-import { hint } from "./hint";
 import { indentInfoOf } from "./indentLogic";
 
 type Location = { uri: string; range: { start: { line: number; character: number } } };
@@ -332,22 +331,6 @@ export function revealFrom(host: EditorView, workspaceId: string, location: Loca
     return;
   }
   revealLocation(workspaceId, location, side);
-}
-
-export async function goToDefinition(view: EditorView, workspaceId: string) {
-  const request = positionParams(view);
-  if (!request) return;
-  const result = await request.plugin.client.request<object, Location | Location[] | LocationLink[] | null>(
-    "textDocument/definition",
-    request.params,
-  );
-  const [first] = normalize(result);
-  if (!first) {
-    hint(S.definitionNotFound, view);
-    return;
-  }
-  pushHistory();
-  revealFrom(view, workspaceId, first);
 }
 
 export async function findReferences(view: EditorView, workspaceId: string) {

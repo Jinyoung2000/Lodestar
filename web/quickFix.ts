@@ -139,14 +139,6 @@ export function showCodeActionMenu(view: EditorView, actions: CodeAction[], anch
   view.focus();
 }
 
-export function closeCodeActionMenu(view: EditorView) {
-  close(view);
-}
-
-export function codeActionMenuOpen(view: EditorView) {
-  return !!view.state.field(menuField, false);
-}
-
 export function cursorAnchor(view: EditorView, pos: number): MenuAnchor {
   const box = view.coordsAtPos(pos) ?? view.dom.getBoundingClientRect();
   return { x: box.left, top: box.top, bottom: box.bottom };

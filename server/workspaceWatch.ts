@@ -25,8 +25,6 @@ type Entry = { watcher: FSWatcher; clients: Set<unknown>; timer: ReturnType<type
 // 키는 이 접미사를 붙여 저장소 루트 감시와 구분하고, 알림은 저장소 루트 이름으로 나간다(HEAD 말고는 안 본다).
 const GIT_DIR_KEY = "\0gitdir";
 
-export type WorkspaceWatch = ReturnType<typeof createWorkspaceWatch>;
-
 export function createWorkspaceWatch(onChange: (dir: string) => void, options: { debounceMs?: number; minGapMs?: number; watchFn?: typeof watch } = {}) {
   const debounceMs = options.debounceMs ?? DEBOUNCE_MS;
   const minGapMs = options.minGapMs ?? MIN_GAP_MS;

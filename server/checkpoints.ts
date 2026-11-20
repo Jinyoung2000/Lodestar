@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import { readFile, realpath, rename, rm, unlink, writeFile } from "node:fs/promises";
+import { readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { getSessionMessages, query, type RewindFilesResult, type SessionMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { Agent, CheckpointMode, TimelineItem } from "../shared/protocol";
@@ -222,15 +222,3 @@ export async function readRaw(agent: Agent, paths: string[]) {
   return files;
 }
 
-export async function writeRaw(agent: Agent, files: Record<string, string | null>) {
-  let written = 0;
-  for (const [path, data] of Object.entries(files)) {
-    if (!(await insideCwd(agent, path))) continue;
-    if (data === null) await unlink(path).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== "ENOENT") throw error;
-    });
-    else await writeFile(path, Buffer.from(data, "base64"));
-    written++;
-  }
-  return written;
-}

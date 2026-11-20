@@ -1706,11 +1706,6 @@ export function openNotes() {
   setState({ centerView: "notes" });
 }
 
-// SKILLS: 스킬 목록 화면. 목록과 검색어는 web/SkillsView.tsx 가 들고, 여기서는 가운데 화면만 바꾼다.
-export function toggleSkills() {
-  setState((s) => ({ centerView: s.centerView === "skills" ? "sessions" : "skills" }));
-}
-
 export function openSkills() {
   setState({ centerView: "skills" });
 }
@@ -1892,10 +1887,6 @@ export function startCardSession(card: BoardCard, worktree: boolean) {
   const text = [card.title, card.body.trim()].filter(Boolean).join("\n\n");
   const branch = worktree ? card.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) : null;
   startDraft(card.workspaceId, "active", { text, seed: { cardId: card.id, worktreeBranch: branch, nonce: Date.now() } });
-}
-
-export function cardsOfAgent(agentId: string) {
-  return state.board?.cards.filter((c) => c.agentIds.includes(agentId)) ?? [];
 }
 
 export function refreshBoard() {

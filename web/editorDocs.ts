@@ -12,7 +12,7 @@ import { absolutePath, lspFormat, notifySaved } from "./lsp";
 import { notify } from "./notices";
 import { rpc } from "./rpc";
 import { hasSaveTransforms, saveTransformChanges, type SaveTransformPhase } from "./saveTransforms";
-import { activeKeyOfGroup, closeTab, fileTabKey, flash, getState, openFile, openUntitled, pinEditorTab, refreshGit, replaceTab, setDirty, setState } from "./store";
+import { activeKeyOfGroup, closeTab, fileTabKey, flash, getState, openFile, pinEditorTab, refreshGit, replaceTab, setDirty, setState } from "./store";
 import { S } from "./strings";
 import { groupOf } from "./editorGroups";
 import { baseKeyOf, sameContent } from "./editorTabs";
@@ -750,10 +750,6 @@ const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff;
 const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
 
 // --- 새 파일 ---
-
-export function newUntitled() {
-  openUntitled();
-}
 
 // 새 파일 경로를 묻고 만든 뒤 에디터 탭으로 연다(팔레트의 New File...). 폴더는 열린 세션의 폴더다.
 export async function newFileByPath(workspaceId: string, initial = "") {

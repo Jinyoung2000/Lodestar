@@ -1,4 +1,4 @@
-import { checkImage, imageProblemText, IMAGE_EXTENSIONS } from "../shared/images";
+import { checkImage, imageProblemText } from "../shared/images";
 export { clipboardImageFiles, dragHasFiles } from "../shared/images";
 import type { ImageRef } from "../shared/protocol";
 import { rpc } from "./rpc";
@@ -74,4 +74,3 @@ export async function makeThumb(file: File): Promise<string> {
   }
 }
 
-export const IMAGE_ACCEPT = Object.keys(IMAGE_EXTENSIONS).join(",");

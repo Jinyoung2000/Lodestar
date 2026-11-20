@@ -58,9 +58,6 @@ export type LinearIssueFilter = {
   includeCompleted?: boolean;
 };
 
-// "내 이슈": 담당자가 나이고 열린 상태. 보드의 빠른 필터가 이 값을 그대로 보낸다.
-export const MY_ISSUES_FILTER: LinearIssueFilter = { assignee: "me" };
-
 export type LinearIssuePage = { issues: LinearIssue[]; hasNextPage: boolean; endCursor: string | null; fetchedAt: string };
 
 // 세션과 이슈를 잇는 표지. Agent.linearIssue 에 저장하고 사이드바와 보드가 식별자와 링크를 보인다.
@@ -79,10 +76,6 @@ export type LinearRpcMethods = {
   // 로컬 표지만 바꾼다. Linear 에는 쓰지 않는다.
   "agents.setLinearIssue": { params: { agentId: string; issue: LinearIssueRef | null }; result: null };
 };
-
-export function issueRefOf(issue: Pick<LinearIssue, "identifier" | "title" | "url">): LinearIssueRef {
-  return { identifier: issue.identifier, title: issue.title, url: issue.url };
-}
 
 // 이슈에서 세션을 시작할 때 입력창에 채울 초안. 식별자, 제목, URL, 상태와 우선순위와 라벨, 설명 순서다.
 // 설명이 잘려 있으면 알리고, 전체가 필요하면 linear.issue 로 읽은 이슈를 넘긴다.

@@ -20,14 +20,6 @@ export function perfNote(kind: string, name: string, bytes = 0, ms = 0) {
   buckets.set(key, bucket);
 }
 
-// 동기 작업이 걸린 시간을 재서 센다.
-export function perfTime<T>(kind: string, name: string, work: () => { value: T; bytes: number }): T {
-  const start = performance.now();
-  const { value, bytes } = work();
-  perfNote(kind, name, bytes, performance.now() - start);
-  return value;
-}
-
 export function perfReset() {
   buckets.clear();
   since = Date.now();

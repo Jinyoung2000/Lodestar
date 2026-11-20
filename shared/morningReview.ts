@@ -472,10 +472,6 @@ export function parseReview(raw: unknown, input: ReviewInput, board: Board, agen
   return { summary: cleanText(data.summary, REVIEW_LIMITS.summary, names), items };
 }
 
-// --- 이동 제안 ---
-
-export const pendingMoves = (review: MorningReview): ReviewItem[] => review.items.finished.filter((i) => i.move && !i.move.applied && i.cardId);
-
 // --- 마크다운 사본 ---
 
 const WEEKDAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];

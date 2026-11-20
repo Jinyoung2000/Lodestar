@@ -6,7 +6,6 @@ const LAST_KEY = "agent-nav:layout-last";
 const DEFAULT_KEY = "agent-nav:layout-default";
 const REMEMBER_KEY = "agent-nav:layout-remember";
 const RECT_KEY = "agent-nav:float-rect";
-const COLLAPSED_KEY = "agent-nav:float-collapsed";
 const PER_SESSION_KEY = "agent-nav:layout-per-session";
 const CHAT_DOCK_KEY = "agent-nav:chat-dock";
 
@@ -58,9 +57,6 @@ export function loadFloatRect(): FloatRect | null {
   }
 }
 export const saveFloatRect = (rect: FloatRect | null) => write(RECT_KEY, rect ? JSON.stringify(rect) : null);
-
-export const loadFloatCollapsed = () => read(COLLAPSED_KEY) === "1";
-export const saveFloatCollapsed = (collapsed: boolean) => write(COLLAPSED_KEY, collapsed ? "1" : null);
 
 // PERLAYOUT: 세션별 배치 기억 스위치. Settings 가 늦게 오므로 첫 화면은 지난번에 받은 값으로 정한다. 값이 없으면 켜짐(기본).
 export const loadCachedPerSession = () => read(PER_SESSION_KEY) !== "0";

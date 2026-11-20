@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
-import type { PrDetail, PrFile, PrListResult, PrMergeMethod, PrQueryName, PrStatusResult } from "../shared/prTypes";
+import type { PrDetail, PrFile, PrListResult, PrMergeMethod, PrStatusResult } from "../shared/prTypes";
 import { parsePrUrl, prRefOfUrl, type PrAnchor, type PrTab } from "../shared/prUrl";
 import { rpc } from "./rpc";
 import { P } from "./prStrings";
@@ -288,10 +288,6 @@ export async function refreshLists() {
   await loadStatus();
   const repos = ui.status?.available ? ui.status.repos : [];
   await Promise.all(repos.map((repo) => loadList(repo.fullName)));
-}
-
-export function queryPrs(repo: string, query: PrQueryName) {
-  return ui.lists[repo]?.data?.[query] ?? [];
 }
 
 // --- 자동 갱신 ---

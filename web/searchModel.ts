@@ -134,8 +134,6 @@ export function searchGroups(data: SearchData, tab: SearchScope, query: string):
   return compact([single]);
 }
 
-export const rowCount = (groups: SearchGroup[]) => groups.reduce((n, g) => n + g.rows.length, 0);
-
 export const flatRows = (groups: SearchGroup[]) => groups.flatMap((g) => g.rows);
 
 function group(id: SearchGroup["id"], rows: SearchRow[]): SearchGroup {

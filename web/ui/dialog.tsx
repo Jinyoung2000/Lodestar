@@ -4,8 +4,6 @@ import { cn } from "../lib/utils";
 
 // shadcn/ui Dialog. 팔레트와 설정 패널이 쓴다: 위에서 10vh 내려온 surface-overlay 상자, radius-lg, shadow-overlay.
 export const Dialog = DialogPrimitive.Root;
-export const DialogTitle = DialogPrimitive.Title;
-export const DialogDescription = DialogPrimitive.Description;
 
 export const DialogContent = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { label: string; overlayClassName?: string }>(function DialogContent({ className, children, label, overlayClassName, ...props }, ref) {
   return (

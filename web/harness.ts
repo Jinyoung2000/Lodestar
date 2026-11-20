@@ -36,11 +36,6 @@ export function codexModelInfos(meta: CodexMeta | null): ModelInfo[] {
   return (meta?.models ?? []).map((m) => ({ value: m.value, resolvedModel: m.value, displayName: m.displayName, supportedEffortLevels: m.supportedEffortLevels }));
 }
 
-export function modelsOfHarness(harness: Harness): ModelInfo[] {
-  const s = getState();
-  return harness === "codex" ? codexModelInfos(s.codexMeta) : (s.meta?.models ?? []);
-}
-
 // 모델을 고르지 않은 Codex 세션이 쓰는 모델(~/.codex/config.toml 의 값, 없으면 목록의 기본 모델)
 export function codexDefaultModel(meta: CodexMeta | null): string | null {
   return meta?.defaultModel ?? meta?.models.find((m) => m.isDefault)?.value ?? null;

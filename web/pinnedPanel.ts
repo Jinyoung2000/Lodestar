@@ -42,8 +42,6 @@ const subscribe = (listener: () => void) => {
   return () => void listeners.delete(listener);
 };
 
-export const getPinned = () => state;
-
 export function usePinned<T>(select: (s: PinnedState) => T): T {
   return useSyncExternalStore(subscribe, () => select(state));
 }

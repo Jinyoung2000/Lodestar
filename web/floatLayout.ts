@@ -2,8 +2,6 @@
 
 export type LayoutMode = "chat" | "editor";
 
-export const LAYOUT_MODES: readonly LayoutMode[] = ["chat", "editor"];
-
 export const isLayoutMode = (value: unknown): value is LayoutMode => value === "chat" || value === "editor";
 
 // --- 시작 모드 ---

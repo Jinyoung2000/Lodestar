@@ -150,8 +150,6 @@ export function mentionedMedia(agentId: string, items: readonly TimelineItem[]):
   return paths;
 }
 
-export const forgetMentions = (agentId: string) => void mentionCache.delete(agentId);
-
 // 서명: 데몬 토큰에서 뽑은 키로 (실제 경로, 수정 시각)에 HMAC 을 건다. 토큰 자체는 주소에 실리지 않고, 주소 하나는 파일 하나만 연다.
 // 수정 시각이 주소에 들어가서 에이전트가 같은 경로에 파일을 다시 만들면 새 주소가 되어 캐시가 갱신된다.
 export const mediaKey = (token: string) => createHmac("sha256", token).update("agent-nav media url v1").digest();

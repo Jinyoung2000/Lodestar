@@ -12,8 +12,6 @@ function set(next: Partial<ChatFindState>) {
   for (const listener of listeners) listener();
 }
 
-export const getChatFind = () => state;
-
 export function useChatFind(): ChatFindState {
   return useSyncExternalStore(
     (listener) => {

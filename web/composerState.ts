@@ -110,8 +110,6 @@ export function setDraft(key: string, text: string) {
   saveDraft(key);
 }
 
-export const snapshotDrafts = (): Record<string, string> => Object.fromEntries(drafts);
-
 // 옛 창 상태 저장본(extras.drafts)에서 읽은 초안도 받는다. 저장소 쪽으로 옮겨 쓰므로 창 상태 저장본이 더는 초안을 싣지 않아도 사라지지 않는다.
 export function restoreDrafts(saved: Record<string, string>) {
   for (const [key, text] of Object.entries(saved)) {

@@ -7,10 +7,6 @@ export type CopyMeta = { text: string; fromEmptySelection: boolean; multicursorT
 
 let lastCopy: CopyMeta | null = null;
 
-export function lastCopyMeta(): CopyMeta | null {
-  return lastCopy;
-}
-
 export function clipboardHandlers(options: EditorOptions): Extension {
   const empty = options.emptySelectionClipboard;
   return EditorView.domEventHandlers({

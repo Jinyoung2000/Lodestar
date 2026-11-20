@@ -22,8 +22,6 @@ export type WindowExtras = {
   handoffs: Record<string, SavedHandoff[]>;
 };
 
-export const EMPTY_EXTRAS: WindowExtras = { editorPos: {}, chatScroll: {}, drafts: {}, panelWidths: {}, handoffs: {} };
-
 // 인계 문서 칩 중 문서가 다 만들어진 것(status ready)만 남긴다. 만드는 중이던 칩은 요청이 앱과 함께 끝났으니 되살릴 수 없다.
 export type SavedHandoff = { id: string; workspaceId: string | null; sourceId: string; title: string; docId: string; text: string };
 type ChipLike = { id: string; workspaceId: string | null; text: string | null; handoff?: { sourceId: string; title: string; status: string; id: string | null } };

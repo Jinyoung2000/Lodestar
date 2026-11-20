@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import { EDITOR_OPTION_DEFAULTS, sanitizeEditorOptions, type EditorOptionKey, type EditorOptions } from "../shared/editorOptions";
 import { rpc } from "./rpc";
 import { getState, subscribe } from "./store";
@@ -27,10 +26,6 @@ export function subscribeEditorOptions(listener: (options: EditorOptions) => voi
     listener(next);
   });
   return () => void off();
-}
-
-export function useEditorOptions(): EditorOptions {
-  return useSyncExternalStore(subscribe, currentEditorOptions);
 }
 
 // 직접 고른 값 하나를 저장한다. 고른 값 모음 전체를 바꿔 보낸다(데몬이 통째로 교체).

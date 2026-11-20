@@ -25,11 +25,6 @@ export function findWidget(): Extension {
 // 읽기 전용 보기(diff)의 본문은 contenteditable 이 아니라 포커스를 못 받아서 ⌘F 가 편집기까지 오지 않는다. 포커스를 받게 해 둔다.
 const readOnlyFocusable = EditorView.contentAttributes.of((view) => (view.state.facet(EditorView.editable) ? null : { tabindex: "0" }));
 
-// 찾기 위젯이 열려 있는지. 열려 있는 동안 Editor.tsx 가 선택 끝의 "Ask" 단추를 띄우지 않는 데 쓴다.
-export function isFindOpen(state: EditorState): boolean {
-  return state.field(findField, false)?.open ?? false;
-}
-
 // 개요 눈금자(web/editorRuler.ts)가 일치 위치를 칠하려고 읽는 찾기 상태. 위젯이 열려 있고 검색어가 있을 때만 값이 있다.
 export function findStateOf(state: EditorState): { search: string; options: FindOptions; scope: Scope } | null {
   const value = state.field(findField, false);

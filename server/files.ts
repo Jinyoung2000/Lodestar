@@ -65,11 +65,6 @@ export async function listIgnoredFiles(dir: string) {
   }
 }
 
-// 없는 파일은 null. 에이전트가 새로 만든 파일을 되돌린 뒤에도 diff 탭이 살아 있을 수 있다.
-export async function readWorkspaceFile(dir: string, path: string) {
-  return readAbsolute(resolveInside(dir, path));
-}
-
 async function readAbsolute(absolute: string) {
   if (!existsSync(absolute)) return null;
   // 읽기 전에 크기를 본다(수백 MB 파일을 통째로 메모리에 올린 뒤에야 거절하지 않게).

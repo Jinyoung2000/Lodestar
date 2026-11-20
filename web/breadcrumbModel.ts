@@ -205,9 +205,6 @@ export function navigatePicker(rows: readonly PickerRow[], focusId: string | nul
   return row.parentId ? { focusId: row.parentId, expanded } : { focusId, expanded };
 }
 
-// 처음 보여 줄 펼침: 현재 항목이 들어 있는 조상은 펼치지 않는다(목록은 형제 한 층에서 시작한다)
-export const initialExpanded = (): ReadonlySet<string> => new Set();
-
 // --- 놓을 자리 ---
 
 export const PICKER_ARROW = 8;

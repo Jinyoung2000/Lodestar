@@ -1,5 +1,4 @@
 import { LSPPlugin } from "@codemirror/lsp-client";
-import type { EditorView } from "@codemirror/view";
 import { diagnosticsOf, type LspDiagnostic, type LspRange } from "./diagnosticsStore";
 import { loadRelated, type RelatedLocation } from "./problemActions";
 import { uriToPath } from "./lsp";
@@ -106,6 +105,3 @@ function rangeOfDiagnostics(diagnostics: LspDiagnostic[]): LspRange {
   return diagnostics[0]!.range;
 }
 
-export function pluginOf(view: EditorView) {
-  return LSPPlugin.get(view);
-}

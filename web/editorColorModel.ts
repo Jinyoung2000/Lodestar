@@ -36,10 +36,6 @@ export function transparent(color: Rgba, factor: number): Rgba {
   return { ...color, a: color.a * factor };
 }
 
-export function isOpaque(color: Rgba): boolean {
-  return color.a >= 1;
-}
-
 // 캔버스 fillStyle 용 문자열
 export function toCanvasColor(color: Rgba): string {
   return `rgb(${Math.round(color.r)} ${Math.round(color.g)} ${Math.round(color.b)} / ${Math.round(color.a * 1000) / 1000})`; // lint-tokens: allow 캔버스 fillStyle 은 CSS 변수를 못 받아 숫자에서 문자열을 만든다

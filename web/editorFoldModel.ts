@@ -287,5 +287,3 @@ export function regionMarkersFor(path: string | null): RegionMarkers | null {
   return dot < 0 ? null : (MARKERS_BY_EXTENSION[name.slice(dot + 1).toLowerCase()] ?? null);
 }
 
-// 같은 구간 목록이 같은 접기 상태를 만드는지 비교할 때 쓰는 키
-export const regionKey = (region: FoldRegion) => `${region.start}:${region.end}`;

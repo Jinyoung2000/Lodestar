@@ -31,8 +31,6 @@ export function collectBlocks(root: HTMLElement): Block[] {
   return blocks;
 }
 
-export type Found = { range: Range };
-
 // 블록마다 일치를 찾아 Range 로 만든다. 일치가 limit 을 넘으면 capped.
 export function findRanges(blocks: Block[], regex: RegExp, limit = MATCH_LIMIT): { ranges: Range[]; capped: boolean } {
   const ranges: Range[] = [];

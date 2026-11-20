@@ -40,10 +40,6 @@ export const MOBILE_EVENT_TYPES = ["workspaces", "agent", "agentRemoved", "timel
 
 // 연결 직후 인증을 마치면 서버가 한 번 보내는 메시지
 export type MobileReady = { protocol: number; host: string; serverTime: number };
-// 소켓으로 오는 메시지: 기존 ServerMessage(응답 id 와 이벤트)에 ready 가 더해진다.
-export type MobileServerMessage = { ready: MobileReady } | { id: number; result: unknown } | { id: number; error: string } | { event: unknown };
-// 소켓으로 처음 보내는 프레임. 토큰을 URL 에 싣지 않으려고 연결 뒤 첫 프레임으로 인증한다(5초 안에 안 보내면 끊는다).
-export type MobileAuthFrame = { auth: string };
 
 export type MobileHost = { address: string; iface: string; kind: "lan" | "tailscale" };
 

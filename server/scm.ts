@@ -276,12 +276,6 @@ export async function undoLastCommit(cwd: string): Promise<{ message: string }> 
   return { message };
 }
 
-export async function lastCommitMessage(cwd: string): Promise<{ message: string }> {
-  const root = await needRoot(cwd);
-  const message = (await tryGit(root, ["log", "-1", "--format=%B"])) ?? "";
-  return { message };
-}
-
 // --- Graph ---
 
 const FIELD = "\x1f";

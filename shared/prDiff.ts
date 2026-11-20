@@ -132,5 +132,3 @@ export function toSplit(rows: DiffRow[]): (SplitRow | { hunk: DiffHunk; index: n
   return out;
 }
 
-// 파일 통계 문구용: patch 가 없는 파일(큰 파일, 바이너리)인지
-export const hasPatch = (patch: string | null): patch is string => typeof patch === "string" && patch.length > 0;

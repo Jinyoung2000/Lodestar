@@ -12,10 +12,6 @@ export function announce(text: string, urgent = false) {
   for (const listener of listeners) listener();
 }
 
-export function currentAnnouncement(): Announcement {
-  return current;
-}
-
 export function useAnnouncement(): Announcement {
   return useSyncExternalStore(
     (listener) => {

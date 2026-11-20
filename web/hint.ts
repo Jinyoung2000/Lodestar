@@ -36,10 +36,6 @@ export function dismissHint(id?: number) {
   if (current && (id === undefined || current.id === id)) emit(null);
 }
 
-export function currentHint(): HintBubble | null {
-  return current;
-}
-
 export function useHint(): HintBubble | null {
   return useSyncExternalStore(
     (listener) => {

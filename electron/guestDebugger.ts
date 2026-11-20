@@ -150,8 +150,6 @@ export async function applyTouch(guest: WebContents, emulating: boolean, mobile:
   state.touch = wanted;
 }
 
-export const touchOn = (guest: WebContents) => states.get(guest.id)?.touch ?? false;
-
 type Point = { x: number; y: number };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

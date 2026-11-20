@@ -150,8 +150,6 @@ function folderNode(dir: DirBuilder, depth: number, order: SearchSettings["sortO
 
 // --- 펼침과 접힘 ---
 
-export const childrenOf = (node: TreeNode): TreeNode[] => (node.kind === "hit" ? [] : node.children);
-
 export function initialCollapsed(nodes: readonly TreeNode[], setting: SearchSettings["collapseResults"]): Set<string> {
   const collapsed = new Set<string>();
   const visit = (node: TreeNode) => {

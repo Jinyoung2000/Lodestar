@@ -27,5 +27,3 @@ export function effectiveBlinking(blinking: CursorBlinking, readOnly: boolean): 
   return readOnly ? "solid" : blinking;
 }
 
-// 커서가 바뀐 뒤 깜빡이기 시작하기까지 고정으로 보이는 시간(번들 BLINK_INTERVAL)
-export const CURSOR_BLINK_INTERVAL_MS = 500;

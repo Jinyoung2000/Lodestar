@@ -58,10 +58,6 @@ export function languageNameOf(path: string) {
   return id ? LANGUAGE_NAME[id] : path.slice(path.lastIndexOf(".") + 1);
 }
 
-export function formatterLabel(id: FormatterId | null) {
-  return id === null ? null : FORMATTERS[id].label;
-}
-
 
 // settings.json 한 파일에서 포맷에 쓰는 값만. flat 은 `[언어]` 블록이 아닌 모든 키(oxc.*, prettier.*, eslint.* 를 여기서 읽는다).
 export type FormatLayer = { defaultFormatter: string | null; byLanguage: Record<string, string>; flat: Record<string, unknown>; formatOnSave: boolean | null };

@@ -8,22 +8,12 @@ import { hint } from "./hint";
 import { rpc } from "./rpc";
 import { flash, getState, openBrowser, setState, subscribe, type BrowserTab } from "./store";
 
-// NOTION: 사이드바 Notion 묶음의 상태와 고정 동작. 목록의 정본은 데몬(notion.pins.*)이고, 여기는 notionPins 이벤트로 받은 사본과 접힘 상태만 든다.
+// NOTION: 사이드바 Notion 묶음의 상태와 고정 동작. 목록의 정본은 데몬(notion.pins.*)이고, 여기는 notionPins 이벤트로 받은 사본만 든다.
 // store.ts 와 분리한 자체 저장소다(prStore.ts 와 같은 방식).
 
-type NotionUi = { pins: NotionPin[] | null; collapsed: boolean };
+type NotionUi = { pins: NotionPin[] | null };
 
-const PREFS_KEY = "agent-nav:notion-prefs";
-
-function loadCollapsed(): boolean {
-  try {
-    return JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}").collapsed === true;
-  } catch {
-    return false;
-  }
-}
-
-let ui: NotionUi = { pins: null, collapsed: loadCollapsed() };
+let ui: NotionUi = { pins: null };
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<NotionUi>) {
@@ -42,15 +32,6 @@ export function useNotion<T>(select: (ui: NotionUi) => T): T {
 }
 
 export const notionPins = () => ui.pins ?? [];
-
-export function setNotionCollapsed(collapsed: boolean) {
-  set({ collapsed });
-  try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ collapsed }));
-  } catch {
-    // 저장이 막힌 환경에서는 이번 실행 동안만 유지
-  }
-}
 
 const fail = (error: unknown) => flash(error instanceof Error ? error.message : String(error));
 
@@ -82,21 +63,6 @@ export async function unpinNotionPage(id: string) {
   } catch (error) {
     fail(error);
   }
-}
-
-export const renameNotionPin = (id: string, title: string) => rpc.call("notion.pins.update", { id, patch: { title } }).catch(fail);
-
-export async function moveNotionPin(id: string, index: number) {
-  // 데몬 응답(notionPins 이벤트)이 오기 전에 먼저 순서를 바꿔 보인다
-  const current = ui.pins;
-  if (current) {
-    const pin = current.find((p) => p.id === id);
-    if (pin) {
-      const rest = current.filter((p) => p.id !== id);
-      set({ pins: [...rest.slice(0, index), pin, ...rest.slice(index)] });
-    }
-  }
-  await rpc.call("notion.pins.move", { id, index }).catch(fail);
 }
 
 export const pinFor = (pins: NotionPin[] | null, url: string) => (pins ?? []).find((p) => isNotionUrl(url) && pinMatches(p, url)) ?? null;

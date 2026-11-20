@@ -31,7 +31,6 @@ export const subscribeDiffFeedback = (listener: () => void) => {
 };
 
 export const getDiffFeedback = (agentId: string) => state.items[agentId] ?? EMPTY;
-export const getFeedbackReveal = () => state.reveal;
 export const useFeedbackReveal = () => useSyncExternalStore(subscribeDiffFeedback, () => state.reveal);
 
 export function useDiffFeedback(agentId: string | null | undefined): DiffFeedback[] {

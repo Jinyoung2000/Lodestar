@@ -48,8 +48,6 @@ export function useNotionScreen<T>(select: (ui: NotionScreen) => T): T {
   );
 }
 
-export const notionScreenState = () => ui;
-
 // 읽기 요청 번호. 페이지를 바꾼 뒤 늦게 도착한 옛 응답은 버린다.
 let readSeq = 0;
 
