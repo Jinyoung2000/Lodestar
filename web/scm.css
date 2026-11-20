@@ -12,7 +12,12 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding-bottom: var(--space-4);
+}
+.scm-body :is(.scm-section-head, .scm-row, .scm-hint, .scm-repo-name, .scm-diff-wrap),
+.scm-dock :is(.scm-section-head, .scm-row, .scm-hint, .scm-repo-name, .scm-diff-wrap) {
+  padding-right: calc(var(--space-3) - var(--size-scrollbar));
 }
 
 /* 머리줄과 커밋 입력은 위에 고정하고, 그 아래 목록만 스크롤한다 */
@@ -25,7 +30,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  height: var(--size-pane-header);
+  height: var(--size-tabs-header);
   padding: 0 var(--space-2) 0 var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -374,6 +379,7 @@
   flex-shrink: 0;
   max-height: 50%;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   border-top: 1px solid var(--border-subtle);
 }
 .scm-dock > .scm-section:first-child {

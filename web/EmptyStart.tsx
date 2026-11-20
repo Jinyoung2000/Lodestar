@@ -19,17 +19,20 @@ export function EmptyStart() {
       <div className="empty-start-body">
         <h2 className="empty-start-title">{S.emptyStartTitle}</h2>
         <p className="empty-start-text">{hasWorkspace ? S.emptyStartPickFolder : S.emptyStartAddFolder}</p>
-        <div className="empty-start-actions">
-          <Button variant={hasWorkspace ? "secondary" : "primary"} size="default" onClick={() => setAdding((v) => !v)}>
-            <Plus /> {S.addWorkspace}
-          </Button>
+        <div className="empty-start-actions" data-adding={adding || undefined}>
+          {adding ? (
+            <WorkspacePathInput className="empty-start-input" onCancel={() => setAdding(false)} />
+          ) : (
+            <Button variant={hasWorkspace ? "secondary" : "primary"} size="default" onClick={() => setAdding(true)}>
+              <Plus /> {S.addWorkspace}
+            </Button>
+          )}
           {hasWorkspace && (
             <Button variant="primary" size="default" onClick={() => runCommand("newSession")}>
               <Plus /> {S.newSession}
             </Button>
           )}
         </div>
-        {adding && <WorkspacePathInput className="empty-start-input" onCancel={() => setAdding(false)} />}
         <ul className="empty-start-keys" aria-label={S.emptyStartKeys}>
           {SHORTCUTS.filter((item) => item.command !== "board" || showBoard).map((item) => (
             <li key={item.command}>

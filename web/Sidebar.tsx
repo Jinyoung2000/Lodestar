@@ -104,8 +104,6 @@ export function Sidebar({ width }: { width: number | null }) {
     previousChatCount.current = chatCount;
   }, [chatCount]);
   const allCollapsed = groups.length > 0 && groups.every((g) => collapsedGroups.includes(g.id));
-  const newSessionKey = useCommandKey("newSession");
-  const newSessionCaps = useCommandKeycaps("newSession");
   const boardKey = useCommandKey("board");
   const inboxKey = useCommandKey("inbox");
   const notesKey = useCommandKey("notes");
@@ -115,32 +113,25 @@ export function Sidebar({ width }: { width: number | null }) {
       <div className="sidebar-top">
         <button type="button" className="side-item" onClick={() => runCommand("newSession")}>
           <Plus /> {S.newSession}
-          {newSessionCaps.length > 0 && (
-            <span className="keycaps" aria-label={newSessionKey ?? undefined}>
-              {newSessionCaps.map((cap, n) => (
-                <kbd key={n} className="keycap">
-                  {cap}
-                </kbd>
-              ))}
-            </span>
-          )}
+          <SideKeycaps command="newSession" />
         </button>
         {showBoard && (
           <button type="button" className="side-item" data-active={centerView === "board" || undefined} aria-pressed={centerView === "board"} title={S.boardKey(boardKey)} onClick={() => toggleBoard()}>
             <BoardIcon /> {S.board}
             {reviewUnread && <span className="review-dot" role="img" aria-label={S.reviewUnreadDot} />}
-            {boardKey && <span className="kbd">{boardKey}</span>}
+            <SideKeycaps command="board" />
           </button>
         )}
         {showSlack && (
           <button type="button" className="side-item" data-active={centerView === "inbox" || undefined} aria-pressed={centerView === "inbox"} title={S.inboxKey(inboxKey)} onClick={() => toggleInbox()}>
             <Chat /> {S.inbox}
             {inboxUnread > 0 && <span className="inbox-badge" aria-label={`${inboxUnread} unread`}>{inboxUnread}</span>}
-            {inboxKey && <span className="kbd">{inboxKey}</span>}
+            <SideKeycaps command="inbox" />
           </button>
         )}
         <button type="button" className="side-item" data-active={centerView === "notes" || undefined} aria-pressed={centerView === "notes"} title={S.notesKey(notesKey)} onClick={() => toggleNotes()}>
-          <NoteIcon /> {S.notes} {notesKey && <span className="kbd">{notesKey}</span>}
+          <NoteIcon /> {S.notes}
+          <SideKeycaps command="notes" />
         </button>
         <button type="button" className="side-item" onClick={() => setAddOpen((v) => !v)}>
           <Plus /> {S.addWorkspace}
@@ -804,5 +795,20 @@ function SessionMenu({ agent }: { agent: Agent }) {
         </DropdownMenuItem>
       )}
     </DropdownMenuContent>
+  );
+}
+
+function SideKeycaps({ command }: { command: string }) {
+  const label = useCommandKey(command);
+  const caps = useCommandKeycaps(command);
+  if (caps.length === 0) return null;
+  return (
+    <span className="keycaps" aria-label={label ?? undefined}>
+      {caps.map((cap, n) => (
+        <kbd key={n} className="keycap">
+          {cap}
+        </kbd>
+      ))}
+    </span>
   );
 }

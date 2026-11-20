@@ -288,6 +288,7 @@
   position: relative;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   outline: none;
 }
 .sv-list-rows {
@@ -367,7 +368,7 @@
   box-sizing: border-box;
   min-width: var(--size-sv-badge);
   height: var(--size-sv-badge);
-  margin-right: var(--space-3);
+  margin-right: calc(var(--space-3) - var(--size-scrollbar));
   padding: var(--space-1) var(--space-1_5);
   border-radius: var(--radius-full);
   background: var(--peek-badge-bg);
@@ -407,7 +408,7 @@
   display: none;
   align-items: center;
   gap: var(--space-0_5);
-  padding: 0 var(--space-3) 0 var(--space-1);
+  padding: 0 calc(var(--space-3) - var(--size-scrollbar)) 0 var(--space-1);
 }
 .sv-row:hover .sv-actions,
 .sv-list:focus-within .sv-row[data-selected] .sv-actions {

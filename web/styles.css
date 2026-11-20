@@ -519,7 +519,6 @@ body[data-electron="1"] .titlebar > button {
   background: var(--chrome-bg);
   border-right: 1px solid var(--border-subtle);
   overflow-y: auto;
-  scrollbar-gutter: stable; /* 스크롤바가 생기고 사라질 때 안쪽 폭이 출렁이지 않게 자리를 항상 비워 둔다 */
   padding: var(--space-2) 0;
 }
 .sidebar-top {
@@ -552,16 +551,6 @@ body[data-electron="1"] .titlebar > button {
 .side-item[data-primary] {
   background: var(--surface-overlay);
   border: 1px solid var(--border);
-}
-.side-item .kbd {
-  margin-left: auto;
-  /* Settings 행은 연결 상태 점과 ⌘, 를 같이 보여서 둘 사이에 간격을 둔다 */
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--fg-subtle);
-  font-size: var(--text-caption);
-  line-height: var(--leading-caption);
 }
 
 .section-label {
@@ -625,7 +614,7 @@ body[data-electron="1"] .titlebar > button {
 }
 
 .workspace-input {
-  margin: 0 var(--space-1) var(--space-1);
+  margin: 0 var(--space-2) var(--space-1);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -705,7 +694,7 @@ body[data-electron="1"] .titlebar > button {
   flex-direction: column;
 }
 .agent > .pane-header {
-  height: var(--size-chat-header);
+  height: var(--size-tabs-header);
 }
 .agent-title {
   flex: 0 1 auto;
@@ -2300,6 +2289,11 @@ button.scope-button:focus-visible {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.changes-list .tree-node,
+.files-tab .tree-node {
+  padding-right: 0;
 }
 .changes-list[data-wide] {
   container-type: size;
@@ -2562,6 +2556,7 @@ button.scope-button:focus-visible {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: var(--space-1) 0;
 }
 .files-tab .tree-node[data-status="A"] .name {
@@ -3093,6 +3088,9 @@ div.tree-node[role="button"] > :first-child {
 .terminal-find {
   overflow: hidden;
 }
+.cm-find.terminal-find {
+  padding-left: var(--space-1);
+}
 @container (max-width: 320px) { /* lint-tokens: allow container queries cannot read var() */
   .terminal-find .cm-find-count {
     display: none;
@@ -3180,6 +3178,7 @@ div.tree-node[role="button"] > :first-child {
 }
 .palette-list {
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 0 var(--space-1) var(--space-1);
 }
 .palette-option {
@@ -4746,7 +4745,7 @@ button.review-link:focus-visible {
   font-size: var(--text-caption);
   line-height: var(--size-row);
 }
-.side-item .inbox-badge + .kbd {
+.side-item .inbox-badge + .keycaps {
   margin-left: var(--space-1);
 }
 
@@ -4981,7 +4980,6 @@ html[data-compact-view="true"] [data-session-detail] {
 
 /* --- B1: 사이드바 세션 목록 --- */
 
-/* 맨 위 고정 항목: New Session 의 키 표시는 키캡 두 개 */
 .keycaps {
   margin-left: auto;
   display: inline-flex;
@@ -5010,7 +5008,7 @@ html[data-compact-view="true"] [data-session-detail] {
   align-items: center;
   gap: var(--space-0_5);
   height: var(--size-sessions-header);
-  padding: 0 var(--space-2) 0 calc(var(--space-3) - var(--space-0_5));
+  padding: 0 var(--space-2) 0 var(--space-3);
   font-size: var(--text-section-label);
   font-weight: var(--weight-section-label);
   color: var(--fg);
@@ -5054,7 +5052,6 @@ html[data-compact-view="true"] [data-session-detail] {
   color: var(--fg-muted);
 }
 
-/* 묶음 머리: 높이 26px, 아이콘 x=14, 라벨 x=36, 12px 600 fg-muted */
 .session-group {
   display: flex;
   flex-direction: column;
@@ -5081,7 +5078,7 @@ html[data-compact-view="true"] [data-session-detail] {
   display: flex;
   align-items: center;
   gap: var(--space-1_5);
-  padding: 0 var(--space-2) 0 calc(var(--space-2) + var(--space-1) + var(--space-0_5));
+  padding: 0 calc(var(--space-1) + 1px) 0 var(--space-3);
   cursor: pointer;
 }
 .session-group-main:focus-visible {
@@ -5110,19 +5107,16 @@ html[data-compact-view="true"] [data-session-detail] {
 }
 .session-group-new {
   position: absolute;
-  right: var(--space-4);
+  right: calc(var(--space-1) + 1px + var(--size-icon-sm) + var(--space-1));
   display: none;
 }
 .session-group-head:hover .session-group-new {
   display: inline-flex;
 }
-.session-group-head:hover .session-group-chevron {
-  margin-right: var(--space-4);
-}
 /* WSMENU: 폴더 묶음의 ... 버튼은 + 버튼 바로 왼쪽에 같은 크기로 놓인다. 메뉴가 열려 있는 동안은 마우스가 나가도 두 버튼이 남는다 */
 .session-group-more {
   position: absolute;
-  right: calc(var(--space-4) + var(--size-control-sm));
+  right: calc(var(--space-1) + 1px + var(--size-icon-sm) + var(--space-1) + var(--size-control-sm));
   display: none;
 }
 .session-group-head:hover .session-group-more,
@@ -5130,17 +5124,12 @@ html[data-compact-view="true"] [data-session-detail] {
 .session-group-head[data-menu] .session-group-new {
   display: inline-flex;
 }
-.session-group-head[data-has-menu]:hover .session-group-chevron,
-.session-group-head[data-has-menu][data-menu] .session-group-chevron {
-  margin-right: calc(var(--space-4) + var(--size-control-sm) * 2 - var(--space-2) + var(--space-1));
-}
 
-/* 세션 행: 두 줄. 바깥 56px(안쪽 54px + 아래 2px), 반경 4px, 좌우 4px 여백 */
 .session-row {
   position: relative;
   box-sizing: border-box;
   min-height: calc(var(--size-session-row) - var(--space-0_5));
-  margin: 0 var(--space-1) var(--space-0_5);
+  margin: 0 0 var(--space-0_5) var(--space-1);
   border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
@@ -5167,15 +5156,15 @@ html[data-compact-view="true"] [data-session-detail] {
   align-items: flex-start;
   gap: var(--space-1_5);
   min-width: 0;
-  padding: var(--space-1_5) var(--space-2) var(--space-1_5) var(--space-3);
+  padding: var(--space-1_5) var(--space-2);
   cursor: pointer;
 }
 .session-row[data-depth="1"] .session-item {
-  padding-left: calc(var(--space-3) + var(--space-6));
+  padding-left: calc(var(--space-2) + var(--space-6));
 }
 .session-row[data-depth="2"] .session-item,
 .session-row[data-depth="3"] .session-item {
-  padding-left: calc(var(--space-3) + var(--space-6) * 2);
+  padding-left: calc(var(--space-2) + var(--space-6) * 2);
 }
 .session-status {
   display: inline-flex;
@@ -5320,7 +5309,7 @@ html[data-compact-view="true"] .session-row[data-menu] .session-project {
 .session-actions {
   position: absolute;
   top: calc((var(--size-session-row) - var(--space-0_5) - var(--leading-session-detail) - var(--size-row)) / 2);
-  right: var(--space-1);
+  right: var(--space-0_5);
   display: none;
   align-items: center;
 }
@@ -5383,7 +5372,7 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   all: unset;
   position: absolute;
   top: var(--space-1_5);
-  left: 0;
+  left: calc(var(--space-1) * -1);
   z-index: 1;
   display: inline-flex;
   align-items: center;
@@ -5400,7 +5389,7 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   content: "";
   position: absolute;
   top: calc(var(--space-0_5) * -1);
-  left: calc(var(--space-3) + var(--space-2));
+  left: calc(var(--space-2) + var(--space-2));
   width: var(--space-2);
   height: calc(var(--space-1_5) + var(--leading-session-title) / 2 + var(--space-0_5));
   border-left: 1px solid var(--border);
@@ -5505,12 +5494,16 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   display: flex;
   gap: var(--space-2);
 }
+.empty-start-actions[data-adding] {
+  width: 100%;
+  max-width: var(--size-command-center);
+}
 .empty-start-input {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  width: 100%;
-  max-width: var(--size-command-center);
+  flex: 1;
+  min-width: 0;
 }
 .empty-start-keys {
   display: flex;
@@ -6995,7 +6988,8 @@ pre.approval-json {
 
 /* 왼쪽 사이드바(세션 목록 포함)는 좁은 영역이라 트랙을 6px 로 줄여 슬라이더를 가늘게 그린다 */
 .sidebar::-webkit-scrollbar,
-.sidebar-list::-webkit-scrollbar {
+.sidebar-list::-webkit-scrollbar,
+.pr-body::-webkit-scrollbar {
   width: var(--space-1_5);
   height: var(--space-1_5);
 }
@@ -7185,7 +7179,7 @@ body[data-tab-dragging] iframe {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  height: var(--size-section-row);
+  height: var(--size-tabs-header);
   padding: 0 var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -9722,6 +9716,12 @@ button[data-variant]:disabled .codicon {
 .shortcuts-keys .keycaps {
   margin-left: 0;
 }
+.shortcuts-row .quickpick-title {
+  flex: 0 1 auto;
+}
+.shortcuts-row .quickpick-section {
+  align-self: center;
+}
 /* 모든 행이 같은 키캡 모양이다. 기본 키캡은 배경이 빠른 선택창 바탕과 같아 선택된 행에서만 상자가 보였다. 선택 행은 글자 색만 바뀐다. */
 .shortcuts-row .keycap {
   background: var(--surface-base);
@@ -10286,6 +10286,10 @@ button[data-variant]:disabled .codicon {
 .notes-editor > .pane-header {
   padding: 0 var(--space-6);
 }
+.center > :is(.notes-view, .board, .inbox, .notion-view) > .pane-header,
+.split-view > * > .pane-header {
+  height: var(--size-tabs-header);
+}
 .notes-search {
   display: flex;
   align-items: center;
@@ -10838,11 +10842,11 @@ button[data-variant]:disabled .codicon {
   outline-offset: 1px;
 }
 .new-session-codex-note {
-  margin-top: var(--space-2);
+  margin-top: 0;
   color: var(--fg-muted);
   font-size: var(--text-ui);
   line-height: var(--leading-ui);
-  text-align: center;
+  text-align: left;
 }
 .harness-badge {
   flex: none;

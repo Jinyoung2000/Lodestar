@@ -56,7 +56,7 @@ export const SelectItem = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<ty
       {...props}
     >
       <span className="absolute left-1.5 flex size-4 items-center justify-center">
-        <SelectPrimitive.ItemIndicator>
+        <SelectPrimitive.ItemIndicator className="inline-flex">
           <Check size={12} />
         </SelectPrimitive.ItemIndicator>
       </span>

@@ -16,7 +16,7 @@ export function McpSection() {
       <div className="status-row">
         <span className="spacer" />
         <Button size="sm" disabled={refreshing} onClick={() => void refreshMeta()}>
-          <span className={refreshing ? "spin" : undefined}>
+          <span className={refreshing ? "spin" : "inline-flex"}>
             <Refresh size={14} />
           </span>
           {S.mcpRefreshAll}
@@ -46,7 +46,7 @@ function McpServerRow({ server }: { server: McpStatus }) {
         </span>
         {!disabled && (
           <Button size="sm" disabled={!!busy} onClick={() => void reconnectMcp(server.name)}>
-            <span className={busy === "reconnect" ? "spin" : undefined}>
+            <span className={busy === "reconnect" ? "spin" : "inline-flex"}>
               <Refresh size={14} />
             </span>
             {busy === "reconnect" ? S.mcpReconnecting : S.mcpReconnect}
