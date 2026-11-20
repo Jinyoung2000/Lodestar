@@ -6,6 +6,10 @@ export type BoardHandlerDeps = { store: Store; board: BoardStore; publishBoard: 
 
 export function boardHandlers(deps: BoardHandlerDeps): HandlersFor<MethodsIn<"board">> {
   const { store, board, publishBoard, topWorkspaceOf } = deps;
+  const published = <T>(value: T): T => {
+    publishBoard();
+    return value;
+  };
   return {
     "board.get": () => board.get(),
     "board.createCard": (params) => {
@@ -13,61 +17,43 @@ export function boardHandlers(deps: BoardHandlerDeps): HandlersFor<MethodsIn<"bo
       const workspaceId = topWorkspaceOf(input.workspaceId);
       for (const agentId of Array.isArray(input.agentIds) ? input.agentIds : []) store.agent(agentId);
       if (input.source) store.agent(input.source.agentId);
-      const card = board.createCard({ ...input, workspaceId });
-      publishBoard();
-      return card;
+      return published(board.createCard({ ...input, workspaceId }));
     },
     "board.updateCard": ({ id, patch }) => {
       const next = patch && typeof patch === "object" && patch.workspaceId !== undefined ? { ...patch, workspaceId: topWorkspaceOf(patch.workspaceId) } : patch;
-      const card = board.updateCard(id, next);
-      publishBoard();
-      return card;
+      return published(board.updateCard(id, next));
     },
     "board.deleteCard": ({ id }) => {
       board.deleteCard(id);
-      publishBoard();
-      return null;
+      return published(null);
     },
     "board.moveCard": ({ id, columnId, index }) => {
-      const card = board.moveCard(id, columnId, index);
-      publishBoard();
-      return card;
+      return published(board.moveCard(id, columnId, index));
     },
     "board.linkAgent": ({ cardId, agentId }) => {
       store.agent(agentId);
-      const card = board.linkAgent(cardId, agentId);
-      publishBoard();
-      return card;
+      return published(board.linkAgent(cardId, agentId));
     },
     "board.unlinkAgent": ({ cardId, agentId }) => {
-      const card = board.unlinkAgent(cardId, agentId);
-      publishBoard();
-      return card;
+      return published(board.unlinkAgent(cardId, agentId));
     },
     "board.addColumn": ({ name }) => {
-      const column = board.addColumn(name);
-      publishBoard();
-      return column;
+      return published(board.addColumn(name));
     },
     "board.renameColumn": ({ id, name }) => {
-      const column = board.renameColumn(id, name);
-      publishBoard();
-      return column;
+      return published(board.renameColumn(id, name));
     },
     "board.deleteColumn": ({ id }) => {
       board.deleteColumn(id);
-      publishBoard();
-      return null;
+      return published(null);
     },
     "board.moveColumn": ({ id, index }) => {
       board.moveColumn(id, index);
-      publishBoard();
-      return null;
+      return published(null);
     },
     "board.setLabelColor": ({ label, color }) => {
       board.setLabelColor(label, color);
-      publishBoard();
-      return null;
+      return published(null);
     },
   };
 }

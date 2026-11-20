@@ -24,8 +24,16 @@ export type WorkspaceHandlerDeps = {
   pruneBoard: () => void;
 };
 
+const expandHome = (dir: string) => resolve(dir.replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
+
+function requireFolder(absolute: string) {
+  if (!existsSync(absolute) || !statSync(absolute).isDirectory()) throw new Error(T.errFolderNotFound(absolute));
+  return absolute;
+}
+
 export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<MethodsIn<"workspaces"> | MethodsIn<"sessionOrder">> {
   const { store, runner, broadcast, reviewCheckouts, workspaceWatch, pruneBoard } = deps;
+  const announceWorkspaces = () => broadcast({ type: "workspaces", workspaces: store.workspaces });
   return {
     "workspaces.list": () => store.workspaces,
     // SESSIONORDER: 사이드바 세션 순서. 바꾸면 모든 화면(다른 창 포함)에 새 목록을 보낸다. 모바일 허용 목록에는 없다.
@@ -41,17 +49,15 @@ export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<Metho
       return orders;
     },
     "workspaces.add": ({ dir }) => {
-      const absolute = resolve(dir.replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
-      if (!existsSync(absolute) || !statSync(absolute).isDirectory()) throw new Error(T.errFolderNotFound(absolute));
+      const absolute = requireFolder(expandHome(dir));
       const workspace = store.addWorkspace(absolute);
       // 사용자가 직접 추가한 폴더는 PR 리뷰 체크아웃이었더라도 이제 신뢰한다
       reviewCheckouts.forget(workspace.dir);
-      broadcast({ type: "workspaces", workspaces: store.workspaces });
+      announceWorkspaces();
       return workspace;
     },
     "workspaces.open": async ({ dir }) => {
-      const absolute = realDir(resolve(dir.replace(/^~(?=\/|$)/, process.env.HOME ?? "~")));
-      if (!existsSync(absolute) || !statSync(absolute).isDirectory()) throw new Error(T.errFolderNotFound(absolute));
+      const absolute = requireFolder(realDir(expandHome(dir)));
       let workspace = store.workspaces.find((w) => w.dir === absolute);
       if (!workspace) {
         const tree = await detectWorktree(absolute);
@@ -61,13 +67,12 @@ export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<Metho
         } else workspace = store.addWorkspace(absolute);
       }
       reviewCheckouts.forget(workspace.dir);
-      broadcast({ type: "workspaces", workspaces: store.workspaces });
+      announceWorkspaces();
       return workspace;
     },
     // fix5-3: 사라진 폴더를 새 경로에 다시 잇는다. 폴더를 지금 쓰는 세션이 돌고 있으면 그 작업 폴더가 바뀌므로 거절한다.
     "workspaces.relocate": ({ id, dir }) => {
-      const absolute = resolve(String(dir).trim().replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
-      if (!existsSync(absolute) || !statSync(absolute).isDirectory()) throw new Error(T.errFolderNotFound(absolute));
+      const absolute = requireFolder(expandHome(String(dir).trim()));
       const running = busyAgents(store.agents.filter((a) => a.workspaceId === id && !a.worktree));
       if (running.length) throw new Error(T.errRelocateBusy(running.length));
       const { workspace, moved } = store.relocateWorkspace(id, absolute);
@@ -75,7 +80,7 @@ export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<Metho
         runner.closeIdle(agent.id);
         broadcast({ type: "agent", agent });
       }
-      broadcast({ type: "workspaces", workspaces: store.workspaces });
+      announceWorkspaces();
       return workspace;
     },
     // WSMENU: 세션은 지우지 않고 숨긴다. 열려 있던 화면은 agentRemoved 로 그 세션 칸을 비우고, 폴더를 다시 추가하면 store.onRestored 가 돌려준다.
@@ -83,7 +88,7 @@ export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<Metho
       const { hidden, agents } = store.removeFolderFromList(id);
       for (const agent of agents) runner.closeIdle(agent.id);
       for (const agent of agents) broadcast({ type: "agentRemoved", agentId: agent.id });
-      broadcast({ type: "workspaces", workspaces: store.workspaces });
+      announceWorkspaces();
       pruneBoard();
       return { hidden };
     },

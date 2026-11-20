@@ -439,6 +439,10 @@ async function waitForDaemon() {
   throw new Error(S.electronDaemonNotStarted);
 }
 
+function dispatchToPage(contents: Electron.WebContents, type: string, detail: unknown) {
+  return contents.executeJavaScript(`window.dispatchEvent(new CustomEvent(${JSON.stringify(type)}, { detail: ${JSON.stringify(detail)} }))`);
+}
+
 // 앱 메뉴 명령을 포커스된 창(없으면 마지막 활성 창)의 페이지로 보낸다. 창이 하나도 없을 때(macOS 는 창 없이 Dock 에 남는다)는 새 창만 연다.
 function send(command: string) {
   const target = currentWindow();
@@ -446,7 +450,7 @@ function send(command: string) {
     openNewWindow();
     return;
   }
-  void target.win.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent("agent-nav:command", { detail: ${JSON.stringify(command)} }))`);
+  void dispatchToPage(target.win.webContents, "agent-nav:command", command);
 }
 
 let keymapState = keymapStateOf(savedSettings());
@@ -597,25 +601,7 @@ function createWindow(record: WindowRecord, options: { deferLoad?: boolean } = {
     logLine(`[electron] window ${id}: blocked navigation away from the app to ${url.slice(0, 200)}`);
     openExternalLink(url, entry);
   });
-  // Browser 탭의 guest 는 앱 페이지와 같은 권한이 아니다: preload 와 node 를 끄고 별도 partition 에 가두며, agent-nav 데몬 주소(토큰이 든 index.html)와 http, https 가 아닌 주소는 열지 않는다.
-  win.webContents.on("will-attach-webview", (event, webPreferences, params) => {
-    delete webPreferences.preload;
-    delete (webPreferences as { preloadURL?: string }).preloadURL;
-    webPreferences.nodeIntegration = false;
-    webPreferences.nodeIntegrationInSubFrames = false;
-    webPreferences.contextIsolation = true;
-    webPreferences.sandbox = true;
-    webPreferences.webSecurity = true;
-    webPreferences.allowRunningInsecureContent = false;
-    webPreferences.webviewTag = false;
-    webPreferences.nodeIntegrationInWorker = false;
-    // 탭이 고른 저장 범위(설정 Data Storage)의 partition 만 허락한다. 모양이 맞지 않으면 기본 partition 이다.
-    // Electron 은 이 이벤트 전에 params.partition 을 webPreferences.partition 으로 옮겨 두고 guest 를 webPreferences 로 만든다. params 만 고치면 강제되지 않는다.
-    params.partition = isBrowserPartition(params.partition) ? params.partition : BROWSER_PARTITION;
-    webPreferences.partition = params.partition;
-    configureBrowserSession(session.fromPartition(params.partition));
-    if (!isBrowsableInGuest(params.src)) event.preventDefault();
-  });
+  win.webContents.on("will-attach-webview", lockDownWebview);
   if (INVISIBLE) {
     win.setOpacity(0);
     win.setIgnoreMouseEvents(true);
@@ -630,6 +616,26 @@ function createWindow(record: WindowRecord, options: { deferLoad?: boolean } = {
   if (!options.deferLoad) loadAppPage(entry);
   broadcastWindowIds();
   return entry;
+}
+
+// Browser 탭의 guest 는 앱 페이지와 같은 권한이 아니다: preload 와 node 를 끄고 별도 partition 에 가두며, agent-nav 데몬 주소(토큰이 든 index.html)와 http, https 가 아닌 주소는 열지 않는다.
+function lockDownWebview(event: Electron.Event, webPreferences: Electron.WebPreferences, params: Record<string, string>) {
+  delete webPreferences.preload;
+  delete (webPreferences as { preloadURL?: string }).preloadURL;
+  webPreferences.nodeIntegration = false;
+  webPreferences.nodeIntegrationInSubFrames = false;
+  webPreferences.contextIsolation = true;
+  webPreferences.sandbox = true;
+  webPreferences.webSecurity = true;
+  webPreferences.allowRunningInsecureContent = false;
+  webPreferences.webviewTag = false;
+  webPreferences.nodeIntegrationInWorker = false;
+  // 탭이 고른 저장 범위(설정 Data Storage)의 partition 만 허락한다. 모양이 맞지 않으면 기본 partition 이다.
+  // Electron 은 이 이벤트 전에 params.partition 을 webPreferences.partition 으로 옮겨 두고 guest 를 webPreferences 로 만든다. params 만 고치면 강제되지 않는다.
+  params.partition = isBrowserPartition(params.partition) ? params.partition : BROWSER_PARTITION;
+  webPreferences.partition = params.partition;
+  configureBrowserSession(session.fromPartition(params.partition));
+  if (!isBrowsableInGuest(params.src)) event.preventDefault();
 }
 
 function loadAppPage(entry: AppWindow) {
@@ -833,7 +839,7 @@ function forwardKey(event: Electron.Event, input: Electron.Input, strokes: Reado
   event.preventDefault();
   const target = windowByContents(source);
   if (!target) return;
-  const toPage = () => void target.win.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent("agent-nav:key", { detail: ${JSON.stringify(key)} }))`);
+  const toPage = () => void dispatchToPage(target.win.webContents, "agent-nav:key", key);
   // ⌘R 은 페이지가 처리하지만, 페이지가 오류 페이지거나 멈춰 있으면 들을 곳이 없다. 그때는 메인이 직접 다시 읽는다.
   if (stroke === RELOAD_STROKE) void reloadWindowCommand(target, toPage);
   else toPage();
@@ -853,7 +859,8 @@ function openExternalLink(url: string, from?: AppWindow | null) {
   if (notion?.via === "tab" || notion?.via === "screen") {
     // 같은 페이지가 이미 열린 탭이면 그 탭으로 가는 판단은 화면(web/notionStore.ts openNotionInApp)이 한다
     if (process.env.AGENT_NAV_OPEN_LOG) appendFileSync(process.env.AGENT_NAV_OPEN_LOG, `${notion.via}:${notion.url}\n`);
-    void (from ?? currentWindow())?.win.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent("agent-nav:open-notion", { detail: ${JSON.stringify(notion.url)} }))`);
+    const host = from ?? currentWindow();
+    if (host) void dispatchToPage(host.win.webContents, "agent-nav:open-notion", notion.url);
     return;
   }
   const target = notion ? notion.url : externalOpenUrl(url, saved);
@@ -970,7 +977,7 @@ async function dispatchNotificationAction(action: NotifyAction, mode: NotifyMode
   if (action.agentId === quickEntry.agentId && quickEntry.webContents) {
     notifyRoutes.push({ agentId: action.agentId, action: action.action, windowId: "mini", opened: false });
     if (mode === "route-and-show" && !quickEntry.visible) quickEntry.show();
-    void quickEntry.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent("agent-nav:notification", { detail: ${JSON.stringify(action)} }))`);
+    void dispatchToPage(quickEntry.webContents, "agent-nav:notification", action);
     return;
   }
   await routeToMainWindow(action, mode);
@@ -986,7 +993,7 @@ async function routeToMainWindow(action: NotifyAction, mode: NotifyMode = "route
   }
   notifyRoutes.push({ agentId: action.agentId, action: action.action, windowId: target.id, opened });
   if (mode === "route-and-show") bringToFront(target);
-  void target.win.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent("agent-nav:notification", { detail: ${JSON.stringify(action)} }))`);
+  void dispatchToPage(target.win.webContents, "agent-nav:notification", action);
 }
 
 function bringToFront(entry: AppWindow | null) {
@@ -1229,7 +1236,7 @@ async function openPrInMainWindow(url: string) {
     await whenAppReady(target);
   }
   bringToFront(target);
-  void target.win.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent("agent-nav:open-pr", { detail: ${JSON.stringify({ url, agentId })} }))`);
+  void dispatchToPage(target.win.webContents, "agent-nav:open-pr", { url, agentId });
 }
 
 function fromQuickPage(event: Electron.IpcMainInvokeEvent) {

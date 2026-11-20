@@ -6,22 +6,23 @@ export type NotionPinHandlerDeps = { notionPins: NotionPinStore; broadcast: (eve
 
 export function notionPinHandlers(deps: NotionPinHandlerDeps): HandlersFor<MethodsIn<"notion.pins">> {
   const { notionPins, broadcast } = deps;
+  const publishPins = () => broadcast({ type: "notionPins", pins: notionPins.list() });
   return {
     // NOTION: 사이드바 고정 페이지. 바뀔 때마다 목록 전체를 모든 화면에 보낸다.
     "notion.pins.list": () => notionPins.list(),
     "notion.pins.add": (params) => {
       const result = notionPins.add(params);
-      if (result.added) broadcast({ type: "notionPins", pins: notionPins.list() });
+      if (result.added) publishPins();
       return result;
     },
     "notion.pins.update": ({ id, patch }) => {
       const pin = notionPins.update(String(id), patch);
-      broadcast({ type: "notionPins", pins: notionPins.list() });
+      publishPins();
       return pin;
     },
     "notion.pins.remove": ({ id }) => {
       notionPins.remove(String(id));
-      broadcast({ type: "notionPins", pins: notionPins.list() });
+      publishPins();
       return null;
     },
     "notion.pins.move": ({ id, index }) => {
