@@ -9,6 +9,7 @@ import { applyLayoutPreset, closeGroup, closeInGroup, evenGroupSizes, flipGroupL
 import { useDefaults } from "./defaults";
 import { rpc } from "./rpc";
 import { runCommand } from "./shortcuts";
+import { useCommandKeycaps } from "./commandKeys";
 import { focusGroup, getState, setState, shownTabsOf, splitEditor, useStore, type DiffTab, type ScmDiffTab, type Tab } from "./store";
 import { defaultChangeScope, type ChangeScope } from "../shared/protocol";
 import { M } from "./scmStrings";
@@ -173,18 +174,28 @@ export function DiffTabActions({ activeKey }: { activeKey: string | null }) {
 export function EmptyGroup({ group }: { group: string }) {
   const lonely = useStore((s) => groupIdsOf(s.editorLayout).length < 2);
   return (
-    <div className="empty-group" data-testid="empty-group" data-group-empty={group}>
-      <span className="empty-group-title">{S.emptyGroupTitle}</span>
-      <div className="empty-group-hints">
-        <span>{S.emptyGroupOpenFile}</span>
-        <kbd>⌘P</kbd>
-        {!lonely && (
-          <>
-            <span>{S.emptyGroupCloseGroup}</span>
-            <kbd>⌘W</kbd>
-          </>
-        )}
+    <div className="empty-group" data-testid="empty-group" data-group-empty={group} data-several={!lonely || undefined}>
+      <div className="empty-group-commands">
+        <EmptyCommandRow command="newSession" icon="comment-discussion" label={S.newSession} run={() => runCommand("newSession")} />
+        <EmptyCommandRow command="commandPalette" icon="list-selection" label={S.emptyGroupAllCommands} run={() => runCommand("commandPalette")} />
+        <EmptyCommandRow command="quickOpen" icon="go-to-file" label={S.emptyGroupGoToFile} run={() => runCommand("quickOpen")} />
+        {!lonely && <EmptyCommandRow command="close" icon="close" label={S.emptyGroupCloseGroup} run={() => void closeGroup(group)} />}
       </div>
     </div>
+  );
+}
+
+function EmptyCommandRow({ command, icon, label, run }: { command: string; icon: string; label: string; run: () => void }) {
+  const keys = useCommandKeycaps(command);
+  return (
+    <button type="button" className="empty-group-row" onClick={run}>
+      <Codicon name={icon} />
+      <span className="empty-group-name">{label}</span>
+      <span className="empty-group-keys">
+        {keys.map((key, index) => (
+          <kbd key={index}>{key}</kbd>
+        ))}
+      </span>
+    </button>
   );
 }
