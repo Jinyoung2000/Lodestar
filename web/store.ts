@@ -576,6 +576,8 @@ const restoredLayout: LayoutMode | null = isLayoutMode(restored?.layoutMode) ? (
 const openerLayout: LayoutMode | null = pickFolderOnStart ? loadFocusedLayout() : null;
 const startLayout: LayoutMode = EMBED ? "chat" : startingMode({ restored: restoredLayout ?? openerLayout,defaultLayout: loadCachedDefaultLayout(), remember: loadCachedRemember(), last: loadLastLayout() });
 
+const EDITOR_ENTRY_PANELS = { focusSideOpen: true, sideTabKey: "files", bottomOpen: true, bottomTab: "terminal" } satisfies Partial<State>;
+
 let state: State = {
   connected: false,
   workspaces: [],
@@ -685,6 +687,7 @@ if (launchLayout) state = { ...state, ...layoutPatch(launchLayout, { activeTabKe
 state = { ...state, grid: reconcileGrid(state.grid, state.panes.map((p) => p.id), null) };
 state = sanitizeEditorGroups(state);
 state = settleTabs({ ...state, layoutMode: "chat" }, state);
+if (!EMBED && !restored && !launchLayout && state.layoutMode === "editor") state = { ...state, ...EDITOR_ENTRY_PANELS };
 
 const listeners = new Set<() => void>();
 
@@ -782,6 +785,7 @@ export function setState(patch: Partial<State> | ((prev: State) => Partial<State
   state = settleOwnedTabs(prev, state, applied);
   // FLOAT: editor 배치에서 고정 탭과 에디터 탭을 가르고, 에디터 탭을 열 때 오른쪽 패널을 따라 열지 않는다.
   state = settleLayout(prev, state, applied);
+  state = rememberSessionLayout(state, state);
   // B7: 활성 탭을 다른 그룹의 탭으로 바꾸면(탭을 열거나 누르는 모든 길) 그 그룹이 활성 그룹이 된다. 떠나는 그룹의 활성 탭은 groupActive 에 남긴다.
   // 활성 탭이 null 이면(보이는 탭이 없는 분할 그룹) 그룹은 그대로다
   if (state.activeTabKey !== null && state.activeTabKey !== prev.activeTabKey && state.activeGroupId === prev.activeGroupId) {
@@ -877,8 +881,7 @@ function settleLayout(prev: State, next: State, applied: Partial<State>): State 
 // 배치 모드를 바꾼다. Editor 로 가면 떠 있는 창을 펼쳐 보인다. 쓰는 중 바꾼 값은 Remember last layout 이 켜져 있을 때만 다음 실행에 쓰인다.
 export function setLayoutMode(mode: LayoutMode) {
   if (EMBED || state.layoutMode === mode) return;
-  // FOCUS: Editor 로 가면 대화가 보이는 쪽(떠 있는 창을 펼치거나 오른쪽 패널을 연다). 왼쪽 사이드바와 Chat 의 오른쪽 패널은 각자의 열림을 그대로 둔다.
-  setState({ layoutMode: mode, layoutTouched: true, ...(mode === "editor" ? { floatCollapsed: false, chatDockOpen: true } : {}) });
+  setState({ layoutMode: mode, layoutTouched: true, ...(mode === "editor" ? { floatCollapsed: false, chatDockOpen: true, ...EDITOR_ENTRY_PANELS } : {}) });
   saveLastLayout(mode);
 }
 
@@ -933,7 +936,7 @@ function reconcileLayoutSettings(settings: Settings, first: boolean) {
   if (chatDock !== state.chatDock) setState({ chatDock });
   if (!first || EMBED || restoredLayout || openerLayout || launchLayout || state.layoutTouched) return;
   const mode = startingMode({ restored: null, defaultLayout, remember, last: loadLastLayout() });
-  if (mode !== state.layoutMode) setState({ layoutMode: mode, ...(mode === "editor" ? { floatCollapsed: false } : {}) });
+  if (mode !== state.layoutMode) setState({ layoutMode: mode, ...(mode === "editor" ? { floatCollapsed: false, ...EDITOR_ENTRY_PANELS } : {}) });
 }
 
 // React 밖(테마 적용 등)에서 상태 변화를 듣는다.
@@ -982,7 +985,7 @@ function sanitizeEditorGroups(s: State): State {
   const fixed: State = { ...s, tabs, editorLayout: layout, filesIndex: Math.min(s.filesIndex, mainTabs(tabs).length) };
   if (!hasGroup(layout, fixed.activeGroupId)) fixed.activeGroupId = MAIN_GROUP;
   const valid = (key: string | null) => key !== null && (isPinnedTab(key) || tabs.some((t) => t.key === key));
-  if (!valid(fixed.activeTabKey) || (groupOfKey(tabs, fixed.activeTabKey) !== fixed.activeGroupId)) fixed.activeTabKey = fixed.activeGroupId === MAIN_GROUP ? "changes" : (tabsOfGroup(tabs, fixed.activeGroupId)[0]?.key ?? null);
+  if (!valid(fixed.activeTabKey) || (groupOfKey(tabs, fixed.activeTabKey) !== fixed.activeGroupId)) fixed.activeTabKey = fixed.activeGroupId === MAIN_GROUP ? (isPinnedTab(s.sideTabKey) ? s.sideTabKey : "changes") : (tabsOfGroup(tabs, fixed.activeGroupId)[0]?.key ?? null);
   return fixed;
 }
 

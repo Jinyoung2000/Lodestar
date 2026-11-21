@@ -22,7 +22,8 @@ export function FocusSideBar({ width }: { width: number }) {
         <h2 className="focus-side-title">{S.focusSideTitle[view]}</h2>
         <span className="spacer" />
         {/* Explorer 의 머리줄 단추는 FilesTab 이 이 자리로 portal 한다. FilesTab 은 뷰를 바꿔도 마운트된 채라 자리는 늘 두고 숨기기만 한다. */}
-        <span className="focus-side-actions" role="toolbar" aria-label={S.filesHeaderAria} hidden={view !== "files"} />
+        <span className="focus-side-actions" data-slot="files" role="toolbar" aria-label={S.filesHeaderAria} hidden={view !== "files"} />
+        <span className="focus-side-actions" data-slot="scm" role="toolbar" aria-label={S.scmTitleActionsAria} hidden={view !== "scm"} />
         {/* 사이드바는 좁아서(기본 300px) Changes 의 목록 보기 전환만 남는다. 넓은 카드 보기의 단추(최대화, 파일 목록)는 쓰지 않는다. */}
         <MainActions changesTab={view === "changes"} searchTab={view === "search"} narrow maximized={false} onMaximize={() => undefined} maximize={false} />
         {view === "card" && (

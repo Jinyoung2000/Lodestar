@@ -150,14 +150,14 @@ export function ChangesPanel({ agent }: { agent: FolderAgent }) {
 function KeepUndoRow({ agent, files }: { agent: FolderAgent; files: ChangedFile[] }) {
   return (
     <div className="changes-keep-row">
-      <Button size="sm" variant="secondary" title={S.keepAllTitle} onClick={() => void keepAllChanges(agent.id, agent.workspaceId, files).catch((e: Error) => flash(e.message))}>
-        <Codicon name="check-all" size={12} />
+      <button type="button" className="view-button" data-primary="" title={S.keepAllTitle} onClick={() => void keepAllChanges(agent.id, agent.workspaceId, files).catch((e: Error) => flash(e.message))}>
+        <Codicon name="check-all" />
         {S.keepAll}
-      </Button>
-      <Button size="sm" variant="secondary" title={S.undoAllTitle} onClick={() => void undoAllChanges(agent.id, files).catch((e: Error) => flash(S.discardFailed(e.message), "error"))}>
-        <Codicon name="discard" size={12} />
+      </button>
+      <button type="button" className="view-button" title={S.undoAllTitle} onClick={() => void undoAllChanges(agent.id, files).catch((e: Error) => flash(S.discardFailed(e.message), "error"))}>
+        <Codicon name="discard" />
         {S.undoAll}
-      </Button>
+      </button>
     </div>
   );
 }

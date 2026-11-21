@@ -6,7 +6,7 @@ import { basename, dirname, isAbsolute, join, normalize, relative, resolve } fro
 import { classifyGitFailure, type GitProblem, type GitVerb } from "../shared/gitProblems";
 import { buildHunkPatch, newFileDiff, parseGitDiff, patchSafePath, type ParsedDiff } from "../shared/hunkPatch";
 import { parseStatus, type ScmCode, type ScmCommit, type ScmCommitFile, type ScmCommitOptions, type ScmCommitResult, type ScmDiffSection, type ScmDiscardResult, type ScmEntry, type ScmFileDiff, type ScmOperation, type ScmOperationResult, type ScmPullMode, type ScmRepoWorktrees, type ScmStatus, type ScmSyncResult, type ScmWorktree } from "../shared/scm";
-import { applyToIndex, fetch as gitFetch, git, info, pull, push, repoRoot } from "./git";
+import { applyToIndex, fetch as gitFetch, git, info, pull, push, repoRoot, revertInWorktree } from "./git";
 import { realDir, realPathLoose } from "./paths";
 import { moveToTrash, pruneEmptyDirs, trashDir } from "./trash";
 
@@ -564,6 +564,26 @@ export async function fileDiff(cwd: string, relInput: string, section: ScmDiffSe
     tooLarge,
     hunks: binary || tooLarge ? [] : parsed.hunks.map(({ text: _text, ...info }) => info),
   };
+}
+
+export async function discardHunk(cwd: string, relInput: string, index: number, hash: string): Promise<void> {
+  const root = await needRoot(cwd);
+  const rel = scmRelPath(root, relInput);
+  if (!patchSafePath(rel)) throw new Error(SCM_MESSAGES.hunkPath);
+  const current = await status(cwd);
+  const loaded = await loadDiff(root, current, rel, "changes");
+  if (loaded?.parsed.binary) throw new Error(SCM_MESSAGES.hunkBinary);
+  const hunk = loaded?.parsed.hunks[index];
+  if (!loaded || !hunk || hunk.hash !== hash) throw new Error(SCM_MESSAGES.hunkStale);
+  if (loaded.parsed.kind === "new") {
+    await discard(cwd, [rel]);
+    return;
+  }
+  try {
+    await revertInWorktree(root, buildHunkPatch(rel, loaded.parsed, hunk));
+  } catch (error) {
+    throw new Error(gitOutput(error));
+  }
 }
 
 // hunk 하나를 인덱스에 올리거나(changes) 내린다(staged). 화면이 diff 를 읽은 뒤 파일이 바뀌었으면 hunk 지문이 달라 거절한다.

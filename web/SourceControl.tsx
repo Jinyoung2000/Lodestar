@@ -1,14 +1,16 @@
 import "./scm.css";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ScmStatus } from "../shared/scm";
 import { activeAgentOf } from "./activeAgentOf";
-import { Check, Codicon } from "./icons";
+import { Codicon } from "./icons";
 import { useScmActions, type ScmActions } from "./scmActions";
 import { scmDraftKey, setScmDraft, setScmTree, useScmStatus, useScmView } from "./scmState";
 import { M } from "./scmStrings";
-import { ScmCounts, ScmGraph, ScmWorktrees } from "./ScmExtras";
+import { ScmGraph, ScmWorktrees } from "./ScmExtras";
 import { ScmGroup } from "./ScmRows";
 import { inFolder, setState, useStore } from "./store";
+import { S } from "./strings";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
@@ -49,6 +51,8 @@ function ScmLoaded({ agentId, workspaceId, status, reload }: { agentId: string |
   const message = useScmView((v) => v.drafts[draftKey] ?? "");
   const tree = useScmView((v) => v.tree);
   const actions = useScmActions({ agentId, workspaceId, status, reload, message, setMessage: (text) => setScmDraft(draftKey, text) });
+  const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null);
+  const findTitleSlot = useCallback((element: HTMLDivElement | null) => setTitleSlot(element?.closest(".focus-side")?.querySelector<HTMLElement>(SCM_TITLE_SLOT) ?? null), []);
   // 커밋, 브랜치, 앞섬이 바뀌면 Worktrees 와 Graph 를 다시 읽는다
   const refreshKey = `${status.repoRoot}|${status.branch}|${status.lastCommit?.hash}|${status.ahead}|${status.behind}`;
   const nothing = status.staged.length + status.changes.length + status.conflicts.length === 0;
@@ -58,9 +62,10 @@ function ScmLoaded({ agentId, workspaceId, status, reload }: { agentId: string |
     // 메시지를 일부러 비웠을 때 다시 채우지 않도록 병합이 바뀔 때만 본다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.operation, status.mergeMessage, draftKey]);
+  const titleActions = <ScmTitleActions status={status} tree={tree} actions={actions} reload={reload} />;
   return (
-    <div className="scm-view" aria-label={M.viewAria}>
-      <ScmHead status={status} tree={tree} actions={actions} reload={reload} />
+    <div className="scm-view" aria-label={M.viewAria} ref={findTitleSlot}>
+      {titleSlot ? createPortal(titleActions, titleSlot) : <div className="scm-head" role="toolbar" aria-label={S.scmTitleActionsAria}>{titleActions}</div>}
       <div className="scm-top">
         <CommitBox status={status} message={message} actions={actions} onMessage={(text) => setScmDraft(draftKey, text)} />
       </div>
@@ -85,21 +90,17 @@ function ScmLoaded({ agentId, workspaceId, status, reload }: { agentId: string |
   );
 }
 
-// 머리줄: 브랜치와 앞섬/뒤처짐, 목록/트리 전환, 새로 고침, 더보기(pull, push, fetch)
-function ScmHead({ status, tree, actions, reload }: { status: ScmStatus; tree: boolean; actions: ScmActions; reload: () => Promise<void> }) {
-  // 리베이스 중에는 HEAD 가 떨어져 있으니(detached) 리베이스하는 브랜치 이름을 보인다
-  const rebaseBranch = status.operation === "rebase" ? status.operationText?.split(" ")[0] || undefined : undefined;
+const SCM_TITLE_SLOT = '.focus-side-actions[data-slot="scm"]';
+
+function hasWorkOf(status: ScmStatus) {
+  return status.staged.length + status.changes.length + status.conflicts.length > 0 || status.merging;
+}
+
+function ScmTitleActions({ status, tree, actions, reload }: { status: ScmStatus; tree: boolean; actions: ScmActions; reload: () => Promise<void> }) {
   return (
-    <div className="scm-head">
-      <span className="scm-branch" title={status.upstream ? M.upstreamOf(status.upstream) : undefined} aria-label={M.branchAria}>
-        <Codicon name="git-branch" />
-        <span className="scm-branch-name">{rebaseBranch ?? status.branch ?? M.detached}</span>
-        {status.detached && !rebaseBranch && <span className="scm-dir">{M.detached}</span>}
-      </span>
-      <ScmCounts ahead={status.ahead} behind={status.behind} />
-      <span className="spacer" />
-      <Button size="icon" aria-label={tree ? M.viewAsList : M.viewAsTree} title={tree ? M.viewAsList : M.viewAsTree} onClick={() => setScmTree(!tree)}>
-        <Codicon name={tree ? "list-flat" : "list-tree"} />
+    <>
+      <Button size="icon" aria-label={M.commit} title={M.commit} disabled={actions.busy || !hasWorkOf(status)} onClick={() => void actions.commit({})}>
+        <Codicon name="check" />
       </Button>
       <Button size="icon" aria-label={M.refresh} title={M.refresh} onClick={() => void reload()}>
         <Codicon name="refresh" />
@@ -111,6 +112,8 @@ function ScmHead({ status, tree, actions, reload }: { status: ScmStatus; tree: b
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setScmTree(!tree)}>{tree ? M.viewAsList : M.viewAsTree}</DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem disabled={!status.upstream} onSelect={() => void actions.sync("pull")}>
             {M.pull}
           </DropdownMenuItem>
@@ -132,7 +135,7 @@ function ScmHead({ status, tree, actions, reload }: { status: ScmStatus; tree: b
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </>
   );
 }
 
@@ -146,7 +149,8 @@ function CommitBox({ status, message, actions, onMessage }: { status: ScmStatus;
     if (Date.now() - focusRequest < 3000) field.current?.focus();
     setState({ focusScmMessage: null });
   }, [focusRequest]);
-  const hasWork = status.staged.length + status.changes.length + status.conflicts.length > 0 || status.merging;
+  const hasWork = hasWorkOf(status);
+  const syncable = !hasWork && !!status.upstream && status.ahead + status.behind > 0;
   // 입력이 빈 채 Commit 을 눌러 알림이 뜬 경우 입력으로 돌아간다
   const commit = (options: Parameters<ScmActions["commit"]>[0]) => {
     if (!message.trim() && !options.amend) field.current?.focus();
@@ -172,42 +176,53 @@ function CommitBox({ status, message, actions, onMessage }: { status: ScmStatus;
             }
           }}
         />
-        <Button size="icon" className="scm-generate" aria-label={actions.generating ? M.generating : M.generate} title={actions.generating ? M.generating : M.generate} disabled={actions.generating || !hasWork} onClick={() => void actions.generate()}>
-          <Codicon name={actions.generating ? "loading" : "sparkle"} spin={actions.generating} />
-        </Button>
+        <span className="scm-generate">
+          <Button size="icon" aria-label={actions.generating ? M.generating : M.generate} title={actions.generating ? M.generating : M.generate} disabled={actions.generating || !hasWork} onClick={() => void actions.generate()}>
+            <Codicon name={actions.generating ? "loading" : "sparkle"} spin={actions.generating} />
+          </Button>
+        </span>
       </div>
-      <div className="scm-commit-buttons">
-        <Button variant="primary" className="scm-commit" data-idle={!hasWork || undefined} disabled={actions.busy || !hasWork} onClick={() => void commit({})}>
-          <Check size={14} />
-          {M.commit}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="primary" className="scm-commit-more" data-idle={!hasWork || undefined} aria-label={M.commitMore} title={M.commitMore} disabled={actions.busy}>
-              <Codicon name="chevron-down" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem disabled={!hasWork} onSelect={() => void commit({})}>
-              {M.commit}
-              <span className="faint xs menu-hint">⌘↵</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!hasWork} onSelect={() => void commit({ then: "push" })}>
-              {M.commitAndPush}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!hasWork} onSelect={() => void commit({ then: "sync" })}>
-              {M.commitAndSync}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem disabled={!status.hasHead} onSelect={() => void commit({ amend: true })}>
-              {M.commitAmend}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!status.hasHead} onSelect={() => void actions.undoLastCommit()}>
-              {M.undoLastCommit}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {syncable ? (
+        <div className="scm-commit-buttons">
+          <Button variant="primary" className="scm-commit scm-sync" title={M.aheadBehind(status.ahead, status.behind)} disabled={actions.busy} onClick={() => void actions.syncChanges()}>
+            <Codicon name="sync" />
+            {M.syncChangesLabel(status.ahead, status.behind)}
+          </Button>
+        </div>
+      ) : (
+        <div className="scm-commit-buttons">
+          <Button variant="primary" className="scm-commit" data-idle={!hasWork || undefined} disabled={actions.busy || !hasWork} onClick={() => void commit({})}>
+            <Codicon name="check" />
+            {M.commit}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="primary" className="scm-commit-more" data-idle={!hasWork || undefined} aria-label={M.commitMore} title={M.commitMore} disabled={actions.busy}>
+                <Codicon name="chevron-down" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem disabled={!hasWork} onSelect={() => void commit({})}>
+                {M.commit}
+                <span className="faint xs menu-hint">⌘↵</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!hasWork} onSelect={() => void commit({ then: "push" })}>
+                {M.commitAndPush}
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!hasWork} onSelect={() => void commit({ then: "sync" })}>
+                {M.commitAndSync}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={!status.hasHead} onSelect={() => void commit({ amend: true })}>
+                {M.commitAmend}
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!status.hasHead} onSelect={() => void actions.undoLastCommit()}>
+                {M.undoLastCommit}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </div>
   );
 }

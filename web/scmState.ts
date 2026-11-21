@@ -12,13 +12,14 @@ type View = { tree: boolean; collapsed: Partial<Record<ScmSection, boolean>>; dr
 
 const KEY = "agent-nav:scm-view";
 
-// 기본은 트리다(사용자 선호). 저장은 "목록을 직접 골랐는가"(list) 로 한다. 옛 저장본의 tree: false 는 기본값이 목록이던 때 그대로 적힌 값이라 읽지 않는다.
+const DEFAULT_COLLAPSED: View["collapsed"] = { worktrees: true };
+
 function load(): Pick<View, "tree" | "collapsed"> {
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<View> & { list?: boolean };
-    return { tree: raw.list !== true, collapsed: raw.collapsed && typeof raw.collapsed === "object" ? raw.collapsed : {} };
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<View> & { treeChosen?: boolean };
+    return { tree: raw.treeChosen === true, collapsed: { ...DEFAULT_COLLAPSED, ...(raw.collapsed && typeof raw.collapsed === "object" ? raw.collapsed : {}) } };
   } catch {
-    return { tree: true, collapsed: {} };
+    return { tree: false, collapsed: DEFAULT_COLLAPSED };
   }
 }
 
@@ -28,7 +29,7 @@ const listeners = new Set<() => void>();
 function set(patch: Partial<View>) {
   view = { ...view, ...patch };
   try {
-    localStorage.setItem(KEY, JSON.stringify({ list: !view.tree, collapsed: view.collapsed }));
+    localStorage.setItem(KEY, JSON.stringify({ treeChosen: view.tree, collapsed: view.collapsed }));
   } catch {
     // 저장이 막힌 환경에서는 이번 실행 동안만 유지한다
   }

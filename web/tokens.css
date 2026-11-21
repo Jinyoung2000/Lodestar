@@ -185,6 +185,11 @@
   --peek-editor-match-bg: #bb800966;
   --peek-badge-bg: #616161;
   --peek-badge-fg: #f8f8f8;
+  --badge-bg: #616161;
+  --badge-fg: #f8f8f8;
+  --button-border: #ffffff1a;
+  --button-hover-bg: #026ec1;
+  --button-secondary-hover-bg: #2b2b2b;
   --statusbar-bg: #181818;
   --statusbar-fg: #cccccc;
   --statusbar-border: #2b2b2b;
@@ -274,6 +279,7 @@
   --size-row-lg: 28px;
   --size-control-sm: 24px;
   --size-control: 28px;
+  --size-view-button: 26px;
   --size-pane-header: 35px;
   --size-tabs-header: 33px;
   --size-chat-header: 32px;
@@ -664,6 +670,11 @@
   --peek-editor-match-bg: #bb800966;
   --peek-badge-bg: #cccccc;
   --peek-badge-fg: #3b3b3b;
+  --badge-bg: #cccccc;
+  --badge-fg: #3b3b3b;
+  --button-border: #0000001a;
+  --button-hover-bg: #0258a8;
+  --button-secondary-hover-bg: #cccccc;
   --statusbar-bg: #f8f8f8;
   --statusbar-fg: #3b3b3b;
   --statusbar-border: #e5e5e5;
@@ -905,6 +916,8 @@
   --peek-editor-match-bg: #114957;
   --peek-badge-bg: #868a91;
   --peek-badge-fg: #000000;
+  --badge-bg: #868a91;
+  --badge-fg: #000000;
   --statusbar-bg: #2b2d30;
   --statusbar-fg: #9da0a8;
   --statusbar-border: #393b40;
@@ -1091,6 +1104,8 @@
   --peek-editor-match-bg: #fcd47e;
   --peek-badge-bg: #a8adbd;
   --peek-badge-fg: #ffffff;
+  --badge-bg: #a8adbd;
+  --badge-fg: #ffffff;
   --statusbar-bg: #f7f8fa;
   --statusbar-fg: #6c707e;
   --statusbar-border: #ebecf0;

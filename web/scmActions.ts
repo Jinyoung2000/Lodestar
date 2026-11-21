@@ -150,6 +150,12 @@ export function useScmActions({ agentId, workspaceId, status, reload, message, s
     });
   };
 
+  const syncChanges = () =>
+    once(async () => {
+      if (status.behind > 0 && (await pullFlow(target)) !== "ok") return;
+      if (status.ahead > 0) await pushFlow(target);
+    });
+
   // FIX6B: 진행 중인 병합이나 리베이스를 이어간다. 충돌이 남았거나 다음 커밋에서 또 충돌하면 멈추고 이유를 알린다.
   const continueOperation = () =>
     run(async () => {
@@ -184,7 +190,7 @@ export function useScmActions({ agentId, workspaceId, status, reload, message, s
   // 변경 보기: 세션이 있든 없든 이 보기가 보여 주는 저장소의 인덱스 기준 diff 탭. 충돌 파일은 충돌 해결 도구가 붙는 편집기로 간다.
   const openChanges = (entry: ScmEntry, group: "merge" | "staged" | "changes", side = false) => openScmChanges({ ...target, workspaceId }, entry, group, side);
 
-  return { busy, generating, failure, dismissFailure: () => setFailure(null), stage, unstage, discard, commit, commitWithoutHooks, undoLastCommit, generate, sync, continueOperation, abortOperation, openEntry, openChanges, confirmDialog };
+  return { busy, generating, failure, dismissFailure: () => setFailure(null), stage, unstage, discard, commit, commitWithoutHooks, undoLastCommit, generate, sync, syncChanges, continueOperation, abortOperation, openEntry, openChanges, confirmDialog };
 }
 
 export type ScmActions = ReturnType<typeof useScmActions>;

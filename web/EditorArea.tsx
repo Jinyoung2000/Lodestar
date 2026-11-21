@@ -12,7 +12,7 @@ import { DiffTab } from "./DiffView";
 import { ScmDiffView } from "./ScmDiffView";
 import { type EditorLayout, groupIdsOf, MAIN_GROUP, mainTabs, tabsOfGroup } from "./editorGroups";
 import { closable } from "./editorTabs";
-import { EmptyGroup, GroupMoreMenu, tabName } from "./EditorGroupExtras";
+import { DiffTabActions, diffScopeLabel, EmptyGroup, GroupMoreMenu, tabName } from "./EditorGroupExtras";
 import { RecentEditors } from "./RecentEditors";
 import { moveEditorToGroup } from "./editorMove";
 import { closeInGroup, setSticky, toggleMaximizeGroup } from "./groupActions";
@@ -263,6 +263,7 @@ function GroupStrip({ id, activeKey, area, onMenu }: { id: string; activeKey: st
       <div className="tabs-tail">
         {main && <MainActions changesTab={activeKey === "changes"} narrow={area.narrow} maximized={area.maximized} onMaximize={area.onMaximize} />}
         {searchTabKey && <SearchDetailsButton tabKey={searchTabKey} />}
+        <DiffTabActions activeKey={activeKey} />
         <SplitButton group={id} activeKey={activeKey} />
         {!(main && activeKey === "changes") && <GroupMoreMenu group={id} activeKey={activeKey} />}
         {main && !area.narrow && <ListToggle changesTab={activeKey === "changes"} />}
@@ -422,7 +423,7 @@ function TabItem({ tab, activeKey, onMenu }: { tab: Tab; activeKey: string | nul
   // 대화 탭은 세션 제목이 바뀌면 따라간다
   const chatTitle = useStore((s) => (tab.kind === "chat" ? s.agents.find((a) => a.id === tab.agentId)?.title : undefined));
   const name = chatTitle || tabName(tab);
-  const title = tab.kind === "search" ? S.searchTabTitle(tab.query) : tab.kind === "pr" ? P.tabTitle(tab.repo, tab.number) : tab.kind === "browser" ? tabTooltip(tab.title, tab.url) : tab.kind === "untitled" || tab.kind === "chat" ? name : tab.kind === "diff" ? `${S.diffTab} ${tab.path}` : tab.kind === "scm" ? M.scmTabTitle(tab.section, tab.path) : tab.path;
+  const title = tab.kind === "search" ? S.searchTabTitle(tab.query) : tab.kind === "pr" ? P.tabTitle(tab.repo, tab.number) : tab.kind === "browser" ? tabTooltip(tab.title, tab.url) : tab.kind === "untitled" || tab.kind === "chat" ? name : tab.kind === "diff" ? `${tab.path} (${diffScopeLabel(tab)})` : tab.kind === "scm" ? M.scmTabTitle(tab.section, tab.path) : tab.path;
   const closeLabel = tab.kind === "file" || tab.kind === "diff" || tab.kind === "scm" || tab.kind === "replace" ? tab.path : name;
   const fileName = tab.kind === "search" || tab.kind === "browser" || tab.kind === "untitled" || tab.kind === "pr" || tab.kind === "chat" ? name : tab.path.slice(tab.path.lastIndexOf("/") + 1);
   return (
@@ -455,8 +456,6 @@ function TabItem({ tab, activeKey, onMenu }: { tab: Tab; activeKey: string | nul
         {tab.kind === "pr" && <Codicon name="git-pull-request" />}
         {tab.kind === "chat" && <Codicon name="comment-discussion" />}
         {(tab.kind === "file" || tab.kind === "diff" || tab.kind === "scm" || tab.kind === "untitled" || tab.kind === "replace") && <FileTypeIcon name={fileName} />}
-        {tab.kind === "diff" && <span className="muted">{S.diffTab}</span>}
-        {tab.kind === "scm" && <span className="muted">{tab.section === "staged" ? M.sectionStaged : S.diffTab}</span>}
         {deleted ? <span className="tab-name-deleted">{name}</span> : name}
         {deleted && <span className="tab-deleted">{FV.deletedSuffix}</span>}
       </button>
@@ -926,7 +925,7 @@ function TabBody({ tab }: { tab: Tab }) {
   useLayoutEffect(() => () => wrapper.remove(), [wrapper]);
   // 보이지 않는 세션의 PR 탭은 마운트된 채 남지만 활성이 되는 일은 없다
   const active = useStore((s) => isShown(tab, shownAgentsOf(s)) && (group === MAIN_GROUP ? editorKeyOfGroup(s, group) : activeKeyOfGroup(s, group)) === tab.key);
-  const content = tab.kind === "file" || tab.kind === "untitled" ? <Editor tab={tab} active={active} /> : tab.kind === "browser" ? <BrowserTabView tab={tab} active={active} /> : tab.kind === "search" ? <SearchTabView tab={tab} active={active} /> : tab.kind === "pr" ? <PullRequestTab tab={tab} active={active} /> : tab.kind === "scm" ? <ScmDiffView tab={tab} active={active} /> : tab.kind === "replace" ? <ReplacePreviewView tab={tab} active={active} /> : tab.kind === "chat" ? <ChatTabView agentId={tab.agentId} tabKey={tab.key} active={active} /> : <DiffTab agentId={tab.agentId} workspaceId={tab.workspaceId} path={tab.path} changeScope={tab.scope} active={active} />;
+  const content = tab.kind === "file" || tab.kind === "untitled" ? <Editor tab={tab} active={active} /> : tab.kind === "browser" ? <BrowserTabView tab={tab} active={active} /> : tab.kind === "search" ? <SearchTabView tab={tab} active={active} /> : tab.kind === "pr" ? <PullRequestTab tab={tab} active={active} /> : tab.kind === "scm" ? <ScmDiffView tab={tab} active={active} /> : tab.kind === "replace" ? <ReplacePreviewView tab={tab} active={active} /> : tab.kind === "chat" ? <ChatTabView agentId={tab.agentId} tabKey={tab.key} active={active} /> : <DiffTab tabKey={tab.key} agentId={tab.agentId} workspaceId={tab.workspaceId} path={tab.path} changeScope={tab.scope} active={active} />;
   return createPortal(content, wrapper);
 }
 

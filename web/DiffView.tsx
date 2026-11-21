@@ -2,26 +2,29 @@ import { getChunks, getOriginalDoc, unifiedMergeView } from "@codemirror/merge";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { defaultChangeScope, type ChangedFile, type ChangeScope } from "../shared/protocol";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode } from "react";
 import { useDefaults } from "./defaults";
 import { inlineDiffSource } from "./diffFeedbackEditor";
 import { useFeedbackReveal } from "./diffFeedbackState";
-import { FILE_REVISION_EVENT } from "./changeCommands";
+import { discardChangedFile, FILE_REVISION_EVENT, keepChangedFile } from "./changeCommands";
 import { DIFF_CONFIG } from "./diffMarks";
+import { chunkPosition, inlineChunkControls, type ChunkPosition } from "./diffChunkHover";
 import { revertedNewFile } from "./diffChunks";
-import { COLLAPSE_UNCHANGED, diffCodeExtensions, mountSplitDiff, revealLine, type DiffHandle, type DiffHooks } from "./diffSplit";
+import { COLLAPSE_UNCHANGED, diffCodeExtensions, mountSplitDiff, revealLine, stepChunk, type DiffHandle, type DiffHooks } from "./diffSplit";
 import { bindDiffView, diffLspTarget, initialModifiedText, type DiffLspTarget } from "./diffLsp";
 import { isMirroredUpdate } from "./viewMirror";
 import { DiffContextMenu } from "./LspMenu";
 import { chooseDiffMode, reportNarrow, SPLIT_GAP, SPLIT_MIN_PANE, splitFits, useDiffView, useSplitNarrow } from "./diffMode";
-import { DiffViewToggle } from "./DiffViewToggle";
+import { Breadcrumbs } from "./Breadcrumbs";
+import { registerDiffNav } from "./diffNav";
 import { subscribeEditorFont } from "./editorFont";
 import { rpc } from "./rpc";
-import { flash, refreshGit, useStore } from "./store";
+import { flash, openFile, refreshGit, useStore } from "./store";
 import { onWorkspaceChanged } from "./workspaceEvents";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { S } from "./strings";
 import { Button } from "./ui/button";
+import { Codicon } from "./icons";
 
 const REVEAL_FRESH_MS = 4000;
 const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"]);
@@ -77,13 +80,14 @@ export function BaseLoadFailed({ message, onRetry }: { message: string; onRetry:
 
 // scope 는 헤더의 "Split needs more width" 표시가 어느 diff 들을 보는지 가르는 이름이다 (같은 패널의 diff 끼리 같은 scope).
 // collapse 는 바뀌지 않은 줄을 접어 둘지(기본 켬). 카드 머리의 Collapse Unchanged Regions 가 끈다.
-type Props = { agentId: string; workspaceId: string; path: string; original: string | null; scope: string; onResolved?: (resolved: boolean) => void; collapse?: boolean; wrap?: boolean; readOnly?: boolean };
+type Props = { agentId: string; workspaceId: string; path: string; original: string | null; scope: string; onResolved?: (resolved: boolean) => void; collapse?: boolean; wrap?: boolean; readOnly?: boolean; handleRef?: MutableRefObject<DiffHandle | null>; onPosition?: (position: ChunkPosition) => void };
 
 // 파일 diff. 보기는 Inline(한 열, unified)과 Split(기준 왼쪽, 현재 오른쪽) 둘이고, 덩어리의 "유지"는 기준을 그 덩어리만큼 앞으로 옮기고(데몬에 저장),
 // "되돌리기"는 파일을 그 덩어리만큼 수정 전으로 되돌려 디스크에 쓴다. 두 보기가 같은 hooks 를 거치므로 결과가 같다.
-export function FileDiff({ agentId, workspaceId, path, original, scope, onResolved, collapse = true, wrap = false, readOnly = false }: Props) {
+export function FileDiff({ agentId, workspaceId, path, original, scope, onResolved, collapse = true, wrap = false, readOnly = false, handleRef: sharedHandle, onPosition }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const handleRef = useRef<DiffHandle | null>(null);
+  const ownHandle = useRef<DiffHandle | null>(null);
+  const handleRef = sharedHandle ?? ownHandle;
   // 기준은 처음 열 때 값으로 시작하고, 이후엔 에디터 안의 "유지" 로만 바뀐다. 보기를 바꿔 다시 만들 때도 이 값을 쓴다.
   const originalRef = useRef(original ?? "");
   // original 이 null 이면 기준에 이 파일이 없다(에이전트가 새로 만든 파일). Keep 으로 기준에 내용이 생기면 더는 아니다.
@@ -198,6 +202,7 @@ export function FileDiff({ agentId, workspaceId, path, original, scope, onResolv
         void rpc.call("changes.setOriginal", { agentId, path, original: next });
       },
       onResolved: (resolved) => onResolved?.(resolved),
+      onPosition: (position) => onPosition?.(position),
     };
 
     const known = textRef.current?.key === diskKey ? textRef.current : null;
@@ -288,8 +293,9 @@ function mountInlineDiff(parent: HTMLElement, { agentId, path, original, text, h
       doc: text,
       extensions: [
         diffCodeExtensions(path, wrap, { agentId, path, diff: inlineDiffSource }, lsp),
-        unifiedMergeView({ original, mergeControls: renderControls, collapseUnchanged: collapse ? COLLAPSE_UNCHANGED : undefined, diffConfig: DIFF_CONFIG }),
+        unifiedMergeView({ original, mergeControls: false, collapseUnchanged: collapse ? COLLAPSE_UNCHANGED : undefined, diffConfig: DIFF_CONFIG }),
         EditorView.updateListener.of((update) => {
+          hooks.onPosition?.(chunkPosition(update.state));
           if (update.docChanged && !isMirroredUpdate(update)) hooks.onText(update.state.doc.toString(), update.transactions.some((tr) => tr.isUserEvent("revert")));
           const nextOriginal = getOriginalDoc(update.state).toString();
           hooks.onOriginal(nextOriginal);
@@ -299,13 +305,17 @@ function mountInlineDiff(parent: HTMLElement, { agentId, path, original, text, h
     }),
   });
   hooks.onResolved(getChunks(view.state)?.chunks.length === 0);
+  hooks.onPosition?.(chunkPosition(view.state));
   const unbind = lsp ? bindDiffView(lsp, view) : null;
+  const uncontrol = inlineChunkControls(view);
   return {
     text: () => view.state.doc.toString(),
     measure: () => view.requestMeasure(),
+    step: (direction) => stepChunk(view, direction),
     reveal: (line) => revealLine(view, line),
     lspView: lsp ? view : null,
     destroy: () => {
+      uncontrol();
       unbind?.();
       view.destroy();
     },
@@ -316,23 +326,20 @@ function mountInlineDiff(parent: HTMLElement, { agentId, path, original, text, h
 export function relabelCollapsed(root: HTMLElement) {
   for (const el of root.querySelectorAll<HTMLElement>(".cm-collapsedLines")) {
     const m = /(\d+) unchanged lines/.exec(el.textContent ?? "");
-    if (m) el.textContent = `${m[1]} hidden lines`;
+    if (!m) continue;
+    const inner = document.createElement("span");
+    inner.className = "cm-collapsed-inner";
+    const icon = document.createElement("span");
+    icon.className = "codicon codicon-unfold";
+    icon.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.textContent = S.hiddenLines(Number(m[1]));
+    inner.append(icon, label);
+    el.replaceChildren(inner);
   }
 }
 
-// 덩어리 버튼: 작은 고스트 버튼. 모양은 Editor.tsx 의 editorTheme(.cm-chunkButtons) 가 정한다.
-function renderControls(type: "reject" | "accept", action: (e: MouseEvent) => void) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = type === "accept" ? S.keep : S.undo;
-  button.title = type === "accept" ? S.keepChunk : S.undoChunk;
-  button.addEventListener("mousedown", (e) => e.preventDefault());
-  // 더블클릭의 두 번째 클릭은 덩어리가 사라진 뒤 같은 자리로 밀려 온 다른 덩어리의 단추에 떨어질 수 있다. 첫 클릭만 받는다.
-  button.addEventListener("click", (e) => e.detail <= 1 && action(e));
-  return button;
-}
-
-export function DiffTab({ agentId, workspaceId, path, changeScope, active }: { agentId: string; workspaceId: string; path: string; changeScope?: ChangeScope; active: boolean }) {
+export function DiffTab({ tabKey, agentId, workspaceId, path, changeScope, active }: { tabKey: string; agentId: string; workspaceId: string; path: string; changeScope?: ChangeScope; active: boolean }) {
   const { loaded, original, kept, error, retry } = useOriginal(agentId, path, changeScope);
   const [resolved, setResolved] = useState(false);
   const workspace = useStore((s) => s.workspaces.find((w) => w.id === workspaceId));
@@ -346,6 +353,9 @@ export function DiffTab({ agentId, workspaceId, path, changeScope, active }: { a
   const relative = workspace && path.startsWith(`${workspace.dir}/`) ? path.slice(workspace.dir.length + 1) : path;
   const scope = `tab:${agentId}:${path}`;
   const narrow = useSplitNarrow(`${scope}|`);
+  const handle = useRef<DiffHandle | null>(null);
+  const [position, setPosition] = useState<ChunkPosition>({ index: 0, count: 0 });
+  const changed = useStore((s) => s.gitChanges[agentId]?.files.find((f) => f.path === path));
   // 변경 목록 행의 Keep 처럼 밖에서 이 파일의 기준을 바꾸면 diff 를 새 기준으로 다시 만든다. 옛 기준으로 남은 diff 에서 덩어리를 Keep 하면 바뀐 기준을 옛 기준으로 되돌려 저장한다.
   const [revision, setRevision] = useState(0);
   useEffect(() => {
@@ -356,20 +366,51 @@ export function DiffTab({ agentId, workspaceId, path, changeScope, active }: { a
     window.addEventListener(FILE_REVISION_EVENT, onRevision);
     return () => window.removeEventListener(FILE_REVISION_EVENT, onRevision);
   }, [agentId, path]);
+  useEffect(() => registerDiffNav(tabKey, { step: (direction) => handle.current?.step(direction), openFile: () => openFile({ workspaceId, path: relative }) }), [tabKey, workspaceId, relative]);
   return (
-    <div className="editor" style={{ display: active ? "flex" : "none" }}>
-      <div className="pane-header">
-        <FileTypeIcon name={path} />
-        <span className="editor-path" title={path}>
-          {relative}
-        </span>
+    <div className="editor diff-tab-editor" style={{ display: active ? "flex" : "none" }}>
+      <DiffCrumbs tabKey={tabKey} workspaceId={workspaceId} path={relative}>
         {original === null && loaded && <span className="faint xs">{S.newFile}</span>}
         {kept && hasGitBase && <span className="faint xs">{S.keptBaseline}</span>}
         {resolved && <span className="faint xs">{S.noDifferences}</span>}
-        <span className="spacer" />
-        <DiffViewToggle narrow={narrow} />
-      </div>
-      {error ? <BaseLoadFailed message={error} onRetry={retry} /> : loaded ? <FileDiff key={`${agentId}:${path}:${changeScope ?? ""}:${revision}`} agentId={agentId} workspaceId={workspaceId} path={path} original={original} scope={scope} onResolved={setResolved} readOnly={outside} /> : <div className="empty-hint">{S.loadingBase}</div>}
+        {narrow && <span className="faint xs">{S.splitNeedsWidth}</span>}
+      </DiffCrumbs>
+      {error ? <BaseLoadFailed message={error} onRetry={retry} /> : loaded ? <FileDiff key={`${agentId}:${path}:${changeScope ?? ""}:${revision}`} agentId={agentId} workspaceId={workspaceId} path={path} original={original} scope={scope} onResolved={setResolved} readOnly={outside} handleRef={handle} onPosition={(next) => setPosition((prev) => (prev.index === next.index && prev.count === next.count ? prev : next))} /> : <div className="empty-hint">{S.loadingBase}</div>}
+      {!outside && loaded && !resolved && position.count > 0 && <DiffFileBar agentId={agentId} workspaceId={workspaceId} file={changed} path={path} position={position} onStep={(direction) => handle.current?.step(direction)} />}
+    </div>
+  );
+}
+
+function DiffFileBar({ agentId, workspaceId, file, path, position, onStep }: { agentId: string; workspaceId: string; file: ChangedFile | undefined; path: string; position: ChunkPosition; onStep: (direction: 1 | -1) => void }) {
+  return (
+    <div className="diff-file-bar" role="toolbar" aria-label={S.diffFileBarAria}>
+      <button type="button" className="chunk-hover-button" data-primary="" title={S.keepFileTitle} onClick={() => void keepChangedFile(agentId, workspaceId, path).catch((e: Error) => flash(e.message))}>
+        {S.keep}
+      </button>
+      {file && file.status !== "R" && (
+        <button type="button" className="chunk-hover-button" title={S.discardChanges} onClick={() => void discardChangedFile(agentId, path, file.rel).catch((e: Error) => flash(S.discardFailed(e.message), "error"))}>
+          {S.undo}
+        </button>
+      )}
+      <span className="diff-file-bar-sep" aria-hidden="true" />
+      <span className="diff-file-bar-count">{S.changeOf(position.index, position.count)}</span>
+      <Button size="icon" aria-label={S.previousChange} title={S.previousChange} onClick={() => onStep(-1)}>
+        <Codicon name="arrow-up" />
+      </Button>
+      <Button size="icon" aria-label={S.nextChange} title={S.nextChange} onClick={() => onStep(1)}>
+        <Codicon name="arrow-down" />
+      </Button>
+    </div>
+  );
+}
+
+export function DiffCrumbs({ tabKey, workspaceId, path, children }: { tabKey: string; workspaceId: string; path: string; children?: ReactNode }) {
+  return (
+    <div className="diff-crumbs">
+      <FileTypeIcon name={path} />
+      <Breadcrumbs tabKey={tabKey} workspaceId={workspaceId} path={path} deleted={false} />
+      <span className="spacer" />
+      {children}
     </div>
   );
 }
