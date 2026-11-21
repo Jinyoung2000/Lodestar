@@ -60,7 +60,7 @@ export function ScmDiffView({ tab, active }: { tab: ScmDiffTab; active: boolean 
 
   const relative = tab.rel;
   return (
-    <div className="editor scm-diff" style={{ display: active ? "flex" : "none" }} data-testid="scm-diff">
+    <div className="editor scm-diff-editor" style={{ display: active ? "flex" : "none" }} data-testid="scm-diff">
       <div className="pane-header">
         <FileTypeIcon name={tab.path} />
         <span className="editor-path" title={tab.path}>
