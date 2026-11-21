@@ -17,6 +17,8 @@ export const M = {
   viewAsList: "View as List",
   refresh: "Refresh",
   moreActions: "More Actions...",
+  syncChanges: "Sync Changes",
+  syncChangesLabel: (ahead: number, behind: number) => `Sync Changes ${behind}↓ ${ahead}↑`,
   pull: "Pull",
   push: "Push",
   fetch: "Fetch",

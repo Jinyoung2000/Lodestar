@@ -41,7 +41,7 @@ export function FilesTab({ workspaceId, agentId }: { workspaceId: string; agentI
   const treeRef = useRef<HTMLDivElement>(null);
   const [headSlot, setHeadSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    setHeadSlot(treeRef.current?.closest(".focus-side")?.querySelector<HTMLElement>(".focus-side-actions") ?? null);
+    setHeadSlot(treeRef.current?.closest(".focus-side")?.querySelector<HTMLElement>('.focus-side-actions[data-slot="files"]') ?? null);
   }, []);
   useEffect(() => {
     ensureFiles(workspaceId);

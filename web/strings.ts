@@ -1887,6 +1887,7 @@ export const S = {
   filesNewFile: "New File...",
   filesNewFolder: "New Folder...",
   filesHeaderAria: "Files actions",
+  scmTitleActionsAria: "Source Control actions",
   newEntryAria: (kind: "file" | "folder") => (kind === "file" ? "New file name" : "New folder name"),
   newEntryExistsPre: "A file or folder ",
   newEntryExistsPost: " already exists at this location. Please choose a different name.",

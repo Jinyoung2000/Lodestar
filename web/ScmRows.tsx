@@ -103,7 +103,6 @@ function FileRow({ kind, entry, depth, tree, actions, name }: { kind: GroupKind;
       {dir && <span className="scm-dir">{dir}</span>}
       <span className="scm-row-actions">
         <ActionButton label={M.openFile} icon="go-to-file" onClick={() => actions.openEntry(entry)} />
-        <ActionButton label={M.openChanges} icon="compare-changes" onClick={() => open()} />
         {kind === "changes" && <ActionButton label={M.discard} icon="discard" onClick={() => void actions.discard([entry])} />}
         {kind === "staged" ? <ActionButton label={M.unstage} icon="remove" onClick={() => void actions.unstage([entry])} /> : <ActionButton label={M.stage} icon="add" onClick={() => void actions.stage([entry])} />}
       </span>

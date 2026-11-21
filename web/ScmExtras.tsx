@@ -14,7 +14,7 @@ export function ScmWorktrees({ currentRoot, refreshKey }: { currentRoot: string;
   const collapsed = useScmView((v) => !!v.collapsed.worktrees);
   // 작업 폴더를 더하거나 빼도 목록이 달라진다
   const workspaceCount = useStore((s) => s.workspaces.length);
-  const repos = useLoaded(collapsed, `${refreshKey}|${workspaceCount}`, () => rpc.call("scm.worktrees", {}));
+  const repos = useLoaded(false, `${refreshKey}|${workspaceCount}`, () => rpc.call("scm.worktrees", {}));
   const count = repos?.reduce((n, r) => n + r.worktrees.length, 0) ?? null;
   return (
     <section className="scm-section" aria-label={M.worktrees}>
@@ -70,7 +70,7 @@ async function openWorktree(path: string) {
   }
 }
 
-export function ScmCounts({ ahead, behind }: { ahead: number; behind: number }) {
+function ScmCounts({ ahead, behind }: { ahead: number; behind: number }) {
   if (ahead === 0 && behind === 0) return null;
   return (
     <span className="scm-counts" title={M.aheadBehind(ahead, behind)}>
