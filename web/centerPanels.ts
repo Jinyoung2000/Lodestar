@@ -15,12 +15,12 @@ export const cardOpensInSessionPanel = (centerView: CenterViewName): boolean => 
 const RETIRED_TAB_KEYS: readonly string[] = ["inbox"];
 export const isRetiredTabKey = (key: unknown): boolean => typeof key === "string" && RETIRED_TAB_KEYS.includes(key);
 
-export function sanitizeRestoredTabs(restored: { activeTabKey?: unknown; sideTabKey?: unknown; groupActive?: unknown } | null | undefined): { activeTabKey: string; sideTabKey: string; groupActive: Record<string, string | null> } {
+export function sanitizeRestoredTabs(restored: { activeTabKey?: unknown; sideTabKey?: unknown; groupActive?: unknown } | null | undefined): { activeTabKey: string | null; sideTabKey: string; groupActive: Record<string, string | null> } {
   const key = (value: unknown, fallback: string) => (typeof value === "string" && !isRetiredTabKey(value) ? value : fallback);
   const saved = restored?.groupActive && typeof restored.groupActive === "object" ? (restored.groupActive as Record<string, unknown>) : {};
   const groupActive: Record<string, string | null> = {};
   for (const [group, value] of Object.entries(saved)) if (value === null || (typeof value === "string" && !isRetiredTabKey(value))) groupActive[group] = value;
-  return { activeTabKey: key(restored?.activeTabKey, "changes"), sideTabKey: key(restored?.sideTabKey, "changes"), groupActive };
+  return { activeTabKey: restored?.activeTabKey === null ? null : key(restored?.activeTabKey, "changes"), sideTabKey: key(restored?.sideTabKey, "changes"), groupActive };
 }
 
 // 목록 옆 상세 칸(멘션, 보드 카드)의 폭 한계. 상세는 min 아래로 줄지 않고, 목록은 listMin 아래로 줄지 않는다. 창이 둘을 못 담을 만큼 좁으면 상세가 min 을 지키고 목록이 줄어든다.
