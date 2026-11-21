@@ -264,6 +264,8 @@ export const S = {
   diffSplitTip: "Split diff (original left, current right)",
   splitNeedsWidth: "Split needs more width",
   inlineView: "Inline View",
+  diffFileBarAria: "File changes",
+  changeOf: (index: number, count: number) => `${index} of ${count}`,
   hiddenLines: (n: number) => `${n} hidden lines`,
   diffOpenFile: "Open File",
   previousChange: "Previous Change",

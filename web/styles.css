@@ -2198,8 +2198,8 @@ a,
 .changes-keep-row {
   display: flex;
   align-items: center;
-  gap: var(--space-1_5);
-  padding: var(--space-1) var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-1_5) var(--space-3) var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-base);
   flex-shrink: 0;
@@ -2478,7 +2478,7 @@ button.scope-button:focus-visible {
 }
 
 /* B-base: 작업 폴더 밖 파일의 diff 는 읽기 전용이라 덩어리 Keep 과 Undo 버튼을 숨긴다 */
-.file-diff-host[data-readonly] .cm-chunkButtons,
+.file-diff-host[data-readonly] .chunk-hover-box,
 .file-diff-host[data-readonly] .split-chunk-buttons {
   display: none;
 }
@@ -11075,4 +11075,123 @@ button[data-variant]:disabled .codicon {
 }
 .diff-crumbs .spacer {
   flex: 1;
+}
+
+.diff-tab-editor {
+  position: relative;
+}
+.chunk-hover-box {
+  position: absolute;
+  z-index: 5;
+  right: calc(var(--space-3) + var(--space-0_5));
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: calc(var(--space-0_5) + 1px);
+  border: 1px solid var(--find-widget-border);
+  border-radius: var(--radius-md);
+  background: var(--find-widget-bg);
+  box-shadow: var(--shadow-suggest);
+  font-family: var(--font-sans);
+  animation: chunk-hover-in 200ms ease-out;
+}
+.chunk-hover-box[hidden] {
+  display: none;
+}
+@keyframes chunk-hover-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.chunk-hover-button {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: var(--size-row);
+  padding: 0 var(--space-1_5);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--fg);
+  cursor: pointer;
+}
+.chunk-hover-button:hover {
+  background: var(--surface-hover);
+}
+.chunk-hover-button[data-primary] {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.chunk-hover-button[data-primary]:hover {
+  background: var(--button-hover-bg);
+}
+.chunk-hover-button:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: 1px;
+}
+.diff-file-bar {
+  position: absolute;
+  z-index: 5;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-0_5) var(--space-1);
+  border: 1px solid var(--find-widget-border);
+  border-radius: var(--radius-md);
+  background: var(--find-widget-bg);
+  box-shadow: var(--shadow-overlay);
+}
+.diff-file-bar .chunk-hover-button {
+  font-size: var(--text-ui);
+}
+.diff-file-bar-sep {
+  width: 1px;
+  height: var(--size-icon);
+  margin: 0 var(--space-1);
+  background: var(--find-widget-border);
+}
+.diff-file-bar-count {
+  padding: 0 var(--space-1);
+  font-size: var(--text-ui);
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.view-button {
+  all: unset;
+  box-sizing: border-box;
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1_5);
+  height: var(--size-view-button);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-ui);
+  color: var(--fg);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.view-button:hover {
+  background: var(--button-secondary-hover-bg);
+}
+.view-button[data-primary] {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.view-button[data-primary]:hover {
+  background: var(--button-hover-bg);
+}
+.view-button:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: 1px;
 }

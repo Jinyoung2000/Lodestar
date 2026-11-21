@@ -713,22 +713,6 @@ export const editorTheme = EditorView.theme({
   ".cm-collapsed-inner:before, .cm-collapsed-inner:after": { content: '""', flex: "1", height: "1px", background: "var(--find-widget-border)" },
   ".cm-collapsed-inner .codicon": { fontSize: "calc(var(--size-icon-sm) + var(--space-0_5))" },
   ".cm-collapsedLines:hover .cm-collapsed-inner": { background: "var(--surface-hover)" },
-  ".cm-chunkButtons": { position: "absolute", insetInlineEnd: "var(--space-2)", display: "flex", gap: "var(--space-1)", opacity: "0" },
-  // 버튼은 .cm-deletedChunk 위젯 안에만 있다(순수 추가 덩어리는 빈 위젯). 줄 단위 hover 로는 못 잡아 에디터 hover 에 보인다.
-  "&:hover .cm-chunkButtons, .cm-chunkButtons:focus-within": { opacity: "1" },
-  ".cm-chunkButtons button": {
-    font: "inherit",
-    fontFamily: "var(--font-sans)",
-    fontSize: "var(--text-ui-sm)",
-    height: "var(--size-control-sm)",
-    padding: "0 var(--space-2)",
-    border: "1px solid transparent",
-    borderRadius: "var(--radius-md)",
-    background: "var(--surface-overlay)",
-    color: "var(--fg-muted)",
-    cursor: "pointer",
-  },
-  ".cm-chunkButtons button:hover": { background: "var(--surface-hover)", color: "var(--fg)" },
 });
 
 function movePage(view: EditorView, direction: 1 | -1) {
