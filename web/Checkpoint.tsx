@@ -17,7 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 // revealAll 이 true 면 접힌 단계 묶음도 안쪽 줄을 만든다(찾기가 열렸거나 메시지로 이동하려고 요청했을 때, web/timelineReveal.ts).
 // codex 는 Codex 세션이라는 표지: 체크포인트 복원과 갈래 단추를 그리지 않는다.
 // workspaceId, improvement 는 대화 위(AgentView)에서 한 번만 구해 내려 준다. 행마다 useStore 로 s.agents.find 를 돌리면 다른 세션의 스트리밍 이벤트 하나에도 행 수 × 세션 수만큼 훑는다(PERF2).
-export type TimelineContextValue = { agentId: string; paneId: string; busy: boolean; modes: Record<string, CheckpointMode>; revealAll: boolean; codex?: boolean; workspaceId?: string | null; improvement?: boolean };
+export type TimelineContextValue = { agentId: string; paneId: string; busy: boolean; modes: Record<string, CheckpointMode>; revealAll: boolean; codex?: boolean; locked?: ReadonlySet<string>; workspaceId?: string | null; improvement?: boolean };
 export const TimelineContext = createContext<TimelineContextValue>({ agentId: "", paneId: "", busy: false, modes: {}, revealAll: false });
 
 // 응답 중이 아닐 때, 아직 범위를 모르는 옛 메시지가 있으면 서버에 한 번 묻는다. 실패하면 그 메시지는 알 수 없음(복원 버튼 비활성)으로 둔다.

@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { type EffortLevel, type Harness, type ModelInfo } from "../shared/protocol";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { type CodexMeta, type EffortLevel, type Harness, type Meta, type ModelInfo } from "../shared/protocol";
+import { HARNESS_NAMES, otherHarness, switchBlock } from "../shared/harnessSwitch";
 import { effortName } from "./Composer";
 import { builtinEffort, supportedLevels } from "./effortLevels";
 import { Check, ChevronDown, ChevronRight, Close, Codicon, Pin } from "./icons";
 import { Popup, anchorInActivePane } from "./Popup";
 import { rpc } from "./rpc";
-import { activePane, getState, rememberPick, setState, useStore } from "./store";
+import { activePane, flash, getState, rememberPick, setState, useStore, type State } from "./store";
 import { S } from "./strings";
 import { currentDefaults, currentDraftDefaults, useDefaults } from "./defaults";
 import { announce } from "./announce";
@@ -21,16 +22,24 @@ export function ModelPicker() {
   const defaults = useDefaults();
   // CODEX: Codex 칸이면 Codex 앱 서버의 모델 목록을 보이고, 고르지 않은 값은 config.toml 의 모델이다
   const harness = usePaneHarnessOfActive();
-  const codexMeta = useCodexMeta(harness);
+  const agentId = useStore((s) => activeAgentId(s));
+  const unavailable = useStore((s) => (agentId ? kindBlock(s, agentId) : null));
+  const codexMeta = useCodexMeta(agentId ? "codex" : harness);
   const picked = currentModelAndEffort().model;
   const current = harness === "codex" ? (picked ?? codexDefaultModel(codexMeta) ?? "") : (picked ?? defaults.model ?? "default");
   return (
     <ModelMenu
       anchor={anchorInActivePane("[data-model-chip]", paneId)}
       harness={harness}
+      switchable={agentId !== null}
+      unavailable={unavailable ? S.switchUnavailable[unavailable] : null}
       current={current}
       onClose={() => setState({ overlay: null })}
-      onChoose={(value, asDefault) => {
+      onChoose={(value, asDefault, tool) => {
+        if (agentId && tool !== harness) {
+          switchTool(agentId, tool, value);
+          return;
+        }
         applyModel(value);
         // Settings 의 기본 모델은 Claude 의 것이라 Codex 칸에서는 바꾸지 않는다
         if (asDefault && harness === "claude") void rpc.call("settings.set", { defaultModel: value });
@@ -39,39 +48,91 @@ export function ModelPicker() {
   );
 }
 
+function activeAgentId(s: State): string | null {
+  const pane = s.panes.find((p) => p.id === s.activePaneId);
+  return pane?.kind === "agent" ? pane.agentId : null;
+}
+
+function kindBlock(s: State, agentId: string): "notion" | "feedback" | "imported" | null {
+  const agent = s.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const block = switchBlock(agent, s.timelines[agentId] ?? []);
+  return block === "notion" || block === "feedback" || block === "imported" ? block : null;
+}
+
+function switchTool(agentId: string, harness: Harness, model: string) {
+  const s = getState();
+  const agent = s.agents.find((a) => a.id === agentId);
+  const levels = harness === "codex" ? codexLevels(s.codexMeta, model) : supportedLevels(model);
+  const effort = agent?.effort && levels.includes(agent.effort) ? agent.effort : null;
+  void rpc.call("agents.switchHarness", { agentId, harness, model, effort }).then(
+    () => rememberPick(harness === "codex" ? { codexModel: model } : { model }),
+    (error: Error) => flash(error.message, "warning"),
+  );
+}
+
+function groupStatus(harness: Harness, claudeMeta: Meta | null, codexMeta: CodexMeta | null, unavailable: string | null): string | null {
+  if (harness === "claude") return claudeMeta?.claudeMissing ? S.claudeNotInstalled : null;
+  if (unavailable) return unavailable;
+  if (!codexMeta) return S.codexModelsLoading;
+  if (!codexMeta.installed) return S.codexNotInstalled;
+  if (!codexMeta.loggedIn) return S.codexNotSignedIn;
+  if (!codexMeta.models.length) return codexMeta.error ? S.codexLoadFailed(codexMeta.error) : S.modelsUnavailable;
+  return null;
+}
+
+type ModelMenuProps = {
+  anchor: HTMLElement | null;
+  current: string;
+  onChoose: (value: string, asDefault: boolean, tool: Harness) => void;
+  onClose: () => void;
+  harness?: Harness;
+  switchable?: boolean;
+  unavailable?: string | null;
+};
+
 // 모델 목록 팝업 본체. 입력창(메인 대화)과 빠른 질문 창이 같이 쓰고, 고른 모델을 어디에 저장할지는 onChoose 가 정한다.
 // 닫기는 onClose, 고른 뒤에도 onClose 가 불린다. asDefault 는 ⌥ 를 누른 채 골랐을 때다.
-export function ModelMenu({ anchor, current, onChoose, onClose, harness = "claude" }: { anchor: HTMLElement | null; current: string; onChoose: (value: string, asDefault: boolean) => void; onClose: () => void; harness?: Harness }) {
+export function ModelMenu({ anchor, current, onChoose, onClose, harness = "claude", switchable = false, unavailable = null }: ModelMenuProps) {
   const claudeMeta = useStore((s) => s.meta);
   const codexMeta = useStore((s) => s.codexMeta);
   const meta = harness === "codex" ? null : claudeMeta;
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const [othersOpen, setOthersOpen] = useState(false);
+  const [closedGroups, setClosedGroups] = useState<Harness[]>([]);
   const [pinned, setPinned] = useState(readPinned);
   const models = harness === "codex" ? codexModelInfos(codexMeta) : (meta?.models ?? []);
+  const other = otherHarness(harness);
+  const otherStatus = switchable ? groupStatus(other, claudeMeta, codexMeta, unavailable) : null;
+  const switchModels = useMemo(() => (switchable && !otherStatus ? (other === "codex" ? codexModelInfos(codexMeta) : (claudeMeta?.models ?? [])) : []), [switchable, otherStatus, other, codexMeta, claudeMeta]);
   const q = query.trim().toLowerCase();
 
   const currentValue = models.find((m) => modelMatches(m, current))?.value;
   const top = currentValue && !pinned.includes(currentValue) ? [...pinned, currentValue] : pinned;
-  const grouped = top.length > 0 && !q;
-  const { pinnedEntries, otherEntries } = useMemo(() => {
-    const matches = q ? models.filter((m) => `${m.displayName} ${m.value} ${m.resolvedModel ?? ""}`.toLowerCase().includes(q)) : models;
-    const toEntry = (model: ModelInfo): Entry => ({ kind: "model", model });
-    const pinnedEntries = grouped ? matches.filter((m) => top.includes(m.value)).map(toEntry) : [];
-    const otherEntries = (grouped ? matches.filter((m) => !top.includes(m.value)) : matches).map(toEntry);
+  const grouped = top.length > 0 && !q && !switchable;
+  const { pinnedEntries, otherEntries, switchEntries } = useMemo(() => {
+    const matching = (list: ModelInfo[]) => (q ? list.filter((m) => `${m.displayName} ${m.value} ${m.resolvedModel ?? ""}`.toLowerCase().includes(q)) : list);
+    const matches = matching(models);
+    const toEntry = (tool: Harness) => (model: ModelInfo): Entry => ({ kind: "model", model, tool });
+    const ordered = switchable && !q ? [...matches.filter((m) => top.includes(m.value)), ...matches.filter((m) => !top.includes(m.value))] : matches;
+    const pinnedEntries = grouped ? matches.filter((m) => top.includes(m.value)).map(toEntry(harness)) : [];
+    const otherEntries = (grouped ? matches.filter((m) => !top.includes(m.value)) : ordered).map(toEntry(harness));
     // 목록에 없는 이름을 입력하면 그대로 쓰는 항목이 맨 아래에 붙는다.
-    const known = models.some((m) => [m.value, m.displayName, m.resolvedModel].some((v) => v?.toLowerCase() === q));
-    if (q && !known && /^[\w.[\]:/-]+$/.test(query.trim())) otherEntries.push({ kind: "custom", value: query.trim() });
-    return { pinnedEntries, otherEntries };
-  }, [models, q, query, top, grouped]);
+    const known = [...models, ...switchModels].some((m) => [m.value, m.displayName, m.resolvedModel].some((v) => v?.toLowerCase() === q));
+    if (q && !known && /^[\w.[\]:/-]+$/.test(query.trim())) otherEntries.push({ kind: "custom", value: query.trim(), tool: harness });
+    return { pinnedEntries, otherEntries, switchEntries: matching(switchModels).map(toEntry(other)) };
+  }, [models, switchModels, q, query, top, grouped, switchable, harness, other]);
+  const ownGroup = { tool: harness, entries: otherEntries, empty: models.length === 0 ? (harness === "codex" ? (codexMeta?.error ? S.codexLoadFailed(codexMeta.error) : codexMeta ? S.modelsUnavailable : S.codexModelsLoading) : meta?.error ? S.modelsFailed : S.modelsUnavailable) : null };
+  const switchGroup = { tool: other, entries: switchEntries, empty: otherStatus };
+  const groups = switchable ? (harness === "claude" ? [ownGroup, switchGroup] : [switchGroup, ownGroup]) : [];
   // 키보드로 오가는 순서. 접힌 Other Models 는 건너뛴다.
-  const entries = grouped && !othersOpen ? pinnedEntries : [...pinnedEntries, ...otherEntries];
+  const entries = switchable ? groups.flatMap((g) => (closedGroups.includes(g.tool) ? [] : g.entries)) : grouped && !othersOpen ? pinnedEntries : [...pinnedEntries, ...otherEntries];
   const renderRow = (entry: Entry, i: number) => (
     <ModelRow
-      key={entry.kind === "model" ? entry.model.value : "custom"}
+      key={entry.kind === "model" ? `${entry.tool}:${entry.model.value}` : "custom"}
       entry={entry}
-      selected={entry.kind === "model" && modelMatches(entry.model, current)}
+      selected={entry.kind === "model" && entry.tool === harness && modelMatches(entry.model, current)}
       active={i === index}
       shortcut={i < SHORTCUT_COUNT ? i + 1 : null}
       pinned={entry.kind === "model" && pinned.includes(entry.model.value)}
@@ -85,7 +146,7 @@ export function ModelMenu({ anchor, current, onChoose, onClose, harness = "claud
     if (!entry) return;
     const value = entry.kind === "model" ? entry.model.value : entry.value;
     onClose();
-    onChoose(value, asDefault);
+    onChoose(value, asDefault, entry.tool);
   };
   // ⌘1~⌘9(⌥ 를 더하면 기본값으로도): 보이는 순서대로 n번째 모델을 바로 고른다. 단축키 표의 칸 전환(⌘숫자)보다 먼저 받는다.
   const pickNth = useRef<(n: number, asDefault: boolean) => boolean>(() => false);
@@ -106,6 +167,10 @@ export function ModelMenu({ anchor, current, onChoose, onClose, harness = "claud
     const next = pinned.includes(value) ? pinned.filter((v) => v !== value) : [...pinned, value];
     setPinned(next);
     writePinned(next);
+  };
+  const toggleGroup = (tool: Harness) => {
+    setClosedGroups((closed) => (closed.includes(tool) ? closed.filter((t) => t !== tool) : [...closed, tool]));
+    setIndex(0);
   };
 
   return (
@@ -140,20 +205,35 @@ export function ModelMenu({ anchor, current, onChoose, onClose, harness = "claud
         }}
       />
       <div className="popup-list" role="listbox">
-        {pinnedEntries.map((entry, i) => renderRow(entry, i))}
-        {grouped && <OthersHeader open={othersOpen} onToggle={() => setOthersOpen((v) => !v)} />}
-        {(!grouped || othersOpen) && otherEntries.map((entry, i) => renderRow(entry, pinnedEntries.length + i))}
-        {models.length === 0 && (
-          <div className="popup-empty" title={harness === "claude" && meta?.error ? meta.error : undefined}>
-            {harness === "codex" ? (codexMeta?.error ? S.codexLoadFailed(codexMeta.error) : codexMeta ? S.modelsUnavailable : S.codexModelsLoading) : meta?.error ? S.modelsFailed : S.modelsUnavailable}
-          </div>
+        {switchable ? (
+          groups.map((group) => {
+            const open = !closedGroups.includes(group.tool);
+            return (
+              <Fragment key={group.tool}>
+                <GroupToggle label={HARNESS_NAMES[group.tool]} open={open} aria={S.modelGroupToggle(HARNESS_NAMES[group.tool], open)} onToggle={() => toggleGroup(group.tool)} />
+                {open && group.entries.map((entry) => renderRow(entry, entries.indexOf(entry)))}
+                {open && group.empty && <div className="popup-empty">{group.empty}</div>}
+              </Fragment>
+            );
+          })
+        ) : (
+          <>
+            {pinnedEntries.map((entry, i) => renderRow(entry, i))}
+            {grouped && <GroupToggle label={S.otherModels} open={othersOpen} onToggle={() => setOthersOpen((v) => !v)} />}
+            {(!grouped || othersOpen) && otherEntries.map((entry, i) => renderRow(entry, pinnedEntries.length + i))}
+            {models.length === 0 && (
+              <div className="popup-empty" title={harness === "claude" && meta?.error ? meta.error : undefined}>
+                {ownGroup.empty}
+              </div>
+            )}
+          </>
         )}
       </div>
     </Popup>
   );
 }
 
-type Entry = { kind: "model"; model: ModelInfo } | { kind: "custom"; value: string };
+type Entry = { kind: "model"; model: ModelInfo; tool: Harness } | { kind: "custom"; value: string; tool: Harness };
 
 // ⌘1 부터 ⌘9 까지 보이는 순서대로 바로 고르는 단축키가 붙는 행 수
 const SHORTCUT_COUNT = 9;
@@ -183,11 +263,11 @@ function ModelRow({ entry, selected, active, shortcut, pinned, onHover, onChoose
   );
 }
 
-function OthersHeader({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+function GroupToggle({ label, open, aria, onToggle }: { label: string; open: boolean; aria?: string; onToggle: () => void }) {
   return (
-    <button type="button" className="popup-row popup-group" onClick={onToggle}>
+    <button type="button" className="popup-row popup-group" aria-expanded={open} aria-label={aria} onClick={onToggle}>
       <span className="popup-check">{open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>
-      <span className="popup-row-title">{S.otherModels}</span>
+      <span className="popup-row-title">{label}</span>
     </button>
   );
 }

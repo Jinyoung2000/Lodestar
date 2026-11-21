@@ -144,7 +144,7 @@ function TurnChangesList({ agentId, changes, list }: { agentId: string; changes:
 // 말풍선과 그 오른쪽 위 체크포인트 단추. 스크롤하면 말풍선이 머리 아래에 붙고, 붙어 있는 동안은 두 줄까지만 보인다.
 const UserHead = memo(function UserHead({ user, first }: { user: UserItem; first: boolean }) {
   // CODEX: Codex 세션은 체크포인트 복원과 갈래가 없다(2단계)
-  const { codex } = useContext(TimelineContext);
+  const { codex, locked } = useContext(TimelineContext);
   const sentinelRef = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   // 감시선이 스크롤 영역 위로 지나가면 말풍선이 붙은 상태다. 접힘이 스크롤 위치를 바꿔 판정을 뒤집지 않게 판정 경계를 물려 둔다(web/stuckBubble.ts).
@@ -153,7 +153,7 @@ const UserHead = memo(function UserHead({ user, first }: { user: UserItem; first
     <>
       <span className="turn-sentinel" ref={sentinelRef} aria-hidden="true" />
       <div className="turn-user" ref={bubbleRef} data-item-id={user.id} data-stuck={stuck || undefined}>
-        {!codex && <CheckpointActions user={user} first={first} />}
+        {!codex && !locked?.has(user.id) && <CheckpointActions user={user} first={first} />}
         {user.attachments?.length ? (
           <div className="user-attachments">
             {user.attachments.map((attachment) => (

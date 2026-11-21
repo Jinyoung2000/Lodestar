@@ -46,6 +46,8 @@ export const S = {
   codexLoadFailed: (message: string) => `Could not read Codex: ${message}`,
   codexModelsLoading: "Loading Codex models...",
   codexUnavailable: (what: string) => `${what} is not available for Codex sessions yet`,
+  modelGroupToggle: (name: string, open: boolean) => `${open ? "Hide" : "Show"} ${name} models`,
+  switchUnavailable: { notion: "Notion page chats run on Claude only", feedback: "Improvement sessions run on Claude only", imported: "Sessions imported from VS Code run on Claude only" },
 
   // 권한 모드
   permissionModes: {

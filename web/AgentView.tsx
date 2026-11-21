@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { harnessOf, type Agent, type FileRef as ProtocolFileRef, type ImageRef, type PermissionMode } from "../shared/protocol";
+import { checkpointLocked, isSwitchDivider } from "../shared/harnessSwitch";
 import { TimelineContext, useCheckpointModes } from "./Checkpoint";
 import { ChatFind } from "./ChatFind";
 import { useChatFindOpen } from "./chatFindState";
@@ -182,10 +183,12 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
     return lastTurns.current;
   }, [items, grouper]);
   const codex = agent ? harnessOf(agent) === "codex" : false;
+  const lockedKey = useMemo(() => (items?.some(isSwitchDivider) ? [...checkpointLocked(items, codex ? "codex" : "claude")].join("\n") : ""), [items, codex]);
+  const locked = useMemo(() => new Set(lockedKey ? lockedKey.split("\n") : []), [lockedKey]);
   const checkpointModes = useCheckpointModes(agentId, codex ? undefined : items, agent?.status === "running" || agent?.status === "waiting");
   const workspaceId = agent?.workspaceId ?? null;
   const improvement = !!agent?.feedbackId;
-  const context = useMemo(() => ({ agentId, paneId, busy: agent?.status === "running" || agent?.status === "waiting", modes: checkpointModes, revealAll, codex, workspaceId, improvement }), [agentId, paneId, agent?.status, checkpointModes, revealAll, codex, workspaceId, improvement]);
+  const context = useMemo(() => ({ agentId, paneId, busy: agent?.status === "running" || agent?.status === "waiting", modes: checkpointModes, revealAll, codex, locked, workspaceId, improvement }), [agentId, paneId, agent?.status, checkpointModes, revealAll, codex, locked, workspaceId, improvement]);
 
   // 바닥으로 내리고 이후 새 글도 따라간다. 아래 화살표 버튼과 메시지 보내기가 같이 쓴다(위로 올려 읽던 중에 보내도 보낸 글과 답이 보이게).
   const jumpToBottom = useCallback(() => {
