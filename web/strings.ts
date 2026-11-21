@@ -1755,7 +1755,7 @@ export const S = {
   thinkingLevel: "Thinking Level",
   effortDefaultBadge: "Default",
   effortMidSessionWarning: "Changing these options mid-session resets the prompt cache and may increase cost.",
-  effortNames: { low: "Low", medium: "Medium", high: "High", xhigh: "Extra High", max: "Max" },
+  effortNames: { low: "Low", medium: "Medium", high: "High", xhigh: "Extra High", max: "Max", ultra: "Ultra" },
   searchAttachments: "Search attachments",
   // fixB: 이미지 첨부(붙여넣기, 끌어다 놓기, + 메뉴)
   // FILEATTACH: 이미지가 아닌 파일도 같은 길로 붙는다(메뉴, 끌어다 놓기). 파일은 경로만 모델에 가고, 올리는 중에는 보낼 수 없다.

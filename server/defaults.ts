@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseVscodeEditorOptions, resolveEditorOptions, type EditorOptions } from "../shared/editorOptions";
-import { EFFORT_LEVELS, type DefaultSource, type EffortLevel, type PermissionMode, type RequestQueuing, type Resolved, type ResolvedDefaults, type SessionSort, type Settings } from "../shared/protocol";
+import { claudeEffort, type DefaultSource, type EffortLevel, type PermissionMode, type RequestQueuing, type Resolved, type ResolvedDefaults, type SessionSort, type Settings } from "../shared/protocol";
 
 
 const PERMISSION_MODES: PermissionMode[] = ["default", "acceptEdits", "plan", "auto", "bypassPermissions"];
@@ -111,7 +111,7 @@ function readJson(io: DefaultsIo, file: string, jsonc: boolean): Record<string, 
 }
 
 const asPermission = (v: unknown): PermissionMode | null => (typeof v === "string" && (PERMISSION_MODES as string[]).includes(v) ? (v as PermissionMode) : null);
-const asEffort = (v: unknown): EffortLevel | null => (typeof v === "string" && (EFFORT_LEVELS as string[]).includes(v) ? (v as EffortLevel) : null);
+const asEffort = (v: unknown): EffortLevel | null => claudeEffort(v);
 const asQueuing = (v: unknown): RequestQueuing | null => (v === "queue" || v === "steer" ? v : null);
 const asModel = (v: unknown): string | null => (typeof v === "string" && v.trim() && v.trim() !== "default" ? v.trim() : null);
 

@@ -11,6 +11,10 @@ const session = randomUUID();
 const out = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
 const usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
 let inited = false;
+const MODELS = [
+  { value: "default", resolvedModel: "claude-fake-1", displayName: "Default", description: "Fixture default model", supportedEffortLevels: ["low", "medium", "high", "xhigh", "max", "ultra"] },
+  { value: "opus", resolvedModel: "claude-fake-opus", displayName: "Opus", description: "Fixture large model", supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"] },
+];
 
 createInterface({ input: process.stdin }).on("line", (line) => {
   if (!line.trim()) return;
@@ -22,7 +26,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
   }
   if (message.type === "control_request") {
     const subtype = message.request?.subtype;
-    const response = subtype === "initialize" ? { commands: [], output_style: "default", available_output_styles: ["default"], models: [], account: {} } : subtype === "mcp_status" ? { mcpServers: [] } : {};
+    const response = subtype === "initialize" ? { commands: [], output_style: "default", available_output_styles: ["default"], models: MODELS, account: {} } : subtype === "mcp_status" ? { mcpServers: [] } : {};
     out({ type: "control_response", response: { subtype: "success", request_id: message.request_id, response } });
     return;
   }

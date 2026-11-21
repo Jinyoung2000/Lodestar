@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { query, type Query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { versionedDisplayName } from "../shared/modelName";
-import type { EffortLevel, McpActionResult, McpSessionResult, Meta } from "../shared/protocol";
+import { CLAUDE_EFFORT_LEVELS, type EffortLevel, type McpActionResult, type McpSessionResult, type Meta } from "../shared/protocol";
 import { claudeBin, claudeEnv, claudeErrorText, claudeInstalled } from "./claude";
 import { errorText, reconnectInSessions, settleMcp, type McpControl } from "./mcp";
 import { HOME } from "./store";
@@ -71,7 +71,7 @@ async function startMeta(cwd: string): Promise<{ meta: Meta; query: Query }> {
         value: m.value,
         resolvedModel: m.resolvedModel ?? null,
         displayName: versionedDisplayName(m.displayName, m.resolvedModel ?? null),
-        supportedEffortLevels: (m.supportedEffortLevels ?? []) as EffortLevel[],
+        supportedEffortLevels: ((m.supportedEffortLevels ?? []) as EffortLevel[]).filter((level) => (CLAUDE_EFFORT_LEVELS as EffortLevel[]).includes(level)),
       })),
       mcp,
       commandCount: init.commands.length,

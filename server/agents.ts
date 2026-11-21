@@ -19,7 +19,7 @@ import type {
   Worktree,
   RestoreSkip, // FIX5-0
 } from "../shared/protocol";
-import { PERMISSION_MODE_VALUES, harnessOf, type Harness } from "../shared/protocol";
+import { PERMISSION_MODE_VALUES, claudeEffort, harnessOf, type ClaudeEffortLevel, type Harness } from "../shared/protocol";
 import { CODEX_FALLBACK_MODE, codexSupportsMode } from "../shared/codexPermission"; // CODEX
 import { CodexRunner } from "./codex/runner"; // CODEX
 import { checkpointMode, checkpointSession, commitRedo, dropRedo, keptEntryBefore, loadRedo, probeCheckpointModes, readRaw, resolveMessageId, saveRedo, sessionChain, splitTimeline, stageRedo, withRewindQuery } from "./checkpoints";
@@ -125,7 +125,7 @@ type Run = {
   steers: Set<string>;
   // 이 프로세스에 적용돼 있는 모델과 effort. 다음 턴 앞에서 바뀌었으면 라이브로 맞춘다.
   model: string | null;
-  effort: EffortLevel | null;
+  effort: ClaudeEffortLevel | null;
   // permbug: 이 프로세스가 실제로 쓰는 권한 모드와 마지막으로 바꾼 시각. CLI 가 스스로 모드를 바꾸는 경우(계획 승인 뒤 등)를 도구 호출 훅에서 알아챌 때, 방금 사용자가 바꾼 값과 헷갈리지 않게 시각을 같이 둔다.
   permissionMode: PermissionMode;
   permissionSetAt: number;
@@ -697,7 +697,7 @@ export class AgentRunner {
     const agent = this.store.agent(agentId);
     const defaults = defaultsReader.resolve(this.store.settings);
     const turnModel = agent.model ?? defaults.model.value;
-    const turnEffort = agent.effort ?? defaults.effort.value;
+    const turnEffort = claudeEffort(agent.effort) ?? claudeEffort(defaults.effort.value);
     // 작업 폴더가 사라진 세션(지운 worktree 등)은 프로세스를 띄우기 전에 원인을 알린다. 안 그러면 CLI 가 엉뚱한 실행 오류를 낸다.
     if (!this.runs.has(agentId) && !(await isDirectory(agent.cwd))) {
       this.upsert(agentId, { id: randomUUID(), kind: "user", text: prompt, source: "user", at: new Date().toISOString(), ...shownFields });
@@ -766,7 +766,7 @@ export class AgentRunner {
   }
 
   // 살아 있는 프로세스의 모델과 effort 를 맞춘다. 실패하면 프로세스를 닫고 같은 세션을 resume 하는 새 프로세스로 바꾼다.
-  private async syncSettings(agentId: string, run: Run, model: string | null, effort: EffortLevel | null): Promise<Run> {
+  private async syncSettings(agentId: string, run: Run, model: string | null, effort: ClaudeEffortLevel | null): Promise<Run> {
     try {
       if (run.model !== model) await run.query.setModel(model ?? undefined);
       if (run.effort !== effort) await run.query.applyFlagSettings({ effortLevel: effort });
@@ -790,7 +790,7 @@ export class AgentRunner {
   }
 
   // CLI 프로세스를 띄운다. 프롬프트는 닫히지 않는 입력 큐라 세션 동안 같은 프로세스가 메시지를 계속 받는다.
-  private openRun(agent: Agent, turnModel: string | null, turnEffort: EffortLevel | null): Run {
+  private openRun(agent: Agent, turnModel: string | null, turnEffort: ClaudeEffortLevel | null): Run {
     const agentId = agent.id;
     // 피드백 개선 세션이면 도구, 권한, 시스템 프롬프트가 그 쪽 옵션으로 바뀐다. 다른 세션은 그대로다.
     const feedbackOptions = agent.feedbackId ? this.feedbackHooks?.options(agent) : null;

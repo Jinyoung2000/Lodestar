@@ -16,7 +16,7 @@ import { removeFolder, restoreFolder, type RemovedFolder } from "./removedFolder
 import { settleStale } from "./subagents";
 import { parseOrderIds, parseOrderScope, parentOfKidsScope, pruneSessionOrders, type SessionOrders } from "../shared/sessionOrder"; // SESSIONORDER
 import type { DiffFeedback } from "../shared/protocol";
-import { BROWSER_PAGE_ZOOMS, BROWSER_SEARCH_ENGINES, BROWSER_STORAGES, BROWSER_TITLE_BAR, DIFF_VIEWS, EDITOR_FONT_DEFAULTS, EFFORT_LEVELS, KEYMAP_PRESETS, THEME_STYLES, UI_TYPE_DEFAULTS, UI_TYPE_RANGES, type Agent, type FileChange, type Settings, type TimelineItem, type Workspace } from "../shared/protocol";
+import { BROWSER_PAGE_ZOOMS, BROWSER_SEARCH_ENGINES, BROWSER_STORAGES, BROWSER_TITLE_BAR, DIFF_VIEWS, EDITOR_FONT_DEFAULTS, EFFORT_LEVELS, isEffortLevel, KEYMAP_PRESETS, THEME_STYLES, UI_TYPE_DEFAULTS, UI_TYPE_RANGES, type Agent, type FileChange, type Settings, type TimelineItem, type Workspace } from "../shared/protocol";
 
 export const HOME = process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav");
 const STATE_FILE = join(HOME, "state.json");
@@ -347,9 +347,9 @@ export class Store {
     if (agent.status !== "idle") agent.status = "idle";
     // v1 에서 만든 레코드에는 없는 필드를 채운다.
     agent.model ??= null;
-    agent.effort ??= null;
+    agent.effort = isEffortLevel(agent.effort) ? agent.effort : null;
     agent.activeModel ??= null;
-    agent.activeEffort ??= null;
+    agent.activeEffort = isEffortLevel(agent.activeEffort) ? agent.activeEffort : null;
     agent.backgroundTasks = 0;
     // 데몬이 죽으면 모델이 받지 못한 끼어들기 메시지는 사라진 프로세스 입력에만 있었다. 글이 사라지지 않게 큐 앞으로 돌려보낸다.
     if (agent.steering?.length) {

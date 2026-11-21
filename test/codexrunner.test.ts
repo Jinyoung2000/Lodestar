@@ -311,7 +311,7 @@ test("codex.meta: 모델 목록은 Lodestar 가 고를 수 있는 effort 와의 
   expect(meta.installed && meta.loggedIn && meta.account?.type === "chatgpt" && meta.account.plan === "plus", JSON.stringify(meta.account));
   expect(meta.version === "0.163.0-fixture", `버전 ${meta.version}`);
   const [full, mini] = meta.models;
-  expect(full.value === "gpt-fixture" && full.isDefault && full.supportedEffortLevels.join() === "low,medium,high,xhigh,max", `ultra 는 뺀다 ${full.supportedEffortLevels}`);
+  expect(full.value === "gpt-fixture" && full.isDefault && full.supportedEffortLevels.join() === "low,medium,high,xhigh,max,ultra", `ultra 도 받는다 ${full.supportedEffortLevels}`);
   expect(mini.supportedEffortLevels.join() === "low,medium" && mini.defaultEffort === "low", "작은 모델");
   expect(meta.defaultModel === "gpt-fixture-config" && meta.defaultEffort === "high", "기본값은 config.toml 의 값이고 목록에 없어도 된다");
   expect(JSON.stringify(meta).includes("fixture@example.com") === false, "이메일은 화면에 보내지 않는다");

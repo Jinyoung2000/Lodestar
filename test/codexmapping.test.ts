@@ -1,7 +1,7 @@
 // CODEX: Codex 앱 서버 항목 -> 타임라인 항목 대응(server/codex/mapping.ts), 권한 모드 표(shared/codexPermission.ts), 옛 저장본 호환을 단독 시험한다. 데몬도 Codex 도 필요 없다.
 // 실행: npm test
 import { CODEX_FALLBACK_MODE, CODEX_MODE_NOTES, codexPermission, codexSupportsMode } from "../shared/codexPermission";
-import { harnessOf, PERMISSION_MODE_VALUES, type Agent, type TimelineItem } from "../shared/protocol";
+import { CLAUDE_EFFORT_LEVELS, claudeEffort, EFFORT_LEVELS, harnessOf, isEffortLevel, PERMISSION_MODE_VALUES, type Agent, type TimelineItem } from "../shared/protocol";
 import { toolChanges } from "../web/timelineModel";
 import { previewEdit } from "../web/approvalPreview";
 import { commandApproval, diffHunks, displayCommand, editToolOf, fileChangeApproval, itemToTimeline, mcpResultText, planToTool, summarizeDiff, turnErrorOf } from "../server/codex/mapping";
@@ -142,6 +142,13 @@ test("옛 저장본 호환: harness 가 없는 세션은 claude 이고, 새 필�
   // 모바일 앱과 옛 화면은 모르는 필드를 무시한다: 옛 필드 집합은 그대로 들어 있다
   const keys = Object.keys(old);
   expect(keys.every((k) => k in round), "옛 필드가 모두 남아 있다");
+});
+
+test("effort: ultra 는 저장값으로 받지만 Claude 단계에는 없다", () => {
+  expect(EFFORT_LEVELS.join() === "low,medium,high,xhigh,max,ultra", EFFORT_LEVELS.join());
+  expect(CLAUDE_EFFORT_LEVELS.join() === "low,medium,high,xhigh,max", CLAUDE_EFFORT_LEVELS.join());
+  expect(isEffortLevel("ultra") && !isEffortLevel("huge") && !isEffortLevel(null), "검증");
+  expect(claudeEffort("ultra") === null && claudeEffort("max") === "max" && claudeEffort(undefined) === null, "Claude 로 갈 때");
 });
 
 let failed = 0;

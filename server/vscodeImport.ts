@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
-import { EFFORT_LEVELS, PERMISSION_MODE_VALUES, type Agent, type EffortLevel, type PermissionMode, type ServerEvent, type TimelineItem, type VscodeCandidate, type VscodeImportList, type VscodeImportResult, type Workspace } from "../shared/protocol";
+import { claudeEffort, PERMISSION_MODE_VALUES, type Agent, type EffortLevel, type PermissionMode, type ServerEvent, type TimelineItem, type VscodeCandidate, type VscodeImportList, type VscodeImportResult, type Workspace } from "../shared/protocol";
 import { titleFrom, type AgentRunner } from "./agents";
 import { defaultsReader } from "./defaults";
 import * as gitOps from "./git";
@@ -493,7 +493,7 @@ function modelOf(id: string | null): string | null {
   return name && MODEL_NAME.test(name) ? name : null;
 }
 
-const effortOf = (level: string | null): EffortLevel | null => (level && (EFFORT_LEVELS as string[]).includes(level) ? (level as EffortLevel) : null);
+const effortOf = (level: string | null): EffortLevel | null => claudeEffort(level);
 
 function firstUserText(items: TimelineItem[]): string | null {
   for (const item of items) if (item.kind === "user" && item.source !== "system") return item.text;

@@ -37,9 +37,13 @@ export type PermissionMode = "default" | "acceptEdits" | "plan" | "auto" | "bypa
 // permbug: 메뉴 순서(Ask Before Edits 부터 Bypass Permissions 까지)이자, 저장값과 훅 입력을 거르는 허용 목록
 export const PERMISSION_MODE_VALUES: readonly PermissionMode[] = ["default", "acceptEdits", "plan", "auto", "bypassPermissions"];
 
-export type EffortLevel = "low" | "medium" | "high" | "xhigh" | "max";
+export type EffortLevel = "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
 
-export const EFFORT_LEVELS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
+export const EFFORT_LEVELS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max", "ultra"];
+export type ClaudeEffortLevel = Exclude<EffortLevel, "ultra">;
+export const CLAUDE_EFFORT_LEVELS: ClaudeEffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
+export const isEffortLevel = (value: unknown): value is EffortLevel => typeof value === "string" && (EFFORT_LEVELS as string[]).includes(value);
+export const claudeEffort = (value: unknown): ClaudeEffortLevel | null => (typeof value === "string" && (CLAUDE_EFFORT_LEVELS as string[]).includes(value) ? (value as ClaudeEffortLevel) : null);
 
 export type Worktree = { root: string; branch: string; base: string };
 
@@ -243,7 +247,7 @@ export type ModelInfo = {
   supportedEffortLevels: EffortLevel[];
 };
 
-// CODEX: Codex 앱 서버가 알려 주는 모델. supportedEffortLevels 는 Lodestar 가 고를 수 있는 effort 와의 교집합이다(ultra 처럼 EffortLevel 에 없는 값은 뺀다).
+// CODEX: Codex 앱 서버가 알려 주는 모델. supportedEffortLevels 는 Lodestar 가 고를 수 있는 effort 와의 교집합이다.
 export type CodexModelInfo = { value: string; displayName: string; description: string; isDefault: boolean; supportedEffortLevels: EffortLevel[]; defaultEffort: EffortLevel | null };
 
 // CODEX: 입력창 칩과 새 세션 화면이 쓰는 Codex 쪽 정보. 로그인은 Codex 가 쓰는 기존 로그인(~/.codex)을 그대로 쓰고 토큰은 읽지 않는다.
