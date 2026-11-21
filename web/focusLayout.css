@@ -162,3 +162,28 @@
 .chat-tab-pane[hidden] {
   display: none;
 }
+
+.activity-group {
+  position: relative;
+}
+.activity-item[data-dragging] {
+  opacity: 0.35;
+}
+.activity-drop-mark {
+  position: absolute;
+  top: var(--space-1);
+  width: var(--space-0_5);
+  height: var(--size-control-sm);
+  margin-left: -1px;
+  background: var(--activity-fg);
+  pointer-events: none;
+  animation: activity-drop-in 0s 100ms both;
+}
+@keyframes activity-drop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

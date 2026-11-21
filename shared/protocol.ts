@@ -1,3 +1,4 @@
+import type { ActivityBarPrefs } from "./activityBar";
 import type { EditorOptions, ResolvedEditorOptions } from "./editorOptions";
 import type { SearchSettings } from "./searchSettings";
 import type { PrRpcMethods } from "./prTypes";
@@ -391,6 +392,7 @@ export type Settings = {
   // 단축키 프리셋. Electron 메인도 settings.json 에서 직접 읽어 가로챌 키와 메뉴 가속키를 정한다.
   keymapPreset: KeymapPreset;
   keymapOverrides?: KeymapOverrides;
+  activityBar?: ActivityBarPrefs;
   browserSearchEngine: BrowserSearchEngine;
   browserMaxHistory: number;
   browserChatTools: boolean;

@@ -20,6 +20,7 @@ import {
   parseFocusSideWidth,
   pressActivity,
 } from "../web/focusLayout";
+import { moveView, sanitizeActivityBar, setViewHidden, shownViews } from "../shared/activityBar";
 
 const cases: { name: string; run: () => string }[] = [];
 const test = (name: string, run: () => string) => cases.push({ name, run });
@@ -125,6 +126,19 @@ test("focusShown: docked shows the panel, floating shows the window, and each si
   same(focusShown({ editorLayout: true, sessionsView: true, chatDock: "docked", sideOpen: false, dockOpen: true }), { side: false, dock: true, floating: false }, "side closed");
   same(focusShown({ editorLayout: true, sessionsView: true, chatDock: "docked", sideOpen: true, dockOpen: false }), { side: true, dock: false, floating: false }, "dock closed");
   same(focusShown({ editorLayout: true, sessionsView: true, chatDock: "floating", sideOpen: true, dockOpen: true }), { side: true, dock: false, floating: true }, "floating");
+  return "ok";
+});
+
+test("activity bar order and hidden views are validated", () => {
+  same(sanitizeActivityBar(undefined), { order: ["files", "changes", "scm", "search", "card"], hidden: [], hiddenBadges: [] }, "missing");
+  same(sanitizeActivityBar({ order: ["search", "bogus", "search", "files"], hidden: ["scm", 3], hiddenBadges: ["changes"] }), { order: ["search", "files", "changes", "scm", "card"], hidden: ["scm"], hiddenBadges: ["changes"] }, "unknown dropped, new views appended");
+  same(sanitizeActivityBar({ hidden: ["files", "changes", "scm", "search"] }).hidden, [], "all hidden resets");
+  same(moveView(["files", "changes", "scm", "search", "card"], "search", "files"), ["search", "files", "changes", "scm", "card"], "move to front");
+  same(moveView(["files", "changes", "scm", "search", "card"], "files", null), ["changes", "scm", "search", "card", "files"], "move to end");
+  const prefs = sanitizeActivityBar({ hidden: ["files", "changes"] });
+  same(shownViews(prefs, false), ["scm", "search"], "card needs an open card");
+  same(setViewHidden(setViewHidden(prefs, "scm", true, false), "search", true, false).hidden, ["files", "changes", "scm"], "last visible view stays");
+  same(setViewHidden(prefs, "files", false, false).hidden, ["changes"], "unhide");
   return "ok";
 });
 

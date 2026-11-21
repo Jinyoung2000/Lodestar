@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { ANALYSIS_BUDGET_MAX_USD, ANALYSIS_BUDGET_MIN_USD } from "../shared/analysisBudget";
 import { sanitizeEditorOptions } from "../shared/editorOptions";
 import { sanitizeKeymapOverrides } from "../shared/keymapOverrides";
+import { sanitizeActivityBar } from "../shared/activityBar";
 import { SLACK_LINK_TARGETS } from "../shared/slackLink";
 import { NOTION_LINK_TARGETS } from "../shared/notionLink";
 import { parseReviewTime, REVIEW_DEFAULT_TIME } from "../shared/morningReview"; // MORNINGREVIEW
@@ -281,6 +282,7 @@ function sanitizeSettings(patch: Partial<Settings>): Partial<Settings> {
   if ("diffView" in next && !DIFF_VIEWS.includes(next.diffView as never)) delete next.diffView;
   if ("keymapPreset" in next && !KEYMAP_PRESETS.includes(next.keymapPreset as never)) delete next.keymapPreset;
   if ("keymapOverrides" in next) next.keymapOverrides = sanitizeKeymapOverrides(next.keymapOverrides);
+  if ("activityBar" in next) next.activityBar = sanitizeActivityBar(next.activityBar);
   if ("themeStyle" in next && !THEME_STYLES.includes(next.themeStyle as never)) delete next.themeStyle;
   if ("slackLinkTarget" in next && !SLACK_LINK_TARGETS.includes(next.slackLinkTarget as never)) delete next.slackLinkTarget;
   if ("notionLinkTarget" in next && !NOTION_LINK_TARGETS.includes(next.notionLinkTarget as never)) delete next.notionLinkTarget;
@@ -325,6 +327,7 @@ export class Store {
     if (!DIFF_VIEWS.includes(this.settingsValue.diffView)) this.settingsValue.diffView = DEFAULT_SETTINGS.diffView;
     if (!KEYMAP_PRESETS.includes(this.settingsValue.keymapPreset)) this.settingsValue.keymapPreset = DEFAULT_SETTINGS.keymapPreset;
     if (this.settingsValue.keymapOverrides !== undefined) this.settingsValue.keymapOverrides = sanitizeKeymapOverrides(this.settingsValue.keymapOverrides);
+    if (this.settingsValue.activityBar !== undefined) this.settingsValue.activityBar = sanitizeActivityBar(this.settingsValue.activityBar);
     if (!THEME_STYLES.includes(this.settingsValue.themeStyle)) this.settingsValue.themeStyle = DEFAULT_SETTINGS.themeStyle;
   }
 
