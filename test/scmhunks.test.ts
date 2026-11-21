@@ -112,6 +112,22 @@ try {
     expect((await failure(() => scm.stageHunk(dir, "../outside", "changes", 0, "x"))) !== null, "outside path refused");
   }
 
+  {
+    const dir = repo({ "f.txt": lines(30) });
+    const edited = lines(30).replace("line 3\n", "line 3 changed\n").replace("line 15\n", "line 15\nadded after 15\n").replace("line 25\n", "");
+    write(dir, "f.txt", edited);
+    const before = await scm.fileDiff(dir, "f.txt", "changes");
+    await scm.discardHunk(dir, "f.txt", 1, before.hunks[1].hash);
+    const worktree = (await scm.fileDiff(dir, "f.txt", "changes")).modified;
+    expect(worktree === lines(30).replace("line 3\n", "line 3 changed\n").replace("line 25\n", ""), `middle block discarded: ${JSON.stringify(worktree)}`);
+    expect(cached(dir) === "", "index untouched by discard");
+    const after = await scm.fileDiff(dir, "f.txt", "changes");
+    await scm.discardHunk(dir, "f.txt", 1, after.hunks[1].hash);
+    expect((await scm.fileDiff(dir, "f.txt", "changes")).modified === lines(30).replace("line 3\n", "line 3 changed\n"), "deletion block restored");
+    const message = await failure(() => scm.discardHunk(dir, "f.txt", 0, before.hunks[0].hash + "x"));
+    expect(!!message && /changed since/.test(message), `stale discard refused: ${message}`);
+  }
+
   // --- 줄바꿈 없는 파일 끝 ---
   {
     // 끝 줄 내용이 바뀜: 둘 다 줄바꿈 없음

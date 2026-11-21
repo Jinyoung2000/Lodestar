@@ -49,6 +49,7 @@ export function scmHandlers(deps: ScmDeps): Handlers {
     "scm.fileDiff": ({ agentId, workspaceId, rel, section }) => scm.fileDiff(dirOf({ agentId, workspaceId }), String(rel), section === "staged" ? "staged" : "changes"),
     "scm.stageHunk": ({ agentId, workspaceId, rel, section, index, hash }) =>
       serial(dirOf({ agentId, workspaceId }), (dir) => scm.stageHunk(dir, String(rel), section === "staged" ? "staged" : "changes", Number(index), String(hash))).then(() => null),
+    "scm.discardHunk": ({ agentId, workspaceId, rel, index, hash }) => serial(dirOf({ agentId, workspaceId }), (dir) => scm.discardHunk(dir, String(rel), Number(index), String(hash))).then(() => null),
     "scm.openWorktree": async ({ path }) => {
       const repos = await scm.worktrees(listed().map((w) => w.dir));
       const found = repos.flatMap((r) => r.worktrees.map((w) => ({ repo: r, worktree: w }))).find((x) => x.worktree.path === realDir(path));

@@ -1187,6 +1187,7 @@ export type RpcMethods = PrRpcMethods & LinearRpcMethods & SimulatorRpcMethods &
   // FIX6B: 파일 diff 의 두 쪽 내용과 git hunk 목록, hunk 하나를 stage(changes)하거나 unstage(staged). hash 는 읽은 hunk 의 지문이고 달라졌으면 거절한다.
   "scm.fileDiff": { params: ScmTarget & { rel: string; section: ScmDiffSection }; result: ScmFileDiff };
   "scm.stageHunk": { params: ScmTarget & { rel: string; section: ScmDiffSection; index: number; hash: string }; result: null };
+  "scm.discardHunk": { params: ScmTarget & { rel: string; index: number; hash: string }; result: null };
   "quick.ask": {
     params: { id: string; workspaceId: string; model: string; question: string; context: QuickContext };
     result: null;

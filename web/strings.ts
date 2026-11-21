@@ -263,6 +263,11 @@ export const S = {
   diffInlineTip: "Inline diff",
   diffSplitTip: "Split diff (original left, current right)",
   splitNeedsWidth: "Split needs more width",
+  inlineView: "Inline View",
+  hiddenLines: (n: number) => `${n} hidden lines`,
+  diffOpenFile: "Open File",
+  previousChange: "Previous Change",
+  nextChange: "Next Change",
 
   // 편집기
   openInVSCode: "Open in VS Code",
@@ -568,7 +573,6 @@ export const S = {
   rightPanelAria: "Right panel",
   closeTab: (path: string) => `Close ${path}`,
   closeTabKey: (key: string | null) => keyed("Close", key),
-  diffTab: "diff",
   bottomPanelAria: "Bottom panel",
   output: "Output",
   problems: "Problems",

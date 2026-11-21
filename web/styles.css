@@ -4766,43 +4766,74 @@ button.review-link:focus-visible {
 .file-diff-host[data-scroll-x] .cm-mergeViewEditors {
   min-width: var(--split-min-width);
 }
-/* 두 칸 사이 버튼 열. 폭은 diffMode.ts 의 SPLIT_GAP 과 같아야 한다 (버튼 2개 + 여백 3개). */
 .cm-mergeView .cm-merge-revert {
-  width: calc(var(--size-control-sm) * 2 + var(--space-1) * 3);
-  background: var(--surface-raised);
+  width: calc(var(--space-6) + var(--space-1));
+  background: var(--editor-bg);
+}
+.cm-mergeViewEditors > .cm-mergeViewEditor:first-child {
+  position: relative;
+  z-index: 1;
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: calc(var(--space-1_5)) 0 calc(var(--space-1) + 1px) calc(-1 * var(--space-1) - 1px) var(--scrollbar-shadow);
+}
+.cm-mergeViewEditors > .cm-mergeViewEditor:last-child {
+  border-left: 1px solid var(--border-subtle);
+}
+.cm-mergeSpacer {
+  background-image: linear-gradient(-45deg, var(--menu-separator) 12.5%, transparent 12.5%, transparent 50%, var(--menu-separator) 50%, var(--menu-separator) 62.5%, transparent 62.5%, transparent 100%);
+  background-size: var(--space-2) var(--space-2);
 }
 .cm-merge-revert .split-chunk-buttons {
   position: absolute;
   left: 0;
   right: 0;
-  display: flex;
+  min-height: var(--size-row);
+}
+.cm-merge-revert .split-chunk-buttons::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 1px);
+  width: var(--space-0_5);
+  background: var(--border);
+}
+.split-chunk-actions {
+  position: relative;
+  z-index: 1;
+  display: none;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  height: var(--size-row);
-  opacity: 0;
+  gap: var(--space-0_5);
+  width: max-content;
+  margin: var(--space-0_5) auto 0;
+  padding: var(--space-0_5);
+  border: 1px solid var(--find-widget-border);
+  border-radius: var(--radius-md);
+  background: var(--find-widget-bg);
+  box-shadow: var(--shadow-suggest);
 }
-.cm-mergeView:hover .split-chunk-buttons,
-.split-chunk-buttons:focus-within {
-  opacity: 1;
+.split-chunk-buttons[data-hover] .split-chunk-actions,
+.split-chunk-actions:focus-within {
+  display: flex;
 }
-.cm-merge-revert .split-chunk-buttons button {
+.split-chunk-actions button,
+.cm-merge-revert .split-chunk-actions .scm-hunk-button {
   position: static;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--size-control-sm);
-  height: var(--size-row);
+  width: calc(var(--size-icon) + var(--space-1));
+  height: calc(var(--size-icon) + var(--space-1));
   padding: 0;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: var(--radius-sm);
-  background: var(--surface-overlay);
-  color: var(--fg-muted);
+  background: none;
+  color: var(--fg);
   cursor: pointer;
 }
-.cm-merge-revert .split-chunk-buttons button:hover {
+.split-chunk-actions button:hover {
   background: var(--surface-hover);
-  color: var(--fg);
 }
 
 /* === B7: 전역 규칙. 아이콘, 포커스, hover, 선택, 스피너, 진행 표시, Compact View. 컴포넌트 전용 규칙은 각 묶음이 자기 구역에 둔다. === */
@@ -11032,4 +11063,16 @@ button[data-variant]:disabled .codicon {
 .setting-release-link:focus-visible {
   outline: var(--space-0_5) solid var(--accent);
   outline-offset: 1px;
+}
+
+.diff-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  height: var(--size-breadcrumb-row);
+  padding: 0 var(--space-3);
+}
+.diff-crumbs .spacer {
+  flex: 1;
 }

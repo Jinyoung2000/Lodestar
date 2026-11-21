@@ -1,5 +1,7 @@
 import { FileTypeIcon } from "./FileTypeIcon";
-import { More } from "./icons";
+import { Codicon, More } from "./icons";
+import { setDiffView, useDiffView } from "./diffMode";
+import { useDiffNav } from "./diffNav";
 import { groupIdsOf, MAIN_GROUP, mainTabs, tabsOfGroup } from "./editorGroups";
 import { LAYOUT_PRESETS } from "./editorLayoutOps";
 import { tabLabel } from "./browserUrl";
@@ -7,7 +9,9 @@ import { applyLayoutPreset, closeGroup, closeInGroup, evenGroupSizes, flipGroupL
 import { useDefaults } from "./defaults";
 import { rpc } from "./rpc";
 import { runCommand } from "./shortcuts";
-import { focusGroup, setState, shownTabsOf, splitEditor, useStore, type Tab } from "./store";
+import { focusGroup, getState, setState, shownTabsOf, splitEditor, useStore, type DiffTab, type ScmDiffTab, type Tab } from "./store";
+import { defaultChangeScope, type ChangeScope } from "../shared/protocol";
+import { M } from "./scmStrings";
 import { S } from "./strings";
 import { P } from "./prStrings";
 import { SV } from "./searchViewStrings";
@@ -15,7 +19,7 @@ import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 
-// 탭에 보이는 이름. 파일은 파일 이름만, diff 와 SCM 탭은 파일 이름 앞에 종류를 붙인다.
+// 탭에 보이는 이름. 파일은 파일 이름만, diff 와 SCM 탭은 파일 이름 뒤에 비교 범위를 붙인다.
 export function tabName(tab: Tab): string {
   if (tab.kind === "search") return S.searchTabTitle(tab.query);
   if (tab.kind === "browser") return tabLabel(tab.title);
@@ -23,7 +27,16 @@ export function tabName(tab: Tab): string {
   if (tab.kind === "pr") return P.tabName(tab.number);
   if (tab.kind === "chat") return tab.title || S.newSession;
   const base = tab.path.slice(tab.path.lastIndexOf("/") + 1);
+  if (tab.kind === "diff" || tab.kind === "scm") return `${base} (${diffScopeLabel(tab)})`;
   return tab.kind === "replace" ? SV.replacePreviewTitle(base, base) : base;
+}
+
+const SCOPE_LABEL: Record<ChangeScope, string> = { branch: S.branchChanges, uncommitted: S.scopeUncommitted, session: S.scopeSession, lastTurn: S.scopeLastTurn };
+
+export function diffScopeLabel(tab: DiffTab | ScmDiffTab): string {
+  if (tab.kind === "scm") return tab.section === "staged" ? M.sectionIndex : M.sectionChanges;
+  const agent = getState().agents.find((a) => a.id === tab.agentId);
+  return SCOPE_LABEL[tab.scope ?? (agent ? defaultChangeScope(agent) : "branch")];
 }
 
 export function GroupMoreMenu({ group, activeKey }: { group: string; activeKey: string | null }) {
@@ -43,6 +56,7 @@ export function GroupMoreMenu({ group, activeKey }: { group: string; activeKey: 
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="group-menu">
+        {(active?.kind === "diff" || active?.kind === "scm") && <DiffMenuItems tabKey={active.key} />}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger disabled={!inGroup.length}>{S.showOpenedEditors}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent data-testid="opened-editors">
@@ -119,6 +133,38 @@ function OpenedEditorLabel({ tab, dirty }: { tab: Tab; dirty: boolean }) {
       <FileTypeIcon name={tab.kind === "file" || tab.kind === "diff" || tab.kind === "scm" || tab.kind === "untitled" || tab.kind === "replace" ? name : ""} />
       <span className="opened-editor-name">{name}</span>
       {dirty && <span className="opened-editor-dot" aria-label={S.tabDirty} />}
+    </>
+  );
+}
+
+function DiffMenuItems({ tabKey }: { tabKey: string }) {
+  const [view] = useDiffView();
+  const nav = useDiffNav(tabKey);
+  return (
+    <>
+      <DropdownMenuCheckboxItem checked={view === "inline"} onCheckedChange={(inline) => setDiffView(inline ? "inline" : "split")}>
+        {S.inlineView}
+      </DropdownMenuCheckboxItem>
+      {nav?.fileAction && <DropdownMenuItem onSelect={nav.fileAction.run}>{nav.fileAction.label}</DropdownMenuItem>}
+      <DropdownMenuSeparator />
+    </>
+  );
+}
+
+export function DiffTabActions({ activeKey }: { activeKey: string | null }) {
+  const nav = useDiffNav(activeKey);
+  if (!nav) return null;
+  return (
+    <>
+      <Button size="icon" aria-label={S.diffOpenFile} title={S.diffOpenFile} onClick={nav.openFile}>
+        <Codicon name="go-to-file" />
+      </Button>
+      <Button size="icon" aria-label={S.previousChange} title={S.previousChange} onClick={() => nav.step(-1)}>
+        <Codicon name="arrow-up" />
+      </Button>
+      <Button size="icon" aria-label={S.nextChange} title={S.nextChange} onClick={() => nav.step(1)}>
+        <Codicon name="arrow-down" />
+      </Button>
     </>
   );
 }

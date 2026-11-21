@@ -1,92 +1,97 @@
-import { unifiedMergeView } from "@codemirror/merge";
+import { MergeView, unifiedMergeView } from "@codemirror/merge";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { ScmFileDiff, ScmHunkInfo } from "../shared/scm";
+import { confirmAction } from "./ConfirmDialog";
+import { useDefaults } from "./defaults";
 import { DIFF_CONFIG } from "./diffMarks";
-import { bindDiffView, diffLspTarget, initialModifiedText } from "./diffLsp";
+import { bindDiffView, diffLspTarget, initialModifiedText, type DiffLspTarget } from "./diffLsp";
+import { chooseDiffMode, useDiffView } from "./diffMode";
+import { registerDiffNav } from "./diffNav";
 import { DiffContextMenu } from "./LspMenu";
-import { COLLAPSE_UNCHANGED, diffCodeExtensions } from "./diffSplit";
-import { relabelCollapsed } from "./DiffView";
+import { COLLAPSE_UNCHANGED, diffCodeExtensions, stepChunk } from "./diffSplit";
+import { trackHover, watchChunkBoxes } from "./diffGutterHover";
+import { DiffCrumbs, relabelCollapsed } from "./DiffView";
 import { subscribeEditorFont } from "./editorFont";
-import { FileTypeIcon } from "./FileTypeIcon";
-import { Codicon } from "./icons";
 import { rpc } from "./rpc";
-import { hunkGutter } from "./scmHunkGutter";
+import { chunkLines, hunkActionButton, hunkForLines, hunkGutter, type HunkButton } from "./scmHunkGutter";
 import { M } from "./scmStrings";
-import { flash, type ScmDiffTab } from "./store";
-import { Button } from "./ui/button";
+import { flash, openFile, useStore, type ScmDiffTab } from "./store";
 import { reloadWorkspaceChanges } from "./workspaceChanges";
 import { onWorkspaceChanged } from "./workspaceEvents";
 
 // Source Control 의 Open Changes 가 여는 diff 탭. 세션과 무관하게 저장소의 인덱스를 기준으로 보이고, hunk 마다 Stage Block 또는 Unstage Block 이 있다.
-// staged 는 HEAD 대 인덱스(단추는 Unstage Block), changes 는 인덱스 대 작업 트리(단추는 Stage Block)다.
+// staged 는 HEAD 대 인덱스(단추는 Unstage Block), changes 는 인덱스 대 작업 트리(단추는 Stage Block 과 Discard Block)다.
 export function ScmDiffView({ tab, active }: { tab: ScmDiffTab; active: boolean }) {
   const target = { agentId: tab.agentId, workspaceId: tab.workspaceId };
   const { diff, error, reload } = useScmFileDiff(tab);
   const [busy, setBusy] = useState(false);
   const staged = tab.section === "staged";
+  const handle = useRef<MountedDiff | null>(null);
+  const workspaceDir = useStore((s) => s.workspaces.find((w) => w.id === tab.workspaceId)?.dir ?? "");
+  const relative = workspaceDir && tab.path.startsWith(`${workspaceDir}/`) ? tab.path.slice(workspaceDir.length + 1) : tab.path;
 
-  // 서버가 다시 읽은 hunk 지문과 함께 한 hunk 를 올리거나 내린다. 파일이 그 사이 바뀌었으면 서버가 거절하고, 어느 쪽이든 diff 를 새로 읽는다.
-  const actOnHunk = useCallback(
-    async (hunk: ScmHunkInfo) => {
-      setBusy(true);
-      try {
-        await rpc.call("scm.stageHunk", { ...target, rel: tab.rel, section: tab.section, index: hunk.index, hash: hunk.hash });
-      } catch (e) {
-        flash(M.hunkFailed((e as Error).message), "error");
-      } finally {
-        setBusy(false);
-        await reload();
-        void reloadWorkspaceChanges(tab.workspaceId);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tab.agentId, tab.workspaceId, tab.rel, tab.section, reload],
-  );
-
-  const wholeFile = async () => {
+  const settle = async (job: () => Promise<unknown>, failed: (message: string) => string) => {
     setBusy(true);
     try {
-      await rpc.call(staged ? "scm.unstage" : "scm.stage", { ...target, paths: [tab.rel] });
+      await job();
     } catch (e) {
-      flash(M.hunkFailed((e as Error).message), "error");
+      flash(failed((e as Error).message), "error");
     } finally {
       setBusy(false);
       await reload();
       void reloadWorkspaceChanges(tab.workspaceId);
     }
   };
+  // 서버가 다시 읽은 hunk 지문과 함께 한 hunk 를 올리거나 내린다. 파일이 그 사이 바뀌었으면 서버가 거절하고, 어느 쪽이든 diff 를 새로 읽는다.
+  const stageHunk = (hunk: ScmHunkInfo) => settle(() => rpc.call("scm.stageHunk", { ...target, rel: tab.rel, section: tab.section, index: hunk.index, hash: hunk.hash }), M.hunkFailed);
+  const discardHunk = async (hunk: ScmHunkInfo) => {
+    const name = tab.rel.slice(tab.rel.lastIndexOf("/") + 1);
+    const fresh = diff?.original === null;
+    const ok = await confirmAction(fresh ? M.trashFileTitle(name) : M.discardBlockTitle(name), fresh ? M.trashFileButton : M.discardBlockButton, fresh ? M.trashFileDetail : M.discardBlockDetail, "warning");
+    if (ok) await settle(() => rpc.call("scm.discardHunk", { ...target, rel: tab.rel, index: hunk.index, hash: hunk.hash }), M.discardBlockFailed);
+  };
+  const wholeFile = () => settle(() => rpc.call(staged ? "scm.unstage" : "scm.stage", { ...target, paths: [tab.rel] }), M.hunkFailed);
 
-  const relative = tab.rel;
+  const latest = useRef({ stageHunk, discardHunk, wholeFile, busy });
+  latest.current = { stageHunk, discardHunk, wholeFile, busy };
+  const buttons = useMemo<HunkButton[]>(() => {
+    const guard = (act: (hunk: ScmHunkInfo) => unknown) => (hunk: ScmHunkInfo) => !latest.current.busy && void act(hunk);
+    const stage = guard((hunk) => latest.current.stageHunk(hunk));
+    if (staged) return [{ label: M.unstageBlock, icon: "remove", act: stage }];
+    return [
+      { label: M.stageBlock, icon: "add", act: stage },
+      { label: M.discardBlock, icon: "discard", act: guard((hunk) => latest.current.discardHunk(hunk)) },
+    ];
+  }, [staged]);
+
+  const canStageFile = !!diff && (diff.hunks.length > 0 || diff.binary || diff.tooLarge);
+  useEffect(
+    () =>
+      registerDiffNav(tab.key, {
+        step: (direction) => handle.current?.step(direction),
+        openFile: () => openFile({ workspaceId: tab.workspaceId, path: relative }),
+        fileAction: canStageFile ? { label: staged ? M.unstage : M.stage, run: () => void latest.current.wholeFile() } : undefined,
+      }),
+    [tab.key, tab.workspaceId, relative, canStageFile, staged],
+  );
+
   return (
     <div className="editor scm-diff-editor" style={{ display: active ? "flex" : "none" }} data-testid="scm-diff">
-      <div className="pane-header">
-        <FileTypeIcon name={tab.path} />
-        <span className="editor-path" title={tab.path}>
-          {relative}
-        </span>
-        <span className="faint xs">{staged ? M.sectionStaged : M.sectionChanges}</span>
-        {diff && diff.hunks.length > 0 && <span className="faint xs">{M.blocks(diff.hunks.length)}</span>}
-        <span className="spacer" />
-        {diff && (diff.hunks.length > 0 || diff.binary || diff.tooLarge) && (
-          <Button size="icon" aria-label={staged ? M.unstage : M.stage} title={staged ? M.unstage : M.stage} disabled={busy} onClick={() => void wholeFile()}>
-            <Codicon name={staged ? "remove" : "add"} />
-          </Button>
-        )}
-      </div>
-      <ScmDiffBody tab={tab} diff={diff} error={error} busy={busy} onHunk={actOnHunk} />
+      <DiffCrumbs tabKey={tab.key} workspaceId={tab.workspaceId} path={relative} />
+      <ScmDiffBody tab={tab} diff={diff} error={error} buttons={buttons} handleRef={handle} />
     </div>
   );
 }
 
-function ScmDiffBody({ tab, diff, error, busy, onHunk }: { tab: ScmDiffTab; diff: ScmFileDiff | null; error: string | null; busy: boolean; onHunk: (hunk: ScmHunkInfo) => void }) {
+function ScmDiffBody({ tab, diff, error, buttons, handleRef }: { tab: ScmDiffTab; diff: ScmFileDiff | null; error: string | null; buttons: HunkButton[]; handleRef: RefObject<MountedDiff | null> }) {
   if (error && !diff) return <div className="editor-error">{M.diffLoadFailed(error)}</div>;
   if (!diff) return <div className="empty-hint">{M.loading}</div>;
   if (diff.binary) return <Notice title={M.diffBinary} text={M.diffBinaryText} />;
   if (diff.tooLarge) return <Notice title={M.diffTooLarge} text={M.diffTooLargeText} />;
   if (diff.original === diff.modified || (diff.original === null && diff.modified === null)) return <Notice title={M.diffNoChanges} text={M.diffNoChangesText} />;
-  return <HunkEditor tab={tab} diff={diff} busy={busy} onHunk={onHunk} />;
+  return <HunkEditor tab={tab} diff={diff} buttons={buttons} handleRef={handleRef} />;
 }
 
 function Notice({ title, text }: { title: string; text: string }) {
@@ -98,62 +103,145 @@ function Notice({ title, text }: { title: string; text: string }) {
   );
 }
 
-function HunkEditor({ tab, diff, busy, onHunk }: { tab: ScmDiffTab; diff: ScmFileDiff; busy: boolean; onHunk: (hunk: ScmHunkInfo) => void }) {
+type MountedDiff = { step: (direction: 1 | -1) => void; scroller: HTMLElement; lspView: EditorView | null; measure: () => void; destroy: () => void };
+type MountOptions = { tab: ScmDiffTab; diff: ScmFileDiff; buttons: HunkButton[]; lsp: DiffLspTarget | null };
+
+function HunkEditor({ tab, diff, buttons, handleRef }: { tab: ScmDiffTab; diff: ScmFileDiff; buttons: HunkButton[]; handleRef: RefObject<MountedDiff | null> }) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView | null>(null);
-  // LSP 가 붙은 보기(오른쪽 클릭 메뉴의 대상). Staged 구간은 붙지 않는다.
   const lspViewRef = useRef<EditorView | null>(null);
   const scrollRef = useRef(0);
-  // 단추 동작은 최신 busy 와 콜백을 보게 하되, 편집기를 다시 만들지는 않는다
-  const actRef = useRef(onHunk);
-  actRef.current = busy ? () => undefined : onHunk;
-  const label = tab.section === "staged" ? M.unstageBlock : M.stageBlock;
+  const [requested] = useDiffView();
+  const autoInline = useDefaults().diffInlineWhenNarrow;
+  const hostWidth = useHostWidth(hostRef);
+  const { mode } = chooseDiffMode(requested, hostWidth, autoInline);
+  const measured = hostWidth !== null;
 
   useLayoutEffect(() => {
     const host = hostRef.current;
-    if (!host) return;
+    if (!host || !measured) return;
     const lsp = tab.section === "changes" && diff.modified !== null ? diffLspTarget(tab.workspaceId, tab.path, true) : null;
-    const view = new EditorView({
-      parent: host,
-      state: EditorState.create({
-        doc: initialModifiedText(lsp, diff.modified ?? ""),
-        extensions: [
-          hunkGutter(diff.hunks, tab.section === "staged" ? "unstage" : "stage", label, (hunk) => actRef.current(hunk)),
-          diffCodeExtensions(tab.path, false, undefined, lsp),
-          unifiedMergeView({ original: diff.original ?? "", mergeControls: false, collapseUnchanged: COLLAPSE_UNCHANGED, diffConfig: DIFF_CONFIG }),
-          EditorView.contentAttributes.of({ "aria-label": tab.rel }),
-        ],
-      }),
-    });
-    viewRef.current = view;
-    const unbind = lsp ? bindDiffView(lsp, view) : null;
-    lspViewRef.current = lsp ? view : null;
+    const mounted = mode === "split" ? mountSplit(host, { tab, diff, buttons, lsp }) : mountInline(host, { tab, diff, buttons, lsp });
+    handleRef.current = mounted;
+    lspViewRef.current = mounted.lspView;
     relabelCollapsed(host);
-    // 단추를 눌러 diff 를 다시 만들 때 보던 자리를 지킨다
-    requestAnimationFrame(() => (view.scrollDOM.scrollTop = scrollRef.current));
+    requestAnimationFrame(() => (mounted.scroller.scrollTop = scrollRef.current));
     const observer = new MutationObserver(() => relabelCollapsed(host));
     observer.observe(host, { childList: true, subtree: true });
-    const onScroll = () => (scrollRef.current = view.scrollDOM.scrollTop);
-    view.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
+    const onScroll = () => (scrollRef.current = mounted.scroller.scrollTop);
+    mounted.scroller.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       observer.disconnect();
-      view.scrollDOM.removeEventListener("scroll", onScroll);
-      unbind?.();
-      view.destroy();
-      viewRef.current = null;
+      mounted.scroller.removeEventListener("scroll", onScroll);
+      mounted.destroy();
+      handleRef.current = null;
       lspViewRef.current = null;
     };
-  }, [diff, tab.path, tab.rel, tab.section, label]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diff, tab.path, tab.rel, tab.section, tab.workspaceId, buttons, mode, measured, handleRef]);
 
-  // 코드 글꼴 설정이 바뀌면 글자 크기와 줄 높이를 다시 잰다.
-  useEffect(() => subscribeEditorFont(() => viewRef.current?.requestMeasure()), []);
+  useEffect(() => subscribeEditorFont(() => handleRef.current?.measure()), [handleRef]);
 
   return (
     <>
-      <div className="editor-host file-diff-host scm-diff-host" data-mode="inline" data-readonly="" ref={hostRef} />
+      <div className="editor-host file-diff-host scm-diff-host" data-mode={mode} ref={hostRef} />
       <DiffContextMenu host={hostRef} lspView={() => lspViewRef.current} workspaceId={tab.workspaceId} />
     </>
   );
+}
+
+function useHostWidth(hostRef: RefObject<HTMLDivElement | null>) {
+  const [width, setWidth] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const read = () => {
+      const next = host.clientWidth;
+      if (next > 0) setWidth((prev) => (prev === next ? prev : next));
+    };
+    read();
+    const observer = new ResizeObserver(read);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, [hostRef]);
+  return width;
+}
+
+function mountInline(host: HTMLElement, { tab, diff, buttons, lsp }: MountOptions): MountedDiff {
+  const view = new EditorView({
+    parent: host,
+    state: EditorState.create({
+      doc: initialModifiedText(lsp, diff.modified ?? ""),
+      extensions: [
+        hunkGutter(diff.hunks, buttons),
+        diffCodeExtensions(tab.path, false, undefined, lsp),
+        unifiedMergeView({ original: diff.original ?? "", mergeControls: false, collapseUnchanged: COLLAPSE_UNCHANGED, diffConfig: DIFF_CONFIG }),
+        EditorView.contentAttributes.of({ "aria-label": tab.rel }),
+      ],
+    }),
+  });
+  const unbind = lsp ? bindDiffView(lsp, view) : null;
+  const untrack = trackHover(view.dom, ".scm-hunk-mark");
+  return {
+    step: (direction) => stepChunk(view, direction),
+    scroller: view.scrollDOM,
+    lspView: lsp ? view : null,
+    measure: () => view.requestMeasure(),
+    destroy: () => {
+      untrack();
+      unbind?.();
+      view.destroy();
+    },
+  };
+}
+
+function mountSplit(host: HTMLElement, { tab, diff, buttons, lsp }: MountOptions): MountedDiff {
+  let merge: MergeView | null = null;
+  const hunkAt = (box: HTMLElement) => {
+    const chunk = merge?.chunks[Number(box.dataset.chunk)];
+    if (!merge || !chunk) return null;
+    return hunkForLines(diff.hunks, chunkLines(merge.a.state.doc, chunk.fromA, chunk.toA), chunkLines(merge.b.state.doc, chunk.fromB, chunk.toB));
+  };
+  const renderControl = () => {
+    const box = document.createElement("div");
+    box.className = "split-chunk-buttons";
+    box.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    const actions = document.createElement("div");
+    actions.className = "split-chunk-actions";
+    actions.append(...buttons.map((button) => hunkActionButton(button, () => hunkAt(box))));
+    box.append(actions);
+    return box;
+  };
+  merge = new MergeView({
+    parent: host,
+    a: { doc: diff.original ?? "", extensions: [diffCodeExtensions(tab.path, false)] },
+    b: { doc: initialModifiedText(lsp, diff.modified ?? ""), extensions: [diffCodeExtensions(tab.path, false, undefined, lsp), EditorView.contentAttributes.of({ "aria-label": tab.rel })] },
+    revertControls: "a-to-b",
+    renderRevertControl: renderControl,
+    collapseUnchanged: COLLAPSE_UNCHANGED,
+    diffConfig: DIFF_CONFIG,
+  });
+  const view = merge;
+  const unbind = lsp ? bindDiffView(lsp, view.b) : null;
+  const unwatch = watchChunkBoxes(view);
+  const untrack = trackHover(view.dom, ".cm-merge-revert > .split-chunk-buttons");
+  return {
+    step: (direction) => stepChunk(view.b, direction),
+    scroller: view.dom,
+    lspView: lsp ? view.b : null,
+    measure: () => {
+      view.a.requestMeasure();
+      view.b.requestMeasure();
+    },
+    destroy: () => {
+      untrack();
+      unwatch();
+      unbind?.();
+      view.destroy();
+    },
+  };
 }
 
 // 서버에서 파일 diff 를 읽는다. 바깥 변화(workspaceChanged)와 이 탭이 다시 보일 때 새로 읽고, 내용이 같으면 상태를 바꾸지 않아 편집기가 다시 만들어지지 않는다.

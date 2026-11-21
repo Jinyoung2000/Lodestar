@@ -3,8 +3,7 @@ import type { DiffView } from "../shared/protocol";
 // diff 보기를 고르는 순수 계산. DOM 과 저장소를 건드리지 않아 단위 시험이 그대로 부른다(web/diffMode.ts 가 다시 내보낸다).
 // split 은 한쪽(기준 또는 현재)이 이 폭보다 좁아지면 쓰지 않는다. 줄 번호 열과 변경 표시 열을 포함한 폭이다.
 export const SPLIT_MIN_PANE = 320;
-// 두 칸 사이 Keep, Undo 버튼 열의 폭. styles.css 의 .cm-merge-revert 폭(버튼 2개 + 여백 3개)과 같은 값이어야 한다.
-export const SPLIT_GAP = 60;
+export const SPLIT_GAP = 28;
 
 export const splitFits = (hostWidth: number) => hostWidth >= SPLIT_MIN_PANE * 2 + SPLIT_GAP;
 

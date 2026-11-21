@@ -43,7 +43,15 @@ export async function git(cwd: string, args: string[], options: { unattended?: b
 // FIX6B: 패치를 표준 입력으로 받아 인덱스에 적용한다(hunk 단위 stage 는 --cached, unstage 는 reverse). --unidiff-zero: 문맥 없는 hunk(-U0)를 받는다.
 // 작업 트리는 건드리지 않는다. 실패하면 git 이 낸 문장이 오류 메시지로 올라간다.
 export function applyToIndex(cwd: string, patch: string, options: { reverse?: boolean } = {}): Promise<void> {
-  const args = [...GIT_PATH_FLAGS, "apply", "--cached", "--unidiff-zero", "--whitespace=nowarn", ...(options.reverse ? ["-R"] : []), "-"];
+  return applyPatch(cwd, patch, ["--cached", ...(options.reverse ? ["-R"] : [])]);
+}
+
+export function revertInWorktree(cwd: string, patch: string): Promise<void> {
+  return applyPatch(cwd, patch, ["-R"]);
+}
+
+function applyPatch(cwd: string, patch: string, flags: string[]): Promise<void> {
+  const args = [...GIT_PATH_FLAGS, "apply", "--unidiff-zero", "--whitespace=nowarn", ...flags, "-"];
   return new Promise((resolve, reject) => {
     const child = spawn("git", args, { cwd, stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, LC_ALL: "C" } });
     let err = "";

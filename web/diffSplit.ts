@@ -1,4 +1,4 @@
-import { Chunk, MergeView, uncollapseUnchanged } from "@codemirror/merge";
+import { Chunk, goToNextChunk, goToPreviousChunk, MergeView, uncollapseUnchanged } from "@codemirror/merge";
 import type { Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { basicSetup } from "codemirror";
@@ -12,6 +12,7 @@ import { editorSyntax } from "./editorSyntax";
 import { bindDiffView, diffLspExtensions, type DiffLspTarget } from "./diffLsp";
 import { isMirroredUpdate } from "./viewMirror";
 import { findWidget } from "./findWidget";
+import { trackHover, watchChunkBoxes } from "./diffGutterHover";
 import { S } from "./strings";
 
 // 마운트한 diff 하나를 다루는 손잡이. inline 이든 split 이든 FileDiff 는 이것만 본다.
@@ -19,6 +20,7 @@ export type DiffHandle = {
   // 지금 화면의 현재 쪽(파일) 본문
   text: () => string;
   measure: () => void;
+  step: (direction: 1 | -1) => void;
   // DIFFFB: 현재 쪽의 그 줄이 보이게 스크롤한다(접힌 구간이면 펼친다).
   reveal: (line: number) => void;
   // LSP 가 붙은 수정본 쪽 보기(오른쪽 클릭 메뉴의 대상). LSP 가 없으면 null.
@@ -31,6 +33,10 @@ export function revealLine(view: EditorView, line: number) {
   const doc = view.state.doc;
   const at = doc.line(Math.min(Math.max(line, 1), doc.lines)).from;
   view.dispatch({ effects: [uncollapseUnchanged.of(at), EditorView.scrollIntoView(at, { y: "center" })] });
+}
+
+export function stepChunk(view: EditorView, direction: 1 | -1) {
+  (direction > 0 ? goToNextChunk : goToPreviousChunk)(view);
 }
 
 export type DiffHooks = {
@@ -118,8 +124,15 @@ export function mountSplitDiff(parent: HTMLElement, { agentId, path, original, t
   const renderControl = () => {
     const box = document.createElement("div");
     box.className = "split-chunk-buttons";
+    box.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
     const run = (action: ChunkAction) => () => apply(Number(box.dataset.chunk), action);
-    box.append(iconButton(S.keepChunk, ICON_KEEP, run("keep")), iconButton(S.undoChunk, ICON_UNDO, run("undo")));
+    const actions = document.createElement("div");
+    actions.className = "split-chunk-actions";
+    actions.append(iconButton(S.keepChunk, ICON_KEEP, run("keep")), iconButton(S.undoChunk, ICON_UNDO, run("undo")));
+    box.append(actions);
     return box;
   };
   // 공백만 다른 줄은 덩어리가 아니므로(DIFF_CONFIG) 덩어리가 없으면 해결된 것이다.
@@ -158,15 +171,20 @@ export function mountSplitDiff(parent: HTMLElement, { agentId, path, original, t
   });
   hooks.onResolved(view.chunks.length === 0);
   const unbind = lsp ? bindDiffView(lsp, view.b) : null;
+  const unwatch = watchChunkBoxes(view);
+  const untrack = trackHover(view.dom, ".cm-merge-revert > .split-chunk-buttons");
   return {
     text: () => view.b.state.doc.toString(),
     measure: () => {
       view.a.requestMeasure();
       view.b.requestMeasure();
     },
+    step: (direction) => stepChunk(view.b, direction),
     reveal: (line) => revealLine(view.b, line),
     lspView: lsp ? view.b : null,
     destroy: () => {
+      untrack();
+      unwatch();
       unbind?.();
       view.destroy();
     },
