@@ -2,6 +2,7 @@
 // 실행: npm test
 import { CODEX_FALLBACK_MODE, CODEX_MODE_NOTES, codexPermission, codexSupportsMode } from "../shared/codexPermission";
 import { CLAUDE_EFFORT_LEVELS, claudeEffort, EFFORT_LEVELS, harnessOf, isEffortLevel, PERMISSION_MODE_VALUES, type Agent, type TimelineItem } from "../shared/protocol";
+import { CARRY_MAX_CHARS, carryAfterCut, carryTranscript, checkpointLocked, remapSeen, switchBlock, switchedState } from "../shared/harnessSwitch";
 import { toolChanges } from "../web/timelineModel";
 import { previewEdit } from "../web/approvalPreview";
 import { commandApproval, diffHunks, displayCommand, editToolOf, fileChangeApproval, itemToTimeline, mcpResultText, planToTool, summarizeDiff, turnErrorOf } from "../server/codex/mapping";
@@ -142,6 +143,67 @@ test("옛 저장본 호환: harness 가 없는 세션은 claude 이고, 새 필�
   // 모바일 앱과 옛 화면은 모르는 필드를 무시한다: 옛 필드 집합은 그대로 들어 있다
   const keys = Object.keys(old);
   expect(keys.every((k) => k in round), "옛 필드가 모두 남아 있다");
+});
+
+const switched: TimelineItem[] = [
+  { id: "u1", kind: "user", text: "fix the bug", source: "user", messageId: "m1" },
+  { id: "a1", kind: "assistant", text: "Fixed it in Claude", streaming: false },
+  { id: "r1", kind: "result", isError: false, durationMs: 1, costUsd: null, changes: { files: 1, additions: 3, deletions: 1, list: [{ path: "/repo/src/a.ts", additions: 3, deletions: 1 }] } },
+  { id: "d1", kind: "notice", text: "Switched to Codex · gpt-x", divider: true, switched: "codex" },
+  { id: "u2", kind: "user", text: "<earlier-conversation>old</earlier-conversation>\n\ncontinue", shown: "continue", source: "user" },
+  { id: "t1", kind: "tool", name: "Bash", input: { command: "ls" }, status: "done", output: "a.ts" },
+  { id: "k1", kind: "thinking", text: "hmm" },
+  { id: "a2", kind: "assistant", text: "Codex reply", streaming: false },
+  { id: "r2", kind: "result", isError: false, durationMs: 1, costUsd: null, changes: { files: 2, additions: 3, deletions: 1, list: [{ path: "/repo/src/a.ts", additions: 2, deletions: 0 }, { path: "/repo/b.ts", additions: 1, deletions: 1 }] } },
+  { id: "d2", kind: "notice", text: "Switched to Claude · opus", divider: true, switched: "claude" },
+];
+const carryAgent = (patch: Partial<Agent>) => ({ harness: "claude" as const, sessionId: null, resumeFrom: null, codexThreadId: null, seenThrough: undefined, cwd: "/repo", ...patch });
+
+test("넘겨받기: 새 Codex 스레드는 처음부터의 대화를 받고, 도구 소음과 말풍선에 안 보인 글은 빠진다", () => {
+  const text = carryTranscript(switched.slice(0, 4), carryAgent({ harness: "codex", codexThreadId: null, seenThrough: { claude: "d1" } }))!;
+  expect(text.startsWith("<earlier-conversation>\n") && text.endsWith("\n</earlier-conversation>"), "구분 블록");
+  expect(text.includes("You are Codex."), "받는 도구 이름");
+  expect(text.includes("User:\nfix the bug\n\nClaude:\nFixed it in Claude\n\nFiles changed in these turns:\n- src/a.ts (+3 -1)"), text);
+});
+
+test("넘겨받기: Claude 로 돌아가면 Claude 가 마지막으로 본 지점 뒤의 Codex 턴만 받는다", () => {
+  const text = carryTranscript(switched, carryAgent({ sessionId: "s1", seenThrough: { claude: "d1", codex: "d2" } }))!;
+  expect(text.includes("User:\ncontinue\n\nCodex:\nCodex reply\n\nFiles changed in these turns:\n- src/a.ts (+2 -0)\n- b.ts (+1 -1)"), text);
+  expect(!text.includes("fix the bug") && !text.includes(">old<") && !text.includes("Bash") && !text.includes("hmm"), "본 턴, 넘겨받은 글, 도구, 생각은 없다");
+  expect(text.includes("You are Claude."), "받는 도구 이름");
+  expect(carryTranscript(switched, carryAgent({ sessionId: "s1", seenThrough: { claude: "gone" } })) === null, "표지가 없으면 보내지 않는다");
+  expect(carryTranscript(switched, carryAgent({ sessionId: "s1", seenThrough: { claude: "d2" } })) === null, "새 턴이 없으면 null");
+});
+
+test("넘겨받기: 크기 한도를 넘으면 오래된 메시지부터 빼고 표시를 남기며, 긴 메시지는 가운데를 줄인다", () => {
+  const many: TimelineItem[] = Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, kind: "assistant" as const, text: `${i}:${"x".repeat(4000)}`, streaming: false }));
+  const text = carryTranscript([...many, { id: "big", kind: "user", text: "y".repeat(20_000), source: "user" }], carryAgent({ harness: "codex" }))!;
+  expect(text.length <= CARRY_MAX_CHARS, `길이 ${text.length}`);
+  expect(/\[\d+ earlier messages omitted to keep this short\]/.test(text) && !text.includes("Codex:\n0:") && text.includes("Codex:\n29:"), "오래된 것부터 뺀다");
+  expect(text.includes("[... 12000 characters omitted ...]"), "긴 메시지는 가운데를 줄인다");
+});
+
+test("본 범위 기록: 바꿀 때 떠나는 도구의 표지를 나눔 줄로 옮기고, 되돌리기와 갈래는 넘겨받기를 다시 건다", () => {
+  expect(JSON.stringify(switchedState({ harness: "codex", seenThrough: { claude: "d1" } }, "d2")) === JSON.stringify({ seenThrough: { claude: "d1", codex: "d2" }, carryPending: true }), "떠나는 도구");
+  const withCarry: TimelineItem[] = [...switched, { id: "u3", kind: "user", text: "next", source: "user", messageId: "m3" }];
+  expect(JSON.stringify(carryAfterCut(switched, { claude: "x", codex: "d2" })) === JSON.stringify({ carryPending: true, seenThrough: { codex: "d2", claude: "d1" } }), "넘겨받은 턴을 되돌리면 다시 받는다");
+  expect(JSON.stringify(carryAfterCut(withCarry, { claude: "x" })) === JSON.stringify({ carryPending: false }), "넘겨받은 턴이 남으면 끝난 것");
+  expect(JSON.stringify(carryAfterCut(switched.slice(0, 3), { claude: "x" })) === "{}", "나눔 줄이 없으면 그대로");
+  expect(JSON.stringify(carryAfterCut(switched.slice(4), { claude: "x" })) === JSON.stringify({ carryPending: true, seenThrough: {} }), "Claude 가 처음이면 표지를 지운다");
+  expect([...checkpointLocked(withCarry, "claude")].join() === "u1,u2", "마지막으로 Claude 로 바꾸기 전 메시지는 잠긴다");
+  expect([...checkpointLocked(withCarry, "codex")].join() === "u1,u2,u3", "Codex 동안은 모두 잠긴다");
+  expect(checkpointLocked(switched.slice(0, 3), "claude").size === 0, "바꾼 적 없으면 잠그지 않는다");
+  expect(JSON.stringify(remapSeen({ claude: "d1" }, (id) => `ab:${id}`)) === JSON.stringify({ claude: "ab:d1" }) && remapSeen(undefined, (id) => id) === undefined, "갈래의 새 id");
+});
+
+test("도구 바꾸기를 막는 경우", () => {
+  const base = { status: "idle" as const, backgroundTasks: 0, feedbackId: null, imported: undefined };
+  expect(switchBlock(base, switched) === null, "쉬는 세션");
+  expect(switchBlock({ ...base, status: "running" }, []) === "running", "응답 중");
+  expect(switchBlock({ ...base, backgroundTasks: 1 }, []) === "background", "백그라운드 작업");
+  expect(switchBlock(base, [{ id: "p", kind: "permission", toolName: "Bash", input: {}, status: "pending" }]) === "waiting", "승인 대기");
+  expect(switchBlock({ ...base, feedbackId: "f" }, []) === "feedback", "개선 세션");
+  expect(switchBlock(base, [{ id: "n", kind: "user", text: "q", attachments: [{ kind: "notion", label: "Page", url: "https://notion.so/x" }] }]) === "notion", "Notion 페이지 대화");
 });
 
 test("effort: ultra 는 저장값으로 받지만 Claude 단계에는 없다", () => {

@@ -19,7 +19,8 @@ import type {
   Worktree,
   RestoreSkip, // FIX5-0
 } from "../shared/protocol";
-import { PERMISSION_MODE_VALUES, claudeEffort, harnessOf, type ClaudeEffortLevel, type Harness } from "../shared/protocol";
+import { HARNESS_VALUES, PERMISSION_MODE_VALUES, claudeEffort, harnessOf, isEffortLevel, type ClaudeEffortLevel, type Harness } from "../shared/protocol";
+import { carryAfterCut, carryTranscript, checkpointLocked, HARNESS_NAMES, remapSeen, switchBlock, switchedState } from "../shared/harnessSwitch";
 import { CODEX_FALLBACK_MODE, codexSupportsMode } from "../shared/codexPermission"; // CODEX
 import { CodexRunner } from "./codex/runner"; // CODEX
 import { checkpointMode, checkpointSession, commitRedo, dropRedo, keptEntryBefore, loadRedo, probeCheckpointModes, readRaw, resolveMessageId, saveRedo, sessionChain, splitTimeline, stageRedo, withRewindQuery } from "./checkpoints";
@@ -250,7 +251,10 @@ export class AgentRunner {
       upsert: (agentId, item) => this.upsert(agentId, item),
       setStatus: (agentId, status) => this.setStatus(agentId, status),
       turnStarted: (agentId) => this.boardHooks?.turnStarted(agentId),
-      turnEnded: (agentId) => this.boardHooks?.turnEnded(agentId),
+      turnEnded: (agentId) => {
+        this.clearCarry(agentId);
+        this.boardHooks?.turnEnded(agentId);
+      },
       turnChanges: (agentId) => this.turnChanges(agentId),
       finishTouch: async (agentId) => {
         await endTouchTurn(this.store.agent(agentId), this.store);
@@ -438,9 +442,11 @@ export class AgentRunner {
     const source = this.store.agent(agentId);
     if (!source.sessionId) throw new Error(T.errNoSessionToFork);
     const now = new Date().toISOString();
+    const forkedId = randomUUID();
     const forked: Agent = {
       ...forkedFrom(source),
-      id: randomUUID(),
+      id: forkedId,
+      seenThrough: remapSeen(source.seenThrough, (id) => `${forkedId.slice(0, 8)}:${id}`),
       title: `Forked: ${source.title}`,
       sessionId: null,
       resumeFrom: source.sessionId,
@@ -481,6 +487,7 @@ export class AgentRunner {
     const target = items.find((i) => i.id === beforeItemId);
     if (!split || target?.kind !== "user" || target.source === "system") throw new Error(T.errNoCheckpoint);
     if (target.preCompact) throw new Error(T.errPreCompact);
+    if (checkpointLocked(items, harnessOf(source)).has(beforeItemId)) throw new Error(T.errCheckpointBeforeSwitch);
     if (!split.kept.some((i) => i.kind === "user" && i.source !== "system")) throw new Error(T.errNothingToFork);
     const messageId = await resolveMessageId(source, items, beforeItemId);
     if (!messageId) throw new Error(T.errCheckpointGone);
@@ -488,9 +495,12 @@ export class AgentRunner {
     if (!kept) throw new Error(T.errCheckpointGone);
     const title = T.forkedTitle(source.title);
     const now = new Date().toISOString();
+    const nextId = randomUUID();
+    const mapId = (id: string) => `${nextId.slice(0, 8)}:${id}`;
     const next: Agent = {
       ...forkedFrom(source),
-      id: randomUUID(),
+      id: nextId,
+      seenThrough: remapSeen(source.seenThrough, mapId),
       title,
       sessionId: null,
       resumeFrom: source.sessionId,
@@ -505,8 +515,9 @@ export class AgentRunner {
       pinned: false,
       done: false,
     };
-    const agent = await this.withForkBase(source, next);
-    this.adopt(agent, copyItems(split.kept, agent.id));
+    const copied = copyItems(split.kept, nextId);
+    const agent = await this.withForkBase(source, { ...next, ...carryAfterCut(copied, next.seenThrough) });
+    this.adopt(agent, copied);
     return agent;
   }
 
@@ -524,7 +535,8 @@ export class AgentRunner {
         this.enqueue(agentId, prompt, options);
         return { queued: true };
       }
-      await this.codex.startTurn(agentId, prompt, options);
+      const carried = this.withCarry(agentId, prompt, options);
+      await this.codex.startTurn(agentId, carried.prompt, carried.options);
       return { queued: false };
     }
     const run = this.runs.get(agentId);
@@ -540,8 +552,62 @@ export class AgentRunner {
       this.enqueue(agentId, prompt, options);
       return { queued: true };
     }
-    await this.startTurn(agentId, prompt, options);
+    const carried = this.withCarry(agentId, prompt, options);
+    await this.startTurn(agentId, carried.prompt, carried.options);
     return { queued: false };
+  }
+
+  private withCarry<O extends { display?: string }>(agentId: string, prompt: string, options: O): { prompt: string; options: O } {
+    const agent = this.store.agent(agentId);
+    if (!agent.carryPending) return { prompt, options };
+    const block = carryTranscript(this.store.timeline(agentId), agent);
+    if (!block) {
+      this.clearCarry(agentId);
+      return { prompt, options };
+    }
+    return { prompt: `${block}\n\n${prompt}`, options: { ...options, display: options.display ?? prompt } };
+  }
+
+  private clearCarry(agentId: string) {
+    const agent = this.store.agents.find((a) => a.id === agentId);
+    if (!agent?.carryPending || agent.status === "error") return;
+    this.emit({ type: "agent", agent: this.store.patchAgent(agentId, { carryPending: false }) });
+  }
+
+  async switchHarness(agentId: string, target: Harness, model: string | null, effort: EffortLevel | null) {
+    const agent = this.store.agent(agentId);
+    if (!HARNESS_VALUES.includes(target)) throw new Error(`Unknown tool: ${String(target)}`);
+    const from = harnessOf(agent);
+    const nextModel = typeof model === "string" && model.trim() ? model.trim() : null;
+    const nextEffort = target === "claude" ? claudeEffort(effort) : isEffortLevel(effort) ? effort : null;
+    if (from === target) {
+      this.emit({ type: "agent", agent: this.store.updateAgent(agentId, { model: nextModel, effort: nextEffort }) });
+      return;
+    }
+    const items = this.store.timeline(agentId);
+    const live = this.runs.get(agentId)?.active || this.preparing.has(agentId) || this.restoring.has(agentId) || this.codex.isActive(agentId);
+    const pending = [...this.pending.keys()].some((key) => key.startsWith(`${agentId}:`)) || this.codex.pendingApprovalIds(agentId).length > 0;
+    const blocked = switchBlock(agent, items) ?? (pending ? "waiting" : live ? "running" : null);
+    if (blocked) throw new Error(T.switchBlocked[blocked]);
+    if (from === "claude") this.closeRun(agentId);
+    else await this.codex.remove(agentId);
+    const divider: TimelineItem = { id: randomUUID(), kind: "notice", text: T.switchedTo(HARNESS_NAMES[target], nextModel), divider: true, switched: target };
+    this.upsert(agentId, divider);
+    const current = this.store.agent(agentId);
+    this.emit({
+      type: "agent",
+      agent: this.store.updateAgent(agentId, {
+        harness: target,
+        model: nextModel,
+        effort: nextEffort,
+        permissionMode: target === "codex" && !codexSupportsMode(current.permissionMode) ? CODEX_FALLBACK_MODE : current.permissionMode,
+        activeModel: null,
+        activeEffort: null,
+        contextUsage: null,
+        ...switchedState(current, divider.id),
+        ...(target === "codex" ? { codexThreadId: null } : {}),
+      }),
+    });
   }
 
   // --- DIFFFB: diff 줄에 쌓은 피드백 ---
@@ -1148,7 +1214,10 @@ export class AgentRunner {
     const agent = this.store.agent(agentId);
     if (agent.feedbackId) this.feedbackHooks?.afterTurn(agentId);
     // 오류로 끝난 턴은 검토할 결과가 아니라서 Review 로 보내지 않는다.
-    if (agent.status !== "error") this.boardHooks?.turnEnded(agentId);
+    if (agent.status !== "error") {
+      this.clearCarry(agentId);
+      this.boardHooks?.turnEnded(agentId);
+    }
     this.armIdleClose(agentId, run);
     if (agent.imported) this.importHooks?.turnEnded(agentId);
     const next = outcome === "ok" ? agent.queue?.[0] : undefined;
@@ -1455,6 +1524,7 @@ export class AgentRunner {
     const item = items.find((i) => i.id === itemId);
     if (item?.kind !== "user" || item.source === "system" || !checkpointSession(agent)) throw new Error(T.errNoCheckpoint);
     if (item.preCompact) throw new Error(T.errPreCompact);
+    if (checkpointLocked(items, harnessOf(agent)).has(itemId)) throw new Error(T.errCheckpointBeforeSwitch);
     const split = splitTimeline(items, itemId);
     if (!split) throw new Error(T.errNoCheckpoint);
     const chain = await sessionChain(agent);
@@ -1502,7 +1572,8 @@ export class AgentRunner {
       }
       this.upsert(agentId, { id: randomUUID(), kind: "restored", redoable: true, chatOnly: files.chatOnly || undefined });
       // 첫 메시지(Start Over)는 남길 앞부분이 없으니 새 세션으로 시작한다. 옛 세션 기록은 Redo 를 위해 그대로 둔다.
-      this.emit({ type: "agent", agent: this.store.updateAgent(agentId, kept === null ? { sessionId: null, resumeFrom: null, resumeAt: null } : { resumeAt: kept }) });
+      const carry = carryAfterCut(split.kept, this.store.agent(agentId).seenThrough);
+      this.emit({ type: "agent", agent: this.store.updateAgent(agentId, { ...(kept === null ? { sessionId: null, resumeFrom: null, resumeAt: null } : { resumeAt: kept }), ...carry }) });
       this.emit({ type: "changes", agentId, changes: this.store.changes(agentId) });
       return { text: item.shown ?? item.text, files: files.count, chatOnly: files.chatOnly, reverted: files.reverted, removed: files.trashed, skipped: files.skipped };
     } finally {
@@ -1520,6 +1591,7 @@ export class AgentRunner {
     const items = this.store.timeline(agentId);
     const split = splitTimeline(items, itemId);
     if (!checkpointSession(agent) || !split) throw new Error(T.errNoCheckpoint);
+    if (checkpointLocked(items, harnessOf(agent)).has(itemId)) throw new Error(T.errCheckpointBeforeSwitch);
     const messageId = await resolveMessageId(agent, items, itemId, await sessionChain(agent));
     if (!messageId) throw new Error(T.errCheckpointUnmatched);
     const result = await withRewindQuery(agent, async (rewind) => {
@@ -1564,7 +1636,8 @@ export class AgentRunner {
       await syncAfterRestore(agent, this.store, written);
       this.removeRestoredMarker(agentId);
       for (const item of redo.items) this.upsert(agentId, item);
-      this.emit({ type: "agent", agent: this.store.updateAgent(agentId, { sessionId: redo.prevSessionId, ...(redo.prevResumeFrom !== undefined ? { resumeFrom: redo.prevResumeFrom } : {}), resumeAt: redo.prevResumeAt ?? redo.tip }) });
+      const carry = carryAfterCut(this.store.timeline(agentId), this.store.agent(agentId).seenThrough);
+      this.emit({ type: "agent", agent: this.store.updateAgent(agentId, { ...carry, sessionId: redo.prevSessionId, ...(redo.prevResumeFrom !== undefined ? { resumeFrom: redo.prevResumeFrom } : {}), resumeAt: redo.prevResumeAt ?? redo.tip }) });
       this.emit({ type: "changes", agentId, changes: this.store.changes(agentId) });
       await dropRedo(agentId);
       return { files: written.length, chatOnly: redo.chatOnly === true, skipped };

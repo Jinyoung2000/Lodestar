@@ -51,6 +51,7 @@ export type Worktree = { root: string; branch: string; base: string };
 export type Harness = "claude" | "codex";
 export const HARNESS_VALUES: readonly Harness[] = ["claude", "codex"];
 export const harnessOf = (agent: { harness?: Harness }): Harness => agent.harness ?? "claude";
+export type HarnessSeen = Partial<Record<Harness, string>>;
 
 export type Agent = {
   id: string;
@@ -104,6 +105,8 @@ export type Agent = {
   harness?: Harness;
   // CODEX: 앱 서버 스레드 id. 첫 턴이 시작될 때 채워진다. 데몬이 다시 떠도 이 id 로 thread/resume 해서 이어 간다.
   codexThreadId?: string | null;
+  seenThrough?: HarnessSeen;
+  carryPending?: boolean;
 };
 
 // CTX: used 는 컨텍스트에 들어 있는 토큰, limit 은 자동 압축 기준 창 크기(SDK getContextUsage 의 rawMaxTokens). 비율은 used / limit 으로 화면이 계산한다.
@@ -218,7 +221,7 @@ export type TimelineItem =
   // FBFIX: detail 은 긴 출력(검사 로그 등). 대화에서 본문이 아니라 고정폭 상자로 보인다.
   // IMPORT: divider 는 가져온 세션의 압축 지점(문구 옆에 줄을 그린다). user 항목의 preCompact 는 마지막 압축 이전의 메시지로, 읽기 전용이라 체크포인트 복원과 갈래를 쓰지 않는다.
   // HANDOFF: openAgentId 가 있으면 그 줄을 눌러 해당 세션으로 간다("Handed off to ...").
-  | { id: string; kind: "notice"; text: string; detail?: string; fold?: { label: string; text: string }; divider?: boolean; openAgentId?: string }
+  | { id: string; kind: "notice"; text: string; detail?: string; fold?: { label: string; text: string }; divider?: boolean; openAgentId?: string; switched?: Harness }
   | { id: string; kind: "error"; text: string; auth: boolean };
 
 // list 는 그 턴이 바꾼 파일(절대 경로). 이 필드를 넣기 전에 저장된 턴에는 없다.
@@ -1089,6 +1092,7 @@ export type RpcMethods = PrRpcMethods & LinearRpcMethods & SimulatorRpcMethods &
   "agents.setPermissionMode": { params: { agentId: string; mode: PermissionMode }; result: null };
   "agents.setModel": { params: { agentId: string; model: string | null }; result: null };
   "agents.setEffort": { params: { agentId: string; effort: EffortLevel | null }; result: null };
+  "agents.switchHarness": { params: { agentId: string; harness: Harness; model: string | null; effort: EffortLevel | null }; result: null };
   "agents.respondPermission": {
     params: { agentId: string; itemId: string; decision: PermissionDecision };
     result: null;

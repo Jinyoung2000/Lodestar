@@ -16,7 +16,7 @@ import { removeFolder, restoreFolder, type RemovedFolder } from "./removedFolder
 import { settleStale } from "./subagents";
 import { parseOrderIds, parseOrderScope, parentOfKidsScope, pruneSessionOrders, type SessionOrders } from "../shared/sessionOrder"; // SESSIONORDER
 import type { DiffFeedback } from "../shared/protocol";
-import { BROWSER_PAGE_ZOOMS, BROWSER_SEARCH_ENGINES, BROWSER_STORAGES, BROWSER_TITLE_BAR, DIFF_VIEWS, EDITOR_FONT_DEFAULTS, EFFORT_LEVELS, isEffortLevel, KEYMAP_PRESETS, THEME_STYLES, UI_TYPE_DEFAULTS, UI_TYPE_RANGES, type Agent, type FileChange, type Settings, type TimelineItem, type Workspace } from "../shared/protocol";
+import { BROWSER_PAGE_ZOOMS, BROWSER_SEARCH_ENGINES, BROWSER_STORAGES, BROWSER_TITLE_BAR, DIFF_VIEWS, EDITOR_FONT_DEFAULTS, EFFORT_LEVELS, HARNESS_VALUES, isEffortLevel, KEYMAP_PRESETS, THEME_STYLES, UI_TYPE_DEFAULTS, UI_TYPE_RANGES, type Agent, type FileChange, type HarnessSeen, type Settings, type TimelineItem, type Workspace } from "../shared/protocol";
 
 export const HOME = process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav");
 const STATE_FILE = join(HOME, "state.json");
@@ -289,6 +289,16 @@ function sanitizeSettings(patch: Partial<Settings>): Partial<Settings> {
   return next;
 }
 
+function validSeen(value: unknown): HarnessSeen | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const seen: HarnessSeen = {};
+  for (const harness of HARNESS_VALUES) {
+    const id = (value as Record<string, unknown>)[harness];
+    if (typeof id === "string" && id) seen[harness] = id;
+  }
+  return Object.keys(seen).length ? seen : undefined;
+}
+
 export class Store {
   private state: State;
   private settingsValue: Settings;
@@ -350,6 +360,10 @@ export class Store {
     agent.effort = isEffortLevel(agent.effort) ? agent.effort : null;
     agent.activeModel ??= null;
     agent.activeEffort = isEffortLevel(agent.activeEffort) ? agent.activeEffort : null;
+    if (agent.harness !== undefined && !HARNESS_VALUES.includes(agent.harness)) delete agent.harness;
+    agent.seenThrough = validSeen(agent.seenThrough);
+    if (!agent.seenThrough) delete agent.seenThrough;
+    if (typeof agent.carryPending !== "boolean") delete agent.carryPending;
     agent.backgroundTasks = 0;
     // 데몬이 죽으면 모델이 받지 못한 끼어들기 메시지는 사라진 프로세스 입력에만 있었다. 글이 사라지지 않게 큐 앞으로 돌려보낸다.
     if (agent.steering?.length) {
