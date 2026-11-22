@@ -1,5 +1,3 @@
-// 에이전트 세션과 터미널로 넘기는 환경에서 앱 내부 변수가 빠지고, 사용자가 셸에 둔 변수는 남는지 확인한다.
-// 실행: npm test
 import { claudeEnv, stripAppEnv } from "../server/claude";
 
 const fake = {

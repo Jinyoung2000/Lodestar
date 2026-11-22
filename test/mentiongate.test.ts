@@ -1,5 +1,3 @@
-// Slack 멘션 수집과 분석의 기본값과 시험 인스턴스 차단을 확인한다. Slack 도 모델도 부르지 않는다.
-// 실행: npm test
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

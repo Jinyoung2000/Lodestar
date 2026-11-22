@@ -13,7 +13,6 @@
   opacity: 0.9;
 }
 
-/* 보이는 범위를 나타내는 상자. 평소(mouseover)엔 숨겼다가 미니맵에 올리거나 끄는 동안 0.1s 에 걸쳐 나타난다. */
 .cm-minimap-slider {
   position: absolute;
   left: 0;
@@ -47,7 +46,6 @@
   background: var(--minimap-slider-active);
 }
 
-/* 글자가 옆으로 스크롤돼 있을 때만 미니맵 왼쪽에 그림자(.minimap-shadow-visible) */
 .cm-minimap-shadow {
   display: none;
   position: absolute;

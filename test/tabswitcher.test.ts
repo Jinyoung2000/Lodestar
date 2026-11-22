@@ -1,4 +1,3 @@
-// ⌃Tab 최근 사용 순 에디터 선택창의 목록 구성과 이동 규칙(web/tabSwitcherModel.ts). 실행: npm test
 import { noteActive, ALL_GROUPS, type TabMru } from "../web/tabMru";
 import { groupLabel, openingIndex, stepIndex, switcherRows, tabDescription, withoutRow } from "../web/tabSwitcherModel";
 
@@ -9,7 +8,6 @@ const check = (name: string, ok: boolean, detail = "") => {
 };
 const keys = (rows: { key: string }[]) => rows.map((r) => r.key).join(",");
 
-// main: a b c, g2: x y. 활성 순서는 a, b, x, c, y 로 눌렀다.
 const tabs = [{ key: "a" }, { key: "b" }, { key: "c" }, { key: "x", group: "g2" }, { key: "y", group: "g2" }];
 let mru: TabMru = {};
 let active: { group: string; key: string | null } = { group: "main", key: null };

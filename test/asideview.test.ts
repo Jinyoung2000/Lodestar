@@ -1,4 +1,3 @@
-// Aside 호출 행의 순수 로직(shared/asideTool.ts, web/asideStep.ts)과 이미지 읽기 허용 범위(server/asideImages.ts) 시험. 실행: npm test
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

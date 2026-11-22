@@ -18,8 +18,6 @@ import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
-// 가운데 영역에 세션 격자 대신 보이는 Improvements. Lodestar 가 사용자의 피드백으로 연 개선 세션을 최신순으로 보이고, 행을 누르면 이 화면 안의 오른쪽 상세 칸에 열린다(세션 오른쪽 패널은 쓰지 않는다).
-// 이 세션들은 Sessions 목록에 없다. 세션이 아직 있는 피드백만 나오고, 세션을 지우면 기록은 되돌리기 백업으로 남은 채 이 목록에서 빠진다.
 export function ImprovementsView() {
   const feedbacks = useStore((s) => s.feedbacks);
   const agents = useStore((s) => s.agents);
@@ -31,10 +29,8 @@ export function ImprovementsView() {
   const rows = useMemo(() => improvementRows(feedbacks, agents, filter, selectedId), [feedbacks, agents, filter, selectedId]);
   const retryable = useMemo(() => retryTargets(feedbacks, agents).length, [feedbacks, agents]);
   const retrying = useRetryAll();
-  // 세션을 지워서 목록에서 빠진 항목은 상세도 비운다.
   const open = rows.find((f) => f.id === selectedId) ?? null;
 
-  // 필터를 바꿀 때 열린 항목이 새 필터에 안 맞으면 목록에서 빠지므로 상세도 닫는다.
   const changeFilter = (next: ImprovementFilter) => {
     setFilter(next);
     if (open && !improvementRows({ [open.id]: open }, agents, next, null).length) closeImprovement();
@@ -98,7 +94,6 @@ export function ImprovementsView() {
 
 function ImprovementRow({ feedback, selected }: { feedback: Feedback; selected: boolean }) {
   const files = feedback.changedFiles.length;
-  // FBREDO: 반영 안 됨 행의 우클릭 메뉴(Mark as Resolved, Dismiss)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const tidyable = canTidy(feedback);
   return (
@@ -147,7 +142,6 @@ function ImprovementRow({ feedback, selected }: { feedback: Feedback; selected: 
   );
 }
 
-// 상태 라벨. 개선 세션이 도는 중(running)은 상태 배지가 없어서 같은 모양의 작업 중 라벨을 쓴다.
 function ImprovementState({ feedback }: { feedback: Pick<Feedback, "status" | "retrying" | "restartPending" | "failure"> & Partial<Pick<Feedback, "blocked">> }) {
   const badge = feedbackBadge(feedback);
   if (!badge) {
@@ -171,13 +165,11 @@ function ImprovementDetail({ feedback }: { feedback: Feedback | null }) {
   return <ImprovementForm key={feedback.id} feedback={feedback} agent={agent} />;
 }
 
-// 상태, 실패 이유 전문, 바뀐 파일, 동작 버튼. Revert 와 Retry 는 사이드바 행 메뉴와 알림에 있던 것과 같은 동작이다.
 function ImprovementForm({ feedback, agent }: { feedback: Feedback; agent: Agent }) {
   const [busy, setBusy] = useState(false);
   const needsReply = feedback.status === "needsInput";
   const canRevert = feedback.status === "applied";
   const canRestart = (feedback.status === "awaitingRestart" || feedback.restartPending) && !feedback.restartRequested;
-  // 웹 변경이 반영된 뒤에는 창을 다시 읽어야 보인다(데몬 변경은 Restart Daemon 이 창까지 다시 읽는다).
   const canReload = feedback.status === "applied" && !feedback.needsRestart;
   const run = (action: () => Promise<void>) => {
     setBusy(true);

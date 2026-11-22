@@ -15,7 +15,6 @@ export function GoToLine({ tabKey }: { tabKey: string | null }) {
   const target = parsed?.target ?? null;
   const targetPos = target?.pos ?? null;
 
-  // 미리보기: 커서는 그대로 두고 그 줄을 가운데로 보이고 줄 전체를 칠한다
   useEffect(() => {
     if (!view || targetPos === null) return;
     const line = view.state.doc.lineAt(targetPos);
@@ -52,7 +51,6 @@ export function GoToLine({ tabKey }: { tabKey: string | null }) {
       placeholder="Go to line. Type a line number, optionally followed by colon and column number."
       query={value}
       onQuery={(next) => {
-        // ":" 를 지우면 파일 열기로 바뀐다
         if (!next.startsWith(":")) {
           setState({ overlay: { kind: "quickOpen" }, quickOpenQuery: next });
           return;
@@ -79,7 +77,6 @@ export function GoToLine({ tabKey }: { tabKey: string | null }) {
   );
 }
 
-// 창이 닫히며 포커스를 이전 요소로 돌려주는 일이 끝난 뒤에 에디터로 포커스를 준다
 export function focusLater(view: EditorView) {
   requestAnimationFrame(() => requestAnimationFrame(() => view.dom.isConnected && view.focus()));
 }

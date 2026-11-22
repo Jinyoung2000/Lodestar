@@ -1,5 +1,3 @@
-// 에디터 상태 표시줄, 줄로 이동, 심볼로 이동, 줄 바꿈 토글, 줄끝 전환의 순수 로직.
-// 실행: npm test
 import { Compartment, EditorSelection, EditorState, Text, type TransactionSpec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { EDITOR_OPTION_DEFAULTS } from "../shared/editorOptions";
@@ -18,8 +16,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 const same = (name: string, got: unknown, want: unknown) => check(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}`);
-
-// --- 상태 표시줄 문구 ---
 
 const doc = "const a = 1;\n\tfoo(bar);\nlast line";
 const at = (anchor: number, head = anchor) => EditorState.create({ doc, selection: { anchor, head }, extensions: [EditorState.allowMultipleSelections.of(true), EditorState.tabSize.of(4)] });
@@ -48,8 +44,6 @@ same("LF document", statusItems(at(0), { path: null }, { useSpaces: true, size: 
 same("untitled is plain text", languageName(null), "Plain Text");
 same("unknown extension is plain text", languageName("a/b/file.unknownext"), "Plain Text");
 same("ts and json names", [languageName("a.ts"), languageName("package.json"), languageName("tsconfig.json"), languageName("x/Dockerfile"), languageName("a.scss"), languageName("README.md")], ["TypeScript", "JSON", "JSON with Comments", "Docker", "SCSS", "Markdown"]);
-
-// --- 줄로 이동 ---
 
 const text = Text.of(["first", "\tindent", "한글 line", "", "last one"]);
 const input = { doc: text, eolLength: 1, tabSize: 4 };
@@ -85,8 +79,6 @@ same("a CRLF offset skips two characters per break", [parseGoTo(crlfInput, "::5"
 same("an offset inside the CRLF stays at the end of the line", positionAt(crlfInput.doc, 2, 3), { line: 1, column: 3 });
 same("offset past the end clamps", positionAt(crlfInput.doc, 2, 99), { line: 2, column: 3 });
 
-// --- 심볼로 이동 ---
-
 const node = (name: string, kind: number, from: number, to: number, children: SymbolNode[] = []): SymbolNode => ({ name, detail: "", kind, from, to, nameFrom: from + 1, nameTo: from + 1 + name.length, children });
 const tree: SymbolNode[] = [node("Widget", 5, 0, 100, [node("render", 6, 10, 40), node("value", 7, 50, 60)]), node("helper", 12, 110, 150), node("MAX", 14, 160, 170)];
 const list = symbolList(tree);
@@ -109,8 +101,6 @@ same("the match ranges mark the typed letters", (() => {
   const row = buildSymbolPicks(list, "@rend", null).rows[1];
   return row?.type === "symbol" ? row.labelMatch : null;
 })(), [{ start: 0, end: 4 }]);
-
-// --- 줄 바꿈 덮어쓰기 ---
 
 const wrapCompartment = new Compartment();
 const wrapState = (wordWrap: "on" | "off") => EditorState.create({ doc: "x", extensions: [wrapCompartment.of(wrapExtension({ ...EDITOR_OPTION_DEFAULTS, wordWrap }))] });
@@ -137,8 +127,6 @@ check("wrap on by setting", isWrapped(on.state) && wrapped(on.state));
 toggleWordWrap(on);
 check("toggling turns it off", !isWrapped(on.state) && !wrapped(on.state));
 
-// --- 줄끝 ---
-
 const eolHolder = holder(EditorState.create({ doc: "a\nb\nc", extensions: [eolExtension(null)] }));
 same("a plain document is LF", [eolOf(eolHolder.state), eolHolder.state.sliceDoc(0)], ["\n", "a\nb\nc"]);
 setEol(eolHolder, "\r\n");
@@ -149,22 +137,17 @@ same("switching back to LF", eolHolder.state.sliceDoc(0), "a\nb\nc");
 const crlfFile = holder(EditorState.create({ doc: EditorState.create({ doc: "" }).toText("a\r\nb"), extensions: [eolExtension("\r\n")] }));
 same("a file read as CRLF starts as CRLF", [eolOf(crlfFile.state), crlfFile.state.sliceDoc(0)], ["\r\n", "a\r\nb"]);
 
-// --- 단축키 ---
-
 const verdict = (stroke: string, c: KeyContext) => {
   const out = stepKey(null, stroke, c, 0);
   return out.kind === "run" ? out.command : out.kind;
 };
 const plain: KeyContext = { inTerminal: false, inEditor: false };
 const inArea: KeyContext = { ...plain, inEditorArea: true };
-// 에디터 그룹 안의 .cm-editor 는 늘 .editor-area 안이다
 const inEditor: KeyContext = { ...plain, inEditor: true, inEditorArea: true };
 same("ctrl G goes to a line in the editor area only", [verdict("Ctrl+KeyG", inArea), verdict("Ctrl+KeyG", inEditor), verdict("Ctrl+KeyG", plain)], ["gotoLine", "gotoLine", "pass"]);
 same("shift cmd O is Go to Symbol in Editor everywhere", [verdict("Shift+Meta+KeyO", plain), verdict("Shift+Meta+KeyO", inEditor)], ["gotoSymbol", "gotoSymbol"]);
 same("cmd T is workspace symbols outside a Browser tab and a new tab inside one", [verdict("Meta+KeyT", plain), verdict("Meta+KeyT", { ...plain, inBrowser: true })], ["symbols", "openBrowser"]);
 same("alt Z toggles word wrap in the editor only", [verdict("Alt+KeyZ", inEditor), verdict("Alt+KeyZ", plain)], ["editor:toggleWordWrap", "pass"]);
-
-// --- 줄 범위 강조 ---
 
 const hl = EditorState.create({ doc: "a\nb\nc", extensions: [rangeHighlightExtension] });
 check("clearing without a view does not throw", typeof clearRangeHighlight === "function" && hl.doc.lines === 3);

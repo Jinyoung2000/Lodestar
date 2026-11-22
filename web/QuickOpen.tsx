@@ -7,15 +7,33 @@ import { QUICK_OPEN_NAVIGATE } from "./quickOpenNav";
 import { buildPicks, routeOf, splitByRanges, splitLineSuffix, usableRecent, type QuickOpenPick } from "./quickOpenModel";
 import type { Range } from "./quickOpenScore";
 import { rpc } from "./rpc";
+import { splitRootPath } from "./searchRoots";
+import { isMultiRoot, sessionRoots } from "./sessionFolders";
 import { activeTab, ensureFiles, forgetRecentFile, openFile, setState, useStore } from "./store";
 import { S } from "./strings";
 
 const PAGE_ROWS = 8;
+const ROOT_SEPARATOR = " · ";
+
+function rootPick(pick: QuickOpenPick): QuickOpenPick {
+  const cut = pick.description.indexOf("/");
+  if (cut === -1) return pick;
+  const shift = ROOT_SEPARATOR.length - 1;
+  const description = `${pick.description.slice(0, cut)}${ROOT_SEPARATOR}${pick.description.slice(cut + 1)}`;
+  const descriptionMatch = pick.descriptionMatch?.map((range) => ({ start: range.start > cut ? range.start + shift : range.start, end: range.end > cut ? range.end + shift : range.end }));
+  return { ...pick, description, ...(descriptionMatch ? { descriptionMatch } : {}) };
+}
 
 export function QuickOpen() {
   const workspaceId = useStore((s) => activeAgentOf(s.panes, s.activePaneId, s.agents)?.workspaceId ?? s.activeWorkspaceId);
   const workspaceDir = useStore((s) => s.workspaces.find((w) => w.id === workspaceId)?.dir ?? null);
-  const files = useStore((s) => (workspaceId ? s.files[workspaceId] : undefined));
+  const primaryFiles = useStore((s) => (workspaceId ? s.files[workspaceId] : undefined));
+  const agent = useStore((s) => activeAgentOf(s.panes, s.activePaneId, s.agents));
+  const workspaces = useStore((s) => s.workspaces);
+  const fileMap = useStore((s) => s.files);
+  const roots = useMemo(() => (agent && isMultiRoot(agent) ? sessionRoots(agent, workspaces).flatMap((r) => (r.workspace ? [{ label: r.label, workspaceId: r.id }] : [])) : null), [agent, workspaces]);
+  const rootFiles = useMemo(() => (roots ? (roots.every((r) => fileMap[r.workspaceId]) ? roots.flatMap((r) => fileMap[r.workspaceId].map((path) => `${r.label}/${path}`)) : undefined) : null), [roots, fileMap]);
+  const files = rootFiles === null ? primaryFiles : rootFiles;
   const recentFiles = useStore((s) => s.recentFiles);
   const includeExcluded = useStore((s) => s.settings?.quickOpenIncludeExcluded ?? false);
   const initialQuery = useStore((s) => s.quickOpenQuery);
@@ -23,31 +41,35 @@ export function QuickOpen() {
   const [index, setIndex] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [ignored, setIgnored] = useState<string[] | null>(null);
-  // ⌘P 를 한 번 더 눌러 옮긴 뒤에는 ⌘ 를 떼는 순간 고른 행을 연다
   const armed = useRef(false);
 
   useEffect(() => {
+    if (roots) {
+      for (const root of roots) ensureFiles(root.workspaceId).catch((e: Error) => setLoadError(e.message));
+      return;
+    }
     if (!workspaceId) return;
     ensureFiles(workspaceId).catch((e: Error) => setLoadError(e.message));
-  }, [workspaceId]);
+  }, [workspaceId, roots]);
 
-  // 설정에서 기본 제외를 풀면 .gitignore 로 가려진 파일도 가져온다(옛 데몬은 이 요청을 몰라 빈 목록으로 둔다)
   useEffect(() => {
-    if (!workspaceId || !includeExcluded) {
+    if (!workspaceId || !includeExcluded || roots) {
       setIgnored(null);
       return;
     }
     rpc.call("files.ignored", { workspaceId }).then(setIgnored, () => setIgnored([]));
-  }, [workspaceId, includeExcluded]);
+  }, [workspaceId, includeExcluded, roots]);
 
   const allFiles = useMemo(() => (files && ignored?.length ? [...files, ...ignored] : files), [files, ignored]);
   const { filter, line, column } = useMemo(() => splitLineSuffix(query.trim()), [query]);
 
   const computed = useMemo(() => {
     const start = performance.now();
-    const picks = buildPicks({ files: allFiles ?? [], recent: usableRecent(recentFiles, workspaceId, files), filter, workspaceDir, includeExcluded });
+    const recent = roots ? roots.flatMap((r) => usableRecent(recentFiles, r.workspaceId, fileMap[r.workspaceId]).map((path) => `${r.label}/${path}`)) : usableRecent(recentFiles, workspaceId, files);
+    const built = buildPicks({ files: allFiles ?? [], recent, filter, workspaceDir: roots ? null : workspaceDir, includeExcluded });
+    const picks = roots ? { ...built, history: built.history.map(rootPick), results: built.results.map(rootPick) } : built;
     return { picks, ms: performance.now() - start };
-  }, [allFiles, recentFiles, workspaceId, files, filter, workspaceDir, includeExcluded]);
+  }, [allFiles, recentFiles, workspaceId, files, filter, workspaceDir, includeExcluded, roots, fileMap]);
   const { history, results } = computed.picks;
   const rows = useMemo(() => [...history, ...results], [history, results]);
   const active = Math.min(index, Math.max(rows.length - 1, 0));
@@ -59,20 +81,27 @@ export function QuickOpen() {
       openFile({ ...activeFile, line, column }, { side });
       return;
     }
-    if (!pick || !workspaceId) return;
+    const target = pick ? targetOf(pick) : null;
+    if (!target) return;
     setState({ overlay: null });
-    openFile({ workspaceId, path: pick.path, line, column }, { side });
+    openFile({ ...target, line, column }, { side });
+  };
+
+  const targetOf = (pick: QuickOpenPick) => {
+    if (!roots) return workspaceId ? { workspaceId, path: pick.path } : null;
+    const split = splitRootPath(pick.path, roots);
+    return split ? { workspaceId: split.root.workspaceId, path: split.rel } : null;
   };
 
   const remove = (pick: QuickOpenPick) => {
-    if (workspaceId) forgetRecentFile({ workspaceId, path: pick.path });
+    const target = targetOf(pick);
+    if (target) forgetRecentFile(target);
   };
 
   useEffect(() => {
     document.querySelector(".palette-quickpick [data-file-option][data-active]")?.scrollIntoView({ block: "nearest" });
   }, [active, rows]);
 
-  // 한 번 더 누른 ⌘P(다음)와 ⇧⌘P(이전). 옮긴 뒤에는 ⌘ 를 뗄 때 연다.
   useEffect(() => {
     const move = (event: Event) => {
       const next = (event as CustomEvent<boolean>).detail;
@@ -203,7 +232,6 @@ function QuickOpenEmpty({ typed, filter, line, activeName, loaded, loadError, ha
   return <div className="quickpick-empty">{text}</div>;
 }
 
-// ":12" 처럼 파일 없이 줄만 친 경우에 갈 곳: 지금 보고 있는 에디터 탭의 파일
 function fileOfActiveTab() {
   const tab = activeTab();
   return tab?.kind === "file" ? { workspaceId: tab.workspaceId, path: tab.path } : null;

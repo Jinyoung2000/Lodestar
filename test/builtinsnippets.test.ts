@@ -1,5 +1,3 @@
-// 내장 코드 조각(web/builtinSnippets.ts)의 문법 변환과 목록을 확인한다.
-// 실행: npm test
 import { BUILTIN_SNIPPETS, snippetOptions, toCodeMirrorSnippet } from "../web/builtinSnippets";
 
 const cases: { name: string; run: () => string }[] = [];

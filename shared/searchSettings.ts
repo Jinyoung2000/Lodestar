@@ -10,7 +10,6 @@ export type SearchSettings = {
   smartCase: boolean;
   seedOnFocus: boolean;
   seedWithNearestWord: boolean;
-  // null 이면 제한 없음
   maxResults: number | null;
   useIgnoreFiles: boolean;
   exclude: string[];

@@ -1,7 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-// 로그인 셸을 못 읽었을 때도 node, npm 이 있을 만한 사용자 폴더. 존재하는 폴더만, 우선순위 순서로 돌려준다.
 export function candidateDirs(home: string): string[] {
   const dirs = [join(home, ".local/bin"), join(home, ".volta/bin"), join(home, ".bun/bin"), ...fnmDirs(home), ...nvmDirs(home), "/opt/homebrew/bin", "/usr/local/bin"];
   return dirs.filter(isDir);
@@ -23,7 +22,6 @@ function listDirs(path: string): string[] {
   }
 }
 
-// "v20.11.1" 같은 이름을 숫자 배열로. 큰 버전이 먼저 오게 정렬할 때 쓴다.
 function versionParts(name: string) {
   return name.replace(/^v/, "").split(".").map((part) => Number.parseInt(part, 10) || 0);
 }
@@ -37,7 +35,6 @@ export function newestFirst(names: string[]): string[] {
   });
 }
 
-// fnm: 기본 별칭(aliases/default)이 있으면 그것, 없으면 설치된 가장 높은 버전. 저장 위치가 OS 와 버전에 따라 달라서 셋을 다 본다.
 function fnmDirs(home: string): string[] {
   for (const root of [join(home, ".local/share/fnm"), join(home, "Library/Application Support/fnm"), join(home, ".fnm")]) {
     const alias = join(root, "aliases/default/bin");
@@ -49,7 +46,6 @@ function fnmDirs(home: string): string[] {
   return [];
 }
 
-// nvm: alias/default 가 가리키는 버전의 bin. 별칭이 숫자 접두(20, 20.11), 전체 버전, 다른 별칭(lts/iron)일 수 있다. 풀리지 않으면 설치된 가장 높은 버전.
 function nvmDirs(home: string): string[] {
   const root = process.env.NVM_DIR && isDir(process.env.NVM_DIR) ? process.env.NVM_DIR : join(home, ".nvm");
   const installed = newestFirst(listDirs(join(root, "versions/node")));

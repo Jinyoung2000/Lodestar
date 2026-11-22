@@ -1,7 +1,5 @@
 import type { PrThread } from "./prTypes";
 
-// PR 파일 하나의 patch(GitHub 가 주는 unified diff 조각)를 줄 목록으로 풀고, 리뷰 스레드를 줄에 붙인다. 순수 함수만 둔다.
-
 export type DiffLine = { kind: "line"; type: "ctx" | "add" | "del"; oldLine: number | null; newLine: number | null; text: string; noNewline: boolean };
 export type DiffHunk = { kind: "hunk"; header: string; context: string };
 export type DiffRow = DiffLine | DiffHunk;
@@ -30,7 +28,6 @@ export function parsePatch(patch: string): DiffRow[] {
     if (mark === "+") rows.push({ kind: "line", type: "add", oldLine: null, newLine: newLine++, text: raw.slice(1), noNewline: false });
     else if (mark === "-") rows.push({ kind: "line", type: "del", oldLine: oldLine++, newLine: null, text: raw.slice(1), noNewline: false });
     else if (mark === " ") rows.push({ kind: "line", type: "ctx", oldLine: oldLine++, newLine: newLine++, text: raw.slice(1), noNewline: false });
-    // 끝의 빈 문자열(마지막 개행)은 줄이 아니다
   }
   return rows;
 }
@@ -41,14 +38,12 @@ export function rowSide(row: DiffLine, side: Side): number | null {
   return side === "LEFT" ? row.oldLine : row.newLine;
 }
 
-// 줄 번호가 가리키는 행. LEFT 는 옛 파일 번호(추가 줄에는 없음), RIGHT 는 새 파일 번호(삭제 줄에는 없음).
 export function findRow(rows: DiffRow[], side: Side, line: number): number {
   return rows.findIndex((row) => row.kind === "line" && rowSide(row, side) === line);
 }
 
 export type ThreadPlacement = { byRow: Map<number, PrThread[]>; unplaced: PrThread[] };
 
-// 스레드는 범위의 끝 줄 아래에 붙는다. 현재 diff 에 줄이 없는(낡은) 스레드와 patch 에 없는 줄은 unplaced 로 남긴다.
 export function placeThreads(rows: DiffRow[], threads: PrThread[]): ThreadPlacement {
   const byRow = new Map<number, PrThread[]>();
   const unplaced: PrThread[] = [];
@@ -63,7 +58,6 @@ export function placeThreads(rows: DiffRow[], threads: PrThread[]): ThreadPlacem
   return { byRow, unplaced };
 }
 
-// 스레드(또는 새 코멘트)가 걸친 행 범위. 시작과 끝이 다른 쪽이어도 patch 순서(행 번호)로 잇는다.
 export function rangeRows(rows: DiffRow[], anchor: { line: number; side: Side; startLine?: number | null; startSide?: Side | null }): { from: number; to: number } | null {
   const to = findRow(rows, anchor.side, anchor.line);
   if (to === -1) return null;
@@ -72,7 +66,6 @@ export function rangeRows(rows: DiffRow[], anchor: { line: number; side: Side; s
   return from === -1 ? { from: to, to } : { from: Math.min(from, to), to: Math.max(from, to) };
 }
 
-// RIGHT 쪽 범위의 새 파일 글. 삭제 줄은 새 파일에 없으므로 빠진다. 제안(suggestion) 코멘트가 바꿀 원문이다.
 export function rightText(rows: DiffRow[], startLine: number, endLine: number): string[] {
   const out: string[] = [];
   for (const row of rows) if (row.kind === "line" && row.newLine !== null && row.newLine >= startLine && row.newLine <= endLine) out.push(row.text);
@@ -81,7 +74,6 @@ export function rightText(rows: DiffRow[], startLine: number, endLine: number): 
 
 export type Segment = { kind: "text"; text: string } | { kind: "suggestion"; code: string };
 
-// 코멘트 본문을 일반 글과 ```suggestion 블록으로 가른다. 블록 안 코드는 줄바꿈 그대로 보존한다.
 export function splitSuggestions(body: string): Segment[] {
   const out: Segment[] = [];
   const fence = /^```suggestion[^\n]*\n([\s\S]*?)^```[ \t]*$/gm;
@@ -95,14 +87,12 @@ export function splitSuggestions(body: string): Segment[] {
   return out;
 }
 
-// "Suggest changes" 버튼이 입력창에 넣는 틀. 선택한 줄을 그대로 채워 둔다.
 export function suggestionTemplate(lines: string[]): string {
   return "```suggestion\n" + lines.join("\n") + "\n```";
 }
 
 export type SplitRow = { left: DiffLine | null; right: DiffLine | null; leftIndex: number; rightIndex: number };
 
-// Split 보기: 연속한 삭제 줄과 추가 줄을 앞에서부터 짝짓는다. 짝이 없는 쪽은 비운다. hunk 행은 그대로 둔다.
 export function toSplit(rows: DiffRow[]): (SplitRow | { hunk: DiffHunk; index: number })[] {
   const out: (SplitRow | { hunk: DiffHunk; index: number })[] = [];
   let i = 0;

@@ -1,4 +1,3 @@
-// 생성 파일: scripts/sync-tokens.mjs 가 design-system/tokens.json 에서 만든다. 직접 고치지 않는다.
 export const palette = {
   "dark": {
     "background": "#181818",

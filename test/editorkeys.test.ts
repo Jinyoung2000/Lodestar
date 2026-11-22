@@ -1,5 +1,3 @@
-// 에디터 제안 목록과 파라미터 힌트 키의 판정(web/editorKeys.ts)을 DOM 없이 확인한다.
-// 실행: npm test
 import { arrowAction, escapeAction, signatureContext, spaceKeyAction, type SuggestContext } from "../web/editorKeys";
 
 const cases: { name: string; run: () => string }[] = [];

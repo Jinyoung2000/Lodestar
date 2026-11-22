@@ -6,12 +6,6 @@ import { rpc } from "./rpc";
 import { getState, openBrowser, setState, subscribe, updateBrowserTab, type BrowserTab, type State } from "./store";
 import { S } from "./strings";
 
-// 에이전트의 Browser 도구가 앱 안의 공유된 탭에 닿는 화면 쪽 길.
-//  1. 공유한 탭 목록을 데몬에 알린다(browser.setShares). 데몬은 이 목록에 없는 탭과 다른 세션의 탭에는 도구를 보내지 않는다.
-//  2. 데몬이 browserTool 이벤트로 도구를 시키면, 그 탭이 정말 그 세션에 공유된 것인지 한 번 더 확인하고 메인 프로세스(agent-nav:browser-tool)에서 실행해 결과를 돌려준다.
-// 데몬의 WebSocket 연결마다 공유 목록이 따로 있어서, 연결이 다시 맺어지면 목록을 다시 올린다.
-
-// <webview> 의 webContents id. 탭이 자기 것을 등록한다(공유와 관계없이). id 를 에이전트에게 알리지 않고 이 화면 안에서만 쓴다.
 const guests = new Map<string, () => number | null>();
 
 export function registerGuest(tabKey: string, getId: () => number | null): () => void {
@@ -21,7 +15,6 @@ export function registerGuest(tabKey: string, getId: () => number | null): () =>
   };
 }
 
-// 공유 중인 탭 목록. 세션이 지워졌으면 공유도 없는 것으로 본다.
 export function sharedPages(state: Pick<State, "tabs" | "agents"> & Partial<Pick<State, "activeTabKey" | "rightOpen" | "layoutMode" | "centerView">>): BrowserSharedPage[] {
   const pages: BrowserSharedPage[] = [];
   for (const tab of state.tabs) {
@@ -31,7 +24,6 @@ export function sharedPages(state: Pick<State, "tabs" | "agents"> & Partial<Pick
   return pages;
 }
 
-// 공유되지 않은 채 열려 있는 탭(주소가 있는 것). 에이전트의 list_browser_pages 안내문이 센다.
 export const unsharedCount = (state: Pick<State, "tabs">) => state.tabs.filter((t) => t.kind === "browser" && !t.sharedWith && t.url !== "").length;
 
 export function initBrowserHost() {
@@ -43,7 +35,6 @@ export function initBrowserHost() {
     const state = getState();
     const pages = sharedPages(state);
     const open = unsharedCount(state);
-    // 공유가 끝난 탭은 대화상자 가로채기와 코드 실행을 멈춘다
     const now = new Map(pages.map((p) => [p.pageId, p.agentId]));
     for (const key of released.keys()) {
       if (now.has(key)) continue;
@@ -68,9 +59,7 @@ export function initBrowserHost() {
     if (event.type === "browserTool") void runTool(event);
     if (event.type === "browserOpen") void runOpen(event);
   });
-  // 페이지가 USB, 시리얼, HID, 블루투스 기기를 요청하면 메인이 알린다(목록이 바뀔 때마다 같은 요청으로 다시 온다).
   native.onBrowserDevice?.((request) => setState({ overlay: { kind: "device", request: request as never } }));
-  // 페이지가 카메라, 위치 같은 권한을 요청하면(기록도 기본 허용도 없을 때) 메인이 여기로 묻는다. 창을 닫으면 답하지 않은 것으로 둔다(허용되지 않는다).
   native.onBrowserPermission?.(async ({ requestId, origin, category }) => {
     const info = S.browserPermissions.find((p) => p.category === category);
     if (!info) return void native.browserPermissionAnswer?.(requestId, null);
@@ -108,7 +97,6 @@ async function runTool(event: ToolEvent) {
   try {
     reply({ result: await call() });
   } catch (error) {
-    // 탭이 가려져 있어 화면을 읽거나 가리킬 수 없으면 탭을 앞으로 가져와 한 번 더 한다
     const message = error instanceof Error ? error.message : String(error);
     if (!HIDDEN_HINT.test(message) || getState().activeTabKey === tab.key) {
       reply({ error: message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") });
@@ -127,7 +115,6 @@ async function runTool(event: ToolEvent) {
 type OpenEvent = Extract<ServerEvent, { type: "browserOpen" }>;
 const OPEN_LOAD_WAIT_MS = 8000;
 
-// open_browser_page. url 이 없으면 사용자에게 공유할 열린 탭을 고르게 한다. url 이 있으면 같은 곳이 이미 열려 있는지 보고, 없으면 새 탭을 열어 이 세션에 공유한다.
 async function runOpen(event: OpenEvent) {
   const reply = (body: { result?: { text?: string }; error?: string }) => void rpc.call("browser.toolResult", { id: event.id, ...body }).catch(() => undefined);
   try {
@@ -181,7 +168,6 @@ async function shareAndSummarize(tab: BrowserTab, agentId: string) {
   return summarize(tab.key);
 }
 
-// 탭이 뜨고 페이지가 읽힐 때까지 기다려 `Page ID` 와 접근성 스냅샷을 돌려준다
 async function summarize(key: string): Promise<string> {
   const deadline = Date.now() + OPEN_LOAD_WAIT_MS;
   let id: number | null = null;

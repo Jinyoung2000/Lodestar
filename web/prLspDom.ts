@@ -1,16 +1,12 @@
 import { wordRangeAt } from "../shared/prLsp";
 
-// PR diff 의 코드 칸(<code class="pr-code" data-row data-side>)에서 화면 좌표와 글자 위치를 오가는 DOM 도구. 칸 안에는 구문 색 <span> 이 섞여 있어서 글자 위치는 칸 전체 글 기준 offset 으로 센다.
-
 export const CODE_SELECTOR = 'code.pr-code[data-side="RIGHT"]';
 
-// 대상이 새 쪽(RIGHT) 코드 칸 안이면 그 칸
 export function codeCellOf(target: EventTarget | Node | null): HTMLElement | null {
   const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
   return element?.closest<HTMLElement>(CODE_SELECTOR) ?? null;
 }
 
-// 칸 안의 (노드, 노드 안 위치)가 칸 전체 글에서 몇 번째 글자인지
 export function textOffsetIn(code: HTMLElement, node: Node, nodeOffset: number): number {
   const range = document.createRange();
   range.selectNodeContents(code);
@@ -18,7 +14,6 @@ export function textOffsetIn(code: HTMLElement, node: Node, nodeOffset: number):
   return range.toString().length;
 }
 
-// 칸 전체 글의 [from, to) 를 덮는 Range. 구문 색 span 을 가로질러도 된다.
 export function rangeIn(code: HTMLElement, from: number, to: number): Range {
   const range = document.createRange();
   const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
@@ -43,7 +38,6 @@ export function rangeIn(code: HTMLElement, from: number, to: number): Range {
 
 type CaretDocument = Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null; caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null };
 
-// 좌표에서 가장 가까운 글자 경계가 칸 전체 글의 몇 번째인지. 칸 밖이면 null.
 export function offsetAtPoint(code: HTMLElement, x: number, y: number): number | null {
   const doc = document as CaretDocument;
   const at = doc.caretRangeFromPoint?.(x, y);
@@ -57,7 +51,6 @@ export type WordHit = { from: number; to: number; text: string; rect: DOMRect };
 
 const contains = (rect: DOMRect, x: number, y: number) => x >= rect.left - 1 && x <= rect.right + 1 && y >= rect.top - 1 && y <= rect.bottom + 1;
 
-// 좌표 아래의 식별자. 줄 끝 너머나 글자 사이 빈 곳이면 null(캐럿 위치만으로 고르면 줄 끝 빈 곳에서도 마지막 단어가 잡힌다).
 export function wordAtPoint(code: HTMLElement, text: string, x: number, y: number): WordHit | null {
   const offset = offsetAtPoint(code, x, y);
   if (offset === null) return null;
@@ -72,7 +65,6 @@ export function wordAtPoint(code: HTMLElement, text: string, x: number, y: numbe
   return null;
 }
 
-// 캐럿(offset)이 걸친 식별자의 화면 영역
 export function wordAtOffset(code: HTMLElement, text: string, offset: number): WordHit | null {
   const word = wordRangeAt(text, offset);
   if (!word) return null;
@@ -88,8 +80,6 @@ function unionRect(rects: DOMRect[]): DOMRect {
   return new DOMRect(left, top, right - left, bottom - top);
 }
 
-// --- CSS Custom Highlight: 글자를 쪼개지 않고 밑줄과 배경만 얹는다 (::highlight(이름) 규칙은 web/pr.css) ---
-
 type HighlightRegistry = { set(name: string, value: unknown): void; delete(name: string): void };
 const registry = () => (typeof CSS !== "undefined" ? ((CSS as unknown as { highlights?: HighlightRegistry }).highlights ?? null) : null);
 
@@ -101,10 +91,6 @@ export function paintHighlight(name: string, ranges: Range[]) {
   else highlights.delete(name);
 }
 
-// --- hover 상자 ---
-
-// CodeMirror 의 hover 상자와 같은 모양으로 놓는다. 상자 스타일이 에디터 테마 클래스 아래 자손 선택자(.cm-tooltip ...)라서, 테마가 붙은 .cm-editor 껍데기를 두르고 그 안에 상자를 둔다.
-// themeClass 는 문서를 든 보기(EditorView)의 dom.className 이다.
 export class HoverTip {
   private shell: HTMLElement | null = null;
   private box: HTMLElement | null = null;
@@ -124,7 +110,6 @@ export class HoverTip {
     content.classList.add("cm-tooltip");
     shell.append(content);
     document.body.append(shell);
-    // 크기는 화면에 고정한 뒤에 잰다(껍데기 폭이 0 이라 흐름 안에서 재면 폭 0 기준의 높이가 나온다)
     content.style.position = "fixed";
     content.style.left = "0px";
     content.style.top = "0px";

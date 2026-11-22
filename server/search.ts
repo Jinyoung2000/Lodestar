@@ -13,7 +13,6 @@ const MAX_MATCHES = 2000;
 const MAX_MATCHES_RANGES = 20_000;
 const MAX_LINE_CHARS = 400;
 const MAX_LINE_CHARS_RANGES = 1000;
-// 일치가 아주 긴 줄의 뒤쪽에 있을 때 미리보기를 일치 앞 몇 글자부터 보여 줄지
 const WINDOW_LEAD = 100;
 const MAX_CONTEXT = 5;
 const TIMEOUT_MS = 15_000;
@@ -21,7 +20,6 @@ const MAX_BUFFER = 64 * 1024 * 1024;
 
 export type SearchOptions = { query: string; matchCase: boolean; wholeWord: boolean; regex: boolean; context: number; include?: string; exclude?: string; ignore?: boolean; ranges?: boolean; excludeGlobs?: string[] };
 
-// 사용자가 쓴 패턴 하나를 glob 들로 푼다. 슬래시가 없는 패턴(`*.ts`, `node_modules`)은 어느 깊이에서든 파일 이름이나 폴더 이름에 맞고, 폴더면 그 안 전체에도 맞는다. 슬래시가 있으면 작업 폴더 기준 경로다.
 export function globVariants(pattern: string): string[] {
   const anchored = pattern.trim().startsWith("./");
   const p = pattern.trim().replace(/^\.\//, "");
@@ -32,14 +30,11 @@ export function globVariants(pattern: string): string[] {
 }
 
 export const splitPatterns = (text: string | undefined): string[] => (text ?? "").split(",").flatMap(globVariants);
-// ranges 와 offset 은 ranges 모드의 일치한 줄에만 있다. ranges 는 text 안의 구간이고, 줄이 길어 앞을 잘랐으면 offset 은 text 가 줄의 몇 번째 글자에서 시작하는지다.
 export type SearchRow = { line: number; text: string; match: boolean; ranges?: MatchRange[]; offset?: number };
 export type SearchFile = { path: string; rows: SearchRow[] };
 export type SearchResponse = { files: SearchFile[]; matches: number; truncated: boolean; engine: "rg" | "git" };
-// raw 는 자르지 않은 줄, spans 는 엔진이 알려 준 일치 구간(rg 만)이다.
 export type Hit = { path: string; line: number; text: string; raw?: string; spans?: MatchRange[] };
 
-// ripgrep 은 시험이 경로를 직접 줄 수 있다(undefined 면 PATH 에서 찾고, null 이면 git grep).
 export async function searchWorkspace(dir: string, options: SearchOptions, ripgrep?: string | null): Promise<SearchResponse> {
   const query = options.query;
   if (!query.trim()) return { files: [], matches: 0, truncated: false, engine: "git" };
@@ -70,13 +65,11 @@ async function locateRipgrep(env: NodeJS.ProcessEnv) {
       await run(candidate, ["--version"], { timeout: 3000 });
       return candidate;
     } catch {
-      // 이 위치에는 없다
     }
   }
   return null;
 }
 
-// 사용자가 쓴 exclude 에, ignore 가 켜졌을 때만 설정의 제외 패턴을 더한다.
 function excludePatterns(o: SearchOptions): string[] {
   const own = splitPatterns(o.exclude);
   if (o.ignore === false || !o.excludeGlobs) return own;
@@ -96,13 +89,11 @@ async function grepWithGit(dir: string, o: SearchOptions) {
     () => false,
   );
   const pathspecs = [...splitPatterns(o.include).map((g) => `:(glob)${g}`), ...excludePatterns(o).map((g) => `:(exclude,glob)${g}`)];
-  // git grep 은 추적하는 파일과 추적하지 않는 파일(.gitignore 가 가린 것은 제외)만 본다. ignore 를 끄는 옵션이 없어 그때도 같은 범위다(rg 가 있으면 rg 가 끈다).
   const args = ["grep", "-n", "-I", "-z", ...(inRepo ? ["--untracked"] : ["--no-index", "--exclude-standard"]), ...(o.matchCase ? [] : ["-i"]), ...(o.regex ? ["-E"] : ["-F"]), ...(o.wholeWord ? ["-w"] : []), "-e", o.query, "--", ...pathspecs];
   const out = await grep("git", args, dir);
   return parseGitGrep(out, o.ranges ? MAX_MATCHES_RANGES : MAX_MATCHES);
 }
 
-// 일치가 없으면 두 도구 모두 종료 코드 1 이다. 그 밖의 실패(정규식 오류 등)는 stderr 의 첫 줄을 그대로 알린다.
 async function grep(bin: string, args: string[], cwd: string) {
   try {
     const { stdout } = await run(bin, args, { cwd, maxBuffer: MAX_BUFFER, timeout: TIMEOUT_MS });
@@ -118,14 +109,12 @@ async function grep(bin: string, args: string[], cwd: string) {
 
 // rg 가 알려 주는 일치 구간은 UTF-8 바이트 오프셋이다. 줄 안의 UTF-16 글자 위치로 바꾼다.
 function byteSpansToUnits(raw: string, spans: { start: number; end: number }[]): MatchRange[] {
-  // 줄이 전부 ASCII 면 바이트와 글자가 같다
   if (Buffer.byteLength(raw) === raw.length) return spans.map((span) => ({ start: span.start, end: span.end }));
   const bytes = Buffer.from(raw);
   const unit = (offset: number) => bytes.subarray(0, offset).toString("utf8").length;
   return spans.map((span) => ({ start: unit(span.start), end: unit(span.end) }));
 }
 
-// `rg --json` 의 한 줄이 한 사건이다. match 사건만 읽는다(path.text, line_number, lines.text, submatches).
 export function parseRipgrepJson(out: string, max = MAX_MATCHES): { hits: Hit[]; truncated: boolean } {
   const hits: Hit[] = [];
   for (const raw of out.split("\n")) {
@@ -145,7 +134,6 @@ export function parseRipgrepJson(out: string, max = MAX_MATCHES): { hits: Hit[];
   return { hits, truncated: false };
 }
 
-// `git grep -n -z` 는 `경로 NUL 줄번호 NUL 본문` 이다.
 export function parseGitGrep(out: string, max = MAX_MATCHES): { hits: Hit[]; truncated: boolean } {
   const hits: Hit[] = [];
   for (const raw of out.split("\n")) {
@@ -166,8 +154,6 @@ const trimLine = (text: string) => {
   return line.length > MAX_LINE_CHARS ? `${line.slice(0, MAX_LINE_CHARS)}...` : line;
 };
 
-// ranges 모드의 일치한 줄. 일치 구간은 엔진이 알려 준 것, 없으면(git grep) 검색 조건을 JS 정규식으로 바꿔 줄에서 다시 찾은 것이다.
-// 줄이 MAX_LINE_CHARS_RANGES 를 넘으면 첫 일치 앞 WINDOW_LEAD 글자부터 그 길이만 보낸다.
 function matchRow(hit: Hit, pattern: RegExp | null): SearchRow {
   const raw = hit.raw ?? hit.text;
   const spans = hit.spans ?? (pattern ? findRanges(raw, pattern) : []);
@@ -178,8 +164,6 @@ function matchRow(hit: Hit, pattern: RegExp | null): SearchRow {
   return { line: hit.line, text, match: true, ranges, ...(offset > 0 ? { offset } : {}) };
 }
 
-// 일치한 줄에 앞뒤 `context` 줄을 붙여 파일별로 묶는다. 줄이 겹치면 한 번만 나온다.
-// detail 이 있으면 ranges 모드다: 일치한 줄마다 일치 구간을 붙이고 줄을 MAX_LINE_CHARS_RANGES 까지 보낸다.
 export async function withContext(dir: string, hits: Hit[], context: number, detail?: { pattern: RegExp | null }): Promise<SearchFile[]> {
   const byFile = new Map<string, Hit[]>();
   for (const hit of hits) byFile.set(hit.path, [...(byFile.get(hit.path) ?? []), hit]);
@@ -201,7 +185,6 @@ export async function withContext(dir: string, hits: Hit[], context: number, det
 async function readLines(dir: string, path: string) {
   try {
     const lines = (await readFile(resolveInside(dir, path), "utf8")).split("\n");
-    // 끝 개행 뒤의 빈 조각은 줄이 아니다
     if (lines[lines.length - 1] === "") lines.pop();
     return lines.map((line) => line.replace(/\r$/, ""));
   } catch {

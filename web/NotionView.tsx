@@ -20,8 +20,6 @@ import { ensureTimeline, flash, useStore } from "./store";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
-// 앱 안 Notion 화면. 왼쪽에 Notion MCP 로 읽은 페이지를 마크다운으로 그리고, 오른쪽에 그 페이지 전용 대화를 붙인다.
-// 표나 보드처럼 마크다운으로 못 그리는 화면은 Browser 탭으로 연다(Open in Browser Tab).
 export function NotionView() {
   const url = useNotionScreen((s) => s.url);
   const view = useNotionScreen((s) => s.view);
@@ -179,17 +177,14 @@ function NotionDocument({ view, stale }: { view: NotionPageView; stale: boolean 
   );
 }
 
-// 제목 아래 한 줄: 상위 경로, 마지막 수정, 읽은 시각. 머리줄이 좁아 접히면 이 줄이 대신 보인다.
 function NotionDocMeta({ view }: { view: NotionPageView }) {
   const parts = [view.page.path, view.page.lastEditedAt ? N.edited(relativeTime(view.page.lastEditedAt)) : null, N.readAt(relativeTime(view.fetchedAt))].filter(Boolean);
   return <div className="notion-doc-meta">{parts.join(" · ")}</div>;
 }
 
-// 이 페이지에 붙은 대화. 칸 머리 없이 대화와 입력창만 보인다. 승인 카드(Notion 쓰기 diff 포함)는 입력창 위에 뜬다.
 function NotionChat({ url, agentId }: { url: string; agentId: string }) {
   const paneId = `notion:${notionPageKey(url)}`;
   const unread = useStore((s) => s.agents.find((a) => a.id === agentId)?.unread ?? false);
-  // 칸에 열린 세션이 아니라서 타임라인을 직접 읽어 둔다(읽어 두면 이후 변경은 이벤트로 이어진다)
   useEffect(() => ensureTimeline(agentId), [agentId]);
   useEffect(() => bindVirtualPane(paneId, agentId), [paneId, agentId]);
   useEffect(() => {
@@ -204,7 +199,6 @@ function NotionChat({ url, agentId }: { url: string; agentId: string }) {
 
 const RELATIVE = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
-// "3 minutes ago" 같은 짧은 상대 시각
 export function relativeTime(iso: string, now = Date.now()): string {
   const diff = Date.parse(iso) - now;
   if (Number.isNaN(diff)) return "";

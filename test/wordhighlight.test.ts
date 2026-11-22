@@ -1,5 +1,3 @@
-// 같은 단어 강조의 순수 로직: 낱말 범위, 단어 경계 텍스트 일치, 종류 매핑, F7 이동.
-// 실행: npm test
 import { highlightAnnouncement, highlightKind, stepHighlight, textualOccurrences, wordRangeAt } from "../web/wordHighlightModel";
 
 let failed = 0;
@@ -9,7 +7,6 @@ const check = (name: string, ok: boolean, detail = "") => {
 };
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-// ---- 낱말 범위 ----
 const line = "const foo_bar = $baz.qux(1);";
 check("a word is found at its start, middle and right end", same(wordRangeAt(line, 6), { from: 6, to: 13 }) && same(wordRangeAt(line, 9), { from: 6, to: 13 }) && same(wordRangeAt(line, 13), { from: 6, to: 13 }));
 check("$ and _ belong to the word", same(wordRangeAt(line, 17), { from: 16, to: 20 }) && same(wordRangeAt(line, 8), { from: 6, to: 13 }));
@@ -18,7 +15,6 @@ check("a position between two separators has no word", wordRangeAt("(  )", 2) ==
 check("an empty line has no word", wordRangeAt("", 0) === null);
 check("a dot ends the word", same(wordRangeAt(line, 21), { from: 21, to: 24 }));
 
-// ---- 텍스트 일치 ----
 const text = "foo foo.bar xfoo foox (foo) foo_foo foo";
 const hits = textualOccurrences(text, "foo");
 check("only whole-word matches count", same(hits.map((h) => h.from), [0, 4, 23, 36]), JSON.stringify(hits.map((h) => h.from)));
@@ -28,11 +24,9 @@ check("a word at the very start and end of the text matches", textualOccurrences
 check("overlapping candidates do not double count", same(textualOccurrences("aaaa aa", "aa").map((h) => h.from), [5]));
 check("a word that starts with a separator matches next to word characters", textualOccurrences("x$foo", "$foo").length === 1);
 
-// ---- 종류 ----
 check("LSP kinds map to read, write and text", highlightKind(2) === "read" && highlightKind(3) === "write" && highlightKind(1) === "text");
 check("an unknown kind reads as read", highlightKind(undefined) === "read");
 
-// ---- F7 ----
 const ranges = [{ from: 5, to: 8 }, { from: 20, to: 23 }, { from: 40, to: 43 }];
 check("next from inside a highlight goes to the following one", stepHighlight(ranges, 6, 1) === 1 && stepHighlight(ranges, 21, 1) === 2);
 check("next from the last wraps to the first", stepHighlight(ranges, 41, 1) === 0);

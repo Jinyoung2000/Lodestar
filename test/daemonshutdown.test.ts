@@ -1,6 +1,3 @@
-// 데몬 종료 정리 단독 시험: 저장 먼저(server/shutdown.ts), CLI 프로세스 그룹 정리(server/processGroups.ts).
-// 가짜 프로세스 표로 순서를 보고, 마지막에 실제 프로세스 그룹으로 자식이 남지 않는지 본다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { groupedSpawner, liveGroupLeaders, systemKillDeps, terminateGroups, type KillDeps, type ProcRow } from "../server/processGroups";
 import { createDaemonShutdown } from "../server/shutdown";
@@ -11,7 +8,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 
-// --- 가짜 프로세스 표 ---
 type Fake = { pid: number; ppid: number; pgid: number; stubborn?: boolean };
 function fakeSystem(procs: Fake[]) {
   let clock = 0;
@@ -34,16 +30,15 @@ function fakeSystem(procs: Fake[]) {
   return { deps, alive, sent };
 }
 
-// 1. 그룹 단위: CLI(100)와 같은 그룹의 MCP 자식, 그룹을 벗어난 도구 자손까지 정리된다
 {
   const sys = fakeSystem([
-    { pid: 100, ppid: 10, pgid: 100 }, // CLI
-    { pid: 101, ppid: 100, pgid: 100 }, // MCP 서버
-    { pid: 102, ppid: 101, pgid: 100 }, // MCP 의 자식 (npm exec)
-    { pid: 103, ppid: 100, pgid: 103 }, // setsid 한 백그라운드 sleep
+    { pid: 100, ppid: 10, pgid: 100 },
+    { pid: 101, ppid: 100, pgid: 100 },
+    { pid: 102, ppid: 101, pgid: 100 },
+    { pid: 103, ppid: 100, pgid: 103 },
     { pid: 104, ppid: 103, pgid: 103 },
-    { pid: 200, ppid: 10, pgid: 200 }, // 다른 세션의 CLI
-    { pid: 900, ppid: 1, pgid: 900 }, // 무관한 프로세스
+    { pid: 200, ppid: 10, pgid: 200 },
+    { pid: 900, ppid: 1, pgid: 900 },
   ]);
   const report = await terminateGroups([100, 200], sys.deps);
   check("every member of both groups is gone", ![100, 101, 102, 103, 104, 200].some((p) => sys.alive.has(p)));
@@ -54,7 +49,6 @@ function fakeSystem(procs: Fake[]) {
   check("report counts the members it found", report.members === 6 && report.roots === 2, JSON.stringify(report));
 }
 
-// 2. SIGTERM 을 무시하는 프로세스에게만 유예 뒤 SIGKILL
 {
   const sys = fakeSystem([
     { pid: 100, ppid: 10, pgid: 100 },
@@ -67,7 +61,6 @@ function fakeSystem(procs: Fake[]) {
   check("the grace was waited out first", report.ms >= 1500, String(report.ms));
 }
 
-// 3. 루트가 없거나 위험한 pid 면 아무것도 보내지 않는다
 {
   const sys = fakeSystem([{ pid: 900, ppid: 1, pgid: 900 }]);
   const empty = await terminateGroups([], sys.deps);
@@ -76,7 +69,6 @@ function fakeSystem(procs: Fake[]) {
   check("pid 0, 1 and negative numbers are refused", unsafe.roots === 0 && sys.sent.length === 0);
 }
 
-// --- 종료 순서 ---
 function shutdownHarness(options: { terminateThrows?: boolean; leaders?: number[] } = {}) {
   const steps: string[] = [];
   let clock = 0;
@@ -95,7 +87,7 @@ function shutdownHarness(options: { terminateThrows?: boolean; leaders?: number[
     sleep: async (ms) => {
       steps.push(`sleep:${ms}`);
       clock += ms;
-      leaders = leaders.filter((p) => p !== 200); // 입력을 닫자 200 은 스스로 끝났다
+      leaders = leaders.filter((p) => p !== 200);
     },
     exit: (code) => steps.push(`exit:${code}`),
     log: (m) => steps.push(`log:${m.split(" ").slice(0, 2).join(" ")}`),
@@ -129,7 +121,6 @@ function shutdownHarness(options: { terminateThrows?: boolean; leaders?: number[
   check("a failing terminate still ends with exit", h.steps.at(-1) === "exit:0");
 }
 {
-  // 저장이 던져도 CLI 정리와 종료는 계속된다
   const steps: string[] = [];
   const run = createDaemonShutdown({
     flush: () => {
@@ -150,7 +141,6 @@ function shutdownHarness(options: { terminateThrows?: boolean; leaders?: number[
   check("a flush failure does not block closing CLIs or exiting", steps.join(">") === "notify>closeRuns>exit", steps.join(">"));
 }
 {
-  // 상한 타이머: 정리가 멈추면 남은 단계를 건너뛰고 나간다
   let fire: (() => void) | null = null;
   const exits: number[] = [];
   const run = createDaemonShutdown({
@@ -176,17 +166,14 @@ function shutdownHarness(options: { terminateThrows?: boolean; leaders?: number[
   check("the hard limit exits without waiting for terminate", exits.length === 1 && exits[0] === 0);
 }
 
-// --- 실제 프로세스 그룹 ---
 const psAlive = (pids: number[]) => execFileSync("ps", ["-A", "-o", "pid="]).toString().split("\n").map((l) => Number(l.trim())).filter((p) => pids.includes(p));
 {
   const spawner = groupedSpawner();
   const abort = new AbortController();
-  // CLI 흉내: 자기 그룹의 리더이고, MCP 흉내(그룹 안 자식)와 setsid 흉내(perl 로 새 세션을 연 자손)를 둔다.
   const script = `sleep 3571 & perl -e 'use POSIX; POSIX::setsid(); exec "sleep","3572"' & echo $! > /dev/null; wait`;
   const child = spawner.spawn({ command: "/bin/sh", args: ["-c", script], cwd: "/tmp", env: process.env as Record<string, string>, signal: abort.signal }) as import("node:child_process").ChildProcess;
   await new Promise((r) => setTimeout(r, 600));
   const pid = child.pid!;
-  // 시험 환경의 셸 명령줄에 같은 글자가 들어 있을 수 있어 명령줄이 아니라 부모와 그룹으로 고른다
   const members = () =>
     execFileSync("ps", ["-A", "-o", "pid=,ppid=,pgid="]).toString().split("\n").map((l) => l.trim().split(/\s+/).map(Number)).filter(([p, pp, pg]) => p === pid || pp === pid || pg === pid).map(([p]) => p);
   check("the spawned CLI is tracked as a group leader", liveGroupLeaders().includes(pid));

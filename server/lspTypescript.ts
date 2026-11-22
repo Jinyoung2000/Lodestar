@@ -13,19 +13,11 @@ const BUNDLED_TS_VERSION = (require("typescript/package.json") as { version: str
 const BUNDLED_TSSERVER = join(dirname(require.resolve("typescript/package.json")), "lib/tsserver.js");
 const NOT_ADDED_REASON = "This folder was not added as a workspace (a pull request checkout or a repository Lodestar downloaded), so its own TypeScript is not run.";
 
-// typescript-language-server 가 워크스페이스 TypeScript 에 tsserver.js 가 없을 때 띄우는 경고. 사용자가 할 수 있는 일이 없어 배너로 보이지 않고 상태 줄 표시로 바꾼다.
 const NO_TSSERVER_WARNING = /provides no tsserver\.js/;
 
-// 네이티브 서버가 시작하지 못했거나 초기화 전에 죽은 워크스페이스. 실행 파일이 바뀌면(재설치) 다시 시도한다.
 const nativeFailures = new Map<string, string>();
 
-// TypeScript 서버 하나처럼 보이는 연결. 워크스페이스 TypeScript 가 7 이상이면 네이티브 `tsc --lsp --stdio` 를, 아니면 typescript-language-server 를 띄운다.
-// 네이티브가 초기화 전에 실패하면 typescript-language-server 로 바꿔 끼우고, 초기화 뒤에 죽으면 callbacks.exit 로 알려 브라우저 연결을 닫게 한다.
-// bundledOnly 면 그 폴더의 TypeScript(네이티브 실행 파일, tsserver.js)를 찾지도 돌리지도 않고 앱에 들어 있는 tsserver 만 쓴다(server/folderTrust.ts).
-// typescript-language-server 는 경로를 받지 않으면 작업 폴더에서 위로 node_modules/typescript 를 스스로 찾아 쓰므로 번들 경로를 명시해 넘긴다.
 export function startTypescript(workspaceDir: string, callbacks: LinkCallbacks, options: { bundledOnly?: boolean } = {}): ChildLink {
-  // initialize 는 서버를 고르는 동안(비동기) 도착할 수 있다. 쌓아 두었다가 서버가 뜨면 비운다.
-  // 네이티브가 초기화 전에 실패하면 이 기록을 그대로 typescript-language-server 에 다시 보낸다.
   const history: string[] = [];
   let initId: unknown = null;
   let initialized = false;
@@ -55,7 +47,6 @@ export function startTypescript(workspaceDir: string, callbacks: LinkCallbacks, 
       puller.dispose();
       child.kill();
       if (initialized) {
-        // 초기화가 끝난 뒤에는 브라우저가 이 서버의 기능 목록으로 동작 중이라 자리에서 바꿔 끼울 수 없다. 다음 연결부터 typescript-language-server 를 쓴다.
         console.error(`[lsp] native server stopped: ${reason}`);
         nativeFailures.set(failureKey(chosen), reason);
         callbacks.exit("language server exited");
@@ -111,7 +102,6 @@ export function startTypescript(workspaceDir: string, callbacks: LinkCallbacks, 
     const child = spawn(process.execPath, [TSLS_CLI, "--stdio"], {
       cwd: workspaceDir,
       stdio: ["pipe", "pipe", "pipe"],
-      // Electron 안에서는 process.execPath 가 Electron 이라, node 로 돌게 한다. 일반 node 에서는 무해하다.
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
     });
     child.stdin.on("error", () => {});
@@ -136,7 +126,6 @@ export function startTypescript(workspaceDir: string, callbacks: LinkCallbacks, 
       emit(body);
     });
     child.stderr.on("data", (chunk: Buffer) => console.error(`[lsp stderr] ${chunk.toString().trim()}`));
-    // 띄우지 못하면(실행 파일이 없어짐, 프로세스 한도) error 만 오고 exit 는 오지 않는다. 듣는 쪽이 없으면 처리되지 않은 예외로 데몬이 죽는다.
     child.on("error", (error) => {
       console.error(`[lsp] typescript-language-server spawn failed: ${error.message}`);
       if (!closed) callbacks.exit("language server exited");
@@ -169,7 +158,6 @@ export function startTypescript(workspaceDir: string, callbacks: LinkCallbacks, 
 
 type ServerProcess = { send: (text: string) => void; stop: () => void };
 
-// 브라우저 상태 줄이 쓰는 알림. 서버가 무엇인지(label)와, 워크스페이스 TypeScript 를 못 써서 번들 5.x 로 돌아왔다면 그 이유.
 function serverInfo(params: { kind: "native" | "tsls"; label: string; fallback: { label: string; reason: string } | null }) {
   return JSON.stringify({ jsonrpc: "2.0", method: "$/lodestar/serverInfo", params });
 }
@@ -187,7 +175,6 @@ function failureKey(chosen: Extract<LspPlan, { kind: "native" }>) {
   try {
     mtime = statSync(chosen.exe).mtimeMs;
   } catch {
-    // 파일이 없으면 mtime 0 으로 둔다.
   }
   return `${chosen.exe}:${mtime}`;
 }
@@ -197,7 +184,6 @@ function initializeId(text: string) {
   return message?.method === "initialize" ? message.id : null;
 }
 
-// initialize 에 워크스페이스 tsserver.js 위치를 실어 보낸다(typescript-language-server 전용).
 function withTsserverPath(text: string, tsserverPath: string | null) {
   if (!tsserverPath) return text;
   const message = parseJson(text) as { method?: string; params?: { initializationOptions?: object } } | null;

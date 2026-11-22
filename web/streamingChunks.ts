@@ -1,5 +1,3 @@
-// 응답 중인 글을 문단 조각으로 나눈다(web/Timeline.tsx StreamingMarkdown 이 굳은 조각은 다시 그리지 않으려고 쓴다, PERF2).
-// 빈 줄에서 나누되, 펜스 코드 블록(``` 또는 ~~~) 안에서는 나누지 않는다. 조각을 다시 이으면 원래 글과 같다.
 export function streamingChunks(text: string): string[] {
   const chunks: string[] = [];
   let fence: string | null = null;

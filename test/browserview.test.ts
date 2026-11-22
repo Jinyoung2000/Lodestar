@@ -1,6 +1,3 @@
-// Browser 탭의 순수 로직: 확대와 에뮬레이션 계산(web/browserView.ts), History 와 Favorites(web/browserHistory.ts),
-// 입력창 첨부 글(web/browserAttach.ts), 새 탭 자리(web/tabOrder.ts), 요소 선택자(electron/pickScript.ts).
-// 실행: npm test
 import { browserAttachmentLabel, formatBrowserAttachment, trimHtml } from "../web/browserAttach";
 import { addVisit, groupByDay, HISTORY_MAX, matchesQuery, retitleVisit, toggleFavorite, type Visit } from "../web/browserHistory";
 import { clampZoom, DEFAULT_EMULATION, DEVICE_PRESETS, emulatedFrame, parseDimension, percentToZoom, presetDescription, readFrameLocation, scaleLabel, SCALE_CHOICES, ZOOM_MAX, ZOOM_MIN, zoomFactor } from "../web/browserView";
@@ -18,7 +15,6 @@ const expect = (condition: boolean, detail: string) => {
 test("새 탭 자리: 활성 탭 바로 옆, 변경이 활성이면 변경과 파일 사이, 파일이 활성이면 파일 바로 뒤", () => {
   const keys = (r: { tabs: { key: string }[] }) => r.tabs.map((t) => t.key).join();
   const tabs = [{ key: "a" }, { key: "b" }, { key: "c" }];
-  // filesIndex 1: a 는 변경과 파일 사이, b 와 c 는 파일 뒤
   const slots = { tabs, filesIndex: 1 };
   const afterA = insertNextToActive(slots, "a", { key: "n" });
   expect(keys(afterA) === "a,n,b,c" && afterA.filesIndex === 2, "파일 앞 탭 뒤에 넣으면 새 탭도 파일 앞");
@@ -150,7 +146,6 @@ test("HTML 줄이기: 긴 data 주소는 줄이고 너무 길면 자른다", () 
   return "ok";
 });
 
-// 가짜 DOM 요소. cssPathOf 는 tagName, id, classList, parentElement, children 만 읽는다.
 type Fake = { nodeType: number; tagName: string; id?: string; classList: string[]; parentElement: Fake | null; children: Fake[] };
 const node = (tagName: string, parent: Fake | null, extra: Partial<Fake> = {}): Fake => {
   const n: Fake = { nodeType: 1, tagName, classList: [], parentElement: parent, children: [], ...extra };
@@ -180,7 +175,6 @@ test("요소 선택 스크립트: 세 모드 모두 문법에 맞고 네트워�
   for (const mode of ["element", "comment", "area"] as PickMode[]) {
     const script = pickScript(mode, THEME);
     new Function(script);
-    // tsx 는 함수 이름을 지키는 __name 보조를 끼워 넣지만 앱 번들(esbuild, keepNames 없음)에는 없다. 번들에 없는지는 빌드 뒤 dist-electron/main.mjs 로 따로 본다.
     expect(script.includes("__agentNavPickQueue") && script.includes(JSON.stringify(mode)), `${mode}: 결과 큐와 모드`);
     expect(!/\bfetch\(|XMLHttpRequest|WebSocket|postMessage/.test(script), `${mode}: 네트워크와 메시지 통로 없음`);
   }

@@ -6,7 +6,6 @@ export type NotesHandlerDeps = { notes: NoteStore; publishNotes: () => void };
 export function notesHandlers(deps: NotesHandlerDeps): HandlersFor<MethodsIn<"notes">> {
   const { notes, publishNotes } = deps;
   return {
-    // NOTES: 메모장. 바뀐 뒤에는 전체 목록을 모든 창에 알린다(본문은 싣지 않는다).
     "notes.list": ({ query }) => notes.list(typeof query === "string" ? query : ""),
     "notes.get": ({ id }) => notes.get(id),
     "notes.create": ({ text }) => {

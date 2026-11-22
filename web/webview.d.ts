@@ -1,4 +1,3 @@
-// Electron 의 <webview> 태그. React 의 JSX 에는 없어서 필요한 속성과 메서드만 선언한다.
 import type { DetailedHTMLProps, HTMLAttributes } from "react";
 
 declare module "react" {

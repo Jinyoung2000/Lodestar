@@ -1,5 +1,3 @@
-// CHKBASE: 검사 실패를 피드백 탓과 기존 실패로 가르는 판정 단독 시험(임시 git 저장소와 임시 홈, 모델 호출 없음).
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +17,6 @@ const check = (name: string, ok: boolean, detail = "") => {
 const { FeedbackRunner } = await import("../server/feedback");
 const { newFailures, testFailures, tscFailures, baselineKey, quotedStrings } = await import("../server/checkBaseline");
 
-// 1. 순수 판정
 {
   const tsc = (lines: string[]) => tscFailures(lines.join("\n"));
   const base = tsc(["web/Timeline.tsx(159,23): error TS2339: Property 'path' does not exist on type 'X'.", "  Property 'path' does not exist on type 'Y'.", "Found 1 error in web/Timeline.tsx:159"]);
@@ -38,7 +35,6 @@ const { newFailures, testFailures, tscFailures, baselineKey, quotedStrings } = a
   const crashA = testFailures("tsx test/a.test.ts", "Error: listen EADDRINUSE :::7802\n");
   const crashB = testFailures("tsx test/a.test.ts", "Error: listen EADDRINUSE :::7806\n");
   check("tests: a crash without FAIL lines matches across port numbers", crashA[0].key === crashB[0].key);
-  // security.test 의 실제 사례: 같은 시험이 사본마다 다른 경로를 오류에 담아 떨어졌다. 키에 콜론 뒤 상세가 들어 있으면 기준선의 같은 실패가 새 실패로 보인다.
   const png = "Feedback with a screenshot that is not a PNG is rejected";
   const inWorktree = testFailures("tsx test/security.test.ts", `ok  one\nFAIL ${png}: The Lodestar source folder is not a git repo: /Users/me/Repository/agent-nav.worktrees/feedback-86e9782f\n`);
   const inBase = testFailures("tsx test/security.test.ts", `FAIL ${png}: The Lodestar source folder is not a git repo: /Users/me/.agent-nav/feedback/86e9782f/base\n`);
@@ -55,7 +51,6 @@ const { newFailures, testFailures, tscFailures, baselineKey, quotedStrings } = a
   check("baselineKey follows file hashes", baselineKey({ a: "1", b: "2" }) === baselineKey({ b: "2", a: "1" }) && baselineKey({ a: "1" }) !== baselineKey({ a: "2" }));
 }
 
-// 2. 실제 흐름
 const NOTE = `import { appendFileSync } from "node:fs";
 appendFileSync(process.env.CHKBASE_COUNT, process.cwd() + "\\n");
 `;
@@ -124,11 +119,9 @@ async function runFeedback(runner: InstanceType<typeof FeedbackRunner>, ui: stri
 }
 
 const baseRuns = () => (existsSync(countFile) ? readFileSync(countFile, "utf8").split("\n").filter((l) => l.includes("/base")).length : 0);
-// 반영 단계는 worktree 의 dist/ 를 옮기므로, 아무 검사도 dist 를 안 만드는 이 시험들은 마지막에 하나 만든다.
 const DIST = { name: "dist", command: "node", args: ["-e", "require('fs').mkdirSync('dist',{recursive:true});require('fs').writeFileSync('dist/index.html','x')"], timeoutMs: 30_000 };
 const TSC = [{ name: "tsc", command: "node", args: ["tsc.mjs"], timeoutMs: 30_000, kind: "tsc" as const }, DIST];
 
-// 2a. 기준선에도 있던 tsc 오류(줄만 밀림)는 무시하고 반영한다.
 {
   const src = sourceRepo("tscOld", {});
   const { runner, notices } = harness(src.dir, TSC);
@@ -140,7 +133,6 @@ const TSC = [{ name: "tsc", command: "node", args: ["tsc.mjs"], timeoutMs: 30_00
   check("base copy is removed after the run", !existsSync(join(process.env.AGENT_NAV_HOME!, "feedback", f.id, "base")));
 }
 
-// 2b. 피드백이 새 오류를 만들면 새 오류만 보이고 반영하지 않는다. 기준선 결과는 캐시를 쓴다.
 {
   const src = sourceRepo("tscNew", { "web/other.txt": "x" });
   const { runner, notices } = harness(src.dir, TSC);
@@ -155,7 +147,6 @@ const TSC = [{ name: "tsc", command: "node", args: ["tsc.mjs"], timeoutMs: 30_00
   check("second feedback on the same base state hits the cache", g.status === "failed" && baseRuns() - before === 1, String(baseRuns() - before));
 }
 
-// 2c. 기준선에서 통과하던 검사가 피드백 때문에 떨어지면 출력 전체가 그대로 보인다.
 {
   const src = sourceRepo("tscClean", { "test/preexisting.txt": "off" });
   const { runner } = harness(src.dir, TSC);
@@ -163,7 +154,6 @@ const TSC = [{ name: "tsc", command: "node", args: ["tsc.mjs"], timeoutMs: 30_00
   check("baseline passes: the whole output is shown and nothing is ignored", f.status === "failed" && !f.checks[0].ignored && (f.failure ?? "").includes("web/New.tsx(1,1)"));
 }
 
-// 2d. tests 종류: 실패한 시험 이름을 비교하고, 앞 시험이 떨어져도 뒤 시험까지 돈다.
 {
   const src = sourceRepo("tests", {});
   const specs = [{ name: "npm test", command: "npm", args: ["test"], timeoutMs: 60_000, kind: "tests" as const }, DIST];
@@ -175,7 +165,6 @@ const TSC = [{ name: "tsc", command: "node", args: ["tsc.mjs"], timeoutMs: 30_00
   check("a failure in the second test file is new even though the first file fails too", bad.status === "failed" && (bad.failure ?? "").includes("second file broke") && !(bad.failure ?? "").includes("always broken"), bad.failure ?? "");
 }
 
-// 2e. build: 기준선도 실패이고 피드백 쪽에 dist/ 가 없으면 반영할 수 없으니 무시하지 않는다. 기준선이 통과하면 그대로 실패.
 {
   const src = sourceRepo("build", {});
   const specs = [{ name: "npm run build", command: "node", args: ["build.mjs"], timeoutMs: 30_000, kind: "build" as const }];

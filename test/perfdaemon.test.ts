@@ -1,5 +1,3 @@
-// PERFDAEMON: 스트리밍 초안 묶기(server/eventCoalescer.ts)와 state.json, 타임라인 저장 묶기(server/store.ts) 시험. 데몬도 모델도 필요 없다.
-// 실행: npm test
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,7 +20,6 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const draft = (agentId: string, text: string, id = "draft-1"): ServerEvent => ({ type: "timelineUpsert", agentId, item: { id, kind: "assistant", text, streaming: true } as TimelineItem });
 const textOf = (event: ServerEvent) => (event.type === "timelineUpsert" && event.item.kind === "assistant" ? event.item.text : "");
 
-// 가짜 시계와 타이머: 시간을 손으로 밀어서 간격을 결정적으로 시험한다.
 function fakeClock() {
   let now = 1000;
   const timers: { at: number; run: () => void; id: number; live: boolean }[] = [];

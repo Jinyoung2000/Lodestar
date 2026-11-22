@@ -1,12 +1,8 @@
-// Slack 초안 미리보기. 응답 속 ```slack 코드 블록을 Slack 에서 보일 모양(굵게, 기울임, 취소선, <주소|글> 링크, 멘션, 목록, 인용)으로 그린 카드로 바꾼다.
-// 복사 버튼은 HTML 과 원문(mrkdwn)을 함께 클립보드에 넣는다. Slack 입력창은 HTML 을 읽어 같은 서식으로 붙여 넣는다.
-// 세션은 server/agents.ts 의 SESSION_PROMPT_APPEND 로 Slack 메시지를 이 블록에 쓰도록 안내받는다.
 
 const SLACK_LANGUAGE = /(?:^|\s)language-slack(?:\s|$)/;
 
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-// 이미 이스케이프된 글에 *굵게*, _기울임_, ~취소선~ 을 입힌다. 기호 바로 안쪽이 공백이면 서식으로 보지 않는다(Slack 과 같다).
 function emphasis(s: string): string {
   return s
     .replace(/(^|[^\w*])\*(?=\S)([^*\n]*?\S)\*(?![\w*])/g, "$1<strong>$2</strong>")
@@ -18,7 +14,6 @@ function link(href: string, label: string): string {
   return /^(https?:|mailto:)/i.test(href) ? `<a href="${escapeHtml(href)}">${emphasis(escapeHtml(label))}</a>` : escapeHtml(label);
 }
 
-// <...> 한 개: <주소|글>, <주소>, <@U123|이름>, <#C123|채널>, <!here>
 function angle(body: string): string {
   const bar = body.indexOf("|");
   const target = bar < 0 ? body : body.slice(0, bar);
@@ -49,7 +44,6 @@ const BULLET = /^\s*[•◦▪\-*]\s+/;
 const NUMBERED = /^\s*\d+[.)]\s+/;
 const QUOTE = /^>\s?/;
 
-// mrkdwn 글 전체를 HTML 로. 빈 줄은 문단을 나누고, 같은 문단 안의 줄바꿈은 <br> 로 둔다.
 export function renderSlackMrkdwn(source: string): string {
   const lines = source.replace(/\s+$/, "").split("\n");
   const blocks: string[] = [];
@@ -78,7 +72,6 @@ export function renderSlackMrkdwn(source: string): string {
   return blocks.join("");
 }
 
-// 정리된(DOMPurify) 응답 HTML 에서 ```slack 블록을 미리보기 카드로 바꾼다. 카드 안 HTML 은 renderSlackMrkdwn 이 글을 모두 이스케이프해 만든다.
 export function slackPreviews(html: string, label: string): string {
   if (!html.includes("language-slack")) return html;
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -104,7 +97,6 @@ export function slackPreviews(html: string, label: string): string {
   return changed ? doc.body.innerHTML : html;
 }
 
-// 카드 머리 오른쪽에 복사 버튼을 붙인다. 같은 카드에 두 번 붙이지 않는다.
 export function addSlackCopyButtons(root: HTMLElement, label: string, copiedLabel: string) {
   for (const card of root.querySelectorAll<HTMLElement>(".slack-preview")) {
     const head = card.querySelector(":scope > .slack-preview-head");

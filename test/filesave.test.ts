@@ -1,6 +1,3 @@
-// 에디터 저장과 새 파일 만들기(server/files.ts). 포맷은 test/format.test.ts.
-// 데몬도 모델도 필요 없다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -77,7 +74,6 @@ test("저장: 읽은 때와 수정 시각이 같으면 저장, 디스크가 바�
   expect(read.text === "export const a = 1;\n" && typeof read.mtimeMs === "number", "read has stat");
   const first = await saveWorkspaceFile(repo, "src/a.ts", "export const a = 2;\n", read.mtimeMs);
   expect(first.saved && readFileSync(join(repo, "src/a.ts"), "utf8") === "export const a = 2;\n", "saved");
-  // 다른 프로세스(에이전트)가 같은 파일을 고친 상황
   writeFileSync(join(repo, "src/a.ts"), "export const a = 99; // agent\n");
   const stale = await saveWorkspaceFile(repo, "src/a.ts", "export const a = 3;\n", first.saved ? first.mtimeMs - 1000 : null);
   expect(!stale.saved && stale.conflict === "changed", "conflict reported");

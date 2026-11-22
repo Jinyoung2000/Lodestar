@@ -9,7 +9,6 @@ import { Icon } from "../Icon";
 import { MarkdownView } from "../MarkdownView";
 import { Text } from "../Text";
 
-// 답을 기다리는 카드 셋: 도구 승인, 질문(AskUserQuestion), 계획 승인(ExitPlanMode). 버튼은 눌린 뒤 서버가 항목을 바꿔 줄 때까지 바쁨 표시로 막는다.
 export type Actions = {
   allow: (itemId: string) => Promise<unknown>;
   deny: (itemId: string) => Promise<unknown>;
@@ -32,7 +31,6 @@ function useBusy() {
 }
 
 const MAX_DIFF_LINES = 14;
-// 계획 글은 이만큼만 보이고 나머지는 펼쳐서 읽는다(승인 단추가 화면 밖으로 밀려나지 않게)
 const PLAN_PREVIEW_HEIGHT = 220;
 const clip = (text: string, max = MAX_DIFF_LINES) => {
   const lines = text.split("\n");
@@ -192,7 +190,6 @@ export const PlanCard = memo(function PlanCard({ item, actions }: { item: Permis
   );
 });
 
-// 답한 질문과 끝난 계획 승인은 한 줄 기록으로 남는다
 export const AnsweredRow = memo(function AnsweredRow({ item }: { item: PermissionItem }) {
   const colors = useColors();
   const answers = item.outcome?.answers;

@@ -1,8 +1,6 @@
 import { getState, setState } from "./store";
 import { noteHidden, pickEvictions } from "./timelineEvict";
 
-// 대화 화면(AgentView)이 붙어 있는 세션을 센다. 화면에서 내려간 세션의 타임라인은 최근 KEEP_RECENT 개만 남기고 메모리에서 내린다(web/timelineEvict.ts).
-// 칸을 닫거나 세션을 바꿔도 곧바로 다시 붙는 일이 많아서(배치 전환 등) 내리기는 잠깐 미룬다.
 const KEEP_RECENT = 3;
 const EVICT_DELAY_MS = 5000;
 

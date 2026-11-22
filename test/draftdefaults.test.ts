@@ -1,6 +1,3 @@
-// 3차 재비교 항목 시험: 새 세션 화면이 이어받는 모델과 effort(web/defaults.ts, 권한은 test/permission.test.ts), 오른쪽 패널 폭의 세션별 기억(web/store.ts),
-// 갈래로 복사한 승인 항목의 연결(server/agents.ts copyItems), 브랜치 메뉴의 미커밋 파일 수(server/git.ts).
-// 브라우저 전역은 최소한으로 흉내 낸다. 모델은 부르지 않는다. 실행: npm test
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,7 +12,7 @@ const g = globalThis as unknown as Record<string, unknown>;
 g.localStorage = fake;
 g.sessionStorage = fake;
 g.window = g;
-g.addEventListener = () => {}; // 브라우저의 window 는 이벤트 대상이다. web/idleReload.ts 가 불러올 때 입력 이벤트를 단다
+g.addEventListener = () => {};
 g.removeEventListener = () => {};
 g.document = { querySelector: () => null, documentElement: { dataset: {}, style: {} }, addEventListener() {}, hasFocus: () => true, visibilityState: "visible" };
 g.location = { reload() {}, origin: "http://localhost" };

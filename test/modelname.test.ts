@@ -1,4 +1,3 @@
-// 모델 표시 이름에 버전 붙이기(shared/modelName.ts) 시험. 실행: npm test
 import { modelNameFromId, versionedDisplayName } from "../shared/modelName";
 
 const checks: [string, string, string][] = [

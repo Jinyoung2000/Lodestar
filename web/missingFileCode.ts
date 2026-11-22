@@ -1,5 +1,3 @@
-// 없는 파일을 가리키는 링크에 붙은 코드 블록을 기억한다. 에디터의 "Create File with This Code" 가 쓴다.
-// DOM 을 모르는 순수 함수와 작은 맵이다(test/filerefresolve.test.ts).
 
 const MAX_SUGGESTIONS = 30;
 const suggestions = new Map<string, string>();
@@ -21,7 +19,6 @@ export function forgetSuggestedCode(workspaceId: string, path: string) {
   suggestions.delete(keyOf(workspaceId, path));
 }
 
-// 코드 블록 첫 줄이 `// 경로`, `# 경로`, `/* 경로 */`, `<!-- 경로 -->` 처럼 경로만 적은 주석이면 그 줄을 뺀 나머지. 아니면 null.
 export function codeWithoutPathHeader(code: string, pathText: string): string | null {
   const lines = code.split("\n");
   const match = /^(?:\/\/+|#+|--|\/\*+|<!--)\s*(.+?)\s*(?:\*\/|-->)?$/.exec(lines[0].trim());

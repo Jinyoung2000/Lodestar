@@ -15,14 +15,12 @@ const overrideField = StateField.define<boolean | null>({
 const WRAPPING: Record<string, string> = { class: "cm-lineWrapping" };
 const NOT_WRAPPING: Record<string, string> = {};
 
-// 설정 쪽 값(editor.wordWrap === "on")
 const settingWrap = Facet.define<boolean, boolean>({ combine: (values) => values[0] ?? false });
 
 export function wrapExtension(options: EditorOptions): Extension {
   return [
     overrideField,
     settingWrap.of(options.wordWrap === "on"),
-    // EditorView.lineWrapping 이 하는 일(content 에 cm-lineWrapping 클래스)을 필드에 따라 켜고 끈다
     EditorView.contentAttributes.compute([overrideField, settingWrap], (state) => (isWrapped(state) ? WRAPPING : NOT_WRAPPING)),
   ];
 }

@@ -1,5 +1,3 @@
-// FBNOEL: 요소 없이 보내는 피드백의 순수 계산(화면 상태 수집, 프롬프트 조립, 말풍선 칩) 단독 시험.
-// 실행: npm test
 import { describeScreen, screenLines, type ScreenInput } from "../shared/feedbackScreen";
 import type { ElementInfo, Feedback } from "../shared/protocol";
 import { chipsOf, composePrompt } from "../server/feedback";

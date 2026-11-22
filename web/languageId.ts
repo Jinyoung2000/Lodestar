@@ -1,5 +1,3 @@
-// 파일 경로(확장자, 파일 이름, 셔뱅 첫 줄)와 마크다운 코드 펜스 이름으로 구문 색 언어를 정하는 순수 함수.
-// 에디터, diff, PR diff, 대화의 코드 블록, 검색 결과가 모두 이 결과(LanguageId)를 같이 쓴다. 파서를 읽어 오는 일은 web/languages.ts 가 한다.
 
 export type LanguageId =
   | "typescript"
@@ -29,7 +27,6 @@ export type LanguageId =
   | "objectivec"
   | "diff";
 
-// 확장자(소문자, 점 없이)로 정하는 언어. 마지막 확장자만 본다(a.test.ts 는 ts, yarnrc.yml 은 yml).
 const BY_EXTENSION: Record<string, LanguageId> = {
   ts: "typescript",
   mts: "typescript",
@@ -98,7 +95,6 @@ const BY_EXTENSION: Record<string, LanguageId> = {
   patch: "diff",
 };
 
-// 파일 이름 전체(소문자)로 정하는 언어. 확장자보다 먼저 본다.
 const BY_NAME: Record<string, LanguageId> = {
   dockerfile: "dockerfile",
   containerfile: "dockerfile",
@@ -137,7 +133,6 @@ const BY_NAME: Record<string, LanguageId> = {
   ".envrc": "shell",
 };
 
-// 첫 줄이 `#!` 인 파일의 해석기 이름으로 정하는 언어
 const BY_INTERPRETER: [RegExp, LanguageId][] = [
   [/^(?:ba|z|da|k|a)?sh$/, "shell"],
   [/^python[\d.]*$/, "python"],
@@ -145,13 +140,10 @@ const BY_INTERPRETER: [RegExp, LanguageId][] = [
   [/^tsx$|^ts-node$/, "typescript"],
 ];
 
-// 파일 경로의 마지막 이름을 소문자로. 윈도 구분자도 받는다.
 function baseName(path: string): string {
   return path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1).toLowerCase();
 }
 
-// 파일 경로로 언어를 정한다. 모르면 null. firstLine 은 이름만으로 못 정할 때 셔뱅을 보는 데만 쓴다.
-// 우선순위: 이름 전체 일치 > Dockerfile.* 같은 이름 규칙 > 확장자 > 셔뱅.
 export function languageIdFor(path: string, firstLine?: string): LanguageId | null {
   const name = baseName(path);
   if (!name) return null;
@@ -167,19 +159,15 @@ export function languageIdFor(path: string, firstLine?: string): LanguageId | nu
   return firstLine ? languageIdByShebang(firstLine) : null;
 }
 
-// 첫 줄(셔뱅)로 정할 수 있는 파일인지. 에디터가 문서를 열고 나서 첫 줄을 읽을지 정할 때 쓴다.
 export function mayHaveShebang(path: string): boolean {
   return baseName(path) !== "" && languageIdFor(path) === null;
 }
 
 function languageIdByNamePattern(name: string, firstLine?: string): LanguageId | null {
-  // Dockerfile.query-rabbit, query.dockerfile. 뒤에 .dockerignore 가 붙으면 무시 파일이다.
   if (name.endsWith(".dockerignore") || name.endsWith(".gitignore")) return "gitignore";
   if (name.startsWith("dockerfile.") || name.endsWith(".dockerfile")) return "dockerfile";
   if (name.startsWith("makefile.")) return "makefile";
-  // .env, .env.local, .env.production.example
   if (name === ".env" || name.startsWith(".env.")) return "properties";
-  // .prettierrc 는 YAML 이거나 JSON 이다. 첫 글자가 { 면 JSON.
   if (name === ".prettierrc" || name === ".stylelintrc" || name === ".markdownlintrc") return firstLine?.trimStart().startsWith("{") ? "json" : "yaml";
   if (name.endsWith(".nginx")) return "nginx";
   return null;
@@ -194,7 +182,6 @@ function languageIdByShebang(firstLine: string): LanguageId | null {
   return null;
 }
 
-// 마크다운 코드 펜스(```yaml)와 LSP 언어 이름으로 언어를 정한다. text, plaintext 처럼 색이 없는 이름과 모르는 이름은 null.
 const BY_FENCE: Record<string, LanguageId> = {
   ts: "typescript",
   typescript: "typescript",

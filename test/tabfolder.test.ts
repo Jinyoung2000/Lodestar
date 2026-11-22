@@ -1,4 +1,3 @@
-// 다른 체크아웃의 에디터 탭 판정(web/tabFolder.ts). 실행: npm test
 import { foreignFolder, resolveInWorkspace } from "../web/tabFolder";
 
 const expect = (condition: boolean, detail: string) => {

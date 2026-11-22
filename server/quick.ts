@@ -9,12 +9,8 @@ import { T } from "./strings";
 import { spawnInGroup } from "./processGroups";
 
 const MAX_RUNS = 20;
-// 취소한 뒤 result 가 오지 않을 때 프로세스를 닫기까지의 시간
 const CANCEL_GRACE_MS = 10_000;
 
-// 선택한 코드에 대한 일회성 질문. 세션 목록에 들어가지 않고, Read 말고는 도구를 쓰지 않는다.
-// 전역 설정(settingSources)을 비워 사용자의 훅과 허용 목록이 돌지 않게 하고, 시스템 프롬프트도 짧게 둔다.
-// 인증은 설정과 무관하게 키체인 로그인을 쓴다.
 const SYSTEM_PROMPT = [
   "너는 에디터 옆에 붙은 짧은 코드 질문 도우미다.",
   "사용자가 선택한 코드와 파일 경로, 줄 범위가 질문에 들어 있다.",
@@ -65,8 +61,6 @@ export class QuickRunner {
     return this.queries.size;
   }
 
-  // 중단 요청은 프로세스가 답하기 전에 끝나면 거절된다(답이 막 끝난 순간의 취소). 잡지 않은 거절은 데몬을 죽인다.
-  // 답이 없는 프로세스는 잠시 뒤 닫아서 "답하는 중" 으로 남지 않게 한다(남으면 데몬 재시작 판단이 계속 바쁨으로 본다).
   cancel(id: string) {
     const q = this.queries.get(id);
     if (!q) return;
@@ -76,7 +70,6 @@ export class QuickRunner {
     }, CANCEL_GRACE_MS).unref();
   }
 
-  // 빠른 질문 세션을 정식 에이전트로 올린다. 같은 session_id 를 resume 하므로 답변 맥락이 이어진다.
   adopt(id: string): Agent {
     const run = this.runs.get(id);
     if (!run) throw new Error(T.errQuickRunMissing);
@@ -125,7 +118,6 @@ export class QuickRunner {
             this.publish(run);
           }
         } else if (message.type === "assistant" && !message.parent_tool_use_id) {
-          // 스트리밍 조각을 모은 결과와 최종 텍스트가 같아야 하지만, 도구를 쓴 경우 앞 조각이 섞일 수 있어 최종 텍스트로 맞춘다.
           const text = message.message.content
             .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
             .map((b) => b.text)

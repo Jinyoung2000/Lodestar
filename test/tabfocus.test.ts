@@ -1,4 +1,3 @@
-// 에디터 Tab 이 포커스를 옮기는 두 경로(web/tabFocus.ts)와 명령 팔레트 등록을 확인한다. 실행: npm test
 import { paletteCommands } from "../web/commands";
 import { BINDINGS } from "../web/keymap";
 import { armEscapeTab, isTabFocusMode, noteKeyForTabFocus, tabShouldMoveFocus, toggleTabFocusMode } from "../web/tabFocus";

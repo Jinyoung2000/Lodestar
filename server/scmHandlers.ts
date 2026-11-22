@@ -4,12 +4,10 @@ import { realDir } from "./paths";
 import * as scm from "./scm";
 import { generateCommitMessage } from "./scmMessage";
 
-// SCM: scm.* RPC 처리. 데몬(server/index.ts)이 자기 handlers 에 펼쳐 넣는다.
 type ScmMethod = Extract<keyof RpcMethods, `scm.${string}`>;
 type Handlers = { [M in ScmMethod]: (params: RpcMethods[M]["params"]) => Promise<RpcMethods[M]["result"]> | RpcMethods[M]["result"] };
 
 export type ScmDeps = {
-  // 대상 폴더: 세션이면 그 세션의 작업 폴더, 아니면 작업 폴더
   agentDir: (agentId: string) => string;
   workspaceDir: (workspaceId: string) => string;
   workspaces: () => Workspace[];
@@ -46,7 +44,8 @@ export function scmHandlers(deps: ScmDeps): Handlers {
     "scm.fetch": ({ agentId, workspaceId }) => serial(dirOf({ agentId, workspaceId }), (dir) => scm.fetchOp(dir)),
     "scm.continue": ({ agentId, workspaceId, message }) => serial(dirOf({ agentId, workspaceId }), (dir) => scm.continueOperation(dir, typeof message === "string" ? message : "")),
     "scm.abort": ({ agentId, workspaceId }) => serial(dirOf({ agentId, workspaceId }), async (dir) => void (await scm.abortOperation(dir))).then(() => null),
-    "scm.fileDiff": ({ agentId, workspaceId, rel, section }) => scm.fileDiff(dirOf({ agentId, workspaceId }), String(rel), section === "staged" ? "staged" : "changes"),
+    "scm.fileDiff": ({ agentId, workspaceId, rel, section }) =>
+      scm.fileDiff(dirOf({ agentId, workspaceId }), String(rel), section === "staged" || section === "uncommitted" ? section : "changes"),
     "scm.stageHunk": ({ agentId, workspaceId, rel, section, index, hash }) =>
       serial(dirOf({ agentId, workspaceId }), (dir) => scm.stageHunk(dir, String(rel), section === "staged" ? "staged" : "changes", Number(index), String(hash))).then(() => null),
     "scm.discardHunk": ({ agentId, workspaceId, rel, index, hash }) => serial(dirOf({ agentId, workspaceId }), (dir) => scm.discardHunk(dir, String(rel), Number(index), String(hash))).then(() => null),
@@ -64,7 +63,6 @@ export function scmHandlers(deps: ScmDeps): Handlers {
   };
 }
 
-// 같은 폴더에 대한 쓰기는 차례로 한다. 스테이지, 커밋이 겹치면 git 이 index.lock 으로 실패한다.
 const queues = new Map<string, Promise<unknown>>();
 
 function serial<T>(dir: string, job: (dir: string) => Promise<T>): Promise<T> {

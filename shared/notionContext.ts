@@ -1,16 +1,12 @@
 import type { NotionPageData } from "./notionFetch";
 
-// 페이지 전용 대화의 첫 메시지 앞에 붙는 컨텍스트와, 입력창 첨부(Add Page to Chat)에 붙는 원문의 모양. 순수 함수라 데몬, 화면, 시험이 같이 쓴다.
-
 export const CONTEXT_LIMIT = 60_000;
 
-// 본문 안의 어떤 백틱 줄보다 긴 울타리
 export function fenceFor(text: string): string {
   const longest = Math.max(2, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
   return "`".repeat(longest + 1);
 }
 
-// 길면 줄 경계에서 자르고 잘렸다고 적는다.
 export function clip(text: string, limit = CONTEXT_LIMIT): { text: string; truncated: boolean; total: number } {
   if (text.length <= limit) return { text, truncated: false, total: text.length };
   const cut = text.slice(0, limit);
@@ -50,5 +46,4 @@ export function pageContext(page: NotionPageData, readAt: string): string {
   ].join("\n");
 }
 
-// 입력창 첨부로 붙는 본문 (표시용 마크다운 기준). browserAttach 의 notion 첨부와 같은 한도를 쓴다.
 export const ATTACH_LIMIT = 20_000;

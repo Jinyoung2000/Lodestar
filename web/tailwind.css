@@ -1,8 +1,6 @@
-/* Tailwind 테마는 web/tokens.css 의 변수만 가리킨다. 디자인 시스템에 없는 단계는 기본값에서도 지운다. */
 @import "tailwindcss";
 
 @theme {
-  /* 간격: 4px 격자 여덟 단계뿐 */
   --spacing-*: initial;
   --spacing-0: 0;
   --spacing-px: 1px;
@@ -15,7 +13,6 @@
   --spacing-6: var(--space-6);
   --spacing-8: var(--space-8);
 
-  /* 글자: 다섯 단계 + 코드 둘 */
   --text-*: initial;
   --text-caption: var(--text-caption);
   --text-caption--line-height: var(--leading-caption);
@@ -55,14 +52,12 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 
-  /* 반경: 세 단계 + 원 */
   --radius-*: initial;
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
   --radius-full: var(--radius-full);
 
-  /* 색: 토큰 이름 그대로 (bg-surface-raised, text-fg-muted, border-border …) */
   --color-*: initial;
   --color-transparent: transparent;
   --color-current: currentColor;
@@ -105,7 +100,6 @@
   --color-unread: var(--unread);
   --color-status-spinner-running: var(--status-spinner-running);
   --color-status-spinner-waiting: var(--status-spinner-waiting);
-  /* shadcn/ui 가 쓰는 이름 */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -122,7 +116,6 @@
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
 
-  /* 높이와 폭: size 토큰 */
   --size-row: var(--size-row);
   --size-row-lg: var(--size-row-lg);
   --size-control-sm: var(--size-control-sm);

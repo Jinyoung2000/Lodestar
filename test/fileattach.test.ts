@@ -1,8 +1,3 @@
-// FILEATTACH: 입력창 파일 첨부(영상 등 이미지가 아닌 파일)의 단독 시험.
-// 1. 순수 부분: 이미지와 파일 분류, 이름 정리, 경로 검사, 크기 표기, 모델용 첨부 파일 블록, 칩 중복 판정.
-// 2. 업로드 처리(handleUpload): 메모리 안 서버로 토큰 없음, 다른 Origin, 길이 없음, 상한 초과, 경로 탈출 이름, 끊긴 업로드를 시험한다.
-// 3. 시험 데몬: 실제 데몬의 POST /attachments(Host, Origin, 토큰), discard RPC, 보내기(agents.send, agents.create)가 SDK 에 넘기는 프롬프트(가짜 claude 가 받은 줄)와 말풍선 칩.
-// 모델도 네트워크도 쓰지 않는다. 실행: npm test
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, request } from "node:http";
 import { tmpdir } from "node:os";
@@ -21,8 +16,6 @@ const expect = (condition: boolean, detail: string) => {
   if (!condition) throw new Error(detail);
   return detail;
 };
-
-// --- 1. 순수 부분 ---
 
 test("classifyDrop: 이미지는 이미지 칩 그대로, 영상과 임의 파일은 파일 칩, 5MB 넘는 이미지도 파일 칩", () => {
   expect(classifyDrop("image/png", 1000, 0).kind === "image", "png");
@@ -109,13 +102,10 @@ test("chipIdentity: 경로를 아는 파일은 같은 경로가 같은 칩, 업�
   return "ok";
 });
 
-// --- 2. 업로드 처리 (메모리 안 서버) ---
-
 const TOKEN = "t".repeat(64);
 const ORIGIN = "http://127.0.0.1:9999";
 
 type Reply = { status: number; json: Record<string, unknown> };
-// 서버가 만든 응답과 연결 종료를 모두 보는 요청. 본문은 chunks 로 나눠 보내고, announce 가 있으면 content-length 로 그 값을 선언한다(없으면 실제 합계, null 이면 선언 없음 = chunked).
 function post(port: number, path: string, options: { headers?: Record<string, string>; chunks?: Buffer[]; announce?: number | null; cutAfter?: number }): Promise<Reply> {
   const chunks = options.chunks ?? [Buffer.from("hello")];
   const total = chunks.reduce((n, c) => n + c.length, 0);
@@ -253,8 +243,6 @@ test("handleUpload: ../ 가 든 이름은 마지막 조각만 남아 업로드 �
   }
 });
 
-// --- 3. 시험 데몬 ---
-
 const FAKE_CLAUDE = resolve(import.meta.dirname, "fixtures/fake-claude.mjs");
 const SEEDED_AGENT = "00000000-0000-4000-8000-000000000001";
 
@@ -347,7 +335,6 @@ test("데몬: 파일을 붙여 보내면 SDK 에 글 뒤에 경로 블록이 가
     expect(/not a regular file/.test(String(folder.error)), `folder rejected: ${folder.error}`);
     expect(prompts().length === 0, "nothing reached the model for rejected sends");
 
-    // 크기는 화면이 준 값(1)이 아니라 디스크의 값(2048)을 쓴다
     const sent = await rpc.call("agents.send", { agentId: SEEDED_AGENT, prompt: "이 영상 봐줘", files: [{ path: mp4, name: "Screen_Recording 1.mp4", bytes: 1, mediaType: "video/mp4" }] });
     expect(sent.error === undefined, `send ${sent.error}`);
     const first = await until(() => prompts()[0], "the first prompt at the fake claude");
@@ -360,14 +347,12 @@ test("데몬: 파일을 붙여 보내면 SDK 에 글 뒤에 경로 블록이 가
     expect(JSON.stringify(bubble?.attachments) === JSON.stringify([{ kind: "file", label: "Screen_Recording 1.mp4", path: mp4, bytes: 2048 }]), `file chip: ${JSON.stringify(bubble?.attachments)}`);
     expect(bubble?.text?.includes(FILE_BLOCK_HEADER) === true, "the stored text is the model prompt");
 
-    // 글 없이 파일만 보내면 블록만 간다
     await new Promise((r) => setTimeout(r, 800));
     const only = await rpc.call("agents.send", { agentId: SEEDED_AGENT, prompt: "", files: [{ path: mp4, name: "Screen_Recording 1.mp4", bytes: 2048, mediaType: "" }] });
     expect(only.error === undefined, `send only file ${only.error}`);
     const second = await until(() => prompts()[1], "the second prompt");
     expect(textOf(second) === `${FILE_BLOCK_HEADER}\n- ${mp4} (2 KB)`, `files only: ${JSON.stringify(textOf(second))}`);
 
-    // 새 세션의 첫 메시지(agents.create)도 같은 모양이고 제목은 글에서, 글이 없으면 파일 이름에서 나온다
     const ws = ((await rpc.call("workspaces.list", {})).result as { id: string }[])[0];
     const created = (await rpc.call("agents.create", { workspaceId: ws.id, prompt: "", permissionMode: "default", model: null, effort: null, worktree: null, files: [{ path: mp4, name: "Screen_Recording 1.mp4", bytes: 2048, mediaType: "video/mp4" }] })).result as { id: string; title: string };
     expect(created?.title === "Screen_Recording 1.mp4", `title from the file name: ${created?.title}`);

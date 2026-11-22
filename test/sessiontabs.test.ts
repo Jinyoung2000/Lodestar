@@ -1,4 +1,3 @@
-// 세션에 귀속된 PR 탭의 보임 규칙(web/sessionTabs.ts)의 순수 로직을 확인한다. 실행: npm test
 import { dropTabFocus, isShown, ownerOf, pruneTabFocus, sanitizeTabFocus, settleSessionTabs, shownAgentsOf, shownTabs, type SessionTab, type SettleInput, type TabFocus } from "../web/sessionTabs";
 import { pruneTabState, type TabLike } from "../web/windowState";
 import type { Pane } from "../web/store";
@@ -21,11 +20,8 @@ const pr = (key: string, agentId?: string, group?: string): SessionTab => ({ key
 const file = (key: string, group?: string): SessionTab => ({ key, kind: "file", ...(group ? { group } : {}) });
 const set = (...ids: string[]) => new Set(ids);
 
-// 활성 탭이 있던 곳: 그룹 main 과 g1
 const run = (input: Partial<SettleInput> & Pick<SettleInput, "tabs" | "prevAgents" | "agents" | "prevActive" | "active">) =>
   settleSessionTabs({ groups: ["main", "g1"], focus: {}, restore: true, pick: (_g, _hidden, shown) => shown.at(-1) ?? null, ...input });
-
-// --- 누구의 탭인가 ---
 
 test("only PR tabs with an agentId belong to a session", () => {
   expect(ownerOf(pr("pr:a#1", "A")) === "A", "PR with agent");
@@ -65,8 +61,6 @@ test("shownTabs returns the same array when nothing is hidden, and the same resu
   expect(shownTabs(all, a) === all, "nothing hidden returns input");
   return "f,p1";
 });
-
-// --- 활성 탭 맞추기 ---
 
 test("session switch A to B: the active PR tab of A falls back to a tab B can see, and A remembers it", () => {
   const tabs = [file("f1"), pr("pA", "A"), file("f2")];
@@ -142,8 +136,6 @@ test("two sessions on screen at once: both PR tabs are visible, leaving one hide
   same(onlyA.focus, { B: { main: "pB" } }, "B remembered");
   return "pB -> pA";
 });
-
-// --- 기억의 정리와 저장 ---
 
 test("memory of a deleted session is pruned, and dropTabFocus removes one session", () => {
   const focus: TabFocus = { A: { main: "p1" }, B: { main: "p2" } };

@@ -1,5 +1,3 @@
-// 변경 칩 숫자: 줄 수가 git diff --numstat 과 같고, pull 로 들어온 남의 커밋은 세션 변경에 들지 않는지 임시 git 저장소로 확인한다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,7 +32,6 @@ const identity = (cwd: string) => {
 };
 
 try {
-  // 1. 줄 수: 큰 파일에 흩어진 변경(옛 계산은 가운데 구간이 4M 칸을 넘으면 전부 바뀐 것으로 셌다)과 끝 개행 차이
   const big = lines(3000);
   const scattered = big.split("\n").map((l, i) => (i % 5 === 0 && l ? `${l} edited` : l)).join("\n");
   const c = countLineChanges(big, scattered);
@@ -44,7 +41,6 @@ try {
   expect(same(countLineChanges("", "x\ny\n"), { additions: 2, deletions: 0 }), "새 파일");
   expect(same(countLineChanges("x\ny\n", ""), { additions: 0, deletions: 2 }), "삭제");
 
-  // 원격(bare), 세션이 쓰는 clone, 남이 쓰는 clone
   const origin = join(root, "origin.git");
   run(root, "init", "-q", "--bare", "-b", "develop", origin);
   const mine = join(root, "mine");
@@ -66,11 +62,9 @@ try {
   const store = { changes: () => [], change: () => undefined } as never;
   expect(await captureForkBase(agent, store, "source-1"), "갈래 기준을 남긴다");
 
-  // 2. 세션이 파일 2개를 고친다
   writeFileSync(join(mine, "src", "a.ts"), "a1\na2\na3\n");
   writeFileSync(join(mine, "src", "b.ts"), "b0\nb1\nb2\n");
 
-  // 3. 남이 develop 에 커밋 20개를 올리고(큰 파일의 흩어진 변경 포함) 세션 쪽이 ff pull 한다
   for (let i = 0; i < 20; i++) {
     writeFileSync(join(theirs, `other${i}.ts`), lines(30, `-${i}`));
     if (i === 10) writeFileSync(join(theirs, "src", "gen.ts"), scattered);
@@ -91,7 +85,6 @@ try {
   expect(same(viaFork, expected), `갈래 Session 범위도 같은 값: ${JSON.stringify(viaFork)}`);
   expect(viaFork["src/a.ts"] === "+1 -0" && viaFork["src/b.ts"] === "+2 -0", `줄 수 값: ${JSON.stringify(viaFork)}`);
 
-  // 4. 세션이 커밋하면(아직 push 전) 그 커밋도 세션 변경이다. push 하면 원격에 있는 것이 되어 빠진다
   run(mine, "add", ".");
   run(mine, "commit", "-q", "-m", "session work");
   writeFileSync(join(mine, "src", "c.ts"), "c1\n");
@@ -104,7 +97,6 @@ try {
   const afterPush = (await forkBaseChanges(agent)).files;
   expect(afterPush.length === 0, `push 한 커밋은 원격에 있는 것이라 빠진다: ${afterPush.map((f) => f.rel)}`);
 
-  // 5. 세션 중 다른 브랜치로 옮겼다 돌아온 경우(시작 커밋이 지금 HEAD 의 조상이 아님): 기본 브랜치 + 깨끗한 작업 폴더면 0
   run(mine, "switch", "-q", "-c", "feat/x");
   writeFileSync(join(mine, "feat.ts"), lines(100, "-feat"));
   run(mine, "add", ".");
@@ -126,7 +118,6 @@ try {
   expect(same(shown((await gitOps.changes(mine, switchedBase, { renames: false })).files), { "src/a.ts": "+1 -3" }), "그 뒤 세션이 고친 파일만 보인다");
   run(mine, "checkout", "-q", "--", "src/a.ts");
 
-  // 6. 시작할 때 이미 미push 커밋이 있던 기능 브랜치: 그 커밋은 세션 변경이 아니고, 세션이 이어서 만든 것만 센다
   run(mine, "switch", "-q", "-c", "feat/y");
   writeFileSync(join(mine, "before.ts"), "before\n");
   run(mine, "add", ".");
@@ -138,7 +129,6 @@ try {
   expect((await gitOps.sessionBase(mine, preStart)) === preStart, "미push 커밋이 시작 커밋에 들어 있으면 시작 커밋이 기준");
   expect(same(shown((await gitOps.changes(mine, preStart, { renames: false })).files), { "during.ts": "+1 -0" }), "세션이 만든 커밋만");
 
-  // 7. 원격이 없는 저장소는 이전과 같다: 시작 커밋 기준
   const lone = join(root, "lone");
   mkdirSync(lone);
   run(lone, "init", "-q", "-b", "main");

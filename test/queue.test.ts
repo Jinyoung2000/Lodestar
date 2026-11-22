@@ -1,5 +1,3 @@
-// B3: 세션 프로세스 입력 큐와 턴 경계 판단(server/turnInput.ts), 입력창의 `/` `@` 트리거와 입력 기록(web/composerState.ts), 파일 검색 순위(web/fileSearch.ts) 단독 시험.
-// 실행: npm test
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { TimelineItem } from "../shared/protocol";
 import { applyTrigger, findTrigger, getDraft, historyOf, HISTORY_LIMIT, setDraft, stepHistory } from "../web/composerState";

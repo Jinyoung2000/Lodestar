@@ -5,8 +5,6 @@ import { setCollapsedGroups, setSessionView } from "./sessionListState";
 import { scrollToSubagent } from "./Subagents";
 import { showMessage } from "./toBoardState";
 
-// 성능 계측 전용 창구(`vite build --mode perf` 시험 번들에서만). 데몬이 보내는 것과 같은 웹소켓 메시지를 rpc 수신 경로에 직접 넣어 가짜 스트리밍을 만든다.
-// 렌더 카운터는 web/perfCounter.ts 가 맡는다. showMessage 와 scrollToSubagent 는 접힌 단계 묶음 안으로 이동하는 길을 시험 스크립트가 부르려고 연다.
 export function installPerfHook() {
   if (import.meta.env.MODE !== "perf") return;
   const perf = window.__navPerf;

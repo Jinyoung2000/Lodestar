@@ -9,14 +9,11 @@ import { P } from "./prStrings";
 import { rpc } from "./rpc";
 import { useStore } from "./store";
 
-// 변경 패널 오른쪽 열의 Checks 구역: 지금 세션 브랜치의 PR 하나와 그 체크 목록. GitHub Pull Requests 확장의 Checks 처럼 상태 아이콘, 이름, 걸린 시간을 보인다.
-// 실패와 진행 중을 위로 올리고, 체크를 누르면 GitHub Actions 로그를 밖에서, PR 줄을 누르면 옆 칸 탭에 앱의 PR 화면을 연다.
 const REFRESH_MS = 60_000;
 
 export function PrChecksSection({ agent }: { agent: Agent }) {
   const prs = useStore((s) => s.prs[agent.id]);
   const branch = useStore((s) => s.gitInfo[agent.id]?.branch ?? null);
-  // 같은 브랜치에 PR 이 여럿이면 열린 것 중 가장 앞의 것
   const pr = prs?.prs.find((p) => p.state === "OPEN") ?? prs?.prs[0] ?? null;
   const ref = pr ? prRefOfUrl(pr.url) : null;
   const key = ref ? `${ref.repo}#${ref.number}` : null;

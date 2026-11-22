@@ -1,18 +1,13 @@
-// 화면에 보이는 고정 문구를 한 곳에 모은다. 키는 문구가 쓰이는 자리, 값은 영어 문장이다.
-// 값이 함수인 항목은 숫자나 이름이 들어가는 문장이다. 언어를 바꿀 때는 이 파일만 교체한다.
-// 대화 내용, 파일 이름, 세션 제목처럼 사용자나 에이전트가 만든 글은 여기에 두지 않는다.
-// Electron 메뉴(electron/main.ts)도 menu 항목을 가져다 쓴다.
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const keyed = (label: string, key: string | null) => (key ? `${label} (${key})` : label);
+const HARNESS_LABELS = { claude: "Claude", codex: "Codex", antigravity: "Antigravity" };
 
-// 상대 시간 단위 이름 [단수, 복수]. 사이드바는 짧은 이름, 세션 검색은 긴 이름을 쓴다.
 type UnitWords = Record<"sec" | "min" | "hr" | "day" | "wk" | "mo" | "yr", readonly [string, string]>;
 const TIME_UNIT_SHORT: UnitWords = { sec: ["sec", "secs"], min: ["min", "mins"], hr: ["hr", "hrs"], day: ["day", "days"], wk: ["wk", "wks"], mo: ["mo", "mos"], yr: ["yr", "yrs"] };
 const TIME_UNIT_LONG: UnitWords = { sec: ["second", "seconds"], min: ["minute", "minutes"], hr: ["hour", "hours"], day: ["day", "days"], wk: ["week", "weeks"], mo: ["month", "months"], yr: ["year", "years"] };
 
 export const S = {
-  // 공통
   newSession: "New Session",
   sessions: "Sessions",
   close: "Close",
@@ -31,7 +26,6 @@ export const S = {
   default: "Default",
   notGitRepo: "Not a git repo",
 
-  // CODEX: 새 세션 화면의 도구 선택과 Codex 세션 표시
   harnessClaude: "Claude",
   harnessCodex: "Codex",
   harnessAria: "Agent",
@@ -46,10 +40,19 @@ export const S = {
   codexLoadFailed: (message: string) => `Could not read Codex: ${message}`,
   codexModelsLoading: "Loading Codex models...",
   codexUnavailable: (what: string) => `${what} is not available for Codex sessions yet`,
+  harnessAntigravity: "Antigravity",
+  harnessNames: HARNESS_LABELS,
+  harnessUnavailable: (harness: keyof typeof HARNESS_LABELS, what: string) => `${what} is not available for ${HARNESS_LABELS[harness]} sessions yet`,
+  harnessSessionTip: (name: string) => `This session runs on ${name}`,
+  composerPlaceholderAntigravity: "Chat with Antigravity",
+  composerPlaceholderNewAntigravity: "Describe a task for Antigravity",
+  antigravityNotInstalled: "Antigravity CLI was not found. Install Antigravity to start sessions with it.",
+  antigravityNotSignedIn: "Antigravity is not signed in. Run `agy` in a terminal and sign in, then try again.",
+  antigravityLoadFailed: (message: string) => `Could not read Antigravity: ${message}`,
+  antigravityModelsLoading: "Loading Antigravity models...",
   modelGroupToggle: (name: string, open: boolean) => `${open ? "Hide" : "Show"} ${name} models`,
   switchUnavailable: { notion: "Notion page chats run on Claude only", feedback: "Improvement sessions run on Claude only", imported: "Sessions imported from VS Code run on Claude only" },
 
-  // 권한 모드
   permissionModes: {
     default: "Ask Before Edits",
     acceptEdits: "Edit Automatically",
@@ -58,16 +61,13 @@ export const S = {
     bypassPermissions: "Bypass Permissions",
   },
 
-  // 에이전트 상태
   status: { idle: "Idle", running: "Running", waiting: "Waiting for approval", error: "Error" },
   backgroundTasks: (n: number) => plural(n, "background task"),
-  // FIXY: 단계 묶음의 +N -M 은 편집 호출 입력의 합이라 입력창 위 변경 칩(디스크와 기준 비교)과 값이 다를 수 있다
   stepsChangesTip: "Lines added and removed by the edits in these steps. The Changes chip above the input counts the net change in the files themselves, so its numbers can differ.",
   stepFailed: "Failed",
   stepWaiting: "Waiting for approval",
   stepThinking: "Thinking",
   stepAutoMessage: "Automated message",
-  // ASIDEVIEW: Aside(브라우저 조작) 호출 행
   asideFallbackTitle: "Browser script",
   asideNoOutput: "No output",
   asideScript: "Script",
@@ -76,7 +76,6 @@ export const S = {
   asideImageOpen: "View larger",
   asideImageClose: "Close",
   lightboxCopyImage: "Copy Image",
-  // FIXY: 새 파일을 만든 Write 의 동사(덮어쓴 Write 는 verbs.Write)
   verbCreated: "Created",
   verbs: {
     Bash: "Ran",
@@ -92,7 +91,6 @@ export const S = {
     AskUserQuestion: "Asked",
     mcp__aside__repl: "Browser",
   },
-  // 아직 일어나지 않은(승인 대기) 또는 일어나지 않을(거절) 호출의 동사. 과거형을 쓰면 이미 끝난 일처럼 읽힌다.
   verbsBase: {
     Bash: "Run",
     Read: "Read",
@@ -113,11 +111,9 @@ export const S = {
   loginExpiredBefore: "Your login has expired. Run ",
   loginExpiredAfter: " in a terminal, then send again.",
 
-  // 권한 요청
   permissionAllowed: "Allowed",
   permissionDenied: "Denied",
 
-  // 세션 칸
   sessionAria: (title: string) => `Session ${title}`,
   newSessionAria: (workspace: string) => `New session ${workspace}`,
   worktreeTitle: (root: string) => `worktree ${root}`,
@@ -128,20 +124,16 @@ export const S = {
   branchPlaceholder: "<branch>",
   errBaseBranch: "Choose a base branch",
 
-  // 입력창
   composerPlaceholder: "Chat with Claude",
   message: "Message",
   attach: (key: string | null) => keyed("Attach file or selection", key),
   btwNeedsSession: "Available once the session has started",
-  // 입력창 칩. 글자가 숨는 좁은 폭에서는 툴팁과 aria-label 이 이름을 대신한다.
   effortAuto: "Auto",
   permissionChipTip: (label: string) => `Permission mode: ${label} (⇧Tab to switch)`,
-  modelChipTip: (name: string, resolved: string | null, key: string | null) => keyed(`Model: ${name}${resolved ? ` (${resolved})` : ""}`, key),
-  effortChipTip: (label: string, key: string | null) => keyed(`Effort: ${label}`, key),
+  modelEffortChipTip: (name: string, resolved: string | null, effort: string, key: string | null) => keyed(`Model: ${name}${resolved ? ` (${resolved})` : ""}, Thinking Level: ${effort}`, key),
   files: (n: number) => `${n} ${n === 1 ? "File" : "Files"}`,
   pullRequests: (n: number) => `${n} Pull Request${n === 1 ? "" : "s"}`,
 
-  // 곁다리 대화 (/btw)
   sideChat: "Side Chat",
   sideChatModel: "Side Chat model",
   sideChatEmpty: "Ask with the main conversation as context. The main history is not changed.",
@@ -149,7 +141,6 @@ export const S = {
   sideChatPlaceholder: "Ask about the main conversation",
   sideChatKeep: "Keep as Session",
 
-  // 빠른 질문
   quickAsk: "Quick Ask",
   quickAskModel: "Quick Ask model",
   quickAskWaiting: "Waiting for an answer",
@@ -158,7 +149,6 @@ export const S = {
   quickAskContinue: "Continue as Session",
   selectCodeFirst: "Select some code first",
 
-  // TERMASK: 터미널에서 ⌘I 로 여는 명령 질문
   terminalAsk: "Terminal Ask",
   terminalAskModel: "Terminal Ask model",
   terminalAskPlaceholder: "Ask about commands",
@@ -181,11 +171,9 @@ export const S = {
   terminalAskInfoFailed: "Could not read the terminal's folder",
   focusTerminalFirst: "Focus a terminal first",
 
-  // hover 상자의 동작 줄과 Copy Type, Quick Fix
   hoverQuickFix: (key: string | null) => (key ? `Quick Fix... (${key})` : "Quick Fix..."),
   copyType: "Copy Type",
   copySignature: "Copy Signature",
-  // 커서 줄 blame(줄 끝 주석, hover 카드, 상태 표시줄). 작성자가 나이면 이름 대신 You.
   blameYou: "You",
   blameUncommitted: "Uncommitted changes",
   blameStatusTitle: (hash: string, summary: string, when: string) => `${hash} ${summary}\n${when}`,
@@ -204,12 +192,10 @@ export const S = {
   quickFixFailed: (message: string) => `Quick fix failed: ${message}`,
   quickFixFileOps: "This fix creates, renames or deletes files, which isn't supported",
   quickFixConflict: "The file changed on disk. Reload it and try again",
-  // INTELLISENSE: 이름 바꾸기(F2)
   renameNothing: "No result.",
   renameFailed: (message: string) => `Rename failed: ${message}`,
   renamed: (from: string, to: string, summary: string) => `Successfully renamed '${from}' to '${to}'. Summary: ${summary}`,
 
-  // 변경 패널
   branchChanges: "Branch Changes",
   changesTab: "Changes",
   changesFiles: "Files",
@@ -224,7 +210,6 @@ export const S = {
   viewedAria: (rel: string) => `${rel} viewed`,
   deletedFile: (lines: number) => `Deleted file (${plural(lines, "line")} in base)`,
   loadingBase: "Loading base",
-  // B-base: 기준 내용을 못 읽었을 때와 작업 폴더 밖 파일
   baseLoadFailed: "Could not load the base version",
   retry: "Retry",
   outsideFolderReadOnly: "Read-only: this file is outside the session folder",
@@ -232,7 +217,6 @@ export const S = {
   openChangesHint: "Open a session to see its changes",
   prsFailed: "Failed",
 
-  // diff
   keep: "Keep",
   keepChunk: "Keep this chunk",
   undo: "Undo",
@@ -250,7 +234,6 @@ export const S = {
   keepFileTitle: "Keep changes in this file",
   undoAllFilesConfirm: (count: number, created: number) => `Undo all changes in ${count} ${count === 1 ? "file" : "files"}?${created > 0 ? ` ${created} new ${created === 1 ? "file" : "files"} will be moved to the Trash.` : ""}`,
   undoAllConfirm: (file: string, deleted: boolean) => `Undo all changes to ${file}?${deleted ? " The file will be moved to the Trash." : ""}`,
-  // FIX4A: Undo 가 건너뛴 파일(에이전트의 마지막 쓰기 뒤 바뀐 파일)과 확인 창의 파일 목록
   undoFileList: (names: string[]) => `${names.slice(0, 12).join("\n")}${names.length > 12 ? `\n… ${names.length - 12} more` : ""}`,
   undoSkipped: (count: number, reason: "modified" | "mixed" | "unknown") =>
     `${plural(count, "file")} skipped: ${reason === "modified" ? "changed since this session edited it" : reason === "mixed" ? "contains changes made outside this session" : "this session's last edit was not recorded"}`,
@@ -273,7 +256,6 @@ export const S = {
   previousChange: "Previous Change",
   nextChange: "Next Change",
 
-  // 편집기
   openInVSCode: "Open in VS Code",
   htmlShowPreview: "Show Preview",
   htmlShowSource: "Show Source",
@@ -283,12 +265,12 @@ export const S = {
   fileNotFound: "File not found",
   lspError: "LSP disconnected",
   definitionNotFound: "Definition not found",
-  // peek: 에디터 안 참조, 정의, 구현 보기(web/peekCommands.ts)
   goToImplementations: "Go to Implementations",
   goToReferences: "Go to References",
   peekDefinition: "Peek Definition",
   peekImplementations: "Peek Implementations",
   markerCount: (index: number, total: number) => `${index} of ${total} ${total === 1 ? "problem" : "problems"}`,
+  quickDiffCount: (index: number, total: number) => `${index} of ${total} ${total === 1 ? "change" : "changes"}`,
   markerNext: "Go to Next Problem (Error, Warning, Info)",
   markerPrevious: "Go to Previous Problem (Error, Warning, Info)",
   symbolFallback: "symbol",
@@ -297,9 +279,7 @@ export const S = {
   errOpenProjectFile: "Open a project file to search symbols",
   noOpenFile: "No open file",
 
-  // 타이틀바
   sidebar: "Sidebar",
-  // B-peek: 닫힌 사이드바 hover 미리보기
   showSidebarKey: (key: string | null) => (key ? `Show Sidebar ${key}` : "Show Sidebar"),
   hideSidebarKey: (key: string | null) => (key ? `Hide Sidebar ${key}` : "Hide Sidebar"),
   sidebarPeek: "Sidebar preview",
@@ -307,6 +287,8 @@ export const S = {
   searchAllKey: (key: string | null) => keyed("Search", key),
   showSessionsViewTip: (view: string) => `Show Sessions (now in ${view})`,
   pullRequestChip: "Pull Request",
+  splitProjectsAria: "Projects in split panes",
+  focusProjectPaneTip: (folder: string) => `Focus ${folder} pane`,
   showSessionsTip: (prefix: string | null, folder: string, branch: string | null) => `Show Sessions: ${[prefix, folder, branch && `branch ${branch}`].filter(Boolean).join(", ")}`,
   openFile: "Open File",
   openFileKey: (key: string | null) => keyed("Open File", key),
@@ -434,11 +416,9 @@ export const S = {
   },
   browserShowInTitleBarChoices: { true: "Always", false: "Never", whenOpen: "When a browser tab is open" },
   browserShowInTitleBarDetails: { true: "The button is always shown in the title bar.", false: "The button is never shown in the title bar.", whenOpen: "The button is shown in the title bar when a browser editor is open." },
-  // 제목줄의 Browser 단추(설정 Show In Title Bar)
   titleBarBrowser: "Browser",
   titleBarBrowserNew: "New Integrated Browser Tab",
   titleBarBrowserTabs: "Open Tabs",
-  // G8: 에뮬레이션 크기 손잡이, 페이지 대화상자 줄, file: 주소와 자동 새로고침, 저장 범위별 Clear Storage
   emuResizeWidth: "Resize emulated width",
   emuResizeHeight: "Resize emulated height",
   emuResizeHint: "Drag to resize. Double-click to reset to auto.",
@@ -454,7 +434,6 @@ export const S = {
   browserShotAlt: "Browser screenshot",
   browserShareTitle: "Share Browser Tab",
   browserSharePlaceholder: "Share an existing browser tab?",
-  // DESIGN-DIRECTION: Developer: Preview Design Direction
   previewDirectionTitle: "Preview Design Direction",
   previewDirectionPlaceholder: "Select a design direction to preview",
   directionPreviewing: (label: string) => `Previewing the ${label} design`,
@@ -495,7 +474,6 @@ export const S = {
   toggleSearchDetails: "Toggle Search Details",
   toggleDetailsKey: (key: string | null) => keyed("Toggle Details", key),
   searchPlaceholder: "Search",
-  // FINDINFILES: 사이드바 Search 뷰의 머리 단추와 Chat 중심 오른쪽 패널의 탭 이름
   searchSideTab: "Search",
   searchEmptyTitle: "Search",
   searchEmptyHint: "Search for text in your files",
@@ -521,7 +499,6 @@ export const S = {
   openSessionFirst: "Open a session first",
   noTrackedRemote: "No remote branch is tracked",
   nothingToSync: "Already up to date",
-  // 동기화 확인창: 무엇을 어디로 보내는지 제목에, 한 줄 설명은 detail 에, 버튼은 하는 일 그대로
   syncConfirmTitle: (upstream: string, behind: number, ahead: number) => {
     const commits = (n: number) => `${n} commit${n === 1 ? "" : "s"}`;
     if (behind > 0 && ahead > 0) return `Pull ${commits(behind)}, then push ${commits(ahead)}?`;
@@ -538,7 +515,6 @@ export const S = {
   daemonOutdated: "The background service is out of date. Restart Lodestar to finish updating.",
   gitStatusFailed: (msg: string) => `Could not read git status: ${msg}`,
 
-  // 크기 조절
   resizeSidebar: "Resize sidebar",
   resizeRight: "Resize right panel",
   resizeSideTabs: "Resize Changes and Files",
@@ -549,7 +525,6 @@ export const S = {
   resizeReview: "Resize morning review",
   resizePanes: "Resize session panes",
 
-  // 사이드바
   settings: "Settings",
   addWorkspace: "Add Workspace",
   workspacePath: "Workspace folder path",
@@ -565,7 +540,6 @@ export const S = {
   deleteSessionDirtyDetail: (summary: string, root: string) => `The worktree has uncommitted changes:\n${summary}\n\nOnly the session is deleted. The worktree (${root}) stays.`,
   deleteSessionWorktreeDetail: (root: string) => `This action cannot be undone. The worktree (${root}) stays unless you delete it too.`,
   deleteButton: "Delete",
-  // FIX4A: 워크트리를 지워도 브랜치는 남는다. 기준 브랜치에 없는 커밋이 있으면 그 수를 알린다.
   deleteSessionBranchNote: (branch: string, base: string, unmerged: number | null) =>
     unmerged === null ? `The branch ${branch} stays after the worktree is deleted.` : unmerged > 0 ? `${branch} has ${plural(unmerged, "commit")} that ${base} does not have yet. Deleting the worktree keeps the branch, so the commits are not lost. Merge it first from the session menu if you want them in ${base}.` : `${branch} has no commits that ${base} is missing.`,
   deleteSessionOnlyButton: "Delete Session",
@@ -573,7 +547,6 @@ export const S = {
   sessionAndWorktreeDeleted: "Session and worktree deleted",
   sessionDeleted: "Session deleted",
 
-  // 오른쪽 패널, 아래 패널
   rightPanelAria: "Right panel",
   closeTab: (path: string) => `Close ${path}`,
   closeTabKey: (key: string | null) => keyed("Close", key),
@@ -594,14 +567,12 @@ export const S = {
   openTerminalIn: (dir: string) => `Open terminal in ${dir}`,
   terminalClosed: (reason: string | null) => `[Terminal closed${reason ? `: ${reason}` : ""}]`,
 
-  // 팔레트
   openFilePlaceholder: "Search files by name (append : to go to line or @ to go to symbol)",
   openFileNeedsWorkspace: "Choose a workspace first",
   searchSymbols: "Search Symbols",
   symbolPlaceholder: "Symbol name or link",
   searching: "Searching",
   searchFailed: (msg: string) => `Search failed: ${msg}`,
-  // CMDT: ⌘T 입력창의 링크 실행 줄
   linkOpenBrowser: "Open in Browser",
   linkOpenSimulator: "Open in Simulator",
   linkOpenSimulatorWebview: "Open in Simulator Webview",
@@ -614,7 +585,6 @@ export const S = {
   modelsFailed: "Could not load models. See Settings, Status.",
   claudeDidNotStart: "Claude Code did not start",
 
-  // 설정 패널
   mobileOffNote: "Turn on Mobile access above to pair a phone.",
   mobileListening: (host: string, port: number) => `Listening on ${host}:${port}`,
   mobileNotListening: "Not listening",
@@ -667,13 +637,11 @@ export const S = {
   keymapPresetHint: "Keybinding preset. The Keyboard Shortcuts list shows the keys of the selected one.",
   keymapPresets: { vscode: "VS Code", webstorm: "WebStorm" } as Record<"vscode" | "webstorm", string>,
   fontNotInstalled: (name: string) => `Not installed, using fallback: ${name}`,
-  // 어디에도 지정이 없어 Claude Code 가 정할 때
   defaultModelNone: "Claude Code default",
   defaultEffortNone: "Claude Code default",
   customModelInvalid: "Use letters, numbers and . _ - : / [ ] only.",
   defaultSource: { "agent-nav": "set here", last: "last used", vscode: "from VS Code", claude: "from Claude Code settings", builtin: "default" },
 
-  // UITYPE: Settings 화면(검색, 목차, 묶음, 행). 행마다 짧은 이름 [이름, 설명] 한 쌍.
   settingsSearch: "Search settings",
   settingsClearSearch: "Clear search",
   settingsClose: "Close settings",
@@ -770,7 +738,7 @@ export const S = {
     keepIdleSessionsWarmMinutes: ["Keep idle sessions warm", "Close a session's Claude process after this long without input to free memory. Sessions in an open pane stay running, and sending a message resumes the same session (the first reply starts a little slower)."],
     maxWarmSessions: ["Keep recent sessions warm", "How many idle sessions keep their Claude process running. When more are idle, the one used longest ago is closed, even in an open pane, and its next message resumes the same session (the first reply starts a few seconds slower). Each process uses roughly 150 to 600 MB."],
     feedbackAutoTidy: ["Clean up finished improvements", "Removes the worktree and the revert backup of improvements that were applied, resolved or dismissed more than 3 days ago (the 5 most recent keep theirs, and the 3 latest applied keep their backup). Improvements that are running, waiting for a restart or can be run again are never touched. Reverting an improvement whose backup was removed is no longer possible."],
-    requestQueuing: ["While Claude is replying", "Enter queues your message until the reply ends, or steers the reply right away. Option+Enter does the other."],
+    requestQueuing: ["While an agent is replying", "Choose what Enter does during a Claude, Codex, or Antigravity reply. Option+Enter uses the other action."],
     formatLanguages: ["Languages", "Pick the formatter each language uses. Empty follows your VS Code settings."],
     importSessions: ["Sessions", "Continue sessions from the VS Code agent window here. Nothing is copied."],
     mcpServers: ["Servers", "Reconnect, enable, or disable MCP servers. Enable and Disable apply to this screen only, not to sessions."],
@@ -779,29 +747,32 @@ export const S = {
     linear: ["Linear account", "Shows Linear issues next to your local cards. The API key is kept in the macOS keychain, never in a file. Lodestar only changes an issue's status or priority when you do it from the board."],
     mobilePairing: ["Pair a phone", "Create a one-time code, then scan the QR code with the iPhone app or type the address and code. A code works once and expires in 5 minutes."],
   } as Record<string, readonly [string, string]>,
-  // "While Claude is replying" 행. 따름 항목에는 지금 실제로 쓰이는 값을 괄호에 적는다.
   requestQueuingChoices: { queue: "Queue", steer: "Steer" } as Record<"queue" | "steer", string>,
-  requestQueuingDetails: { queue: "Enter adds the message to the queue. It is sent when the reply ends.", steer: "Enter sends the message right away. Claude picks it up after the next tool call." } as Record<"queue" | "steer", string>,
+  requestQueuingDetails: { queue: "Enter adds the message to the queue. It is sent when the reply ends.", steer: "Enter sends your message to the agent during the current reply." } as Record<"queue" | "steer", string>,
   requestQueuingFollow: (label: string) => `Use VS Code setting (${label})`,
 
-  // 피드백 (요소 선택, 입력 창, 알림, 사이드바 묶음)
   feedback: "Feedback",
   feedbackKey: (key: string | null) => keyed("Feedback", key),
   feedbackPick: "Click an element or drag a region on screen to attach it. Esc or click again to stop picking",
-  feedbackPickElement: "Attach Element",
-  feedbackPickElementTitle: "Click an element or drag a region on screen to attach to this feedback",
-  feedbackScreenshot: "Screenshot",
+  feedbackSelectScreen: "Select from Screen",
+  feedbackSelectScreenTitle: "Click an element or drag a region to attach to this feedback",
+  feedbackElement: "Element",
+  feedbackElementScreenshot: "Element screenshot",
+  feedbackRegion: "Region",
+  feedbackRegionScreenshot: "Region screenshot",
+  feedbackScreenshot: "Window screenshot",
   feedbackScreenshotTitle: "Send a screenshot of the window with this feedback",
   feedbackRemoveElement: "Remove element",
-  feedbackRemoveScreenshot: "Remove screenshot",
+  feedbackRemoveRegion: "Remove region",
+  feedbackRemoveScreenshot: "Remove window screenshot",
   feedbackInputLabel: "What should change?",
   feedbackPlaceholder: "What should change?",
   feedbackFooter: "Enter to send, ⇧Enter for a new line",
   feedbackSend: "Send feedback",
   feedbackSendKey: "Send (Enter)",
   feedbackScreenshotMissing: "Screenshots need the desktop app",
+  feedbackCaptureFailed: "Couldn’t capture the selection",
   feedbackSent: "Feedback sent",
-  // RELEASE: 피드백을 GitHub issue 로 보고(입력 창이 미리보기로 바뀐다). 이슈는 브라우저에서 사용자가 직접 만든다.
   feedbackReport: "Report on GitHub…",
   feedbackReportLabel: "Report on GitHub",
   feedbackReportHeading: "New Issue",
@@ -811,11 +782,11 @@ export const S = {
   feedbackReportVersionLine: (app: string, macos: string | null) => (macos ? `Lodestar ${app} · macOS ${macos}` : `Lodestar ${app}`),
   feedbackReportInclude: "Include",
   feedbackReportPaths: "Element and file path",
+  feedbackReportRegionPaths: "Region and file path",
   feedbackReportIncludeNote: "Off by default. They can show your code and conversations.",
   feedbackReportCopied: "Copied to the clipboard to paste into the issue",
   feedbackReportBack: "Back",
   feedbackReportOpen: "Open in Browser",
-  // IMPROVE: 사이드바 바닥 항목과 Improvements 화면 (개선 세션은 Sessions 목록에서 빠진다)
   feedbackNotAppliedCount: (n: number) => `${n} not applied`,
   feedbackNotAppliedWord: "not applied",
   feedbackWaitingWord: "waiting",
@@ -823,7 +794,6 @@ export const S = {
   improvements: "Improvements",
   improvementsKey: "Improvements: changes Lodestar made from your feedback",
   improvementsBusy: "Working on an improvement",
-  // RELEASE: 사이드바 바닥의 새 버전 줄과 Settings 의 버전 줄
   releaseNewVersion: (version: string) => `New version ${version}`,
   releaseNotes: "Release Notes",
   releaseNotesTip: "Open the release notes in your browser. Lodestar does not install updates",
@@ -838,7 +808,6 @@ export const S = {
   improvementsEmptyNotApplied: "Nothing is waiting to be applied",
   improvementsEmptyApplied: "No applied improvements",
   improvementsEmptyDismissed: "No dismissed improvements",
-  // FBREDO: 반영 안 됨 항목을 사람이 정리하는 단추와 행 메뉴
   feedbackResolve: "Mark as Resolved",
   feedbackResolveTip: "It was solved some other way. It moves to Applied as Resolved manually",
   feedbackDismissTip: "Hide it from the list. The Dismissed filter shows it again",
@@ -877,9 +846,7 @@ export const S = {
     dismissed: "Dismissed",
     blocked: "Waiting",
   },
-  // FBREBASE: 본 작업 폴더가 바뀌어 개선 세션이 그 위에 변경을 다시 적용하는 중인 항목의 라벨
   feedbackReapplying: "Re-applying",
-  // FBBLOCK: 환경이나 인증 때문에 기다리는 중인 항목의 라벨과, 서버 문장이 없을 때 쓰는 기본 문장
   feedbackBlockedLabel: { environment: "Waiting to retry", auth: "Waiting for sign-in" },
   feedbackBlocked: {
     environment: "Lodestar could not run the checks here. They will retry automatically.",
@@ -906,18 +873,14 @@ export const S = {
   feedbackRetrying: "Checking…",
   feedbackRetryingNotice: (summary: string) => `Checking again: ${summary}`,
   feedbackRetryFailed: (reason: string) => `Could not retry: ${reason}`,
-  // FBREDO: 재시작에 끊겨 이어 가지 못한 피드백을 처음부터 다시 돌리는 단추
   feedbackRunAgain: "Run Again",
-  // FBREDO: 본 작업 폴더와 합쳐지지 않아 실패했을 때 Retry Checks 대신 보이는 이름(같은 동작: 최신 본 작업 폴더로 다시 병합하고 검사)
   feedbackMergeAgain: "Merge Again",
   feedbackRunAgainFailed: (reason: string) => `Could not run again: ${reason}`,
   feedbackCreateFailed: (reason: string) => `Could not send feedback: ${reason}`,
 
-  // 칸반 보드
   board: "Board",
   boardKey: (key: string | null) => keyed("Board", key),
   boardUnavailable: "The board needs a newer daemon. Restart Lodestar.",
-  // MORNINGREVIEW: Board 맨 위의 Morning review 영역
   reviewTitle: "Morning review",
   reviewNow: "Review now",
   reviewNowTip: "Read the Board and its sessions and write a review now",
@@ -951,7 +914,6 @@ export const S = {
   boardSearch: "Search cards",
   boardSearchPlaceholder: "Search title, description, labels",
   boardWorkspaceFilter: "Filter by workspace",
-  // BOARDUX: 우선순위, 정렬, 필터, 카드 메뉴, 라벨 색
   priority: "Priority",
   priorityNames: ["No priority", "Urgent", "High", "Medium", "Low"],
   priorityAria: (name: string) => `Priority: ${name}. Change`,
@@ -1041,11 +1003,10 @@ export const S = {
   notificationFinishedTitle: (title: string) => title || "Untitled Session",
   notificationApproval: "Approval needed to continue.",
   notificationPlan: "A plan is ready for your review.",
-  notificationNotion: "A Notion change is ready for your review.", // NOTION2
+  notificationNotion: "A Notion change is ready for your review.",
   notificationQuestions: "Questions need your input.",
   notificationAllow: "Allow Once",
   notificationOpenSession: "Open Session",
-  // FIX5-1: 다른 세션의 승인 대기와 완료를 앱 안에서 알리는 표시, 화면 낭독 안내, 승인 단축키
   allowOnceKey: (key: string | null) => keyed("Allow Once", key),
   skipKey: (key: string | null) => keyed("Skip", key),
   approvalToolHints: [
@@ -1064,7 +1025,6 @@ export const S = {
   removeAttachmentNamed: (name: string) => `Remove attachment ${name}`,
   linkedCard: (title: string) => `Board card: ${title}`,
 
-  // NOTES: 메모장
   notes: "Notes",
   notesKey: (key: string | null) => keyed("Notes", key),
   notesAria: "Notes list",
@@ -1095,7 +1055,6 @@ export const S = {
   notesDeleteFailed: (reason: string) => `Could not delete the note: ${reason}`,
   notesDeletedElsewhere: "This note was deleted in another window. Your text was saved as a new note.",
   notesCreateFailed: (reason: string) => `Could not create a note: ${reason}`,
-  // SKILLS: 스킬 목록 화면
   skills: "Skills",
   skillsAria: "Skills list",
   skillsSearch: "Search skills",
@@ -1132,7 +1091,6 @@ export const S = {
   attachNoteFailed: "Could not read the note",
   attachNoteTruncated: (rest: number) => `(${rest.toLocaleString("en-US")} more characters were not attached)`,
 
-  // Slack Inbox
   inbox: "Slack",
   inboxKey: (key: string | null) => keyed("Slack", key),
   inboxUnavailable: "Slack needs a newer daemon. Restart Lodestar.",
@@ -1228,7 +1186,6 @@ export const S = {
   slackLinkTargetApp: "Slack app",
   slackLinkTargetBrowser: "Browser",
 
-  // B1: 사이드바 세션 목록
   sessionsFilterMenu: "Filter Sessions",
   sessionsMore: "More Actions...",
   sessionsHistory: "Search Sessions",
@@ -1252,7 +1209,6 @@ export const S = {
   groupPinned: "Pinned",
   noChats: "No chats",
   noSessionsInFolder: "No sessions",
-  // EMPTYSTART: 폴더가 없는 첫 실행 화면
   emptyStartAria: "Get started",
   emptyStartTitle: "Start with a folder",
   emptyStartAddFolder: "Add a project folder, then start a session in it.",
@@ -1273,7 +1229,6 @@ export const S = {
   inputNeeded: "Input needed",
   rowError: "Failed",
   timeNow: "now",
-  // [단수, 복수]. 사이드바는 짧은 이름, 세션 검색은 긴 이름을 쓴다.
   timeUnitShort: TIME_UNIT_SHORT,
   timeRelative: (n: number, unit: readonly [string, string]) => `${n} ${n === 1 ? unit[0] : unit[1]} ago`,
   changeCountAria: (add: number, del: number) => `${add} added, ${del} removed`,
@@ -1291,9 +1246,9 @@ export const S = {
   linkCopied: "Session reference copied",
   linkCopyFailed: "Could not copy the session reference",
   unknownSessionRef: "No session matches that reference",
+  openFolderLinkFailed: (message: string) => `Could not open the folder: ${message}`,
   ambiguousSessionRef: "More than one session matches that reference",
   markedDone: "Marked as done. Show Done in the filter menu lists it.",
-  // SESSIONORDER: 사이드바 세션 순서 바꾸기
   resetOrder: "Reset Order",
   sessionOrderFailed: (message: string) => `Could not save the session order: ${message}`,
   sessionMovedTo: (title: string, position: number, total: number) => `${title} moved to position ${position} of ${total}`,
@@ -1328,7 +1283,6 @@ export const S = {
   tipPullRequest: (number: number, title: string) => `#${number} ${title}`,
   childToggle: (title: string, open: boolean) => `${open ? "Collapse" : "Expand"} ${title}`,
 
-  // Electron 메뉴
   menu: {
     board: "Board",
     file: "File",
@@ -1352,11 +1306,9 @@ export const S = {
     askAboutSelection: "Ask About Selected Code",
     openFile: "Open File",
     searchSymbols: "Go to Symbol in Workspace...",
-    // EDPARITY(C)
     gotoLine: "Go to Line/Column...",
     gotoSymbol: "Go to Symbol in Editor...",
     closeTab: "Close Tab",
-    // B5
     closeFocused: "Close Chat or Tab",
     splitChatDown: "Split Chat Down",
     reopenClosedChat: "Reopen Closed Chat",
@@ -1375,10 +1327,8 @@ export const S = {
     restartDaemon: "Restart Daemon",
     toggleDevTools: "Toggle Developer Tools",
   },
-  // Electron 메인 프로세스 오류
   electronDaemonNotStarted: "The daemon did not start",
   electronNoWindow: "No window",
-  // OPENFOLDER: 바깥에서 넘겨받은 경로를 못 열 때 OS 알림 (제목, 본문)
   openPathMissingTitle: "Path not found",
   openPathMissing: (path: string) => `${path} does not exist, so nothing was opened.`,
   openPathUnsupportedTitle: "Can't open this path",
@@ -1387,7 +1337,6 @@ export const S = {
   openPathFailed: (path: string, reason: string) => `${path}: ${reason}`,
   electronUnknownAction: (action: string) => `Unknown action: ${action}`,
 
-  // B4: 제목줄, 변경 범위 메뉴, 변경 패널, Files 탭, PR 칩
   titleBackKey: (keys: string[]) => keyed("Go Back One Session", keys.join(" or ") || null),
   titleForwardKey: (keys: string[]) => keyed("Go Forward One Session", keys.join(" or ") || null),
   openVSCodeWindow: "Open in VS Code Editor Window",
@@ -1427,7 +1376,6 @@ export const S = {
   viewAsTree: "View as Tree",
   viewAsList: "View as List",
 
-  // B5: 격자, 분할, 단축키
   noClosedChat: "No closed chat to reopen",
   chordWaiting: (first: string) => `(${first}) was pressed. Waiting for second key of chord...`,
   chordMiss: (first: string, second: string) => `(${first}, ${second}) is not a command`,
@@ -1435,7 +1383,6 @@ export const S = {
   effortCycled: (effort: string) => `Effort: ${effort}`,
   attachMenuUnavailable: "Open a chat first to add context",
 
-  // B2: 대화 메시지와 메시지 단위 동작
   paneMenuAria: "More Actions...",
   closeChat: "Close",
   restoreCheckpoint: "Restore Checkpoint",
@@ -1443,7 +1390,6 @@ export const S = {
   restoreCheckpointTip: "Restores workspace and chat to this point. Files created by shell commands are not removed",
   startOverTip: "Clears the chat and undoes all file edits. Files created by shell commands are not removed",
   forkFromHereTip: "Fork conversation from this point",
-  // FBREDO: 말풍선 오른쪽 위의 둥근 단추(Claude Code 의 Message actions)
   checkpointActionsAria: "Message actions",
   restoreChatOnly: "Restore Chat Only",
   startOverChatOnly: "Start Over (Chat Only)",
@@ -1453,7 +1399,6 @@ export const S = {
   checkingCheckpointTip: "Checking file snapshots...",
   busyCheckpointTip: "Available when the session is not running",
   discardEdits: "Discard Edits",
-  // FIX4A: Start Over 의 확인은 대화도 비우므로 동작을 그대로 말한다. 복원은 편집 도구가 만든 변경만 되돌리고 Bash 로 만든 파일은 그대로다.
   startOverConfirm: "Clear Chat and Discard Edits",
   filesTrashedOnly: (n: number) => `${plural(n, "file")} moved to the Trash. Files created by shell commands were not removed`,
   filesRestoredShell: (n: number) => `${plural(n, "file")} restored. Files created by shell commands were not removed`,
@@ -1468,16 +1413,13 @@ export const S = {
   chatReappliedToast: "Chat reapplied. Files were not changed",
   filesReapplied: (n: number) => `${plural(n, "file")} reapplied`,
   checkpointFailed: (message: string) => `Checkpoint failed: ${message}`,
-  // FIX5-0: 복원 확인 창. 에이전트의 마지막 쓰기 뒤 바뀐 파일은 건드리지 않고, 에이전트가 새로 만든 파일은 휴지통으로 간다.
   restoreConfirmTitleStartOver: "Clear the chat and discard this session's file edits?",
   restoreConfirmTitle: "Restore the workspace and chat to this point?",
-  // 확인 창 소제목은 앞으로 할 일(명령형), 끝난 뒤 토스트와 알림은 과거형
   restoreGroupRevert: (n: number) => `Restore to the earlier version (${n}):`,
   restoreGroupTrash: (n: number) => `Move to the Trash, created by the agent (${n}):`,
   restoreGroupSkip: (n: number) => `Leave as they are (${n}):`,
   restoreSkipReason: (reason: "modified" | "mixed" | "unknown") => (reason === "modified" ? "changed after the agent wrote it" : reason === "mixed" ? "includes edits made outside this session" : "the agent's last edit was not recorded"),
   restoreNothingToChange: "No file will change.",
-  // FIX5-0: 같은 폴더에서 다른 세션이 동시에 돌아 Bash 귀속을 건너뛴 턴의 안내(Changes 패널 한 줄과 변경 칩 툴팁)
   shellNote: (turns: number, title: string, clock: string | null) => {
     const short = title.length > 36 ? `${title.slice(0, 35)}…` : title;
     return `Some files changed by shell commands may be missing here. Another session was running in this folder at the same time (turn ${short ? `"${short}"` : "without a title"}${clock ? `, ${clock}` : ""})${turns > 1 ? `, and in ${turns - 1} earlier ${turns === 2 ? "turn" : "turns"}` : ""}.`;
@@ -1489,6 +1431,10 @@ export const S = {
   copiedResponse: "Copied",
   slackPreview: "Slack message",
   slackCopy: "Copy with Slack formatting",
+  mermaidPreview: "Diagram",
+  mermaidExpand: "View larger",
+  mermaidShowCode: "Show code",
+  mermaidHideCode: "Hide code",
   filesChangedLine: (n: number) => `${plural(n, "file")} changed`,
   filesChangedTip: "Open the changes from the last turn",
   stepsWorking: "Working:",
@@ -1506,7 +1452,6 @@ export const S = {
   approvalSeeLess: "See less",
   allowInSession: "Allow in this Session",
   allowOnce: "Allow Once",
-  // fixB: 질문 카드, 계획 카드, 승인 카드의 작은 문구
   questionTitle: "Question",
   questionOther: "Other",
   questionOtherPlaceholder: "Type your own answer",
@@ -1538,10 +1483,15 @@ export const S = {
   newChat: "New Chat",
   askInSideChat: "Ask in a Side Chat",
   quote: "Quote",
+  quoteTip: "Quote in the message box",
+  quoteKey: "⌘'",
+  quoteComment: "Comment",
+  quoteCommentTip: "Comment on this text. Comments collect in the message box and go out together",
+  quoteCommentPlaceholder: "Add a comment",
+  quoteCommentAdd: "Add",
+  quoteCommentChipAria: (comment: string) => `Comment: ${comment}`,
   selectionToolbarAria: "Selection actions",
 
-  // B6: 세션 검색과 명령 팔레트
-  chatNoFiles: "A chat has no folder, so there are no files",
   chatPill: "Chat",
   chatPillDetail: "No folder",
   recentlyOpened: "recently opened",
@@ -1549,7 +1499,6 @@ export const S = {
   noCommands: "No matching commands",
   commandPalette: "Command Palette",
   timeUnitLong: TIME_UNIT_LONG,
-  // 명령 이름. 에이전트 창의 명령은 접두 "Agents:" (키는 web/keymap.ts 의 BINDINGS 에서 읽는다)
   commandTitles: {
     save: "File: Save",
     newUntitled: "File: New Untitled Text File",
@@ -1576,11 +1525,9 @@ export const S = {
     browserZoomIn: "Browser: Zoom In",
     browserZoomOut: "Browser: Zoom Out",
     browserZoomReset: "Browser: Reset Zoom",
-    // 창 전체 확대(앱 창에서만)
     zoomIn: "View: Zoom In",
     zoomOut: "View: Zoom Out",
     zoomReset: "View: Reset Zoom",
-    // 에디터와 채팅 글자 크기를 따로 조절(명령 팔레트에만)
     editorFontZoomIn: "View: Increase Editor Font Size",
     editorFontZoomOut: "View: Decrease Editor Font Size",
     editorFontZoomReset: "View: Reset Editor Font Size",
@@ -1613,6 +1560,8 @@ export const S = {
     quickSwitchSession: "Agents: Quick Switch Session",
     focusPanePrev: "Agents: Focus Previous Chat Group",
     focusPaneNext: "Agents: Focus Next Chat Group",
+    previousChatTab: "Agents: Open Previous Chat Tab",
+    nextChatTab: "Agents: Open Next Chat Tab",
     focusPaneLeft: "Agents: Focus Chat Group on the Left",
     focusPaneRight: "Agents: Focus Chat Group on the Right",
     focusPaneUp: "Agents: Focus Chat Group Above",
@@ -1622,6 +1571,11 @@ export const S = {
     closeAllSessions: "Agents: Close All Sessions",
     reopenClosed: "Agents: Reopen Closed Chat",
     handoff: "Agents: Hand Off to New Session",
+    addFolderToSession: "Agents: Add Folder to Session...",
+    removeFolderFromSession: "Agents: Remove Folder from Session...",
+    moveChatToFolder: "Agents: Move Chat to Folder...",
+    openFolder: "File: Open Folder...",
+    newProject: "File: New Project...",
     mergeWorktree: "Agents: Merge Worktree into Base Branch",
     createWorktreePr: "Agents: Create Pull Request from Worktree",
     sessionPrev: "Agents: Go to Previous Session",
@@ -1689,7 +1643,6 @@ export const S = {
     restartDaemon: "Developer: Restart Daemon",
     previewDirection: "Developer: Preview Design Direction",
   } as Record<string, string>,
-  // FIX6C: 키보드 단축키 목록 화면
   shortcutsTitle: "Keyboard Shortcuts",
   shortcutsPlaceholder: "Search by command, category, or key",
   noShortcuts: "No matching shortcuts",
@@ -1721,7 +1674,6 @@ export const S = {
   focusSessionAt: (n: number) => `Agents: Focus Session ${n}`,
   focusLastSession: "Agents: Focus Last Session",
 
-  // B3: 입력창, 새 세션 화면, 큐
   composerPlaceholderNew: "Describe a task for Claude",
   composerPlaceholderNewCodex: "Describe a task for Codex",
   sendNewTitle: "Send (Enter), New Background Session (⌥Enter)",
@@ -1743,13 +1695,19 @@ export const S = {
     auto: "Claude decides whether to ask for each tool operation.",
     bypassPermissions: "Claude runs all tools without asking.",
   },
-  // CODEX: Codex 세션의 권한 메뉴 설명. 자세한 대응(approval, sandbox)은 항목과 칩의 툴팁에 보인다.
   permissionDescriptionsCodex: {
     default: "Codex asks before file changes and untrusted commands.",
     acceptEdits: "Codex edits files in the folder and runs sandboxed commands without asking.",
     plan: "Not available for Codex sessions.",
     auto: "A reviewer subagent decides requests to leave the sandbox.",
     bypassPermissions: "Codex runs everything without asking and without a sandbox.",
+  },
+  permissionDescriptionsAntigravity: {
+    default: "Antigravity asks before edits and commands.",
+    acceptEdits: "Antigravity edits files in the workspace without asking.",
+    plan: "Antigravity plans carefully before executing a task.",
+    auto: "Antigravity runs edits and safe commands, and asks before irreversible actions.",
+    bypassPermissions: "Lodestar approves every Antigravity request without asking.",
   },
   permissionMenuAria: "Permission mode",
   learnMorePermissions: "Learn more about permissions",
@@ -1761,12 +1719,20 @@ export const S = {
   customModelOption: (name: string) => `Use "${name}"`,
   modelsUnavailable: "No models loaded yet",
   thinkingLevel: "Thinking Level",
+  providersAria: "Providers",
+  pinnedModels: "Pinned",
+  providerUnavailableAria: (name: string) => `${name}, not available`,
+  providerModelsAria: (name: string) => `${name} models`,
+  matchingModelsAria: "Matching models",
+  pinnedEmpty: "No pinned models. Star a model to pin it.",
+  noMatchingModels: "No matching models",
+  continuesIn: (name: string) => `Continues in ${name}`,
+  noThinkingLevels: "This model has no thinking levels",
+  handoffClaudeOnly: "Handoffs start on Claude",
   effortDefaultBadge: "Default",
   effortMidSessionWarning: "Changing these options mid-session resets the prompt cache and may increase cost.",
   effortNames: { low: "Low", medium: "Medium", high: "High", xhigh: "Extra High", max: "Max", ultra: "Ultra" },
   searchAttachments: "Search attachments",
-  // fixB: 이미지 첨부(붙여넣기, 끌어다 놓기, + 메뉴)
-  // FILEATTACH: 이미지가 아닌 파일도 같은 길로 붙는다(메뉴, 끌어다 놓기). 파일은 경로만 모델에 가고, 올리는 중에는 보낼 수 없다.
   attachImage: "Image or file...",
   imageThumbAria: (name: string) => `Attached image: ${name}`,
   fileDropHint: "Drop images or files to attach",
@@ -1794,13 +1760,16 @@ export const S = {
   openFolderTitle: "Open Folder",
   openFolderPlaceholder: "Folder path",
   browseFolder: "Browse...",
+  newProject: "New Project...",
+  newProjectSide: "New Project",
+  newProjectTitle: "New Project",
+  newProjectHint: (path: string) => `Creates ${path} with a Git repository and adds it as a workspace`,
   removeFolder: "Remove from list",
   removeFolderWithSessions: (count: number) => `Remove from list (${count === 1 ? "1 session" : `${count} sessions`} will be hidden)`,
   folderPillAria: (name: string) => `Folder: ${name}`,
   placeBranch: "Branch",
   branchMenuAria: "Current branch",
   uncommittedFiles: (n: number) => `${n} uncommitted ${n === 1 ? "file" : "files"}`,
-  // BRANCH-SWITCH: 브랜치 선택기
   branchSearch: "Search branches",
   branchGroupLocal: "Local branches",
   branchGroupRemote: "Remote branches",
@@ -1814,7 +1783,6 @@ export const S = {
   placePickAria: "Where the session runs",
   baseBranchAria: "Base branch for the new worktree",
 
-  // B7: 탭 끌기, 에디터 그룹 분할, 에디터 편집과 저장, 새 파일, 포맷
   splitNeedsTab: "Open a file tab to split the editor",
   splitNeedsAnotherTab: "This group has only one tab. Open another tab in it to split it.",
   splitRight: "Split Right",
@@ -1840,14 +1808,12 @@ export const S = {
   saveChangesTitle: (name: string) => `Do you want to save the changes you made to ${name}?`,
   saveChangesTitleMany: (count: number) => `Do you want to save the changes to ${count} files?`,
   saveChangesDetail: "Your changes will be lost if you don't save them.",
-  // reload: Developer: Reload Window, Developer: Restart Daemon
   unsavedChangesTitle: "You have unsaved changes.",
   reloadUnsavedDetail: "Your changes will be lost if you reload the window.",
   reloadButton: "Reload",
   restartDaemonUnsavedDetail: "Your changes will be lost when the window reloads after the restart.",
   restartDaemonRunningTitle: (count: number) => (count === 1 ? "1 session is running and will be stopped." : `${count} sessions are running and will be stopped.`),
   restartDaemonRunningDetail: "The daemon restarts and the window reloads. Stopped sessions can be resumed by sending a message.",
-  // FBREDO: 개선 세션은 재시작 뒤 스스로 이어 가므로 세션 수와 따로 알린다
   restartDaemonImprovementsTitle: (count: number) => (count === 1 ? "1 improvement is in progress." : `${count} improvements are in progress.`),
   restartDaemonImprovementsDetail: (count: number) => (count === 1 ? "It stops now and continues by itself after the restart." : "They stop now and continue by themselves after the restart."),
   restartDaemonButton: "Restart Daemon",
@@ -1893,6 +1859,7 @@ export const S = {
   formatSourceNote: { "agent-nav": "set here", vscode: "from VS Code", builtin: "default", claude: "default" } as Record<string, string>,
   filesOpenFolder: "Open Folder...",
   filesNewFile: "New File...",
+  filesCollapse: "Collapse",
   filesNewFolder: "New Folder...",
   filesHeaderAria: "Files actions",
   scmTitleActionsAria: "Source Control actions",
@@ -1945,15 +1912,12 @@ export const S = {
   importActivityNotice: "This session was just updated in VS Code. Sending from here can split the history. It will be synced before your message is sent.",
   preCompactTip: "From before the conversation was compacted. This part is read-only, so it cannot be restored or forked",
   importResultFailures: (count: number) => `${count} could not be imported`,
-  // 데몬 연결
   daemonDisconnected: "Daemon connection lost",
-  // FIX3-1: 데몬이 끊겼을 때 창 맨 위 띠
   daemonReconnecting: "Reconnecting to the daemon…",
   daemonRestartAttempt: (attempt: number, max: number) => `Restart ${attempt} of ${max}`,
   daemonStopped: "The daemon stopped and could not be restarted.",
   daemonRestartButton: "Restart Daemon",
 
-  // FLOAT: 배치 모드와 떠 있는 에이전트 창
   toggleLayoutKey: (key: string | null) => keyed("Toggle Editor Layout", key),
   layoutAria: "Editor layout",
   customizeLayoutAria: "Customize Layout...",
@@ -1977,18 +1941,14 @@ export const S = {
   floatCollapseKey: (key: string | null) => keyed("Collapse to a Pill", key),
   floatExpandKey: (key: string | null) => keyed("Expand", key),
   floatPillAria: (title: string) => `Show agent window: ${title}`,
-  floatSwitchSession: "Switch Session",
-  floatRecentSessions: "Recent Sessions",
-  floatNoOtherSessions: "No other sessions",
   floatSwitchedToEditor: "Switched to the Editor layout and opened the floating window. Press ⌃⌥L to go back to the Chat layout.",
-  floatNewSession: "New Session",
-  floatSearchSessions: "Search Sessions...",
   layoutChat: "Chat-centered",
   layoutEditor: "Editor-centered",
-  // FOCUS: Editor 중심(포커스 모드)의 Activity Bar, 왼쪽 사이드바, 오른쪽 대화 패널
   activityBarAria: "Activity Bar",
   activityExplorer: (key: string | null) => keyed("Explorer", key),
   activityChanges: "Changes",
+  activityChangesTip: "Changes: files this session edited",
+  activityScmTip: (label: string) => `${label}: Git status of the whole folder, to stage and commit`,
   activityScm: (key: string | null) => keyed("Source Control", key),
   activitySearch: (key: string | null) => keyed("Search", key),
   activityCard: "Card",
@@ -2003,6 +1963,12 @@ export const S = {
   resizeFocusSide: "Resize side bar",
   resizeChatDock: "Resize chat",
   chatDockAria: "Chat side bar",
+  chatSessionTabs: "Chat sessions",
+  chatAddTab: "Add Chat Tab",
+  chatCloseTab: (title: string) => `Close tab: ${title}`,
+  chatReferenceSession: "Reference Another Session",
+  chatSearchAllSessions: "Search All Sessions...",
+  chatNoOtherProjectSessions: "No other sessions to open",
   chatDockHideKey: (key: string | null) => keyed("Hide Chat", key),
   chatOpenInTab: "Open Chat in Editor Tab",
   showChatKey: (key: string | null) => keyed("Show Chat", key),
@@ -2042,7 +2008,6 @@ export const S = {
   contextEstimate: "Estimated while the reply is still coming. The exact value arrives when the turn ends.",
   contextCompact: "Compact Conversation",
   contextCompactBusy: "Wait for the reply to finish",
-  // SUB: 서브에이전트
   subagentRunning: "Running subagent",
   subagentRan: "Ran subagent",
   subagentFailed: "Subagent failed",
@@ -2054,9 +2019,7 @@ export const S = {
   agentsListTitle: "Subagents",
   agentsListAria: "Show subagents",
   agentsShowStep: "Show in conversation",
-  // HANDOFF: 핸드오프
   handoffMenu: "Hand Off to New Session",
-  // FIX4A: 워크트리 세션의 합치기와 PR
   mergeMenu: (base: string) => `Merge into ${base}`,
   mergeTitle: (branch: string, target: string) => `Merge ${branch} into ${target}?`,
   mergeButton: "Merge",
@@ -2084,7 +2047,6 @@ export const S = {
   handoffReadOnly: "Read only",
   handoffSave: "Save",
 
-  // WSMENU: 사이드바 폴더 묶음 머리 메뉴와 폴더 제거
   folderMenu: (name: string) => `${name} folder menu`,
   folderNewSession: "New Session",
   folderNewSessionWorktree: "New Session in Worktree",
@@ -2105,7 +2067,6 @@ export const S = {
   pathCopyFailed: "Could not copy the path",
   revealFailed: (message: string) => `Could not reveal the folder: ${message}`,
 
-  // R4FIX: Changes 행 단추, 새 세션 화면 Changes, Files 트리 우클릭 메뉴와 이름 바꾸기, 삭제
   changesBadgeAria: (count: number) => `${count} changed ${count === 1 ? "file" : "files"}`,
   discardChanges: "Discard Changes",
   discardChangesButton: "Discard",
@@ -2138,7 +2099,6 @@ export const S = {
   movedToTrash: (name: string) => `Moved ${name} to the Trash`,
   trashFailed: (message: string) => `Could not move it to the Trash: ${message}`,
   revealEntryFailed: (message: string) => `Could not reveal it in Finder: ${message}`,
-  // fix5-2: 할 일 목록, 대기 중인 단계, Board 키보드
   stepQueued: "Queued",
   taskVerbs: { added: "Added task", started: "Started task", completed: "Completed task", reset: "Reset task", removed: "Removed task", updated: "Updated task", list: "Updated tasks", addedMany: "Added tasks" },
   tasksCount: (done: number, total: number) => `${done}/${total}`,
@@ -2147,7 +2107,6 @@ export const S = {
   tasksListAria: "Show tasks",
   taskStatus: { pending: "Not started", in_progress: "In progress", completed: "Completed" },
   tasksProgress: (done: number, total: number) => `${done} of ${total} done`,
-  // fix5-3: 폴더 묶음 순서, 사라진 폴더, 워크트리 메뉴
   folderOrder: "Folder Order",
   folderOrderRecent: "Recent Activity",
   folderOrderName: "Name",
@@ -2206,13 +2165,11 @@ export const S = {
   emptyGroupCloseGroup: "Close Group",
   tabSwitcherAria: "Recently used editors",
   tabSwitcherClose: "Close Editor",
-  // CTRLTAB: ⌃Tab 세션 전환 창(web/SessionSwitcherView.tsx)
   sessionSwitcherAria: "Recently used sessions",
   sessionSwitcherCurrent: "Current",
   enablePreviewEditors: "Enable Preview Editors",
   configureEditors: "Configure Editors",
   breadcrumbsAria: "Breadcrumbs",
-  // TOBOARD: 대화의 한 부분을 Board 카드로
   toBoardResponseTip: "Add this response to the Board",
   toBoardMessageTip: "Add this message to the Board",
   toBoardTaskTip: "Add this task to the Board",
@@ -2232,9 +2189,7 @@ export const S = {
   cardGoToMessage: "Go to Message",
   cardSessionGone: "That session was deleted",
   cardMessageGone: "That message is no longer in the session",
-  // QUICKENTRY: 전역 빠른 입력창(web/QuickEntry.tsx, electron/quickEntry.ts)과 Settings 의 단축키 행
   quickEntryAria: "Mini chat",
-  // MINICHAT: 대화 패널의 머리(web/MiniChat.tsx)
   miniChatAria: "Mini chat",
   miniChatSessionsAria: (title: string) => `Mini chat session: ${title}. Switch session`,
   miniChatNew: "New mini chat",
@@ -2273,7 +2228,6 @@ export const S = {
   quickEntryStatusInvalid: "This shortcut can't be registered.",
   quickEntryStatusBlocked: "Not registered in a test instance.",
   quickEntryStatusNoApp: "Only available in the Lodestar app.",
-  // LINEAR
   linearConnectedAs: (name: string, email: string) => `Connected as ${name} (${email})`,
   linearWorkspace: (name: string) => `Workspace: ${name}`,
   linearNoKey: "Not connected. There is no Linear API key yet.",
@@ -2297,4 +2251,29 @@ export const S = {
     server: "Linear is having trouble.",
   },
   linearRetryAfter: (seconds: number) => `Try again in ${seconds} seconds.`,
+  folderUnknown: "Unlisted folder",
+  folderNeedsProject: "Open a session with a folder first",
+  folderNoSession: "Open a session first",
+  addFolderTitle: "Add Folder to Session",
+  removeFolderTitle: "Remove Folder from Session",
+  folderNoneToRemove: "This session has no added folders",
+  folderNotFound: "Not found",
+  moveChatOnly: "Only a chat without a folder can move to a folder",
+  newFolderEllipsis: "New Folder...",
+  moveToFolderTitle: "Move to folder",
+  moveToFolderMenu: "Move to Folder...",
+  newFolderTitle: "New Folder",
+  newFolderPlaceholder: "folder-name",
+  newFolderHint: (path: string) => `Creates ${path} and moves this chat there`,
+  newFolderBadName: "Use a folder name without slashes",
+  foldersChipAria: (names: string[]) => `Folders: ${names.join(", ")}`,
+  foldersChipTip: "Folders in this session. Changes apply from the next message.",
+  foldersPopoverAria: "Folders in this session",
+  foldersHeading: "Folders",
+  primaryFolder: "Primary",
+  removeFromSession: "Remove from Session",
+  addFolderEllipsis: "Add Folder...",
+  folderCount: (n: number) => `${n} folders`,
+  scmReposAria: "Repositories",
+  searchRootsMissing: "Some folders in this session were not searched because they are not found",
 } as const;

@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// 실제 GitHub 읽기 시험용 방패. 읽기 호출만 진짜 gh 로 넘기고, 쓰기로 보이는 호출은 기록만 하고 거절한다(종료 코드 1).
-// 허용: gh auth ..., gh pr list/view/diff, gh api graphql (stdin 에 mutation 이 없을 때), gh api <경로> (메서드 지정과 --input 이 없을 때, --paginate 와 --slurp 허용)
 import { spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 

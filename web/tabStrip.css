@@ -21,7 +21,6 @@
 .editor-group:not([data-focused]) > .tabs > .tab {
   color: var(--tab-inactive-fg-unfocused);
 }
-/* 마우스를 올린 비활성 탭: 바탕이 깔리고 글자가 밝아진다(modernEditorTab.hoverBackground, hoverForeground) */
 .editor-group > .tabs > .tab:not([data-active]):hover {
   border-radius: var(--radius-sm);
   background: var(--tab-hover-bg);
@@ -30,7 +29,6 @@
 .editor-group:not([data-focused]) > .tabs > .tab:not([data-active]):hover {
   background: var(--tab-hover-bg-unfocused);
 }
-/* 붙박이 탭 뒤 첫 일반 탭의 왼쪽 1 픽셀 선(tab.lastPinnedBorder) */
 .editor-group > .tabs > .tab[data-sticky] + .tab:not([data-sticky]):not([data-active]) {
   box-shadow: inset 1px 0 0 var(--tab-last-pinned-border);
 }
@@ -39,7 +37,6 @@
   box-shadow: inset 0 -1px 0 var(--tab-strip-border);
 }
 
-/* 활성 탭: 에디터와 이어진다 */
 .editor-group > .tabs > .tab[data-active] {
   z-index: 1;
   border-color: var(--tab-strip-border);
@@ -73,7 +70,6 @@
   border-bottom-left-radius: calc(var(--radius-md) + 1px);
   box-shadow: calc((var(--radius-md) + 1px) / -2) calc((var(--radius-md) + 1px) / 2) 0 calc((var(--radius-md) + 1px) / 2) var(--tab-active-bg);
 }
-/* 첫 탭은 왼쪽 윤곽과 어깨가 없고 왼쪽 위 모서리가 더 크다(cornerRadius.large) */
 .editor-group > .tabs > .tab:first-child,
 .editor-group > .tabs > :not(.tab):first-child + .tab {
   border-left-width: 0;
@@ -84,7 +80,6 @@
   content: none;
 }
 
-/* 에디터 탭만(Changes, Files, Card 같은 고정 칸 탭은 앱 고유라 안쪽 여백을 따로 둔다) */
 .editor-group > .tabs > .tab[data-editor-tab] > .tab-label {
   flex: 1 1 auto;
   padding: 0 calc(var(--space-1_5) + 1px) 0 calc(var(--space-1_5) - 1px);
@@ -99,7 +94,6 @@
 .editor-group > .tabs > .tab[data-editor-tab] .tab-close .codicon {
   font-size: var(--size-icon);
 }
-/* 닫기 단추는 활성 탭, 마우스를 올린 탭, 수정된 탭, 붙박이 탭에서 보인다. 포커스가 있는 그룹에서는 또렷하게, 아니면 반투명으로 */
 .editor-group > .tabs > .tab[data-editor-tab][data-active] > .tab-close,
 .editor-group > .tabs > .tab[data-editor-tab]:hover > .tab-close,
 .editor-group > .tabs > .tab[data-editor-tab][data-dirty] > .tab-close,

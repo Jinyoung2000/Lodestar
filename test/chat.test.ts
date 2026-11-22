@@ -1,5 +1,3 @@
-// B6-02 폴더 없는 세션(퀵 챗)의 서버 동작: 임시 작업 폴더, git 기준 없음, worktree 거절, 삭제 때 폴더 정리. 모델은 부르지 않는다(send 를 막는다).
-// 실행: npm test
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -61,7 +59,6 @@ test("폴더 있는 세션은 그대로: workspaceId 와 cwd 가 폴더를 따�
   mkdirSync(dir, { recursive: true });
   const workspace = store.addWorkspace(dir);
   const agent = await runner.create({ ...params, workspaceId: workspace.id });
-  // 폴더는 심볼릭 링크를 푼 실제 경로로 저장된다(macOS 의 임시 폴더는 /var 가 /private/var 로 이어진다)
   expect(agent.workspaceId === workspace.id && agent.cwd === realpathSync(dir), `${agent.workspaceId} ${agent.cwd}`);
   return "ok";
 });

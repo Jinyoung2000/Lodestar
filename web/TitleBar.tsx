@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Agent } from "../shared/protocol";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Agent, GitInfo } from "../shared/protocol";
 import { AttentionChip } from "./AttentionChip";
 import { TitleBranch } from "./TitleBranch";
 import { sessionPanelToggleable } from "./centerPanels";
@@ -7,19 +7,21 @@ import { FeedbackButton } from "./Feedback";
 import { Codicon, FileIcon, FolderCompact, PanelBottom, PanelLeft, PanelRight, Refresh, Sync, VSCodeIcon, WorktreeCompact } from "./icons";
 import { rpc } from "./rpc";
 import { activeAgentOf } from "./activeAgentOf";
+import { editorGitWorkspaceOf } from "./editorChat";
 import { chatHiddenInEditor } from "./focusLayout";
 import { useLayoutConfig } from "./layoutConfigStore";
 import { runCommand } from "./shortcuts";
 import { sidebarPeek } from "./peekController";
-import { flash, getState, goBackSession, goForwardSession, openBrowser, openInVSCode, refreshGit, setState, topWorkspaceId, useStore, type BrowserTab } from "./store";
+import { flash, focusPane, getState, goBackSession, goForwardSession, openBrowser, openInVSCode, refreshGit, setState, topWorkspaceId, useStore, type BrowserTab } from "./store";
 import { confirmAction } from "./ConfirmDialog";
 import { fetchFlow, pullFlow, pushFlow } from "./gitSync";
 import { S } from "./strings";
-import { N } from "./notionStrings"; // NOTION2
+import { N } from "./notionStrings";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { hint } from "./hint";
 import { visibleCenterView } from "./screenVisibility";
+import { onWorkspaceChanged } from "./workspaceEvents";
 import { useCommandKey, useCommandKeys } from "./commandKeys";
 
 const APP_TITLE = document.title;
@@ -40,30 +42,48 @@ export function TitleBar() {
   const agent = useStore((s) => activeAgentOf(s.panes, s.activePaneId, s.agents));
   const workspaces = useStore((s) => s.workspaces);
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
-  const info = useStore((s) => (agent ? s.gitInfo[agent.id] : undefined));
+  const agentInfo = useStore((s) => (agent ? s.gitInfo[agent.id] : undefined));
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const rightOpen = useStore((s) => s.rightOpen);
   const centerView = useStore((s) => visibleCenterView(s.centerView, s.settings));
   const showRightToggle = sessionPanelToggleable(centerView);
   const bottomOpen = useStore((s) => s.bottomOpen);
   const editorLayout = useStore((s) => s.layoutMode === "editor");
-  // FOCUS: Editor 중심에서 왼쪽 단추는 왼쪽 Primary Side Bar, 오른쪽 단추는 오른쪽 대화(패널이나 떠 있는 창)를 여닫는다. 앱 사이드바는 이 배치에 없다.
+  const workspaceId = useStore(editorGitWorkspaceOf);
+  const gitWorkspace = workspaces.find((workspace) => workspace.id === workspaceId);
+  const [workspaceInfo, reloadWorkspaceInfo] = useWorkspaceGitInfo(gitWorkspace?.id ?? null);
+  const info = gitWorkspace ? workspaceInfo : agentInfo;
+  const gitTarget = gitWorkspace ? { workspaceId: gitWorkspace.id } : agent ? { agentId: agent.id, ...(agent.workspaceId ? { workspaceId: agent.workspaceId } : {}) } : null;
   const focusSideOpen = useStore((s) => s.focusSideOpen);
   const chatShown = useStore((s) => !chatHiddenInEditor(s));
   const sideRight = useLayoutConfig().sideBar === "right";
   const leftOn = editorLayout ? focusSideOpen : sidebarOpen;
   const rightOn = editorLayout ? chatShown : rightOpen;
   const [busy, setBusy] = useState<"sync" | "fetch" | null>(null);
-  // 폴더 없는 새 세션 화면(퀵 챗)이 활성 칸이면 폴더가 없다
   const chatDraft = useStore((s) => s.panes.some((p) => p.id === s.activePaneId && p.kind === "draft" && p.workspaceId === null));
   const project = chatDraft ? undefined : workspaces.find((w) => w.id === (agent ? topWorkspaceId(agent.workspaceId) : activeWorkspaceId));
-  // 창 이름(Mission Control, 창 메뉴, ⌘`)을 지금 칸의 프로젝트 폴더 이름으로. Electron 창 제목은 페이지 title 을 따른다. 폴더가 없으면 앱 이름(index.html 의 title).
   const projectName = project?.name ?? null;
+  const panes = useStore((s) => s.panes);
+  const activePaneId = useStore((s) => s.activePaneId);
+  const agents = useStore((s) => s.agents);
+  const splitProjects = useMemo(() => {
+    const list: { paneId: string; id: string; name: string; active: boolean }[] = [];
+    for (const pane of panes) {
+      const wsId = pane.kind === "agent" ? (agents.find((a) => a.id === pane.agentId)?.workspaceId ?? null) : pane.workspaceId;
+      const top = wsId ? (workspaces.find((w) => w.id === wsId)?.parentId ?? wsId) : null;
+      const ws = top ? workspaces.find((w) => w.id === top) : undefined;
+      if (!ws) continue;
+      const seen = list.find((x) => x.id === ws.id);
+      if (seen) seen.active ||= pane.id === activePaneId;
+      else list.push({ paneId: pane.id, id: ws.id, name: ws.name, active: pane.id === activePaneId });
+    }
+    return list;
+  }, [panes, activePaneId, agents, workspaces]);
   useEffect(() => {
     document.title = projectName ?? APP_TITLE;
   }, [projectName]);
 
-  const autoFetchId = centerView === "sessions" && agent && !agent.feedbackId && info?.upstream ? agent.id : null;
+  const autoFetchId = centerView === "sessions" && !gitWorkspace && agent && !agent.feedbackId && agentInfo?.upstream ? agent.id : null;
   useEffect(() => {
     if (!autoFetchId) return;
     const tick = () => {
@@ -79,45 +99,47 @@ export function TitleBar() {
     return () => clearInterval(timer);
   }, [autoFetchId]);
 
-  // 동기화: 먼저 fetch 로 원격 상태를 읽고(낡은 숫자로 push 확인만 묻다 거절되지 않게), behind 가 있으면 pull, ahead 가 있으면 push 한다. push 가 낄 때만 확인을 거치고, 강제 옵션은 없다.
-  // 갈라졌으면 이유를 말하고 Pull (Merge) 와 Pull (Rebase) 를 고르게 한다(web/gitSync.ts). 충돌이 나면 push 하지 않고 멈춘다.
+  const refreshTitleGit = async () => {
+    if (gitWorkspace) return reloadWorkspaceInfo();
+    if (!agent) return;
+    const next = await rpc.call("git.info", { agentId: agent.id });
+    setState((s) => ({ gitInfo: { ...s.gitInfo, [agent.id]: next } }));
+    return next;
+  };
   const sync = async () => {
-    if (!agent || !info || busy) return;
+    if (!gitTarget || !info || busy) return;
     if (!info.upstream) {
       hint(S.noTrackedRemote);
       return;
     }
-    const target = { agentId: agent.id, ...(agent.workspaceId ? { workspaceId: agent.workspaceId } : {}) };
     setBusy("sync");
     try {
-      if ((await fetchFlow(target, { quiet: true })) !== "ok") return;
-      const fresh = await rpc.call("git.info", { agentId: agent.id });
-      setState((s) => ({ gitInfo: { ...s.gitInfo, [agent.id]: fresh } }));
+      if ((await fetchFlow(gitTarget, { quiet: true })) !== "ok") return;
+      const fresh = await refreshTitleGit();
+      if (!fresh) return;
       if (fresh.behind === 0 && fresh.ahead === 0) {
         hint(S.nothingToSync);
         return;
       }
-      // 가져오기만 할 때(fast-forward)는 묻지 않는다(사용자: 다이얼로그가 거슬림). 원격으로 보내는 push 가 끼면 확인을 거친다.
       if (fresh.ahead > 0 && !(await confirmAction(S.syncConfirmTitle(fresh.upstream ?? info.upstream, fresh.behind, fresh.ahead), S.syncConfirmButton(fresh.behind, fresh.ahead), S.syncConfirmDetail(fresh.branch, fresh.upstream ?? info.upstream, fresh.behind, fresh.ahead)))) return;
-      if (fresh.behind > 0 && (await pullFlow(target, "ff", { quiet: true })) !== "ok") return;
-      if (fresh.ahead > 0 && (await pushFlow(target, { quiet: true })) !== "ok") return;
+      if (fresh.behind > 0 && (await pullFlow(gitTarget, "ff", { quiet: true })) !== "ok") return;
+      if (fresh.ahead > 0 && (await pushFlow(gitTarget, { quiet: true })) !== "ok") return;
       flash(S.syncDone);
     } catch (error) {
       const message = (error as Error).message;
       flash(message.startsWith("Unknown method") ? S.daemonOutdated : S.syncFailed(message.split("\n").slice(-2).join(" ")));
     } finally {
-      await refreshGit(agent.id);
+      if (gitWorkspace) await reloadWorkspaceInfo().catch(() => undefined);
+      else if (agent) await refreshGit(agent.id);
       setBusy(null);
     }
   };
   const fetch = async () => {
-    if (!agent || busy) return;
+    if (!gitTarget || busy) return;
     setBusy("fetch");
     try {
-      // 실패는 gitSync 가 이유와 다음 행동 단추와 함께 알린다
-      if ((await fetchFlow({ agentId: agent.id, ...(agent.workspaceId ? { workspaceId: agent.workspaceId } : {}) })) !== "ok") return;
-      const next = await rpc.call("git.info", { agentId: agent.id });
-      setState((s) => ({ gitInfo: { ...s.gitInfo, [agent.id]: next } }));
+      if ((await fetchFlow(gitTarget)) !== "ok") return;
+      await refreshTitleGit();
     } catch (error) {
       const message = (error as Error).message;
       flash(message.startsWith("Unknown method") ? S.daemonOutdated : S.fetchFailed(message.split("\n")[0]));
@@ -146,8 +168,19 @@ export function TitleBar() {
         <Button size="icon" aria-label={S.forward} title={S.titleForwardKey(forwardKeys)} onClick={goForwardSession}>
           <Codicon name="arrow-right" />
         </Button>
-        <CommandCenter agent={agent} folder={project?.name ?? null} branch={info?.branch ?? agent?.worktree?.branch ?? null} inRepo={!!info?.repoRoot} viewName={centerView === "sessions" ? null : CENTER_VIEW_NAME[centerView]} />
-        <TitleBranch agent={agent} info={info} sessionsView={centerView === "sessions"} />
+        {!editorLayout && centerView === "sessions" && splitProjects.length > 1 ? (
+          <div className="command-center command-center-split" role="group" aria-label={S.splitProjectsAria}>
+            {splitProjects.map((p) => (
+              <button key={p.id} type="button" className="cc-split-item" aria-pressed={p.active} title={S.focusProjectPaneTip(p.name)} onClick={() => focusPane(p.paneId)}>
+                <FolderCompact size={14} />
+                <span className="cc-folder">{p.name}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <CommandCenter agent={agent} folder={project?.name ?? null} branch={info?.branch ?? (gitWorkspace ? null : agent?.worktree?.branch ?? null)} inRepo={!!info?.repoRoot} viewName={centerView === "sessions" ? null : CENTER_VIEW_NAME[centerView]} />
+        )}
+        <TitleBranch agent={agent} workspace={gitWorkspace} info={info} sessionsView={centerView === "sessions"} />
         <Button size="icon" aria-label={S.openFile} title={S.openFileKey(openFileKey)} onClick={() => runCommand("quickOpen")}>
           <FileIcon />
         </Button>
@@ -157,9 +190,8 @@ export function TitleBar() {
       </div>
       <div className="titlebar-right">
         <AttentionChip />
-        {centerView === "sessions" && agent && !agent.feedbackId && info?.repoRoot && (
+        {centerView === "sessions" && gitTarget && !agent?.feedbackId && info?.repoRoot && (
           <>
-            {/* Button README: 화면에 하나뿐인 주요 버튼(Sync). 보낼 것과 받을 것이 있을 때만 주요 버튼이고, 없으면 보조 버튼이다(dogfood 20). 원격 추적 브랜치가 없으면 동기화할 게 없어 Sync 는 없다. 브랜치 이름과 전환은 Command Center 옆 TitleBranch 에 있다. */}
             {info.upstream && (
               <Button variant={info.ahead > 0 || info.behind > 0 ? "primary" : "secondary"} size="sm" aria-busy={busy === "sync"} title={`${info.branch} ↔ ${info.upstream}`} onClick={() => void sync()}>
                 <span className={busy === "sync" ? "spin" : "inline-flex"}>
@@ -198,11 +230,32 @@ export function TitleBar() {
   );
 }
 
-// 세션 화면이 아닌 가운데 화면(Board, Mentions, Improvements, PR)의 칩 이름. 이전 세션의 제목과 브랜치를 그대로 두면 그 화면과 상관있는 것처럼 보인다(dogfood 26).
+function useWorkspaceGitInfo(workspaceId: string | null) {
+  const [snapshot, setSnapshot] = useState<{ workspaceId: string; info: GitInfo }>();
+  const connected = useStore((s) => s.connected);
+  const sequence = useRef(0);
+  const refresh = useCallback(async () => {
+    if (!workspaceId) return;
+    const request = ++sequence.current;
+    const info = await rpc.call("git.info", { workspaceId });
+    if (request === sequence.current && editorGitWorkspaceOf(getState()) === workspaceId) setSnapshot({ workspaceId, info });
+    return info;
+  }, [workspaceId]);
+  useEffect(() => {
+    if (!workspaceId || !connected) return;
+    const update = () => void refresh().catch(() => undefined);
+    update();
+    const unsubscribe = onWorkspaceChanged(workspaceId, update);
+    return () => {
+      sequence.current++;
+      unsubscribe();
+    };
+  }, [workspaceId, connected, refresh]);
+  return [snapshot?.workspaceId === workspaceId ? snapshot.info : undefined, refresh] as const;
+}
+
 const CENTER_VIEW_NAME = { board: S.board, inbox: S.inbox, improvements: S.improvements, pr: S.pullRequestChip, notion: N.viewName, notes: S.notes, skills: S.skills } as const;
 
-// 가운데 칩. 새 세션 화면은 "New Session" 접두 + 폴더, 세션은 폴더 아이콘(worktree 면 worktree 아이콘) + 폴더(브랜치는 옆의 TitleBranch).
-// 갈래 세션은 앞에 세션 제목이 붙는다. 폭이 좁으면 제목이 먼저 말줄임표가 되고 폴더는 끝까지 남는다. 세션 화면이 아니면 화면 이름만 보인다.
 function CommandCenter({ agent, folder, branch, inRepo, viewName }: { agent: Agent | null; folder: string | null; branch: string | null; inRepo: boolean; viewName: string | null }) {
   const name = folder ?? S.noWorkspace;
   if (viewName) {
@@ -225,7 +278,6 @@ function CommandCenter({ agent, folder, branch, inRepo, viewName }: { agent: Age
 }
 
 
-// 제목줄의 Browser 단추(설정 Show In Title Bar: true 는 늘, false 는 안 보임, whenOpen 은 Browser 탭이 열려 있을 때만). 누르면 새 탭을 열거나 열린 탭으로 간다.
 function BrowserButton() {
   const mode = useStore((s) => s.settings?.browserShowInTitleBar ?? "whenOpen");
   const allTabs = useStore((s) => s.tabs);

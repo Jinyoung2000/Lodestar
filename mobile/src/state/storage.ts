@@ -1,4 +1,3 @@
-// 기기에 남기는 것: 장치 토큰은 키체인(SecureStore), 주소와 캐시는 AsyncStorage.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import type { Cache } from "./store";
@@ -26,7 +25,6 @@ export async function loadConnection(): Promise<Connection | null> {
 
 export async function saveConnection(connection: Connection) {
   const { token, ...meta } = connection;
-  // 잠금이 풀린 뒤 이 기기에서만 읽을 수 있다(백업과 다른 기기로의 이전에서 제외)
   await SecureStore.setItemAsync(TOKEN_KEY, token, { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY });
   await AsyncStorage.setItem(META_KEY, JSON.stringify(meta));
 }

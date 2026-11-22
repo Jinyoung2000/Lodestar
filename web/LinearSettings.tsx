@@ -4,9 +4,6 @@ import { rpc } from "./rpc";
 import { S } from "./strings";
 import { Button } from "./ui/button";
 
-// LINEAR: Settings 의 Linear 항목. 연결 상태(연결됨이면 이름과 이메일), 키 입력과 저장, 연결 해제.
-// 키는 입력칸 안에만 있고 저장하면 비운다. 저장은 데몬이 Linear 로 확인한 뒤 키체인에 쓴다. 이 컴포넌트는 키를 어디에도 보관하지 않는다.
-
 export function LinearSettings() {
   const { status, busy, problem, refresh, save, disconnect } = useLinear();
   const [key, setKey] = useState("");
@@ -98,10 +95,8 @@ function useLinear() {
       .then(setStatus)
       .catch((error: Error) => setStatus({ connected: false, error: { kind: "server", message: error.message } }));
   }, []);
-  // 설정을 열 때는 캐시(1분) 대신 지금 상태를 읽는다. 키가 폐기됐다면 여기서 바로 보인다.
   useEffect(() => refresh(true), [refresh]);
 
-  // 저장하면 데몬이 먼저 Linear 에 이 키로 물어본다. 통과해야 키체인에 쓰고, 안 되면 이유만 입력칸 아래에 보인다(원래 저장된 키와 상태 줄은 그대로).
   const save = async (key: string) => {
     setBusy(true);
     setProblem(null);

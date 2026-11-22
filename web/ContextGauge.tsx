@@ -35,7 +35,6 @@ export function ContextGauge({ agent, busy }: { agent: Agent; busy: boolean }) {
   );
 }
 
-// 압축은 슬래시 명령이라 보통 메시지로 보낸다. 응답 중이면 버튼이 막혀 있다.
 function compact(agentId: string) {
   return rpc.call("agents.send", { agentId, prompt: "/compact" }).catch((error: Error) => flash(error.message));
 }

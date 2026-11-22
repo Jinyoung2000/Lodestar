@@ -8,24 +8,23 @@ import { toTarget } from "./lsp";
 import { rpc } from "./rpc";
 import { refreshFileList } from "./editorDocs";
 import { M } from "./scmStrings";
-import { flash, openFile } from "./store";
+import { flash, openFile, openScmDiff } from "./store";
 import { S } from "./strings";
 import { reloadWorkspaceChanges, useWorkspaceChanges } from "./workspaceChanges";
 import { hint } from "./hint";
 
-// 새 세션 화면(세션 없음)의 Changes 탭: 고른 폴더의 커밋 안 된 변경. 행은 세션 Changes 의 행을 그대로 쓰고(+N -N, 상태 글자, hover 단추), 세션이 없으니 diff 탭 대신 에디터 탭으로 연다.
-// 지워진 파일은 열 파일이 없어서 누르면 아무 일도 없다.
-export function DraftChanges({ workspaceId }: { workspaceId: string }) {
+export function DraftChanges({ workspaceId, openAsDiff = false }: { workspaceId: string; openAsDiff?: boolean }) {
   const files = useWorkspaceChanges(workspaceId);
   const treeView = useChangesView((s) => s.treeView);
-  // 생성 파일(shared/generatedFiles.ts)은 세션 Changes 와 같게 목록에서 뺀다
   const list = useMemo(() => (files ?? []).filter((f) => !isGeneratedPath(f.path)), [files]);
   const actionsOf = (file: ChangedFile): RowActionHandlers => ({
     onOpenFile: file.status === "D" ? undefined : () => openFile(toTarget(file.path, workspaceId)),
-    onDiscard: file.outside ? undefined : () => void discardInFolder(workspaceId, file).catch((e: Error) => flash(S.discardFailed(e.message), "error")),
+    onDiscard: openAsDiff || file.outside ? undefined : () => void discardInFolder(workspaceId, file).catch((e: Error) => flash(S.discardFailed(e.message), "error")),
   });
   const pick = (file: ChangedFile, preview: boolean, side = false) => {
-    if (file.status !== "D") openFile(toTarget(file.path, workspaceId), { preview: preview && !side, side });
+    const options = { preview: preview && !side, side };
+    if (openAsDiff) openScmDiff({ workspaceId }, file, "uncommitted", options);
+    else if (file.status !== "D") openFile(toTarget(file.path, workspaceId), options);
   };
   return (
     <div className="changes-view" aria-label={S.draftChangesAria}>
@@ -50,7 +49,6 @@ export function DraftChanges({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-// 폴더의 변경 하나를 버린다. Source Control 의 Discard 와 같은 서버 동작(추적 파일은 되돌리고 새 파일은 휴지통)이라 확인 창도 같다.
 async function discardInFolder(workspaceId: string, file: ChangedFile) {
   const fresh = file.status === "A";
   const name = file.rel.slice(file.rel.lastIndexOf("/") + 1);

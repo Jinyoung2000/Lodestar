@@ -12,7 +12,6 @@ import { hint } from "./hint";
 
 type Row = { key: string; title: string; url: string; section: string | null };
 
-// 즐겨찾기를 맨 위에 한 묶음으로, 그 아래에 방문 기록을 날짜별로 놓는다. 입력한 낱말이 제목이나 주소에 들어야 남는다.
 export function BrowserHistory({ tabKey }: { tabKey: string }) {
   const history = useHistory();
   const favorites = useFavorites();
@@ -36,7 +35,6 @@ export function BrowserHistory({ tabKey }: { tabKey: string }) {
   const choose = (row: Row | undefined) => {
     if (!row) return;
     setState({ overlay: null });
-    // 대화상자가 닫히며 포커스를 돌려주는 일이 끝난 뒤에 열어야 주소창 포커스가 묻히지 않는다
     setTimeout(() => dispatchBrowserAction("navigate", row.url, tabKey), 0);
   };
 
@@ -165,7 +163,6 @@ export function SitePermissions({ url }: { url: string }) {
   );
 }
 
-// Emulate Device... 선택창. 줄은 "이름 + 393×852 • mobile" 이고, 고르면 그 탭의 에뮬레이션이 프리셋으로 바뀐다.
 export function DevicePresets({ tabKey }: { tabKey: string }) {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
@@ -205,7 +202,6 @@ export function DevicePresets({ tabKey }: { tabKey: string }) {
   );
 }
 
-// Emulate User Agent... 입력창. Enter 로 적용하고 비우면 기본 사용자 에이전트로 돌아간다.
 export function UserAgentPrompt({ tabKey, value }: { tabKey: string; value: string }) {
   const [text, setText] = useState(value);
   return (

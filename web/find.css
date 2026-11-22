@@ -2,7 +2,7 @@
   position: absolute;
   top: 0;
   right: calc(var(--size-scrollbar) + var(--space-1));
-  z-index: 30; /* diff 보기의 피드백 층(.df-layer 20) 위 */
+  z-index: 30;
   box-sizing: border-box;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -26,7 +26,6 @@
   display: none;
 }
 
-/* 입력칸: 오른쪽 안에 토글이 겹쳐 놓이고, 글자는 토글 폭만큼 비켜 시작한다. */
 .cm-find-field {
   position: relative;
   box-sizing: border-box;
@@ -129,7 +128,6 @@
   background-color: var(--find-button-hover-bg);
 }
 
-/* 켜진 토글과 Find in Selection */
 .cm-find [aria-checked="true"] {
   color: var(--find-option-active-fg);
   background-color: var(--find-option-active-bg);
@@ -208,7 +206,6 @@
   overflow-wrap: anywhere;
 }
 
-/* 편집기 안: 모든 일치, 현재 일치, Find in Selection 범위, 스크롤바 위 표시 */
 .cm-findMatch {
   background-color: var(--find-match-bg);
 }

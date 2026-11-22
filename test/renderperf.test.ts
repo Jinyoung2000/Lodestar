@@ -1,4 +1,3 @@
-// 렌더 성능 조각의 단독 시험: 턴 재사용(reuseTurns), 같은 항목 갱신 묶기(UpsertHold), 서브에이전트 단계 색인, 시계 글자. 실행: npm test
 import type { TimelineItem } from "../shared/protocol";
 import { subagentSteps } from "../shared/subagents";
 import { formatClock, groupTurns, reuseTurns, splitTurns } from "../web/timelineModel";

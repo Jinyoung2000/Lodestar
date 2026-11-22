@@ -1,7 +1,5 @@
 import type { QuickEntryConfig, QuickShortcutStatus } from "../shared/quickEntry";
 
-// 빠른 입력창이 preload(electron/preload.ts)에서 받는 네이티브 함수. 메인 창은 configure, status 를, 빠른 입력창 페이지는 close, resize, finish, onShow 를 쓴다.
-// 브라우저 탭(Electron 밖)에서는 window.agentNavNative 가 없다.
 export type QuickEntryNative = {
   quickEntryConfigure?: (config: QuickEntryConfig) => Promise<QuickShortcutStatus>;
   quickEntryStatus?: () => Promise<QuickShortcutStatus>;

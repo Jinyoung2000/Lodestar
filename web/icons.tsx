@@ -9,8 +9,6 @@ const make = (name: string) =>
     return <Codicon name={name} size={size} className={className} />;
   };
 
-// --- 기존 이름(다른 화면이 쓰는 것). 내부 모양만 codicon 으로 바뀌었다 ---
-
 export const ChevronLeft = make("chevron-left");
 export const ChevronRight = make("chevron-right");
 export const ChevronDown = make("chevron-down");
@@ -51,13 +49,10 @@ export const FileIcon = make("file");
 export const Pick = make("inspect");
 export const FeedbackIcon = make("feedback");
 export const BoardIcon = make("project");
-export const NoteIcon = make("note"); // NOTES
+export const NoteIcon = make("note");
 export const LinkIcon = make("link");
 export const Edit = make("edit");
 export const Start = make("play");
-
-// --- 입력창 칩 아이콘 ---
-// 칩과 메뉴 항목이 같은 기호를 쓰도록 여기서 한 번만 정한다.
 
 export const PermissionAsk = make("shield");
 export const PermissionEdits = make("edit");
@@ -65,6 +60,17 @@ export const PermissionPlan = make("lightbulb");
 export const PermissionBypass = make("warning");
 export const PermissionAuto = make("sparkle");
 export const ModelIcon = make("claude");
+
+export function ProviderIcon({ harness, size = 16 }: { harness: "claude" | "codex" | "antigravity"; size?: number }) {
+  if (harness === "antigravity") {
+    return (
+      <span className="provider-mark" data-small={size < 16 || undefined} aria-hidden="true">
+        A
+      </span>
+    );
+  }
+  return <Codicon name={harness === "codex" ? "openai" : "claude"} size={size} />;
+}
 
 
 export const FolderCompact = make("folder-compact");
@@ -89,10 +95,6 @@ export const CloseSmall = make("close-small");
 export const Files = make("files");
 export const GoToFile = make("go-to-file");
 
-// --- B7-06: 점 스피너 ---
-// 3x3 격자의 바깥 여덟 칸에 점이 놓이고 시계 방향으로 차례로 밝아진다. 모양과 속도는 styles.css 의 .dot-spinner 가 정한다.
-// 진행 중은 파랑, 입력 필요는 노랑. size 는 상자 한 변(px)이다.
-
 export function DotSpinner({ state = "running", size = 16, className }: IconProps & { state?: "running" | "waiting" }) {
   return (
     <span className={`dot-spinner${className ? ` ${className}` : ""}`} data-state={state} style={size === 16 ? undefined : { width: size, height: size }} aria-hidden="true">
@@ -105,16 +107,13 @@ export function DotSpinner({ state = "running", size = 16, className }: IconProp
 
 const DOT_SPINNER_CELLS = [0, 1, 2, 3, 4, 5];
 
-// --- B4: 제목줄, 변경 패널 ---
 export const ListIcon = make("list-flat");
 export const Maximize = make("screen-full");
 export const Minimize = make("screen-normal");
 export const VSCodeIcon = make("vscode");
 export const FilesIcon = make("files");
 
-// --- FMT: 알림 카드의 심각도 아이콘 ---
 export const InfoIcon = make("info");
 export const ErrorIcon = make("error");
 
-// fixB: 첨부 메뉴의 Image...
 export const ImageFile = make("file-media");

@@ -18,7 +18,6 @@ import { Text } from "../ui/Text";
 import { useSessionActions } from "../ui/sessionActions";
 import { WorkspacesView } from "../ui/WorkspacesView";
 
-// 홈: 위쪽 전환 줄로 세션 탭과 워크스페이스 탭을 오간다. 세션 탭은 프로젝트(워크스페이스)별로 묶고, 상태 점으로 실행 중, 답 대기, 안 읽음을 보인다. 캐시로 바로 뜨고, 서버와 맞춰지면 갱신된다.
 type Item = { kind: "header"; key: string; title: string; count: number; workspaceId: string | null } | { kind: "session"; key: string; agent: Agent; workspace: string };
 type Tab = "sessions" | "workspaces";
 
@@ -34,7 +33,6 @@ export default function Sessions() {
   const [tab, setTab] = useState<Tab>("sessions");
   const [query, setQuery] = useState("");
   const actions = useSessionActions();
-  // iOS 의 헤더는 투명해서 내용이 헤더 밑에서 시작한다(연결 띠도 headerHeight 에 둔다). 전환 줄이 헤더에 가리지 않게 그만큼 비운다. 안드로이드의 헤더는 불투명이라 내용이 이미 그 아래에서 시작한다.
   const headerHeight = useHeaderHeight();
   const [refreshing, setRefreshing] = useState(false);
 

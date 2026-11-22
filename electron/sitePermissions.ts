@@ -4,8 +4,6 @@ import { ipcMain } from "electron";
 import { dataHome } from "./dataHome";
 import { categoriesFor, isAlwaysAllowed, PERMISSION_CATEGORIES, PermissionStore, permissionOrigin, type PermissionCategory, type PermissionDecision } from "../web/browserPermissions";
 
-// --- 사이트 권한 ---
-// 판정은 web/browserPermissions.ts. 기록은 $AGENT_NAV_HOME/browser-permissions.json 에 둔다. 묻는 요청은 화면에 보내 확인 창으로 받는다(30초 안에 답이 없으면 허용하지 않는다).
 export const permissions = new PermissionStore();
 const PERMISSIONS_FILE = join(dataHome(), "browser-permissions.json");
 const PERMISSION_ASK_MS = 30_000;
@@ -15,7 +13,6 @@ export function loadPermissions() {
   try {
     permissions.hydrate(JSON.parse(readFileSync(PERMISSIONS_FILE, "utf8")));
   } catch {
-    // 기록이 없으면 기본값
   }
 }
 
@@ -50,7 +47,6 @@ export function registerSitePermissions(deps: SitePermissionDeps) {
     });
   }
 
-  // 권한 요청 하나. 사용자가 답하지 않은 범주를 하나씩 묻고, 끝나면 다시 판정한다(허용은 모든 범주가 허용일 때뿐).
   async function resolvePermission(permission: string, url: string, mediaTypes: readonly string[] | undefined, requester: Electron.WebContents | null): Promise<boolean> {
     if (isAlwaysAllowed(permission)) return true;
     const origin = permissionOrigin(url);
@@ -74,7 +70,6 @@ export function registerSitePermissions(deps: SitePermissionDeps) {
     permissionAsks.get(requestId)?.(answer === "allow" || answer === "deny" ? answer : null);
   });
 
-  // Site Permissions 선택창이 읽고 쓰는 목록. url 은 Browser 탭의 주소.
   ipcMain.handle("agent-nav:browser-permissions-get", (event, url: unknown) => {
     if (!deps.fromOurPage(event)) throw new Error("permission refused");
     const origin = permissionOrigin(String(url));

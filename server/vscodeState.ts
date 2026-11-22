@@ -9,7 +9,6 @@ const CACHE_KEY = "localAgentHost.cachedSessions.v4";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const UUID_IN_TEXT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 
-// 시험에서만 환경변수로 바꾼다(defaults.ts 와 같은 이름). 실제 폴더는 읽기만 한다.
 export function vscodeUserDir(env: NodeJS.ProcessEnv = process.env) {
   return env.AGENT_NAV_VSCODE_USER_DIR ?? join(homedir(), "Library", "Application Support", "Code", "User");
 }
@@ -25,7 +24,6 @@ export type CachedSession = {
   startMs: number | null;
   modifiedMs: number | null;
   summary: string;
-  // file URI 를 경로로 바꾼 것
   cwd: string | null;
   statusBits: number | null;
   external: boolean;
@@ -33,7 +31,6 @@ export type CachedSession = {
   chats: CachedChat[];
 };
 
-// session.db 의 session_metadata 에서 읽은 값. 없으면 null.
 export type SessionMeta = {
   dir: string;
   claudeSessionId: string | null;
@@ -41,7 +38,6 @@ export type SessionMeta = {
   archived: boolean;
   isRead: boolean | null;
   customTitle: string | null;
-  // 채팅 uri 별 제목(customChatTitle:<uri>)
   chatTitles: Map<string, string>;
   cwd: string | null;
   workspaceless: boolean;
@@ -66,13 +62,11 @@ export type PeerMeta = {
   cwd: string | null;
 };
 
-// 다른 채팅 하나의 폴더(<채팅 id>-<base64>)에서 읽은 값
 type ChatDirMeta = PeerMeta & { dir: string };
 
 export type VscodeState = {
   cached: CachedSession[];
   sessions: SessionMeta[];
-  // peerChats 에 적혀 있든 폴더로만 남아 있든 합친 다른 채팅
   peers: PeerMeta[];
   subagentDirs: Map<string, number>;
 };
@@ -87,8 +81,6 @@ export async function readVscodeState(userDir: string): Promise<VscodeState> {
   const rows = existsSync(dataDir) ? await readMetadataRows(dataDir) : [];
   return assemble(cached, rows, existsSync(dataDir) ? countSubagentDirs(dataDir) : new Map());
 }
-
-// --- 상태 캐시 ---
 
 function parseCache(text: unknown): CachedSession[] {
   if (typeof text !== "string" || !text) return [];
@@ -125,7 +117,6 @@ function cachedChat(raw: Record<string, unknown>): CachedChat {
   return { authority: uri?.authority ?? "", sessionUuid: uri?.sessionUuid ?? null, isRead: typeof raw.isRead === "boolean" ? raw.isRead : null };
 }
 
-// `ahp-chat://<authority>/<base64url(세션 uri)>` 의 authority 와 세션 uri 안의 id. subagent 는 뒤에 도구 호출 id 가 더 붙는다.
 export function parseChatUri(uri: string): { authority: string; sessionUuid: string | null } | null {
   const m = /^ahp-chat:\/\/([^/]+)\/([A-Za-z0-9_-]+)/.exec(uri);
   if (!m) return null;
@@ -149,7 +140,6 @@ export function fileUriToPath(uri: string): string | null {
   }
 }
 
-// "@provider=anthropic:opus%5B1m%5D" 에서 모델 이름(opus[1m])
 export function modelNameOf(id: string | null): string | null {
   if (!id) return null;
   const m = /^@provider=[^:]*:(.+)$/.exec(id.trim());
@@ -160,8 +150,6 @@ export function modelNameOf(id: string | null): string | null {
     return raw || null;
   }
 }
-
-// --- session.db ---
 
 type MetaRow = { dir: string; key: string; value: string };
 
@@ -187,8 +175,6 @@ const SESSION_KEYS = [
 
 const SAFE_DIR = /^[A-Za-z0-9_-]+$/;
 
-// 세션 폴더(uuid)와 채팅 폴더(<채팅 id>-<base64>)의 session.db 를 한 sqlite3 프로세스로 읽는다(2000개 넘는 폴더도 1초 안쪽이다).
-// 큰 값(diffs 와 변경 목록)은 키를 골라서 안 읽는다.
 async function readMetadataRows(dataDir: string): Promise<MetaRow[]> {
   const dirs = readdirSync(dataDir).filter((d) => SAFE_DIR.test(d) && (UUID.test(d) || /^(subagent|[0-9a-f]{8}-[0-9a-f-]{27})-/.test(d)) && existsSync(join(dataDir, d, "session.db")));
   if (dataDir.includes('"') || dataDir.includes("\n")) throw new Error("Unsupported characters in the VS Code data folder path");
@@ -205,7 +191,6 @@ async function readMetadataRows(dataDir: string): Promise<MetaRow[]> {
   return rows;
 }
 
-// 서브에이전트 채팅 폴더(subagent-<base64>-<도구 호출 id>)는 메타데이터 키가 없어서 폴더 이름만 센다.
 function countSubagentDirs(dataDir: string) {
   const counts = new Map<string, number>();
   for (const dir of readdirSync(dataDir)) {
@@ -228,7 +213,6 @@ function assemble(cached: CachedSession[], rows: MetaRow[], subagentDirs: Map<st
   const chatDirs: ChatDirMeta[] = [];
   for (const [dir, map] of byDir) {
     if (UUID.test(dir)) {
-      // Claude 세션만: 기본 채팅 데이터에 sdkSessionId 가 있거나 claude.* 키가 있다(Copilot 세션은 sessionId 만 있다)
       if (parseJson(map.get("defaultChatProviderData"))?.sdkSessionId || map.has("claude.workingDirectories")) sessions.push(sessionMeta(dir, map));
       continue;
     }
@@ -300,7 +284,6 @@ function chatDirMeta(dir: string, map: Map<string, string>): ChatDirMeta | null 
   const wd = parseJson(map.get("claude.workingDirectories") ?? map.get("agentHost.chatWorkingDirectories"));
   const cwdUri = Array.isArray(wd) && typeof wd[0] === "string" ? wd[0] : null;
   const claudeSessionId = str(provider?.sdkSessionId);
-  // 다른 채팅이 아니거나 Claude 가 아닌 폴더는 건너뛴다
   if (!claudeSessionId) return null;
   return {
     dir,
@@ -316,7 +299,6 @@ function chatDirMeta(dir: string, map: Map<string, string>): ChatDirMeta | null 
   };
 }
 
-// 같은 Claude 세션 id 는 한 번만. 부모 세션의 peerChats 가 앞서고, 폴더에서 읽은 작업 폴더로 채운다.
 function mergePeers(sessions: SessionMeta[], chatDirs: ChatDirMeta[]): PeerMeta[] {
   const out = new Map<string, PeerMeta>();
   const unresolved: PeerMeta[] = [];
@@ -332,8 +314,6 @@ function mergePeers(sessions: SessionMeta[], chatDirs: ChatDirMeta[]): PeerMeta[
   }
   return [...out.values(), ...unresolved];
 }
-
-// --- 아주 작은 도우미 ---
 
 function parseJson(text: string | undefined): any {
   if (!text) return null;

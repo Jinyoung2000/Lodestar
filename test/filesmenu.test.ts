@@ -1,4 +1,3 @@
-// Files 트리 우클릭 메뉴의 항목 결정, 행 키, 이름 바꾸기 계산(web/filesMenu.ts)을 본다. 실행: npm test
 import { filesKeyAction, filesMenuItems, isSameOrUnder, renamedPath, renameProblem, renameSelection, retargetPath, type FilesMenuItem } from "../web/filesMenu";
 
 const cases: { name: string; run: () => string }[] = [];
@@ -8,7 +7,6 @@ const expect = (condition: boolean, detail: string) => {
   return detail;
 };
 
-// 항목 이름을 구분선과 함께 한 줄로 (| 가 구분선)
 const line = (items: FilesMenuItem[]) => items.map((i) => `${i.separatorBefore ? "| " : ""}${i.action}`).join(" ");
 const key = (items: FilesMenuItem[], action: string) => items.find((i) => i.action === action)?.key;
 

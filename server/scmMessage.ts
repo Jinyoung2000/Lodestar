@@ -4,9 +4,6 @@ import { claudeBin, claudeEnv, isAuthError } from "./claude";
 import { commitMessageInput, type CommitMessageInput } from "./scm";
 import { spawnInGroup } from "./processGroups";
 
-// SCM: 커밋 메시지 초안. 읽기 전용 질의 한 번이다: 도구와 MCP 가 없고(tools: []), 세션 기록을 남기지 않으며(persistSession: false), 한 턴으로 끝난다.
-// 그래서 diff 안에 어떤 지시문이 들어 있어도 파일을 고치거나 명령을 실행할 수 없다. 모델은 화면이 정한다(Settings 의 Quick Ask 모델).
-
 export const COMMIT_MESSAGE_SYSTEM_PROMPT = [
   "You write a git commit message for the diff the user sends.",
   "Reply with exactly one line: the commit subject, nothing else.",
@@ -26,7 +23,6 @@ export function composeCommitPrompt(input: CommitMessageInput): string {
 
 const TIMEOUT_MS = 90_000;
 
-// 입력을 읽고 모델에게 보내 제목 한 줄을 받는다. 바뀐 게 없으면 오류.
 export async function generateCommitMessage(cwd: string, model: string, ask: typeof askModel = askModel): Promise<string> {
   const input = await commitMessageInput(cwd);
   if (!input) throw new Error("There are no changes to describe.");

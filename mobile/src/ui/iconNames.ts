@@ -1,4 +1,3 @@
-// SF Symbols 이름을 Material Symbols 이름으로 바꾸는 표(안드로이드 Icon.android.tsx 가 쓴다). 새 SF 아이콘을 쓰면 한 줄을 더한다: test/iconnames.test.ts 가 소스에서 쓰는 이름이 모두 있는지 본다.
 import type { AndroidSymbol } from "expo-symbols";
 
 export const MATERIAL_ICONS: Record<string, AndroidSymbol> = {

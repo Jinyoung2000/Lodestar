@@ -1,19 +1,16 @@
 import { execFile } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
-import { readFile, realpath } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { lstat, readFile, readlink, realpath } from "node:fs/promises";
 import { promisify } from "node:util";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { classifyGitFailure, type GitProblem, type GitVerb } from "../shared/gitProblems";
 import { buildHunkPatch, newFileDiff, parseGitDiff, patchSafePath, type ParsedDiff } from "../shared/hunkPatch";
-import { parseStatus, type ScmCode, type ScmCommit, type ScmCommitFile, type ScmCommitOptions, type ScmCommitResult, type ScmDiffSection, type ScmDiscardResult, type ScmEntry, type ScmFileDiff, type ScmOperation, type ScmOperationResult, type ScmPullMode, type ScmRepoWorktrees, type ScmStatus, type ScmSyncResult, type ScmWorktree } from "../shared/scm";
+import { parseStatus, type ScmCode, type ScmCommit, type ScmCommitFile, type ScmCommitOptions, type ScmCommitResult, type ScmDiffSection, type ScmDiscardResult, type ScmEntry, type ScmFileDiff, type ScmFileDiffSection, type ScmOperation, type ScmOperationResult, type ScmPullMode, type ScmRepoWorktrees, type ScmStatus, type ScmSyncResult, type ScmWorktree } from "../shared/scm";
 import { applyToIndex, fetch as gitFetch, git, info, pull, push, repoRoot, revertInWorktree } from "./git";
 import { realDir, realPathLoose } from "./paths";
 import { moveToTrash, pruneEmptyDirs, trashDir } from "./trash";
 
 export { moveToTrash, trashDir };
-
-// SCM: Source Control 보기의 git 동작. git 은 server/git.ts 의 git() 로만 부르고, 인자는 배열로만 넘기며 --force 는 쓰지 않는다.
-// 경로는 저장소 안만 받는다. 폴더는 상태 목록에서 그 아래 파일로 풀어서 다루고(git clean 은 쓰지 않는다), 새 파일을 지우는 대신 휴지통으로 옮긴다.
 
 export const SCM_MESSAGES = {
   badPath: (path: string) => `Path is outside the repository: ${path}`,
@@ -31,7 +28,6 @@ export const SCM_MESSAGES = {
 
 const execFileAsync = promisify(execFile);
 
-// 경로를 저장소 루트 기준 상대 경로로 정규화한다. 저장소 밖이거나 .git 안이면 거절한다.
 export function scmRelPath(root: string, input: string): string {
   if (!input || input.includes("\0")) throw new Error(SCM_MESSAGES.badPath(input));
   let rel = input;
@@ -45,7 +41,6 @@ export function scmRelPath(root: string, input: string): string {
   return normalized;
 }
 
-// --literal-pathspecs: ":(top)x" 같은 경로가 pathspec 문법으로 읽히지 않게 한다.
 const LITERAL = "--literal-pathspecs";
 const CHUNK = 200;
 
@@ -57,7 +52,6 @@ async function tryGit(cwd: string, args: string[]) {
   }
 }
 
-// git 이 낸 문장 전부(stdout 과 stderr). 훅은 두 쪽에 다 쓰므로 둘을 이어 붙인다.
 export function gitOutput(error: unknown): string {
   const e = error as { stdout?: string; stderr?: string; message?: string };
   const text = [e.stdout, e.stderr]
@@ -72,8 +66,6 @@ async function needRoot(cwd: string) {
   if (!root) throw new Error(SCM_MESSAGES.notRepository);
   return root;
 }
-
-// --- 상태 ---
 
 const EMPTY: ScmStatus = { repoRoot: null, hasHead: false, branch: null, detached: false, upstream: null, ahead: 0, behind: 0, hasRemote: false, staged: [], changes: [], conflicts: [], merging: false, lastCommit: null };
 
@@ -106,7 +98,6 @@ export async function status(cwd: string): Promise<ScmStatus> {
   };
 }
 
-// 진행 중인 병합이나 리베이스. 둘 다 저장소(worktree)마다 따로인 git 폴더 안의 표식 파일로 안다.
 function operationOf(gitDir: string | null): { merging: boolean; operation: ScmOperation | null } {
   if (!gitDir) return { merging: false, operation: null };
   const merging = existsSync(join(gitDir, "MERGE_HEAD"));
@@ -122,7 +113,6 @@ async function readSmall(path: string) {
   }
 }
 
-// 병합은 MERGE_MSG 첫 줄, 리베이스는 "브랜치 현재 단계/전체" 한 줄
 async function operationTextOf(gitDir: string, operation: ScmOperation): Promise<string> {
   if (operation === "merge") return (await mergeMessageOf(gitDir)).split("\n")[0] ?? "";
   const dir = existsSync(join(gitDir, "rebase-merge")) ? join(gitDir, "rebase-merge") : join(gitDir, "rebase-apply");
@@ -132,7 +122,6 @@ async function operationTextOf(gitDir: string, operation: ScmOperation): Promise
   return `${branch}${progress}`.trim();
 }
 
-// MERGE_MSG 에서 git 이 붙인 "# Conflicts:" 같은 주석 줄을 뺀 병합 커밋 메시지
 async function mergeMessageOf(gitDir: string): Promise<string> {
   const raw = await readSmall(join(gitDir, "MERGE_MSG"));
   return raw
@@ -154,9 +143,6 @@ async function lastCommitOf(root: string, base: { upstream: string | null; ahead
   return { hash, subject, parents: parents ? parents.split(" ").length : 0, pushed };
 }
 
-// --- 스테이지, 스테이지 해제 ---
-
-// 요청 경로(파일 또는 폴더)를 후보 목록에서 그 아래 파일로 푼다. 저장소 밖 경로는 여기서 거절한다.
 function expand(root: string, requested: readonly string[], candidates: readonly ScmEntry[]): ScmEntry[] {
   const wanted = requested.map((p) => scmRelPath(root, p));
   const seen = new Set<string>();
@@ -186,19 +172,15 @@ export async function unstage(cwd: string, paths: string[]) {
   const root = await needRoot(cwd);
   const current = await status(cwd);
   const entries = expand(root, paths, current.staged);
-  // 이름 바뀜은 옛 경로의 삭제도 같이 되돌려야 한다
   const rels = [...new Set(entries.flatMap((e) => (e.code === "R" && e.from ? [e.rel, e.from] : [e.rel])))];
   await inChunks(root, current.hasHead ? [LITERAL, "restore", "--staged"] : [LITERAL, "rm", "--cached", "-r", "-q"], rels);
 }
-
-// --- 변경 버리기 ---
 
 export async function discard(cwd: string, paths: string[]): Promise<ScmDiscardResult> {
   const root = await needRoot(cwd);
   const current = await status(cwd);
   const entries = expand(root, paths, current.changes);
   const tracked = entries.filter((e) => e.code !== "U" && e.code !== "A");
-  // 추적하지 않는 새 파일과 intent-to-add 파일은 파일을 휴지통으로 옮긴다
   const fresh = entries.filter((e) => e.code === "U" || e.code === "A");
   await inChunks(root, [LITERAL, "restore"], tracked.map((e) => e.rel));
   const intent = fresh.filter((e) => e.code === "A").map((e) => e.rel);
@@ -217,13 +199,10 @@ async function trashInside(root: string, rel: string) {
   return target;
 }
 
-// --- 커밋 ---
-
 export async function commit(cwd: string, options: ScmCommitOptions): Promise<ScmCommitResult> {
   const root = await needRoot(cwd);
   const message = options.message.trim();
   const current = await status(cwd);
-  // 병합 중에는 메시지가 비어도 git 이 만들어 둔 MERGE_MSG 로 커밋한다
   if (!message && !options.amend && !current.merging) throw new Error(SCM_MESSAGES.emptyMessage);
   if (current.conflicts.length > 0) return { status: "conflicts" };
   if (options.amend) {
@@ -256,7 +235,6 @@ export async function commit(cwd: string, options: ScmCommitOptions): Promise<Sc
   return { status: "committed", summary, pushError };
 }
 
-// upstream 이 없으면 pull 할 것이 없다. 그 밖의 실패는 push 로 넘어가지 않고 올린다.
 async function pullIfTracking(root: string) {
   try {
     await pull(root);
@@ -265,7 +243,6 @@ async function pullIfTracking(root: string) {
   }
 }
 
-// 마지막 커밋을 soft reset 으로 되돌리고(변경은 스테이지된 채 남는다) 그 커밋 메시지를 돌려준다. 첫 커밋은 HEAD 만 지운다.
 export async function undoLastCommit(cwd: string): Promise<{ message: string }> {
   const root = await needRoot(cwd);
   const current = await status(cwd);
@@ -275,8 +252,6 @@ export async function undoLastCommit(cwd: string): Promise<{ message: string }> 
   else await git(root, ["reset", "--soft", "HEAD~1"]);
   return { message };
 }
-
-// --- Graph ---
 
 const FIELD = "\x1f";
 
@@ -315,7 +290,6 @@ async function commitBase(root: string, hash: string) {
   return (await tryGit(root, ["rev-parse", "--verify", "--quiet", `${hash}^1`])) ?? EMPTY_TREE;
 }
 
-// 커밋이 바꾼 파일 (첫 부모와 비교. 머지 커밋도 마찬가지)
 export async function commitFiles(cwd: string, hash: string): Promise<ScmCommitFile[]> {
   const root = await needRoot(cwd);
   const base = await commitBase(root, hash);
@@ -337,7 +311,6 @@ export async function commitFiles(cwd: string, hash: string): Promise<ScmCommitF
   for (let i = 0; i < nums.length; i++) {
     const m = /^(\d+|-)\t(\d+|-)\t(.*)$/.exec(nums[i]);
     if (!m) continue;
-    // 이름 바뀜은 "n\tn\t" 다음에 옛 경로와 새 경로가 따로 온다
     const rel = m[3] === "" ? nums[(i += 2)] : m[3];
     const file = files.find((f) => f.rel === rel);
     if (file) {
@@ -358,9 +331,6 @@ export async function commitFileDiff(cwd: string, hash: string, rel: string, fro
   return text.length > MAX_DIFF ? { text: text.slice(0, MAX_DIFF), truncated: true } : { text, truncated: false };
 }
 
-// --- Worktrees ---
-
-// 등록된 작업 폴더가 속한 저장소마다 `git worktree list`. 같은 저장소(공통 git 폴더)는 한 번만 센다.
 export async function worktrees(dirs: readonly string[]): Promise<ScmRepoWorktrees[]> {
   const repos = new Map<string, ScmRepoWorktrees>();
   for (const dir of dirs) {
@@ -392,7 +362,6 @@ async function readWorktrees(root: string): Promise<ScmRepoWorktrees> {
     const path = lines.find((l) => l.startsWith("worktree "))?.slice("worktree ".length);
     if (!path || lines.includes("bare") || lines.some((l) => l.startsWith("prunable")) || !existsSync(path)) continue;
     const ref = lines.find((l) => l.startsWith("branch "))?.slice("branch refs/heads/".length) ?? null;
-    // PERFDAEMON: 피드백 개선 세션의 사본(<repo>.worktrees/feedback-<id>, 브랜치 feedback/<id>)은 사용자의 worktree 가 아니다. 113개가 쌓여 목록을 채웠다.
     if (isFeedbackWorktree(path, ref)) continue;
     const track = ref ? tracking.get(ref) : undefined;
     result.push({ path: realDir(path), branch: ref, head: (lines.find((l) => l.startsWith("HEAD ")) ?? "").slice(5, 12), detached: lines.includes("detached"), upstream: track?.upstream ?? null, ahead: track?.ahead ?? 0, behind: track?.behind ?? 0, main: result.length === 0 });
@@ -400,13 +369,10 @@ async function readWorktrees(root: string): Promise<ScmRepoWorktrees> {
   return { name: basename(result[0]?.path ?? root), root: result[0]?.path ?? root, worktrees: result };
 }
 
-// --- 커밋 메시지 생성에 보낼 입력 ---
-
 const MAX_PROMPT_DIFF = 60_000;
 
 export type CommitMessageInput = { diff: string; truncated: boolean; source: "staged" | "changes"; recent: string[] };
 
-// 스테이지된 diff. 스테이지된 게 없으면 추적 중인 변경과 새 파일 목록으로 대신한다. 둘 다 없으면 null.
 export async function commitMessageInput(cwd: string): Promise<CommitMessageInput | null> {
   const root = await needRoot(cwd);
   const current = await status(cwd);
@@ -427,9 +393,6 @@ export async function commitMessageInput(cwd: string): Promise<CommitMessageInpu
   return diff.length > MAX_PROMPT_DIFF ? { diff: diff.slice(0, MAX_PROMPT_DIFF), truncated: true, source, recent } : { diff, truncated: false, source, recent };
 }
 
-// --- FIX6B: pull, push, fetch ---
-
-// git 명령 하나를 돌려 성공이면 출력, 실패면 분류한 문제를 돌려준다. 병합과 리베이스가 충돌로 멈춘 것은 충돌 파일 수를 같이 알린다.
 async function syncRun(cwd: string, verb: GitVerb, job: () => Promise<string>): Promise<ScmSyncResult> {
   try {
     return { ok: true, output: (await job()).trim() };
@@ -437,7 +400,6 @@ async function syncRun(cwd: string, verb: GitVerb, job: () => Promise<string>): 
     const output = gitOutput(error);
     const current = await status(cwd).catch(() => null);
     const problem = classifyGitFailure(output, verb, { branch: current?.branch });
-    // 충돌 문구가 없어도 병합 표식이 남았고 충돌 파일이 있으면 충돌로 본다(git 버전마다 문구가 다르다)
     if (problem.kind === "conflict" || (current?.operation && current.conflicts.length > 0 && problem.kind === "unknown")) {
       return { ok: false, output, problem: problem.kind === "conflict" ? problem : classifyGitFailure("CONFLICT (content)", verb), conflicts: current?.conflicts.length ?? 0 };
     }
@@ -463,10 +425,6 @@ export async function fetchOp(cwd: string): Promise<ScmSyncResult> {
   });
 }
 
-// --- FIX6B: 병합과 리베이스 이어가기, 중단 ---
-
-// 충돌을 다 풀고(Merge Changes 가 비었고) 이어간다. 병합은 병합 커밋을 만들고(메시지가 비면 MERGE_MSG), 리베이스는 rebase --continue 를 한다.
-// 리베이스는 다음 커밋에서 또 충돌할 수 있다. 그때는 conflict 문제로 돌려주고 같은 작업이 계속 진행 중이다.
 export async function continueOperation(cwd: string, message = ""): Promise<ScmOperationResult> {
   const root = await needRoot(cwd);
   const current = await status(cwd);
@@ -486,7 +444,6 @@ export async function continueOperation(cwd: string, message = ""): Promise<ScmO
   }
 }
 
-// 병합이나 리베이스를 시작하기 전 상태로 되돌린다. 충돌을 푼 작업도 사라진다(화면이 확인을 거친다).
 export async function abortOperation(cwd: string): Promise<void> {
   const root = await needRoot(cwd);
   const current = await status(cwd);
@@ -497,8 +454,6 @@ export async function abortOperation(cwd: string): Promise<void> {
     throw new Error(gitOutput(error));
   }
 }
-
-// --- FIX6B: 파일 diff 와 hunk 단위 stage ---
 
 const MAX_SIDE = 2_000_000;
 
@@ -513,7 +468,12 @@ async function showBlob(root: string, spec: string): Promise<Buffer | null> {
 
 async function worktreeBlob(root: string, rel: string): Promise<Buffer | null> {
   try {
-    return await readFile(join(root, rel));
+    const path = join(root, rel);
+    const folder = await realpath(dirname(path));
+    if (folder !== root && !folder.startsWith(`${root}/`)) return null;
+    const file = await lstat(path);
+    if (file.isSymbolicLink()) return await readlink(path, { encoding: "buffer" });
+    return file.isFile() ? await readFile(path) : null;
   } catch {
     return null;
   }
@@ -521,7 +481,6 @@ async function worktreeBlob(root: string, rel: string): Promise<Buffer | null> {
 
 type LoadedDiff = { entry: ScmEntry; parsed: ParsedDiff; original: Buffer | null; modified: Buffer | null };
 
-// 파일 하나의 두 쪽 내용과 git 이 정한 hunk. staged 는 HEAD 대 인덱스, changes 는 인덱스 대 작업 트리.
 async function loadDiff(root: string, current: ScmStatus, rel: string, section: ScmDiffSection): Promise<LoadedDiff | null> {
   const entry = (section === "staged" ? current.staged : current.changes).find((e) => e.rel === rel);
   if (!entry) return null;
@@ -532,28 +491,33 @@ async function loadDiff(root: string, current: ScmStatus, rel: string, section: 
     section === "staged" ? (entry.code === "D" ? null : showBlob(root, `:${rel}`)) : entry.code === "D" ? null : worktreeBlob(root, rel),
   ]);
   if (untracked) {
-    const executable = (() => {
-      try {
-        return (statSync(join(root, rel)).mode & 0o111) !== 0;
-      } catch {
-        return false;
-      }
-    })();
-    return { entry, parsed: newFileDiff(modified?.toString("utf8") ?? "", executable ? "100755" : "100644"), original, modified };
+    const file = await lstat(join(root, rel)).catch(() => null);
+    const mode = file?.isSymbolicLink() ? "120000" : file && (file.mode & 0o111) !== 0 ? "100755" : "100644";
+    return { entry, parsed: newFileDiff(modified?.toString("utf8") ?? "", mode), original, modified };
   }
   const args = [LITERAL, "diff", "-U0", "--no-color", "--no-ext-diff", "--no-textconv", ...(section === "staged" ? ["--cached", "-M"] : []), "--", ...(from ? [from] : []), rel];
   const text = await git(root, args);
   return { entry, parsed: parseGitDiff(text), original, modified };
 }
 
-export async function fileDiff(cwd: string, relInput: string, section: ScmDiffSection): Promise<ScmFileDiff> {
+export async function fileDiff(cwd: string, relInput: string, section: ScmFileDiffSection): Promise<ScmFileDiff> {
   const root = await needRoot(cwd);
   const rel = scmRelPath(root, relInput);
   const current = await status(cwd);
+  if (section === "uncommitted") {
+    const from = current.staged.find((entry) => entry.rel === rel && entry.code === "R")?.from;
+    const [original, modified] = await Promise.all([
+      current.hasHead ? showBlob(root, `HEAD:${from ?? rel}`) : null,
+      worktreeBlob(root, rel),
+    ]);
+    return diffResult(rel, original, modified);
+  }
   const loaded = await loadDiff(root, current, rel, section);
-  if (!loaded) return { rel, original: null, modified: null, binary: false, tooLarge: false, hunks: [] };
-  const { parsed, original, modified } = loaded;
-  const binary = parsed.binary || !!original?.includes(0) || !!modified?.includes(0);
+  return diffResult(rel, loaded?.original ?? null, loaded?.modified ?? null, loaded?.parsed);
+}
+
+function diffResult(rel: string, original: Buffer | null, modified: Buffer | null, parsed?: ParsedDiff): ScmFileDiff {
+  const binary = parsed?.binary === true || !!original?.includes(0) || !!modified?.includes(0);
   const tooLarge = !binary && ((original?.length ?? 0) > MAX_SIDE || (modified?.length ?? 0) > MAX_SIDE);
   const shown = !binary && !tooLarge;
   return {
@@ -562,7 +526,7 @@ export async function fileDiff(cwd: string, relInput: string, section: ScmDiffSe
     modified: shown ? (modified?.toString("utf8") ?? null) : null,
     binary,
     tooLarge,
-    hunks: binary || tooLarge ? [] : parsed.hunks.map(({ text: _text, ...info }) => info),
+    hunks: shown && parsed ? parsed.hunks.map(({ text: _text, ...info }) => info) : [],
   };
 }
 
@@ -586,7 +550,6 @@ export async function discardHunk(cwd: string, relInput: string, index: number, 
   }
 }
 
-// hunk 하나를 인덱스에 올리거나(changes) 내린다(staged). 화면이 diff 를 읽은 뒤 파일이 바뀌었으면 hunk 지문이 달라 거절한다.
 export async function stageHunk(cwd: string, relInput: string, section: ScmDiffSection, index: number, hash: string): Promise<void> {
   const root = await needRoot(cwd);
   const rel = scmRelPath(root, relInput);

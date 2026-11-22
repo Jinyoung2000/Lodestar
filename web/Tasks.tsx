@@ -9,10 +9,8 @@ import { Popup } from "./Popup";
 import { S } from "./strings";
 import { sameFields, useStoreDerived } from "./useStoreDerived";
 
-// fix5-2: 모델의 할 일 도구(TodoWrite, TaskCreate, TaskUpdate)를 대화 속 한 줄과 입력창 위 칩으로 보인다. 접는 계산은 shared/tasks.ts.
 type ToolItem = Extract<TimelineItem, { kind: "tool" }>;
 
-// 입력창 위 칩 줄의 `N/M tasks`. 이 세션의 최신 할 일 목록이 있을 때만 보이고, 누르면 항목과 상태가 뜬다.
 export function TasksChip({ agentId }: { agentId: string }) {
   const state = useStoreDerived((s) => s.timelines[agentId], (items, prev) => taskStateOf(items, prev?.input), sameTaskState);
   const [open, setOpen] = useState(false);
@@ -37,8 +35,6 @@ export function TasksChip({ agentId }: { agentId: string }) {
   );
 }
 
-// 할 일 상태는 타임라인 배열마다 한 번만 센다. 할 일 행이 여럿이면 행마다 전체를 훑지 않는다.
-// 지난 배열(useStoreDerived 의 prev.input)을 넘기면 그 배열을 접은 결과에서 이어서 센다(shared/tasks.ts taskStateFrom). 기준은 화면이 돌려준 값이 아니라 그 배열을 실제로 접은 값이다(같다고 보고 옛 객체를 돌려줄 수 있어서).
 const taskStates = new WeakMap<readonly TimelineItem[], TaskState>();
 function taskStateOf(items: TimelineItem[] | undefined, prevItems?: TimelineItem[] | undefined): TaskState {
   if (!items) return taskState(items);
@@ -55,7 +51,6 @@ function sameTaskState(a: TaskState, b: TaskState) {
   return a.done === b.done && a.total === b.total && sameTask(a.current, b.current) && a.list.length === b.list.length && a.list.every((task, i) => sameTask(task, b.list[i]));
 }
 
-// 한 줄: 상태는 아이콘이 말하고 글로는 aria-label 과 title 에만 둔다. 진행 중 항목만 글자를 진하게 한다(styles.css 의 fix5-2).
 function TaskRow({ task }: { task: TaskEntry }) {
   const label = `${task.subject}, ${S.taskStatus[task.status]}`;
   return (
@@ -73,7 +68,6 @@ function TaskIcon({ status }: { status: TaskStatus }) {
   return <Codicon name={status === "completed" ? "pass" : "circle-large-outline"} size={14} />;
 }
 
-// 대화 속 한 줄. TaskUpdate 는 번호만 가져서 최신 목록에서 제목을 찾아 풀어 쓴다.
 export function TaskStepRow({ item }: { item: ToolItem }) {
   const { agentId } = useContext(TimelineContext);
   const step = useStoreDerived<TimelineItem[] | undefined, TaskStep>((s) => s.timelines[agentId], (items, prev) => taskStep(item, taskStateOf(items, prev?.input)), sameFields, [item]);
@@ -122,7 +116,6 @@ export function TaskStepRow({ item }: { item: ToolItem }) {
   );
 }
 
-// 연속된 할 일 호출 여러 개를 한 줄로 접은 것: 마지막 상태의 진행 수를 보이고, 펼치면 호출마다 한 줄씩(Added task, Started task, ...) 보인다.
 export function TaskRunRow({ items: run }: { items: ToolItem[] }) {
   const { agentId } = useContext(TimelineContext);
   const view = useStoreDerived((s) => s.timelines[agentId], (timeline) => taskRunView(timeline, run), sameFields, [run]);

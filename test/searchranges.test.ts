@@ -28,8 +28,6 @@ const withDir = async <T>(run: (dir: string) => Promise<T> | T) => {
   }
 };
 
-// --- 검색 조건 → 정규식, 일치 구간 ---
-
 test("searchRegExp: 글자 그대로, 낱말 단위(기호로 시작해도), 정규식 오류는 null", () => {
   const plain = searchRegExp("a.b", flags)!;
   expect(plain.test("xA.By") && !new RegExp(plain.source, plain.flags).test("xaXby"), "정규식이 아니면 이스케이프");
@@ -43,8 +41,6 @@ test("searchRegExp: 글자 그대로, 낱말 단위(기호로 시작해도), 정
   same(findRanges("aaa", searchRegExp("a*", { ...flags, regex: true })!), [{ start: 0, end: 3 }], "빈 일치는 건너뜀");
   return "ok";
 });
-
-// --- 일치 구간 검색 ---
 
 const write = (dir: string, path: string, text: string) => {
   mkdirSync(join(dir, path, ".."), { recursive: true });

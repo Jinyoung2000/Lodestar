@@ -1,5 +1,3 @@
-// 이미지 업로드: WebSocket 에 base64 를 싣지 않고 데몬의 POST /mobile/images 에 바이너리로 올린다(장치 토큰 인증, 서버 상한 5MB).
-// React Native 의 XMLHttpRequest 는 업로드 진행률(upload.onprogress)을 주므로 그걸 쓰고, 노드 시험은 fetch 로 같은 요청을 만든다.
 export type UploadTarget = { host: string; port: number; token: string };
 export type UploadResult = { id: string };
 
@@ -27,7 +25,6 @@ type XhrLike = {
 
 export type UploadOptions = { onProgress?: (fraction: number) => void; signal?: AbortSignal; xhr?: () => XhrLike; timeoutMs?: number };
 
-// body 는 RN 에서는 fetch(uri).then(r => r.blob()) 의 Blob, 노드 시험에서는 Buffer 다.
 export function uploadImage(target: UploadTarget, body: unknown, name: string, mime: string, opts: UploadOptions = {}): Promise<UploadResult> {
   const make = opts.xhr ?? (typeof XMLHttpRequest !== "undefined" ? () => new XMLHttpRequest() as unknown as XhrLike : null);
   if (!make) return uploadWithFetch(target, body, name, mime, opts);
@@ -44,7 +41,6 @@ export function uploadImage(target: UploadTarget, body: unknown, name: string, m
       try {
         parsed = JSON.parse(xhr.responseText) as Record<string, unknown>;
       } catch {
-        // JSON 이 아니면 아래에서 상태 코드로 오류를 만든다
       }
       if (xhr.status === 200 && typeof parsed.id === "string") resolve({ id: parsed.id });
       else reject(new Error(typeof parsed.error === "string" ? parsed.error : `Upload failed (${xhr.status})`));

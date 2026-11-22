@@ -1,5 +1,3 @@
-// Slack Inbox 의 파서와 저장 단독 시험 (데몬과 Slack 없이). 형식은 실제 Slack MCP 결과를 보고 만든 가짜 데이터다.
-// 실행: npm test
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -262,8 +260,6 @@ test("A corrupt inbox.json is moved aside and an empty inbox starts", () => {
   const store = new InboxStore();
   return expect(store.state(false).items.length === 0 && !existsSync(join(home, "inbox.json")), "empty and moved");
 });
-
-// --- 스레드 수집 (가짜 Slack 응답. 실제 Slack 은 읽지 않는다) ---
 
 const mentionArgs = { keywords: [`<@${SELF}>`], filters: "" };
 const threadArgs = { keywords: [], filters: `is:thread with:<@${SELF}>` };

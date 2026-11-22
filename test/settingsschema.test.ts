@@ -1,4 +1,3 @@
-// Settings 화면의 순수 로직(web/settingsSchema.ts) 단독 시험. 실행: npm test
 import { GROUP_IDS, activeGroup, filterSettings, groupCounts, isModified, isNarrow, parseSettingNumber, decideNumberInput, type SettingMeta } from "../web/settingsSchema";
 
 const cases: { name: string; run: () => string }[] = [];

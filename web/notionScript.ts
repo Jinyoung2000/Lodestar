@@ -1,7 +1,4 @@
-// Notion 페이지 안에서 도는 스크립트(<webview> 의 executeJavaScript 로 넣는다). 페이지를 바꾸지 않고 읽기만 하며, 결과는 JSON 글이다.
-// 클래스 이름(.notion-page-content, notion-<종류>-block, data-block-id, data-content-editable-leaf)은 Notion 웹 화면에서 관찰한 것이라, 실제 Notion 이 바뀌면 이 파일만 고친다.
 
-// 본문이 그려졌는지: ready(본문 블록 있음), login(로그인 화면), loading(아직)
 export const NOTION_PROBE_SCRIPT = `(() => {
   const root = document.querySelector(".notion-page-content");
   if (root && (root.querySelector("[data-block-id]") || (root.textContent || "").trim())) return "ready";
@@ -9,7 +6,6 @@ export const NOTION_PROBE_SCRIPT = `(() => {
   return login && !root ? "login" : "loading";
 })()`;
 
-// 본문을 블록 트리로. shared/notionMarkdown.ts 의 NotionBlock 모양으로 JSON.stringify 한 글을 돌려준다.
 export const NOTION_READ_SCRIPT = `(() => {
   const root = document.querySelector(".notion-page-content");
   if (!root) return JSON.stringify({ ok: false, reason: "empty" });

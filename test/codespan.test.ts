@@ -1,5 +1,3 @@
-// 코드 스팬 전체가 파일 경로 하나일 때만 파일 코드 칩으로 보는지 확인한다. 데몬도 브라우저도 필요 없다.
-// 실행: npm test
 import assert from "node:assert/strict";
 
 import { parseCodeSpanRef } from "../web/fileRefParse";

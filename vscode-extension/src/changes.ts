@@ -3,7 +3,6 @@ import * as vscode from "vscode";
 import type { ChangedFile } from "../../shared/protocol";
 import type { Daemon } from "./daemon";
 
-// 세션의 변경 파일을 VS Code 의 diff 에디터로 연다. 왼쪽은 세션 기준 내용(데몬의 git.original), 오른쪽은 지금 디스크의 파일이다.
 export const BASE_SCHEME = "lodestar-base";
 
 export class BaseContent implements vscode.TextDocumentContentProvider {
@@ -29,7 +28,6 @@ export async function openChangedFile(agentId: string, file: string, status?: Ch
   }
 }
 
-// 변경 칩: 파일을 알면 바로 diff, 모르면 변경 파일 목록에서 고르게 한다(파일이 하나면 바로 연다).
 export async function pickChange(daemon: Daemon, agentId: string, file?: string, column: vscode.ViewColumn = vscode.ViewColumn.Beside) {
   if (file) {
     await openChangedFile(agentId, file, undefined, column);

@@ -61,7 +61,6 @@ function ClearButton({ agentId }: { agentId: string }) {
   );
 }
 
-// 파일별로 묶은 목록. 행을 누르면 그 줄로 가고, 행의 X 는 그 피드백만 지운다.
 function FeedbackList({ agentId, items }: { agentId: string; items: DiffFeedback[] }) {
   const files = [...new Set(items.map((i) => i.path))];
   return (
@@ -100,7 +99,6 @@ function FeedbackList({ agentId, items }: { agentId: string; items: DiffFeedback
   );
 }
 
-// 보낸 메시지(말풍선과 큐)에 붙은 칩. 누르면 그 위치와 쓴 글을 에디터에 다시 보인다.
 export function FeedbackAttachmentChip({ agentId, attachment }: { agentId: string; attachment: Extract<UserAttachment, { kind: "diffFeedback" }> }) {
   return (
     <button type="button" className="feedback-chip" data-testid="feedback-attachment" title={`${attachment.path}:${attachment.line}\n${attachment.text}`} onClick={() => revealDiffFeedback(agentId, { path: attachment.path, line: attachment.line, id: attachment.id })}>
@@ -110,7 +108,6 @@ export function FeedbackAttachmentChip({ agentId, attachment }: { agentId: strin
   );
 }
 
-// 보낸 메시지에서 칩 아래에 보이는 피드백 본문. 칩은 위치만 말하므로 쓴 글은 여기서 읽는다. 쓴 글이 없는 첨부는 건너뛴다.
 export function FeedbackBodies({ attachments }: { attachments: UserAttachment[] }) {
   const bodies = attachments.flatMap((attachment) => (attachment.kind === "diffFeedback" && (attachment.text ?? "").trim() ? [attachment] : []));
   if (bodies.length === 0) return null;

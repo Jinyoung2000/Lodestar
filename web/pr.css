@@ -1,6 +1,4 @@
-/* PR: Pull Requests 구역(사이드바)과 PR 화면(가운데). 값은 전부 토큰이고, 사이드바 행은 세션 행(.session-row)의 규칙을 그대로 쓴다. */
 
-/* --- 사이드바 구역 --- */
 .pr-section {
   display: flex;
   flex-direction: column;
@@ -41,12 +39,10 @@
 .pr-query .session-group-main {
   padding-left: var(--space-3);
 }
-/* 쿼리 묶음 머리 */
 .pr-query .session-group-head {
   font-size: var(--text-ui-sm);
   font-weight: var(--weight-ui-sm);
 }
-/* 쿼리 묶음 아래의 PR 행은 묶음 머리보다 한 단계 더 들인다 */
 .pr-row .session-item {
   padding-left: calc(var(--space-3) + var(--space-2));
 }
@@ -90,7 +86,6 @@
   }
 }
 
-/* 행: 세션 행과 같은 56px 두 줄. 제목 오른쪽에 hover 동작 자리를 비우지 않는다 */
 .session-row.pr-row:hover .session-title,
 .session-row.pr-row[data-active] .session-title {
   padding-right: 0;
@@ -163,7 +158,6 @@
 .pr-review-icon[data-decision="REVIEW_REQUIRED"] {
   color: var(--fg-subtle);
 }
-/* 선택된 행에서는 자식 색이 글자색으로 덮이므로 상태 색을 되살린다 */
 .session-row[data-active] .pr-state-icon[data-kind],
 .session-row[data-active] .pr-check-icon[data-kind],
 .session-row[data-active] .pr-review-icon[data-decision] {
@@ -174,7 +168,6 @@
   color: var(--fg-muted);
 }
 
-/* --- PR 화면 --- */
 .pr-view {
   container-type: inline-size;
   flex: 1 1 0;
@@ -315,7 +308,6 @@
   overflow-wrap: anywhere;
 }
 
-/* --- Overview --- */
 .pr-overview {
   flex: 1;
   min-height: 0;
@@ -404,7 +396,6 @@ a.pr-check-name:hover {
   background: color-mix(in srgb, var(--label-color) 25%, transparent);
   font-size: var(--text-caption);
 }
-/* 머지 영역(Overview 아래): 확장의 status-section 처럼 한 상자 안에 줄을 나눠 쌓는다 */
 .pr-merge {
   display: flex;
   flex-direction: column;
@@ -527,7 +518,6 @@ a.pr-check-name:hover {
   background: var(--danger);
 }
 
-/* 마크다운과 제안 블록 */
 .pr-markdown {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -577,7 +567,6 @@ a.pr-check-name:hover {
   color: var(--fg-muted);
 }
 
-/* --- 입력창 --- */
 .pr-composer {
   display: flex;
   flex-direction: column;
@@ -639,7 +628,6 @@ a.pr-check-name:hover {
   gap: var(--space-2);
 }
 
-/* --- 스레드 --- */
 .pr-thread {
   display: flex;
   flex-direction: column;
@@ -737,7 +725,6 @@ a.pr-check-name:hover {
   font-weight: var(--weight-ui-strong);
 }
 
-/* --- Files Changed --- */
 .pr-files {
   flex: 1;
   min-height: 0;
@@ -745,7 +732,6 @@ a.pr-check-name:hover {
 }
 .pr-files-list {
   flex: 0 0 var(--size-changes-list);
-  /* 끌어 둔 폭(인라인 flex-basis)이어도 diff 열이 --size-changes-diff-min 아래로 눌리지 않게 목록이 먼저 좁아진다 */
   max-width: max(var(--size-changes-list-min), calc(100% - var(--size-changes-diff-min)));
   min-width: 0;
   display: flex;
@@ -840,7 +826,6 @@ a.pr-check-name:hover {
 .pr-file-status[data-s="C"] {
   color: var(--warning);
 }
-/* 트리 행: 모양은 Files 탭과 같은 .tree-node. 이름은 탐색기처럼 상태 색, 본 파일은 흐리게, 상태 글자와 Viewed 체크는 오른쪽 끝 */
 .pr-files .tree-node {
   padding-right: var(--space-3);
 }
@@ -905,7 +890,6 @@ a.pr-check-name:hover {
   overflow: auto;
 }
 
-/* --- diff --- */
 .pr-diff {
   --pr-num-width: 5ch;
   min-width: max-content;
@@ -1037,7 +1021,6 @@ a.pr-check-name:hover {
   overflow: hidden;
 }
 
-/* 구문 색: 에디터(web/editorSyntax.ts)와 같은 클래스에 같은 토큰 */
 .pr-code .cm-syn-kw { color: var(--syntax-keyword); }
 .pr-code .cm-syn-control { color: var(--syntax-keyword-control); }
 .pr-code .cm-syn-function { color: var(--syntax-function); }
@@ -1062,7 +1045,6 @@ a.pr-check-name:hover {
 .pr-code .cm-syn-md-code { color: var(--syntax-string); }
 .pr-code .cm-syn-md-quote { color: var(--syntax-comment); }
 
-/* --- 리뷰 제출 패널 --- */
 .pr-review {
   position: relative;
 }
@@ -1110,7 +1092,6 @@ a.pr-check-name:hover {
   flex-direction: column;
 }
 
-/* --- 변경 패널 Checks 구역 --- */
 .pr-checks {
   display: flex;
   flex-direction: column;
@@ -1177,7 +1158,6 @@ a.pr-check-name:hover {
   line-height: var(--leading-caption);
 }
 
-/* --- Commits 탭 --- */
 .pr-commits {
   flex: 1;
   min-height: 0;
@@ -1230,14 +1210,12 @@ a.pr-check-name:hover {
   color: var(--fg-muted);
 }
 
-/* --- 주소의 #앵커로 찾아간 코멘트 --- */
 [data-pr-flash] {
   outline: 1px solid var(--accent);
   outline-offset: -1px;
   background: var(--surface-selected);
 }
 
-/* 옆 칸 탭처럼 좁은 자리에서는 Overview 의 오른쪽 열을 본문 아래로 내린다 */
 @container (max-width: 720px) { /* lint-tokens: allow 컨테이너 쿼리 폭은 CSS 변수를 못 쓴다 */
   .pr-overview {
     flex-direction: column;
@@ -1251,7 +1229,6 @@ a.pr-check-name:hover {
   }
 }
 
-/* --- 코드 보기(hover, 정의 이동): web/PrCodeLsp.tsx, web/prLspController.ts --- */
 .pr-lsp-chip {
   display: inline-flex;
   align-items: center;
@@ -1263,19 +1240,16 @@ a.pr-check-name:hover {
 .pr-lsp-chip[data-state="on"] {
   color: var(--success);
 }
-/* ⌘ 를 누른 채 정의가 있는 단어: 에디터의 .cm-definition-link 와 같은 밑줄과 링크 색 */
 ::highlight(pr-lsp-link) {
   color: var(--editor-link-active);
   text-decoration: underline;
 }
-/* 클릭한 자리의 단어 (F12 와 ⇧F12 가 쓰는 캐럿) */
 ::highlight(pr-lsp-caret) {
   background-color: var(--editor-selection-match);
 }
 .pr-diff[data-lsp-link] .pr-code {
   cursor: pointer;
 }
-/* 정의 이동으로 도착한 줄 */
 .pr-code[data-flash] {
   animation: pr-lsp-flash 1.4s ease-out;
 }
@@ -1287,7 +1261,6 @@ a.pr-check-name:hover {
     background-color: transparent;
   }
 }
-/* hover 상자: 에디터 테마 껍데기는 크기가 없고 상자만 화면에 고정된다 */
 .pr-lsp-tip {
   position: fixed !important;
   top: 0;

@@ -1,7 +1,7 @@
 import { LSPPlugin } from "@codemirror/lsp-client";
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { Facet, type EditorState, type Extension } from "@codemirror/state";
-import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+import { EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { highlightTree } from "@lezer/highlight";
 import type { EditorOptions } from "../shared/editorOptions";
 import "./editorSticky.css";
@@ -12,7 +12,7 @@ import { currentEditorOptions, saveEditorOption } from "./editorOptions";
 import { fetchDocumentSymbolsOrNull, type SymbolNode } from "./documentSymbols";
 import { foldSymbols, stickyFromSymbols } from "./editorStickyFolds";
 import { EMPTY_STICKY, STICKY_MODEL_MS, STICKY_UPDATE_MS, candidateLines, findStickyState, maxStickyLines, stickyLayout, stickyStateEquals, type StickyNode, type StickyState } from "./editorStickyModel";
-import { syntaxHighlighters } from "./editorSyntax";
+import { syntaxHighlighters, tokenMarks } from "./editorSyntax";
 
 type StickySettings = { enabled: boolean; maxLineCount: number; lineNumbers: EditorOptions["lineNumbers"] };
 
@@ -25,7 +25,6 @@ export function stickyExtension(options: EditorOptions): Extension {
     stickySettings.of({ enabled: options.stickyScroll, maxLineCount: options.stickyScrollMaxLineCount, lineNumbers: options.lineNumbers }),
     rightFurniture,
     stickyPlugin,
-    // 커서나 선택을 화면에 들일 때 고정 줄에 가려지지 않도록 위쪽 여백으로 알린다
     EditorView.scrollMargins.of((view) => {
       const height = view.plugin(stickyPlugin)?.height ?? 0;
       return height > 0 ? { top: height } : null;
@@ -33,11 +32,39 @@ export function stickyExtension(options: EditorOptions): Extension {
   ];
 }
 
-// LSP 는 열자마자 심볼이 비어 있을 수 있어(서버가 색인 중) 몇 번 더 묻는다
 const EMPTY_RETRY_MS = 1500;
 const EMPTY_RETRY_COUNT = 4;
-// 아주 긴 줄은 앞부분만 그린다
 const MAX_LINE_CHARS = 1000;
+
+type Part = { from: number; text: string; cls: string };
+
+function overlayMarks(parts: Part[], sets: readonly DecorationSet[], lineFrom: number, lineTo: number): Part[] {
+  const marks: { from: number; to: number; cls: string }[] = [];
+  const cuts = new Set<number>();
+  for (const set of sets) {
+    set.between(lineFrom, lineTo, (from, to, value) => {
+      const cls = (value.spec as { class?: string }).class;
+      if (!cls || to <= from) return;
+      marks.push({ from, to, cls });
+      cuts.add(from);
+      cuts.add(to);
+    });
+  }
+  if (!marks.length) return parts;
+  const out: Part[] = [];
+  for (const part of parts) {
+    const end = part.from + part.text.length;
+    const points = [part.from, ...[...cuts].filter((at) => at > part.from && at < end).sort((a, b) => a - b), end];
+    for (let i = 0; i + 1 < points.length; i++) {
+      const from = points[i]!;
+      const to = points[i + 1]!;
+      let cls = part.cls;
+      for (const mark of marks) if (mark.from <= from && mark.to >= to) cls = mark.cls;
+      out.push({ from, text: part.text.slice(from - part.from, to - part.from), cls });
+    }
+  }
+  return out;
+}
 
 class StickyPlugin {
   readonly root = element("div", "cm-sticky");
@@ -56,6 +83,7 @@ class StickyPlugin {
   private derived: { symbols: SymbolNode[]; doc: EditorState["doc"]; tree: StickyNode[] } | null = null;
   private shown: StickyState = EMPTY_STICKY;
   private shownKey = "";
+  private shownMarks: readonly DecorationSet[] = [];
   height = 0;
 
   constructor(private readonly view: EditorView) {
@@ -77,7 +105,6 @@ class StickyPlugin {
     const settings = update.state.facet(stickySettings);
     const changed = update.startState.facet(stickySettings) !== settings;
     if (update.docChanged) {
-      // 새 심볼이 오기 전까지는 이전 트리를 변경에 맞춰 옮겨 쓴다
       this.symbols = mapSymbols(this.symbols, update.changes);
       this.derived = null;
       this.scheduleModel(STICKY_MODEL_MS);
@@ -102,8 +129,6 @@ class StickyPlugin {
     this.height = 0;
   }
 
-  // --- 모델 ---
-
   private scheduleModel(delay: number) {
     window.clearTimeout(this.modelTimer);
     this.modelTimer = window.setTimeout(() => void this.refreshModel(), delay);
@@ -122,7 +147,6 @@ class StickyPlugin {
     }
     const remote = LSPPlugin.get(view) ? await fetchDocumentSymbolsOrNull(view) : null;
     if (this.destroyed || token !== this.request) return;
-    // 묻는 사이 글이 바뀌었으면 위치가 어긋난 응답이니 버리고 다시 묻는다
     if (view.state.doc !== doc) return this.scheduleModel(STICKY_MODEL_MS);
     if (remote && remote.length > 0) {
       this.symbols = remote;
@@ -145,8 +169,6 @@ class StickyPlugin {
     this.derived = { symbols: this.symbols, doc, tree };
     return tree;
   }
-
-  // --- 그리기 ---
 
   private schedule() {
     if (this.frame) return;
@@ -188,9 +210,12 @@ class StickyPlugin {
     const layout = stickyLayout(state, lineHeight);
     const cursorLine = doc.lineAt(view.state.selection.main.head).number;
     const key = `${state.startLines.join(",")}|${lineHeight}|${settings.lineNumbers}|${settings.lineNumbers === "relative" ? cursorLine : ""}|${view.state.tabSize}`;
-    if (!stickyStateEquals(state, this.shown) || key !== this.shownKey) {
+    const marks = tokenMarks(view);
+    const marksChanged = marks.length !== this.shownMarks.length || marks.some((set, i) => set !== this.shownMarks[i]);
+    if (!stickyStateEquals(state, this.shown) || key !== this.shownKey || marksChanged) {
       this.shown = state;
       this.shownKey = key;
+      this.shownMarks = marks;
       this.buildLines(state, lineHeight, cursorLine, settings);
     }
     this.place(state, layout.tops, layout.height);
@@ -236,7 +261,6 @@ class StickyPlugin {
     this.lines.replaceChildren(...lines);
   }
 
-  // 한 줄을 구문 색 클래스가 붙은 조각으로 나눈다(클래스 없는 조각은 기본 글자색 조각)
   private coloredParts(lineFrom: number, text: string): { from: number; text: string; cls: string }[] {
     const state = this.view.state;
     const to = lineFrom + text.length;
@@ -255,10 +279,9 @@ class StickyPlugin {
       to,
     );
     if (position < to) parts.push({ from: position, text: text.slice(position - lineFrom), cls: "cm-sticky-plain" });
-    return parts.length ? parts : [{ from: lineFrom, text, cls: "cm-sticky-plain" }];
+    return overlayMarks(parts.length ? parts : [{ from: lineFrom, text, cls: "cm-sticky-plain" }], tokenMarks(this.view), lineFrom, to);
   }
 
-  // 위치와 크기: 에디터 위쪽(스크롤러 위)에서 세로 스크롤바 앞까지. 글자는 에디터 글자와 같은 자리에서 시작하고 옆으로 스크롤하면 같이 움직인다.
   private place(state: StickyState, tops: number[], height: number) {
     const view = this.view;
     const root = this.root;
@@ -308,7 +331,6 @@ class StickyPlugin {
     });
   }
 
-  // 에디터 글꼴을 그대로 쓴다(설정으로 바뀌는 글꼴, 글자 간격, 합자, 탭 너비)
   private syncFont() {
     const style = getComputedStyle(this.view.contentDOM);
     const root = this.root;
@@ -327,14 +349,12 @@ class StickyPlugin {
 
   private readonly onScroll = () => this.schedule();
 
-  // 위쪽에서 굴린 휠도 에디터를 스크롤한다
   private readonly onWheel = (event: WheelEvent) => {
     event.preventDefault();
     const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? this.view.defaultLineHeight : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? this.scroller.clientHeight : 1;
     this.scroller.scrollBy({ top: event.deltaY * unit, left: event.deltaX * unit });
   };
 
-  // 줄을 누르면 그 줄(글자를 눌렀으면 그 칸)로 커서를 옮기고 화면에 들인다. Shift 를 누르면 블록의 끝 줄을 보여 준다. ⌃, ⌥, ⌘ 클릭은 정의 이동 자리라 건드리지 않는다.
   private readonly onClick = (event: MouseEvent) => {
     if (event.button !== 0 || event.ctrlKey || event.altKey || event.metaKey) return;
     const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-sticky-line]") : null;
@@ -356,7 +376,6 @@ class StickyPlugin {
     view.focus();
   };
 
-  // 눌린 자리의 문서 위치. 글자 조각의 data-from 에 조각 안 오프셋을 더한다.
   private positionAt(event: MouseEvent, lineFrom: number, lineTo: number): number | null {
     const doc = document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null; caretRangeFromPoint?: (x: number, y: number) => Range | null };
     const caret = doc.caretPositionFromPoint?.(event.clientX, event.clientY) ?? (() => {

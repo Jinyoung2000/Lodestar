@@ -1,5 +1,3 @@
-// 찾기 위젯의 순수 계산: 질의 만들기, 일치 목록 모으기, 현재 위치와 다음, 이전 고르기, 바꿀 글 만들기, 결과 수 문구.
-// DOM 이 없어서 단위 시험(test/find.test.ts)이 그대로 가져다 쓴다.
 import { SearchQuery } from "@codemirror/search";
 import type { EditorState } from "@codemirror/state";
 
@@ -19,14 +17,13 @@ export function buildQuery(search: string, options: FindOptions): SearchQuery {
 export function regexError(search: string): string | null {
   if (!search) return null;
   try {
-    new RegExp(search, "gmu"); // @codemirror/search 의 정규식 검사와 같은 플래그
+    new RegExp(search, "gmu");
     return null;
   } catch (error) {
     return (error instanceof Error ? error.message : String(error)).replace(/\/gmu:/, "/:");
   }
 }
 
-// scope 가 있으면 그 안의 일치만. 일치가 limit 개를 넘으면 capped.
 export function collectMatches(query: SearchQuery, state: EditorState, scope: Scope, limit = MATCH_LIMIT): Matches {
   const list: FoundMatch[] = [];
   if (!query.valid) return { list, capped: false };
@@ -52,7 +49,6 @@ export function containingIndex(list: FoundMatch[], from: number, to: number): n
   return -1;
 }
 
-// 선택 끝(없으면 커서) 뒤에서 시작하는 첫 일치. 끝까지 없으면 처음으로 돌아간다. 일치가 없으면 -1.
 export function nextIndex(list: FoundMatch[], pos: number): number {
   if (!list.length) return -1;
   let low = 0;
@@ -65,7 +61,6 @@ export function nextIndex(list: FoundMatch[], pos: number): number {
   return low === list.length ? 0 : low;
 }
 
-// 선택 시작보다 앞에서 시작하는 마지막 일치. 없으면 마지막 일치로 돌아간다.
 export function previousIndex(list: FoundMatch[], pos: number): number {
   if (!list.length) return -1;
   let low = 0;
@@ -78,7 +73,6 @@ export function previousIndex(list: FoundMatch[], pos: number): number {
   return low === 0 ? list.length - 1 : low - 1;
 }
 
-// 입력 중 바로 고르는 일치: from 이후 첫 일치, 없으면 처음부터 첫 일치. 전체를 모으지 않고 첫 줄기만 훑는다.
 export function firstMatchFrom(query: SearchQuery, state: EditorState, pos: number, scope: Scope): { from: number; to: number } | null {
   if (!query.valid) return null;
   const start = Math.max(pos, scope?.from ?? 0);
@@ -91,7 +85,6 @@ export function firstMatchFrom(query: SearchQuery, state: EditorState, pos: numb
   return first(start, end) ?? first(scope?.from ?? 0, end);
 }
 
-// 한 줄 선택은 그 글, 선택이 없으면 커서가 놓인 낱말. 여러 줄 선택이나 낱말이 없으면 null (이전 검색어를 그대로 둔다).
 export function seedText(state: EditorState): string | null {
   const range = state.selection.main;
   if (!range.empty) {
@@ -102,7 +95,6 @@ export function seedText(state: EditorState): string | null {
   return word && word.to > word.from ? state.sliceDoc(word.from, word.to) : null;
 }
 
-// Preserve Case: 찾은 글이 전부 대문자면 바꿀 글도 대문자, 전부 소문자면 소문자, 첫 글자만 대문자면 첫 글자만 대문자. 그 밖에는 그대로.
 export function preserveCase(matched: string, replacement: string): string {
   if (!/\p{L}/u.test(matched) || !replacement) return replacement;
   if (matched === matched.toUpperCase()) return replacement.toUpperCase();
@@ -113,7 +105,6 @@ export function preserveCase(matched: string, replacement: string): string {
   return replacement;
 }
 
-// 정규식 모드의 바꿀 글: $n, $&, $$ 와 \n, \t, \\ 를 풀어 준다. 일반 모드는 글자 그대로.
 export function expandReplacement(found: FoundMatch, replace: string, options: FindOptions): string {
   const text = options.regexp && found.match ? replace.replace(/\$(\$|&|\d{1,2})|\\([nrt\\])/g, (_all, dollar: string | undefined, escape: string | undefined) => {
     if (escape) return escape === "n" ? "\n" : escape === "r" ? "\r" : escape === "t" ? "\t" : "\\";
@@ -124,13 +115,11 @@ export function expandReplacement(found: FoundMatch, replace: string, options: F
   return options.preserveCase && found.match ? preserveCase(found.match[0], text) : text;
 }
 
-// 일반 모드에서 preserveCase 는 일치한 글이 필요한데 목록에 match 가 없으므로 문서에서 읽는다.
 export function replacementFor(state: EditorState, found: FoundMatch, replace: string, options: FindOptions): string {
   const matched = found.match ?? ({ 0: state.sliceDoc(found.from, found.to), length: 1 } as unknown as RegExpExecArray);
   return expandReplacement({ ...found, match: options.regexp || options.preserveCase ? matched : null }, replace, options);
 }
 
-// "3 of 12", 번호를 알 수 없으면 "? of 12", 상한을 넘으면 "3 of 19999+", 없으면 "No results"
 export function countLabel(total: number, index: number, capped: boolean): string {
   if (total === 0) return NO_RESULTS;
   return `${index >= 0 ? index + 1 : "?"} of ${total}${capped ? "+" : ""}`;

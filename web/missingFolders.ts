@@ -2,8 +2,6 @@ import { useEffect, useSyncExternalStore } from "react";
 import { rpc } from "./rpc";
 import { getState, isTopWorkspace, useStore } from "./store";
 
-// 디스크에서 사라진 폴더(round-5 발견 21). 사이드바가 그 폴더 묶음을 흐리게 보이고 메뉴를 줄이는 데 쓴다.
-// 데몬이 폴더를 알려 주지 않으므로 files.stat 으로 폴더 자체를 확인한다(옛 데몬에서도 동작). 연결이 끊겨 확인이 실패하면 이전 값을 그대로 둔다.
 const POLL_MS = 20_000;
 
 let missing: ReadonlySet<string> = new Set();
@@ -22,7 +20,6 @@ export function useMissingFolders(): ReadonlySet<string> {
       clearInterval(timer);
       window.removeEventListener("focus", onFocus);
     };
-    // 폴더 목록이 바뀔 때도 다시 확인한다
   }, [connected, workspaces]);
   return useSyncExternalStore(
     (listener) => {

@@ -1,7 +1,5 @@
-// Discard Changes 와 Files 트리 Delete 가 파일을 영구 삭제하지 않고 휴지통으로 옮기는지, 이름 바꾸기, 터미널 시작 폴더, 새 세션 화면의 변경 목록(server/files.ts, server/git.ts)을 /tmp 임시 저장소에서 본다.
-// 휴지통은 AGENT_NAV_TRASH_DIR 로 임시 폴더를 가리킨다(사용자의 ~/.Trash 는 건드리지 않는다). 데몬도 모델도 필요 없다. 실행: npm test
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renameWorkspaceEntry, terminalDir, trashWorkspaceEntry, writeWorkspaceFile } from "../server/files";
@@ -108,7 +106,7 @@ test("작업 폴더 밖을 가리키는 심볼릭 링크 경로는 Delete 도 �
   symlinkSync(outside, join(repo, "linkout"));
   expect(await fails(() => trashWorkspaceEntry(repo, "linkout/secret.txt"), /outside the workspace|Cannot write/), "through link refused");
   expect(readFileSync(join(outside, "secret.txt"), "utf8") === "s\n", "outside file untouched");
-  rmSync(join(repo, "linkout"));
+  unlinkSync(join(repo, "linkout"));
   return "ok";
 });
 
@@ -124,7 +122,7 @@ test("files.write 는 작업 폴더 밖을 가리키는 심볼릭 링크를 따�
   expect(readFileSync(join(outside, "victim.txt"), "utf8") === "original\n", "outside file untouched");
   await writeWorkspaceFile(repo, "filelink", null);
   expect(!existsSync(join(repo, "filelink")) && readFileSync(join(outside, "victim.txt"), "utf8") === "original\n", "the link itself moved to the Trash, its target stays");
-  rmSync(join(repo, "dirlink"));
+  unlinkSync(join(repo, "dirlink"));
   return "ok";
 });
 

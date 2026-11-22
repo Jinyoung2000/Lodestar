@@ -9,8 +9,6 @@ import { flash } from "./store";
 import { Button } from "./ui/button";
 import type { PermissionItem } from "./timelineModel";
 
-// Notion 쓰기 제안(notion_update_page, notion_create_pages)의 승인 카드. 바뀔 내용을 diff 로 보여 주고, Apply to Notion 을 눌러야 데몬이 Notion 에 쓴다.
-// Allow in this Session 같은 항상 허용은 없다. 매번 이 카드를 거친다.
 export function NotionWriteCard({ agentId, item, preview }: { agentId: string; item: PermissionItem; preview: NotionWritePreview }) {
   const [note, setNote] = useState("");
   const [noting, setNoting] = useState(false);
@@ -60,7 +58,6 @@ export function NotionWriteCard({ agentId, item, preview }: { agentId: string; i
   );
 }
 
-// 바뀔 내용: 새 페이지 목록, 경고, 속성 변경 표, 본문 diff. 승인 카드와 처리된 뒤의 대화 기록 줄(NotionWriteRow)이 같이 쓴다.
 export function NotionWriteBody({ preview }: { preview: NotionWritePreview }) {
   const diff = preview.diff;
   return (

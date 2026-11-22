@@ -1,18 +1,14 @@
 import { MINIMAP_GLYPHS } from "./editorMinimapGlyphs";
 
-// 줄 왼쪽의 빈 칸(장치 픽셀). 폭 계산과 그리기가 같은 값을 쓴다.
 export const MINIMAP_PAD = 8;
-// editor.minimap.maxColumn, scale 기본값
 export const MINIMAP_MAX_COLUMN = 120;
 export const MINIMAP_SCALE = 1;
 
 export type MinimapLayout = {
-  // 0 이면 그리지 않는다. 글자를 그리면 1, 색 막대로 그리면 2.
   renderMinimap: 0 | 1 | 2;
   minimapLeft: number;
   minimapWidth: number;
   minimapScale: 1 | 2;
-  // 줄 하나의 장치 픽셀 높이(글자 2*scale, 막대 3*scale)
   minimapLineHeight: number;
   canvasInnerWidth: number;
   canvasInnerHeight: number;
@@ -21,13 +17,10 @@ export type MinimapLayout = {
 };
 
 export type MinimapLayoutInput = {
-  // 에디터 전체 폭과 높이(CSS 픽셀). 폭은 세로 스크롤바를 포함한다.
   outerWidth: number;
   outerHeight: number;
   pixelRatio: number;
-  // 줄번호 열과 거터를 뺀 폭
   remainingWidth: number;
-  // 영문자 한 칸 폭(typicalHalfwidthCharacterWidth)
   charWidth: number;
   verticalScrollbarWidth: number;
   renderCharacters: boolean;
@@ -61,8 +54,6 @@ export function minimapUsable(layout: MinimapLayout): boolean {
   return layout.minimapWidth > MINIMAP_PAD && layout.canvasInnerWidth > MINIMAP_PAD && layout.canvasInnerHeight > 0;
 }
 
-// --- 보이는 줄 범위와 슬라이더 ---
-
 export type RenderLayout = {
   scrollTop: number;
   scrollHeight: number;
@@ -79,11 +70,9 @@ export type RenderLayoutInput = {
   pixelRatio: number;
   minimapLineHeight: number;
   canvasInnerHeight: number;
-  // 에디터 줄 높이(CSS 픽셀)와 에디터 보이는 높이
   lineHeight: number;
   editorHeight: number;
   scrollBeyondLastLine: boolean;
-  // 화면 맨 위 줄과 맨 아래 줄(1부터), 맨 위 줄의 문서 안 세로 위치
   viewportStartLine: number;
   viewportEndLine: number;
   viewportStartLineTop: number;
@@ -92,7 +81,6 @@ export type RenderLayoutInput = {
   scrollHeight: number;
 };
 
-// mUi.create 의 proportional 경로(paddingTop, paddingBottom 은 0). previous 는 직전에 그린 배치로, 스크롤 방향이 바뀌어도 범위가 흔들리지 않게 한다.
 export function renderLayout(o: RenderLayoutInput, previous: RenderLayout | null): RenderLayout {
   const { pixelRatio: dpr, minimapLineHeight: g, lineHeight: v, editorHeight: n, lineCount: a, scrollTop: l, scrollHeight: u } = o;
   const f = Math.floor(o.canvasInnerHeight / g);
@@ -130,42 +118,34 @@ export function yForLine(layout: RenderLayout, line: number, lineHeight: number)
   return (line - layout.startLineNumber + layout.topPaddingLineCount) * lineHeight;
 }
 
-// 슬라이더를 delta(CSS 픽셀)만큼 끌었을 때의 스크롤 위치
 export function scrollTopFromSliderDelta(layout: RenderLayout, delta: number): number {
   if (layout.sliderRatio === 0) return layout.scrollTop;
   return Math.round(layout.scrollTop + delta / layout.sliderRatio);
 }
 
-// 미니맵 위 offsetY(CSS 픽셀)에 있는 줄. 눌러서 그 줄을 가운데로 보낼 때 쓴다.
 export function lineAtOffset(layout: RenderLayout, o: { canvasInnerHeight: number; canvasOuterHeight: number; minimapLineHeight: number; lineCount: number }, offsetY: number): number {
   const inner = (o.canvasInnerHeight / o.canvasOuterHeight) * offsetY;
   const line = Math.floor(inner / o.minimapLineHeight) + layout.startLineNumber - layout.topPaddingLineCount;
   return Math.max(1, Math.min(line, o.lineCount));
 }
 
-// --- 글자 그리기 ---
-
 export type Rgb = { r: number; g: number; b: number };
 export type ImageLike = { data: Uint8ClampedArray; width: number; height: number };
 
-// Tut.soften: 어두운 배경은 12/15, 밝은 배경은 50/60 배 한다(소수는 버림)
 const soften = (table: Uint8ClampedArray, factor: number) => Uint8ClampedArray.from(table, (value) => Math.min(255, Math.max(0, (value * factor) | 0)));
 const NORMAL = { 1: soften(MINIMAP_GLYPHS[1], 12 / 15), 2: soften(MINIMAP_GLYPHS[2], 12 / 15) };
 const LIGHT = { 1: soften(MINIMAP_GLYPHS[1], 50 / 60), 2: soften(MINIMAP_GLYPHS[2], 50 / 60) };
 
-// iKo: 도감 칸 번호. ASCII 밖의 글자는 (코드 - 32 + 96) % 96 으로 아무 칸에 섞고(scale 2 이하), 그보다 큰 scale 이면 마지막 칸(U+FFFD)
 export function glyphIndex(code: number, scale: number): number {
   const index = code - 32;
   if (index < 0 || index > 96) return scale <= 2 ? (index + 96) % 96 : 95;
   return index;
 }
 
-// cy: 폭 2칸으로 세는 글자(한중일 문자, 전각 형태)
 export function isFullWidthCode(code: number): boolean {
   return (code >= 11904 && code <= 55215) || (code >= 63744 && code <= 64255) || (code >= 65281 && code <= 65374) || (code >= 65504 && code <= 65510);
 }
 
-// 글자 한 칸(가로 scale, 세로 2*scale 장치 픽셀). oneRow 는 줄 높이가 1 일 때 윗줄만 그린다.
 export function renderGlyph(img: ImageLike, x: number, y: number, code: number, fg: Rgb, fgAlpha: number, bg: Rgb, bgAlpha: number, scale: 1 | 2, bgIsLight: boolean, oneRow: boolean) {
   const cols = scale;
   const height = 2 * scale;
@@ -189,7 +169,6 @@ export function renderGlyph(img: ImageLike, x: number, y: number, code: number, 
   }
 }
 
-// 색 막대 모드(renderCharacters 끔): 글자 칸을 배경과 글자색의 절반 섞은 색으로 채운다
 export function renderBlock(img: ImageLike, x: number, y: number, fg: Rgb, fgAlpha: number, bg: Rgb, bgAlpha: number, scale: 1 | 2, oneRow: boolean) {
   const cols = scale;
   const rows = oneRow ? 1 : 2 * scale;
@@ -222,9 +201,7 @@ export type RenderLineInput = {
   bgAlpha: number;
   bgIsLight: boolean;
   fgAlpha: number;
-  // 한 글자의 가로 장치 픽셀(1 * scale)
   charWidth: number;
-  // 이 줄이 시작하는 y(장치 픽셀)
   y: number;
   tabSize: number;
   lineHeight: number;
@@ -232,7 +209,6 @@ export type RenderLineInput = {
   runs: readonly LineRun[];
 };
 
-// fUi._renderLine. 줄 안의 글자를 차례로 놓고 탭은 탭 정지점까지, 공백은 건너뛰고, 오른쪽 끝을 넘으면 멈춘다.
 export function renderMinimapLine(img: ImageLike, p: RenderLineInput) {
   const limit = img.width - p.charWidth;
   const oneRow = p.lineHeight === 1;
@@ -264,9 +240,6 @@ export function renderMinimapLine(img: ImageLike, p: RenderLineInput) {
   }
 }
 
-// --- 장식(선택, 찾기, 진단)의 가로 위치 ---
-
-// getXOffsetForPosition 의 줄별 표: offsets[column - 1] 이 column(1부터)의 x. 탭은 tabSize 칸, 전각은 2칸, 폭을 넘으면 폭에서 멈춘다.
 export function lineOffsets(text: string, tabSize: number, charWidth: number, canvasWidth: number): number[] {
   const offsets = [MINIMAP_PAD];
   let x = MINIMAP_PAD;
@@ -290,12 +263,8 @@ export function xForColumn(offsets: readonly number[], column: number, charWidth
   return column - 1 < offsets.length ? offsets[column - 1]! : canvasWidth;
 }
 
-// --- 구문 색 구간 ---
-
 export type Span = { from: number; to: number; cls: string };
 
-// 위에서 아래로 정렬된 구문 구간(highlightTree 가 낸 순서)에서 한 줄의 색 구간을 만든다. cls "" 는 기본 글자색이고 구간들이 줄 끝(lineTo - lineFrom)까지 이어진다.
-// 호출은 줄 번호 순서로 하며 cursor 가 구간 목록 위의 읽기 위치를 이어 간다.
 export function lineRuns(spans: readonly Span[], cursor: { index: number }, lineFrom: number, lineTo: number): { end: number; cls: string }[] {
   const runs: { end: number; cls: string }[] = [];
   const length = lineTo - lineFrom;

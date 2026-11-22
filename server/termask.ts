@@ -10,9 +10,6 @@ import { spawnInGroup } from "./processGroups";
 
 const MAX_RUNS = 20;
 
-// 터미널 ⌘I 명령 질문. 세션 목록에 남지 않고(persistSession: false) 도구도 MCP 도 없이(tools: [], mcpServers: {}) 텍스트만 돌려준다.
-// 그래서 이 질문이 파일을 쓰거나 명령을 실행할 수 없다. 명령은 사용자가 Run 이나 Insert 를 눌러야 터미널에 들어간다.
-// 모델은 화면이 정한다(Settings 의 Quick Ask 모델). 메인 세션 대화를 이어 가는 Side Chat 과 달리 세션과 무관한 한 번짜리 질문이라서다.
 export class TermAskRunner {
   private runs = new Map<string, TermAskRun>();
   private queries = new Map<string, Query>();
@@ -95,7 +92,6 @@ export class TermAskRunner {
 
 const MAX_PROJECT_FILE_BYTES = 64 * 1024;
 
-// FIXY: 작업 폴더 바로 아래의 프로젝트 표지 파일(PROJECT_FILES)만 읽는다. 목록에 없는 파일(.env 등)은 열지 않고, 읽는 글도 앞 64KB 까지다.
 function readProjectFiles(cwd: string): ProjectFile[] {
   let names: string[];
   try {

@@ -1,4 +1,3 @@
-// 앱의 RpcClient 를 데몬의 실제 MobileServer(server/mobileAccess.ts)에 붙여 시험한다: 인증, 재연결, 앱이 앞으로 올 때의 즉시 재연결, 주소 후보, 해제, 이미지 업로드, 페어링.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -162,7 +161,6 @@ test("resume(): 소켓은 열려 있는데 Mac 이 응답하지 않으면(Wi-Fi 
     s.flags.hangPing = true;
     const started = Date.now();
     client.resume();
-    // 첫 확인이 응답 없이 끝나면 닫고 다시 붙는다. 이번 재연결의 확인은 다시 응답하게 둔다.
     await waitFor(() => client.status === "offline", 2000, "dropped");
     s.flags.hangPing = false;
     await waitFor(() => client.status === "online" && readies === 1, 3000, "reconnected");
@@ -177,7 +175,6 @@ test("주소 후보: 안 닿는 주소가 앞에 있어도 다음 후보로 붙�
   const s = await setup();
   const client = new RpcClient(fast);
   try {
-    // 192.0.2.1 은 문서용 주소(응답 없음), 127.0.0.2 는 이 서버가 안 받는 루프백
     client.configure({ hosts: ["192.0.2.1", "127.0.0.2", "127.0.0.1"], port: s.server.port, token: s.token });
     await waitFor(() => client.status === "online", 3000, "online through a later host");
     expect(client.host === "127.0.0.1", `connected via ${client.host}`);
@@ -196,7 +193,6 @@ test("장치 해제: 데스크톱에서 해제하면 연결이 끊기고 unautho
     await waitFor(() => client.status === "online", 2000, "online");
     const id = s.devices.list()[0].id;
     s.server.revokeDevice(id);
-    // 4001 로 닫히면 재연결을 시도하고, 그때 토큰이 안 통해 4401 이 된다
     await waitFor(() => client.status === "unauthorized", 3000, "unauthorized after revoke");
     return "ok";
   } finally {

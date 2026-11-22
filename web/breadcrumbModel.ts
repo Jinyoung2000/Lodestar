@@ -2,13 +2,10 @@ import type { ChangeDesc } from "@codemirror/state";
 import type { SymbolNode } from "./documentSymbols";
 
 
-// --- 조각 ---
-
 export type Crumb =
   | { kind: "folder" | "file"; id: string; label: string; path: string; dir: string }
   | { kind: "symbol"; id: string; label: string; node: SymbolNode; siblings: readonly SymbolNode[] };
 
-// 파일 경로 조각(폴더들 + 파일) 뒤에 커서가 든 심볼의 경로(클래스 > 메서드)를 잇는다. 심볼 조각의 형제는 바깥 심볼의 자식(맨 바깥이면 문서의 최상위 심볼)이다.
 export function crumbsFor(path: string, tree: readonly SymbolNode[], symbolPath: readonly SymbolNode[]): Crumb[] {
   const parts = path.split("/");
   const crumbs: Crumb[] = parts.map((label, index): Crumb => {
@@ -21,10 +18,7 @@ export function crumbsFor(path: string, tree: readonly SymbolNode[], symbolPath:
   return crumbs;
 }
 
-// 작업 폴더 밖 파일(../ 가 들어간 상대 경로나 절대 경로)은 Files 트리에 없어 형제 목록을 못 만든다
 export const listable = (path: string) => !path.startsWith("/") && !path.split("/").includes("..");
-
-// --- 형제 목록 항목 ---
 
 export type PickerIcon = { kind: "folder"; name: string } | { kind: "file"; name: string } | { kind: "symbol"; symbolKind: number };
 export type PickTarget = { type: "file" | "folder"; path: string } | { type: "symbol"; node: SymbolNode };
@@ -41,7 +35,6 @@ export type PickerItem = {
 type DirIndex = Map<string, { dirs: Set<string>; files: string[] }>;
 const indexes = new WeakMap<readonly string[], WeakMap<readonly string[], DirIndex>>();
 
-// 경로 목록을 폴더별 항목으로 한 번 정리한다(펼칠 때마다 전체를 훑지 않도록 목록 배열을 열쇠로 캐시한다)
 function dirIndexOf(files: readonly string[], emptyDirs: readonly string[]): DirIndex {
   let byEmpty = indexes.get(files);
   if (!byEmpty) indexes.set(files, (byEmpty = new WeakMap()));
@@ -81,7 +74,6 @@ export function fileItems(files: readonly string[], emptyDirs: readonly string[]
   ];
 }
 
-// 심볼 목록(문서 순서 그대로: breadcrumbs.symbolSortOrder 기본값이 position)
 export function symbolItems(nodes: readonly SymbolNode[]): PickerItem[] {
   return nodes.map((node) => ({
     id: symbolId(node),
@@ -95,12 +87,8 @@ export function symbolItems(nodes: readonly SymbolNode[]): PickerItem[] {
 
 export const symbolId = (node: SymbolNode) => `${node.kind}:${node.name}:${node.nameFrom}`;
 
-// --- 트리 행과 키 이동 ---
-
 export type PickerRow = { item: PickerItem; depth: number; parentId: string | null; expanded: boolean; match: readonly number[] | null };
 
-// 펼친 항목만 평평하게 편다. query 가 있고 filter 이면 일치하거나 일치하는 자손이 있는 항목만 남기고, 속에 일치가 있는 폴더는 펼친 것으로 본다.
-// 거르는 동안 접힌 폴더 속까지 훑으므로 큰 폴더에서 입력마다 전체를 도는 일이 없게 훑는 항목 수에 상한을 둔다.
 const FILTER_SCAN_LIMIT = 5000;
 
 export function visibleRows(items: readonly PickerItem[], expanded: ReadonlySet<string>, query = "", filter = false): PickerRow[] {
@@ -135,7 +123,6 @@ export function visibleRows(items: readonly PickerItem[], expanded: ReadonlySet<
   return rows;
 }
 
-// 입력한 글자가 이름 안에 순서대로 들어 있으면 그 글자들의 위치(붙어 있는 덩어리가 있으면 그것을 우선). 대소문자를 가리지 않는다.
 export function matchLabel(query: string, label: string): number[] | null {
   const q = query.toLowerCase();
   const l = label.toLowerCase();
@@ -153,7 +140,6 @@ export function matchLabel(query: string, label: string): number[] | null {
   return found;
 }
 
-// 이름을 일치한 글자(굵게)와 아닌 글자 조각으로 나눈다
 export function highlightParts(label: string, match: readonly number[] | null): { text: string; hit: boolean }[] {
   if (!match?.length) return [{ text: label, hit: false }];
   const hits = new Set(match);
@@ -167,7 +153,6 @@ export function highlightParts(label: string, match: readonly number[] | null): 
   return parts;
 }
 
-// 일치하는 행으로 초점을 옮긴다(highlight 모드: 입력하면 첫 일치로, ↑↓ 는 이전 다음 일치로). from 은 지금 초점 행, step 이 0 이면 그 행부터 찾는다.
 export function matchRowIndex(rows: readonly PickerRow[], from: number, step: -1 | 0 | 1): number {
   if (rows.length === 0) return -1;
   const start = from < 0 ? (step === -1 ? rows.length : -1) : from;
@@ -205,8 +190,6 @@ export function navigatePicker(rows: readonly PickerRow[], focusId: string | nul
   return row.parentId ? { focusId: row.parentId, expanded } : { focusId, expanded };
 }
 
-// --- 놓을 자리 ---
-
 export const PICKER_ARROW = 8;
 export const PICKER_MIN_WIDTH = 240;
 export const PICKER_MAX_HEIGHT = 300;
@@ -218,7 +201,6 @@ export type Box = { left: number; top: number; width: number; height: number };
 
 export type PickerPlacement = { left: number; top: number; width: number; maxHeight: number; arrowOffset: number };
 
-// pointerX 는 마우스로 눌렀을 때 누른 가로 위치(화살표가 그곳을 가리킨다). 키보드로 열면 null 이라 조각 폭의 30% 지점을 가리킨다.
 export function pickerPlacement(anchor: Box, viewport: { width: number; height: number }, pointerX: number | null): PickerPlacement {
   const usable = viewport.width - PICKER_MARGIN;
   const width = Math.min(usable, Math.max(PICKER_MIN_WIDTH, usable / 4.17));
@@ -239,12 +221,8 @@ export function pickerPlacement(anchor: Box, viewport: { width: number; height: 
   return { left, top, width, maxHeight, arrowOffset: Math.max(0, arrow) };
 }
 
-// 목록 본문 높이: 행 수 x 22 와 (최대 높이 - 화살표 두 칸) 중 작은 쪽
 export const pickerBodyHeight = (rowCount: number, maxHeight: number) => Math.min(maxHeight - 2 * PICKER_ARROW, rowCount * PICKER_ROW);
 
-// --- 심볼 ---
-
-// 문서가 바뀌면 서버에 다시 묻기 전까지 이전 심볼 트리를 변경에 맞춰 옮겨 쓴다. 시작은 뒤로(삽입이 앞에 붙지 않게), 끝은 앞으로 민다.
 export function mapSymbols(nodes: readonly SymbolNode[], changes: ChangeDesc): SymbolNode[] {
   return nodes.map((node) => {
     const from = changes.mapPos(node.from, 1);

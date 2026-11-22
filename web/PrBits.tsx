@@ -3,8 +3,6 @@ import type { PrChecksState, PrReviewDecision, PrSummary, PrUser } from "../shar
 import { Codicon, DotSpinner } from "./icons";
 import { P } from "./prStrings";
 
-// PR 행, 화면 머리, 체크 목록이 같이 쓰는 작은 조각들.
-
 export function PrAvatar({ user, size = 16 }: { user: PrUser | null; size?: number }) {
   const [failed, setFailed] = useState(false);
   const initials = (user?.login ?? "?").slice(0, 2).toUpperCase();
@@ -61,7 +59,6 @@ export function ReviewIcon({ decision }: { decision: PrReviewDecision }) {
   );
 }
 
-// 분 단위로 다시 그려서 상대 시간이 흘러가게 한다.
 export function useNow() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

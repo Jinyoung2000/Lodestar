@@ -10,7 +10,6 @@ export type GroupKind = "merge" | "staged" | "changes";
 
 const GROUP_TITLE: Record<GroupKind, string> = { merge: M.mergeChanges, staged: M.stagedChanges, changes: M.changes };
 
-// 변경 묶음 하나(Merge Changes, Staged Changes, Changes). 머리에는 개수와 마우스를 올리면 보이는 묶음 단추, 아래에 목록 또는 폴더 트리가 온다.
 export function ScmGroup({ kind, entries, tree, actions }: { kind: GroupKind; entries: ScmEntry[]; tree: boolean; actions: ScmActions }) {
   const collapsed = useScmView((v) => !!v.collapsed[kind as ScmSection]);
   return (
@@ -80,11 +79,9 @@ function TreeNode({ node, kind, depth, closed, onToggle, actions }: { node: ScmT
   );
 }
 
-// 목록 보기의 행: 아이콘, 이름, 상위 폴더, (마우스를 올리면) 단추, 오른쪽 끝 상태 글자. 트리 보기는 폴더 아래에서 들여 쓰고 이름만 보인다.
 function FileRow({ kind, entry, depth, tree, actions, name }: { kind: GroupKind; entry: ScmEntry; depth: number; tree: boolean; actions: ScmActions; name?: string }) {
   const shown = name ?? scmBasename(entry.rel);
   const dir = tree ? "" : scmDirname(entry.rel);
-  // ⌥클릭, ⌥⌘클릭은 옆 그룹에 연다
   const open = (side = false) => actions.openChanges(entry, kind, side);
   return (
     <div
@@ -135,7 +132,6 @@ const indent = (depth: number) => ({ paddingLeft: `calc(var(--space-3) + ${depth
 
 const PRIORITY: ScmCode[] = ["!", "D", "M", "R", "T", "C", "A", "U"];
 
-// 폴더 점의 색: 아래 파일들 가운데 가장 눈에 띄는 상태
 function dominant(entries: ScmEntry[]): ScmCode {
   return PRIORITY.find((code) => entries.some((e) => e.code === code)) ?? "M";
 }

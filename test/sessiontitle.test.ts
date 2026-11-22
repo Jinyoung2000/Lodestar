@@ -1,4 +1,3 @@
-// 세션 제목: 첫 줄만, 마크다운 없이, 짧게. 실행: npm test
 import { clampTitle, shortTitle, TITLE_MAX } from "../shared/sessionTitle";
 
 let failed = 0;

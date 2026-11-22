@@ -4,8 +4,6 @@ import { dismissesOnKey, hintDuration, placeBubble, type Placement } from "./hin
 import { Check } from "./icons";
 import "./hint.css";
 
-// 에디터 밖 동작의 사소한 결과를 동작 자리 옆에 잠깐 보이는 말풍선. 에디터 안은 web/editorMessage.ts 가 커서 위에 띄운다.
-// 다음 키 입력, 누름, 스크롤, 창 포커스 이탈, 시간이 다 되면 사라진다. 소리는 web/LiveAnnouncer.tsx 가 읽으므로 상자는 aria-hidden 이다.
 export function HintLayer() {
   const bubble = useHint();
   if (!bubble) return null;
@@ -37,7 +35,6 @@ function useDismiss(bubble: HintBubble) {
   useEffect(() => {
     const shownAt = performance.now();
     const close = () => dismissHint(bubble.id);
-    // 안내를 띄운 단축키 자신의 keydown 이 곧바로 닫지 않게 한다
     const onKey = (event: KeyboardEvent) => {
       if (event.timeStamp > shownAt && dismissesOnKey(event.key)) close();
     };

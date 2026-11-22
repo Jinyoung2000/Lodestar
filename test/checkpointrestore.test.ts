@@ -1,7 +1,3 @@
-// FIX5-0: 체크포인트 복원(Start Over 와 대화 중간 지점 복원)과 Redo 가 에이전트의 마지막 쓰기 뒤 사람이 고친 파일을 지키는지 임시 git 저장소로 확인한다.
-// SDK 의 rewindFiles 는 가짜 함수로 대신한다(체크포인트 내용으로 쓰고, 에이전트가 새로 만든 파일은 지운다). 데몬도 모델도 필요 없다.
-// dogfood 5회차 24번: Start Over 가 에이전트가 만든 파일에 사람이 덧붙인 한 줄을 확인 없이 지웠다. 15번: 동시 실행 때 세지 못한 Bash 변경에 안내가 없었다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -41,7 +37,6 @@ const clearTrash = () => {
   for (const name of readdirSync(trash)) rmSync(join(trash, name), { force: true });
 };
 
-// 편집 도구 한 번(PreToolUse 훅, 디스크 쓰기, PostToolUse 훅)
 async function agentEdit(agent: Agent, name: string, text: string) {
   const input = { file_path: file(name) };
   await touch.recordBeforeEdit(agent, store, "Write", input);
@@ -49,7 +44,6 @@ async function agentEdit(agent: Agent, name: string, text: string) {
   await touch.recordAfterEdit(agent, store, "Write", input);
 }
 
-// rewindFiles 를 흉내 낸다: 체크포인트가 가진 내용으로 쓰고(null 은 그때 없던 파일이라 지운다)
 const fakeRewind = (checkpoint: Record<string, string | null>) => async () => {
   for (const [name, text] of Object.entries(checkpoint)) {
     if (text === null) {
@@ -59,7 +53,6 @@ const fakeRewind = (checkpoint: Record<string, string | null>) => async () => {
 };
 
 try {
-  // 1. 사람이 고친 새 파일(round-5 의 human-edit.txt): 건너뛰고 바이트까지 그대로다. 사람이 안 고친 새 파일은 휴지통으로 간다.
   await agentEdit(A, "human-edit.txt", "agent line\n");
   await agentEdit(A, "agent-only.txt", "agent only\n");
   writeFileSync(file("human-edit.txt"), "agent line\nHUMAN LINE (uncommitted, written after the agent)\n");
@@ -73,7 +66,6 @@ try {
   expect(trashed().join() === "agent-only.txt" && readFileSync(join(trash, "agent-only.txt"), "utf8") === "agent only\n", `휴지통에 내용이 있다: ${trashed()}`);
   clearTrash();
 
-  // 2. 섞인 경우: 되돌릴 파일(keep), 지울 파일(new), 건너뛸 파일(mix)이 한 번의 복원에서 각각 맞게 처리된다
   await agentEdit(A, "keep.txt", "keep0\nagent adds\n");
   await agentEdit(A, "new.txt", "new file\n");
   await agentEdit(A, "mix.txt", "mix0\nagent adds\n");
@@ -89,7 +81,6 @@ try {
   expect(read("mix.txt") === "mix0\nagent adds\nHUMAN\n", "사람이 고친 파일은 그대로");
   clearTrash();
 
-  // 복원 뒤 장부를 디스크에 맞추면 다음 편집이 mixed 로 오인되지 않는다(맞추지 않으면 Undo 가 이유 없이 거절된다)
   const before = await touch.checkUndo(A, store, [file("keep.txt")]);
   expect(before.skipped.length === 1, "맞추기 전에는 디스크가 장부와 달라 건너뛴다(대조군)");
   await touch.syncAfterRestore(A, store, [file("keep.txt"), file("new.txt")]);
@@ -97,7 +88,6 @@ try {
   await agentEdit(A, "keep.txt", "keep0\nsecond try\n");
   expect((await touch.checkUndo(A, store, [file("keep.txt")])).allowed.length === 1, "복원 뒤 다시 편집해도 mixed 가 아니다");
 
-  // 3. 중간 체크포인트: 앞 턴에서 만든 파일은 되돌림, 뒤 턴에서 처음 만든 파일은 지움. 같은 규칙.
   const keptTimeline = [
     { id: "u1", kind: "user", text: "turn 1", source: "user" },
     { id: "t1", kind: "tool", name: "Write", input: { file_path: file("early.txt") } },
@@ -116,13 +106,11 @@ try {
   expect((await touch.checkUndo(B, store, [file("early.txt")])).allowed.length === 1, "복원 뒤에도 Undo 와 다음 복원이 허용된다");
   clearTrash();
 
-  // 4. 장부에 없는 파일은 건너뛴다(Undo 와 달리). 마지막 쓰기를 모르는 옛 세션의 파일도 같다.
   writeFileSync(file("stranger.txt"), "nobody recorded this\n");
   const plan4 = await touch.planRestore(A, store, [file("stranger.txt")], []);
   expect(plan4.skip.length === 1 && plan4.skip[0].reason === "unknown", `장부에 없는 파일: ${JSON.stringify(plan4)}`);
   rmSync(file("stranger.txt"));
 
-  // 5. 되돌리기가 중간에 실패해도 건너뛸 파일은 지켜진다
   await agentEdit(A, "c.txt", "c0\nagent\n");
   writeFileSync(file("c.txt"), "c0\nagent\nhuman wrote\n");
   const plan5 = await touch.planRestore(A, store, [file("c.txt")], []);
@@ -135,7 +123,6 @@ try {
     .catch(() => (thrown = true));
   expect(thrown && read("c.txt") === "c0\nagent\nhuman wrote\n", "실패해도 건너뛸 파일은 복원 전 내용");
 
-  // 6. Redo: 복원 직후 해시와 다른 파일은 건너뛰고, 복원 전에 없던 파일은 지우지 않고 휴지통으로
   writeFileSync(file("r1.txt"), "after restore\n");
   writeFileSync(file("r2.txt"), "after restore 2\n");
   const restoredHash = await guard.hashesOf([file("r1.txt"), file("r2.txt"), file("r3.txt")]);
@@ -151,7 +138,6 @@ try {
   const legacy = await guard.redoFiles(A, { [file("r2.txt")]: Buffer.from("legacy\n").toString("base64") }, undefined);
   expect(legacy.written.length === 1 && read("r2.txt") === "legacy\n", "복원 해시가 없는 옛 기록은 그대로 다시 쓴다");
 
-  // 7. 발견 15: 같은 폴더에서 다른 세션과 시간이 겹쳐 Bash 귀속을 건너뛴 턴에 장부에 없는 변경이 있으면 기록이 남고, 변경이 없으면 남지 않는다
   const S1 = session("agent-s1");
   const S2 = session("agent-s2");
   timeline = [{ id: "u9", kind: "user", text: "make the generated file\nand more", source: "user" }];
@@ -176,7 +162,6 @@ try {
   await touch.endTurn(S3, store);
   expect((await touch.touchedChanges(S3, store)).shellNote === undefined, "겹쳤어도 바뀐 파일이 없으면 안내하지 않는다");
   await touch.endTurn(S4, store);
-  // 겹치지 않은 턴은 그대로 귀속된다
   const S5 = session("agent-s5");
   await beginLastTurn(S5, store);
   touch.beginTurn(S5);
@@ -185,7 +170,6 @@ try {
   await touch.endTurn(S5, store);
   const solo = await touch.touchedChanges(S5, store);
   expect(solo.files.map((f) => f.rel).join() === "solo.txt" && solo.shellNote === undefined, `혼자 돌린 턴은 귀속: ${JSON.stringify(solo)}`);
-  // 기록은 저장되어 데몬을 다시 띄워도 남는다
   touch.flushTouchedSync();
   touch.resetTouchedMemory();
   expect((await touch.touchedChanges(S1, store)).shellNote?.turns.length === 1, "다시 읽은 장부에도 세지 못한 턴이 있다");

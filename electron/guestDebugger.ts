@@ -1,8 +1,5 @@
 import type { WebContents } from "electron";
 
-// 공유된 <webview> 의 webContents.debugger 로만 하는 일: 대화상자(alert, confirm, prompt, beforeunload)와 파일 선택창 처리, 끌기, 터치 에뮬레이션, 전체 페이지 스크린샷.
-// 디버거는 이 guest 의 것이고, 다른 탭이나 앱 창에는 닿지 않는다. 대화상자는 Page 도메인을 켠 동안(공유 중)에만 가로챈다. 안 가로채면 Electron 이 보통 대화상자를 띄운다.
-
 export type DialogInfo = { type: string; message: string; defaultPrompt: string; url: string; leave?: boolean };
 type Chooser = { backendNodeId: number | undefined; multiple: boolean };
 type State = { pageEnabled: boolean; dialog: DialogInfo | null; chooser: Chooser | null; dragData: unknown; touch: boolean; touchKey: string };
@@ -22,7 +19,6 @@ function stateOf(guest: WebContents): State {
     states.set(guest.id, state);
     const current = state;
     guest.debugger.on("message", (_event, method, params: Record<string, unknown>) => {
-      // beforeunload 는 Chromium 이 열었다가 Electron 이 바로 닫는다. 그 사이 will-prevent-unload 에서 만든 대화상자(leave)를 아래 bindBeforeUnload 가 따로 다룬다.
       if (method === "Page.javascriptDialogOpening" && params.type === "beforeunload") return;
       if (method === "Page.javascriptDialogClosed" && current.dialog?.leave) return;
       if (method === "Page.javascriptDialogOpening") {
@@ -53,13 +49,9 @@ async function cdp<T = Record<string, unknown>>(guest: WebContents, method: stri
 export const pendingDialog = (guest: WebContents) => states.get(guest.id)?.dialog ?? null;
 export const pendingChooser = (guest: WebContents) => states.get(guest.id)?.chooser ?? null;
 
-// beforeunload: Electron 은 페이지가 이동을 막으면(will-prevent-unload) 대화상자 없이 이동만 취소한다. 공유 중인 탭에서는 그 취소를 대화상자로 보여 주고,
-// 수락(떠나기)이면 이동을 시작했던 마지막 동작(클릭, 키, 주소 이동)을 한 번 허용된 상태로 다시 한다. 닫기(머물기)면 그대로 둔다.
-// 이동할 곳은 beforeunload 가 이동이 시작되기 전에 돌아서 이벤트로는 알 수 없어서, 마지막 동작을 기억해 두었다가 되풀이한다.
 const leaving = new Map<number, { allowOnce: boolean }>();
 const lastAction = new Map<number, () => void | Promise<void>>();
 
-// 이동을 일으킬 수 있는 동작(클릭, 키, 주소 이동, 새로고침)을 기억한다. 입력 헬퍼들이 부른다.
 export function rememberAction(guest: WebContents, redo: () => void | Promise<void>) {
   lastAction.set(guest.id, redo);
 }
@@ -73,7 +65,6 @@ export function bindBeforeUnload(guest: WebContents) {
       event.preventDefault();
       return;
     }
-    // 공유 중이 아니면 Electron 의 기본(이동 취소)을 그대로 둔다
     if (!state?.pageEnabled || state.dialog) return;
     state.dialog = { type: "beforeunload", message: "This page is asking you to confirm that you want to leave. Information you've entered may not be saved.", defaultPrompt: "", url: guest.getURL(), leave: true };
     for (const listener of dialogListeners) listener(guest.id, state.dialog);
@@ -84,7 +75,6 @@ export function bindBeforeUnload(guest: WebContents) {
   });
 }
 
-// 대화상자와 파일 선택창을 가로채기 시작한다(공유 시작). 이미 열려 있던 것은 없다.
 export async function watchDialogs(guest: WebContents) {
   const state = stateOf(guest);
   if (!guest.debugger.isAttached()) guest.debugger.attach("1.3");
@@ -94,7 +84,6 @@ export async function watchDialogs(guest: WebContents) {
   state.pageEnabled = true;
 }
 
-// 공유가 끝나면 가로채기를 멈추고, 열려 있는 대화상자는 닫는다(그대로 두면 페이지가 멈춘다).
 export async function unwatchDialogs(guest: WebContents) {
   const state = states.get(guest.id);
   if (!state?.pageEnabled || guest.isDestroyed()) return;
@@ -105,7 +94,6 @@ export async function unwatchDialogs(guest: WebContents) {
   state.chooser = null;
 }
 
-// beforeunload 대화상자에 답한다. 떠나기면 이동을 일으킨 마지막 동작을 한 번 허용된 상태로 되풀이한다(기억한 동작이 없으면 새로고침).
 async function answerLeaving(guest: WebContents, accept: boolean, dialog: DialogInfo): Promise<DialogInfo> {
   const state = states.get(guest.id);
   if (state) state.dialog = null;
@@ -126,7 +114,6 @@ export async function answerDialog(guest: WebContents, accept: boolean, promptTe
   return dialog;
 }
 
-// 파일 선택창에 파일을 고른다(빈 배열이면 아무것도 고르지 않는다).
 export async function answerChooser(guest: WebContents, files: string[]) {
   const chooser = pendingChooser(guest);
   if (!chooser) throw new Error("There is no open file chooser on this page.");
@@ -153,7 +140,6 @@ export async function applyTouch(guest: WebContents, emulating: boolean, mobile:
 type Point = { x: number; y: number };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// 한 요소를 다른 요소 위로 끌어 놓는다. 끌기 가로채기(HTML5 drag and drop)가 되면 drop 까지 보내고, 아니면 마우스로 끈 것으로 둔다. 좌표는 화면(CSS px, 쪽 확대 반영)이다.
 export async function dragBetween(guest: WebContents, from: Point, to: Point) {
   const state = stateOf(guest);
   state.dragData = null;
@@ -181,7 +167,6 @@ export async function dragBetween(guest: WebContents, from: Point, to: Point) {
 
 const MAX_FULL_HEIGHT = 16_384;
 
-// 스크롤 밖까지 포함한 전체 페이지를 PNG(base64)로. 너무 길면 위쪽만 담는다.
 export async function fullPageScreenshot(guest: WebContents): Promise<string> {
   const metrics = await cdp<{ cssContentSize?: { width: number; height: number }; contentSize: { width: number; height: number } }>(guest, "Page.getLayoutMetrics");
   const size = metrics.cssContentSize ?? metrics.contentSize;

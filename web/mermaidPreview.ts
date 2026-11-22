@@ -1,0 +1,672 @@
+
+const MERMAID_LANGUAGE = /(?:^|\s)language-mermaid(?:\s|$)/;
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+type Font = { size: number; line: number; width: (text: string) => number };
+
+let canvas: CanvasRenderingContext2D | null | undefined;
+function font(): Font | null {
+  if (typeof document === "undefined") return null;
+  const style = getComputedStyle(document.documentElement);
+  const sizeText = style.getPropertyValue("--text-ui-sm").trim();
+  const size = parseFloat(sizeText) || 12;
+  const line = parseFloat(style.getPropertyValue("--leading-ui-sm")) || size * 1.5;
+  if (canvas === undefined) canvas = document.createElement("canvas").getContext("2d");
+  if (canvas) canvas.font = `${sizeText} ${style.getPropertyValue("--font-sans")}`;
+  const width = (text: string) => (canvas ? canvas.measureText(text).width : text.length * size * 0.6);
+  return { size, line, width };
+}
+
+function labelLines(raw: string): string[] {
+  let text = raw.trim();
+  if (/^".*"$/s.test(text)) text = text.slice(1, -1);
+  if (/^`.*`$/s.test(text)) text = text.slice(1, -1);
+  text = text.replace(/#quot;/g, "\"").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  return text.split(/<br\s*\/?>|\\n/i).map((part) => part.trim());
+}
+
+const textWidth = (f: Font, lines: string[]) => Math.max(0, ...lines.map((l) => f.width(l)));
+
+class Svg {
+  layers: Element[][] = [[], [], [], [], []];
+  constructor(private doc: Document) {}
+  el(layer: number, name: string, attrs: Record<string, string | number>, text?: string) {
+    const node = this.doc.createElementNS(SVG_NS, name);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+    if (text !== undefined) node.textContent = text;
+    this.layers[layer]!.push(node);
+    return node;
+  }
+  text(layer: number, f: Font, x: number, y: number, lines: string[], cls = "mm-text", anchor = "middle") {
+    const top = y - (lines.length * f.line) / 2;
+    lines.forEach((line, i) => this.el(layer, "text", { x, y: top + f.line * (i + 0.5), class: cls, "text-anchor": anchor, "dominant-baseline": "central" }, line));
+  }
+  finish(width: number, height: number, id: string): SVGSVGElement {
+    const svg = this.doc.createElementNS(SVG_NS, "svg") as SVGSVGElement;
+    const w = Math.ceil(width);
+    const h = Math.ceil(height);
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.setAttribute("width", String(w));
+    svg.setAttribute("role", "img");
+    const defs = this.doc.createElementNS(SVG_NS, "defs");
+    const marker = (name: string, path: string, cls: string) => {
+      const m = this.doc.createElementNS(SVG_NS, "marker");
+      for (const [k, v] of Object.entries({ id: `${id}-${name}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: "auto-start-reverse", markerUnits: "userSpaceOnUse" })) m.setAttribute(k, String(v));
+      const p = this.doc.createElementNS(SVG_NS, "path");
+      p.setAttribute("d", path);
+      p.setAttribute("class", cls);
+      m.append(p);
+      defs.append(m);
+    };
+    marker("arrow", "M0,0 L10,5 L0,10 z", "mm-head");
+    marker("open", "M0,0 L10,5 L0,10", "mm-head-open");
+    marker("cross", "M1,1 L9,9 M9,1 L1,9", "mm-head-open");
+    svg.append(defs);
+    for (const layer of this.layers) svg.append(...layer);
+    return svg;
+  }
+}
+
+let diagramCount = 0;
+
+type SeqArrow = { dashed: boolean; head: "arrow" | "open" | "cross" | null };
+type SeqEvent =
+  | { kind: "message"; from: string; to: string; arrow: SeqArrow; text: string[] }
+  | { kind: "note"; place: "over" | "left" | "right"; actors: string[]; text: string[] }
+  | { kind: "open"; block: string; text: string[] }
+  | { kind: "divider"; text: string[] }
+  | { kind: "close" };
+
+const SEQ_MESSAGE = /^(.+?)\s*(-->>|->>|--x|-x|--\)|-\)|-->|->)\s*[+-]?\s*(.+?)\s*(?::\s*(.*))?$/;
+const SEQ_BLOCK = /^(rect|alt|opt|loop|par|critical|break|box)\b\s*(.*)$/;
+
+function parseSequence(lines: string[]) {
+  const actors: { id: string; label: string[] }[] = [];
+  const byId = new Map<string, number>();
+  const actor = (id: string, label?: string) => {
+    const key = id.trim();
+    const known = byId.get(key);
+    if (known !== undefined) {
+      if (label) actors[known]!.label = labelLines(label);
+      return;
+    }
+    byId.set(key, actors.length);
+    actors.push({ id: key, label: labelLines(label ?? key) });
+  };
+  const events: SeqEvent[] = [];
+  let numbered = false;
+  let count = 0;
+  for (const line of lines) {
+    if (/^(activate|deactivate|title|accTitle|accDescr|links?|properties|details)\b/.test(line)) continue;
+    if (line === "autonumber" || line.startsWith("autonumber ")) {
+      numbered = true;
+      continue;
+    }
+    const decl = /^(?:create\s+)?(?:participant|actor)\s+(.+?)(?:\s+as\s+(.+))?$/.exec(line);
+    if (decl) {
+      actor(decl[1]!.replace(/^"(.*)"$/, "$1"), decl[2]);
+      continue;
+    }
+    if (/^destroy\s/.test(line)) continue;
+    const note = /^note\s+(over|left of|right of)\s+([^:]+):\s*(.*)$/i.exec(line);
+    if (note) {
+      const ids = note[2]!.split(",").map((s) => s.trim()).filter(Boolean);
+      ids.forEach((id) => actor(id));
+      const place = note[1]!.toLowerCase().startsWith("left") ? "left" : note[1]!.toLowerCase().startsWith("right") ? "right" : "over";
+      events.push({ kind: "note", place, actors: ids, text: labelLines(note[3]!) });
+      continue;
+    }
+    const block = SEQ_BLOCK.exec(line);
+    if (block) {
+      events.push({ kind: "open", block: block[1]!, text: block[1] === "rect" || block[1] === "box" ? [] : labelLines(block[2]!) });
+      continue;
+    }
+    const divider = /^(else|and|option)\b\s*(.*)$/.exec(line);
+    if (divider) {
+      events.push({ kind: "divider", text: labelLines(divider[2]!) });
+      continue;
+    }
+    if (line === "end") {
+      events.push({ kind: "close" });
+      continue;
+    }
+    const message = SEQ_MESSAGE.exec(line);
+    if (message) {
+      const [, from, op, to, text] = message;
+      actor(from!);
+      actor(to!);
+      const head = op!.endsWith(">>") ? "arrow" : op!.endsWith("x") ? "cross" : op!.endsWith(")") ? "open" : null;
+      const label = labelLines(text ?? "");
+      if (numbered) label[0] = `${++count}. ${label[0]}`;
+      events.push({ kind: "message", from: from!.trim(), to: to!.trim(), arrow: { dashed: op!.startsWith("--"), head }, text: label });
+      continue;
+    }
+    return null;
+  }
+  return actors.length ? { actors, byId, events } : null;
+}
+
+function renderSequence(doc: Document, lines: string[], f: Font): SVGSVGElement | null {
+  const parsed = parseSequence(lines);
+  if (!parsed) return null;
+  const { actors, byId, events } = parsed;
+  const PAD_X = 12;
+  const PAD_Y = 6;
+  const MARGIN = 8;
+  const boxW = actors.map((a) => Math.max(textWidth(f, a.label) + PAD_X * 2, 64));
+  const boxH = Math.max(...actors.map((a) => a.label.length)) * f.line + PAD_Y * 2;
+  const gaps = actors.slice(1).map((_, i) => (boxW[i]! + boxW[i + 1]!) / 2 + 32);
+  const need = (a: number, b: number, width: number) => {
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    let have = 0;
+    for (let i = lo; i < hi; i++) have += gaps[i]!;
+    if (have < width) gaps[hi - 1]! += width - have;
+  };
+  let rightExtra = 0;
+  let leftExtra = 0;
+  for (const event of events) {
+    if (event.kind === "message") {
+      const a = byId.get(event.from)!;
+      const b = byId.get(event.to)!;
+      const w = textWidth(f, event.text) + 24;
+      if (a === b) {
+        if (a < actors.length - 1) need(a, a + 1, w + 40);
+        else if (a > 0) need(a - 1, a, w + 40);
+        else rightExtra = Math.max(rightExtra, w + 40);
+      } else need(a, b, w);
+    } else if (event.kind === "note") {
+      const idx = event.actors.map((id) => byId.get(id)!);
+      const w = textWidth(f, event.text) + PAD_X * 2;
+      if (event.place === "over" && idx.length > 1) need(Math.min(...idx), Math.max(...idx), w - 24);
+      else if (event.place === "right") {
+        const i = idx[0]!;
+        if (i < actors.length - 1) need(i, i + 1, w + 16);
+        else rightExtra = Math.max(rightExtra, w + 16);
+      } else if (event.place === "left") {
+        const i = idx[0]!;
+        if (i > 0) need(i - 1, i, w + 16);
+        else leftExtra = Math.max(leftExtra, w + 16 - boxW[0]! / 2);
+      } else {
+        const i = idx[0]!;
+        const half = w / 2;
+        if (i > 0) need(i - 1, i, half + boxW[i - 1]! / 2);
+        if (i < actors.length - 1) need(i, i + 1, half + boxW[i + 1]! / 2);
+        if (i === 0) leftExtra = Math.max(leftExtra, half - boxW[0]! / 2);
+        if (i === actors.length - 1) rightExtra = Math.max(rightExtra, half - boxW[i]! / 2);
+      }
+    }
+  }
+  const blockDepth = Math.min(4, events.filter((e) => e.kind === "open").length);
+  const frameRoom = blockDepth ? 16 : 0;
+  const cx: number[] = [];
+  let x = MARGIN + Math.max(leftExtra, frameRoom) + boxW[0]! / 2;
+  actors.forEach((_, i) => {
+    if (i > 0) x += gaps[i - 1]!;
+    cx.push(x);
+  });
+  const width = cx[cx.length - 1]! + boxW[boxW.length - 1]! / 2 + Math.max(rightExtra, frameRoom) + MARGIN;
+
+  const svg = new Svg(doc);
+  const id = `mm${++diagramCount}`;
+  let y = MARGIN + boxH + 16;
+  type Open = { block: string; text: string[]; top: number; lo: number; hi: number; dividers: { y: number; text: string[] }[] };
+  const stack: Open[] = [];
+  const touch = (...idx: number[]) => {
+    for (const open of stack) {
+      open.lo = Math.min(open.lo, ...idx);
+      open.hi = Math.max(open.hi, ...idx);
+    }
+  };
+  for (const event of events) {
+    if (event.kind === "message") {
+      const a = byId.get(event.from)!;
+      const b = byId.get(event.to)!;
+      touch(a, b);
+      const textH = event.text.length * f.line;
+      const cls = `mm-line${event.arrow.dashed ? " mm-dashed" : ""}`;
+      const end: Record<string, string> = event.arrow.head ? { "marker-end": `url(#${id}-${event.arrow.head})` } : {};
+      if (a === b) {
+        const left = a > 0 && a === actors.length - 1;
+        svg.text(3, f, cx[a]! + (left ? -12 : 12), y + textH / 2, event.text, "mm-text", left ? "end" : "start");
+        y += textH + 4;
+        svg.el(2, "path", { d: left ? `M${cx[a]},${y} h-32 v20 h32` : `M${cx[a]},${y} h32 v20 h-32`, class: cls, fill: "none", ...end });
+        y += 20 + 16;
+      } else {
+        svg.text(3, f, (cx[a]! + cx[b]!) / 2, y + textH / 2, event.text);
+        y += textH + 4;
+        svg.el(2, "line", { x1: cx[a]!, y1: y, x2: cx[b]!, y2: y, class: cls, ...end });
+        y += 16;
+      }
+    } else if (event.kind === "note") {
+      const idx = event.actors.map((name) => byId.get(name)!);
+      touch(...idx);
+      const w = textWidth(f, event.text) + PAD_X * 2;
+      const h = event.text.length * f.line + PAD_Y * 2;
+      let left: number;
+      let right: number;
+      if (event.place === "left") (right = cx[idx[0]!]! - 8), (left = right - w);
+      else if (event.place === "right") (left = cx[idx[0]!]! + 8), (right = left + w);
+      else {
+        const lo = cx[Math.min(...idx)]! - 24;
+        const hi = cx[Math.max(...idx)]! + 24;
+        const span = Math.max(hi - lo, w);
+        left = (lo + hi) / 2 - span / 2;
+        right = left + span;
+      }
+      svg.el(3, "rect", { x: left, y, width: right - left, height: h, rx: 4, class: "mm-note" });
+      svg.text(3, f, (left + right) / 2, y + h / 2, event.text);
+      y += h + 12;
+    } else if (event.kind === "open") {
+      const head = event.block === "rect" || event.block === "box" ? 4 : f.line + 8;
+      stack.push({ block: event.block, text: event.text, top: y, lo: Infinity, hi: -Infinity, dividers: [] });
+      y += head;
+    } else if (event.kind === "divider") {
+      const open = stack[stack.length - 1];
+      if (!open) continue;
+      open.dividers.push({ y, text: event.text });
+      y += f.line + 8;
+    } else {
+      const open = stack.pop();
+      if (!open) continue;
+      if (open.block === "box") continue;
+      const depth = stack.length;
+      const inset = Math.max(4, 16 - depth * 4);
+      const lo = Number.isFinite(open.lo) ? open.lo : 0;
+      const hi = Number.isFinite(open.hi) ? open.hi : actors.length - 1;
+      const left = cx[lo]! - boxW[lo]! / 2 - inset + 8;
+      const right = cx[hi]! + boxW[hi]! / 2 + inset - 8;
+      const bottom = y + 4;
+      if (open.block === "rect") {
+        svg.el(0, "rect", { x: left, y: open.top, width: right - left, height: bottom - open.top, rx: 4, class: "mm-rect" });
+      } else {
+        svg.el(1, "rect", { x: left, y: open.top, width: right - left, height: bottom - open.top, rx: 4, class: "mm-frame" });
+        const tagW = f.width(open.block) + 16;
+        svg.el(1, "path", { d: `M${left},${open.top + f.line + 4} H${left + tagW - 6} L${left + tagW},${open.top + f.line - 2} V${open.top}`, class: "mm-frame" });
+        svg.text(1, f, left + 8, open.top + (f.line + 4) / 2, [open.block], "mm-text mm-tag", "start");
+        if (open.text.join("")) svg.text(1, f, left + tagW + 8, open.top + (f.line + 4) / 2, [`[${open.text.join(" ")}]`], "mm-text mm-muted", "start");
+        for (const divider of open.dividers) {
+          svg.el(1, "line", { x1: left, y1: divider.y, x2: right, y2: divider.y, class: "mm-frame mm-dashed" });
+          if (divider.text.join("")) svg.text(1, f, (left + right) / 2, divider.y + (f.line + 8) / 2, [`[${divider.text.join(" ")}]`], "mm-text mm-muted");
+        }
+      }
+      y = bottom + 12;
+    }
+  }
+  y += 4;
+  const top = MARGIN;
+  actors.forEach((a, i) => {
+    svg.el(0, "line", { x1: cx[i]!, y1: top + boxH, x2: cx[i]!, y2: y, class: "mm-lifeline" });
+    for (const boxY of [top, y]) {
+      svg.el(4, "rect", { x: cx[i]! - boxW[i]! / 2, y: boxY, width: boxW[i]!, height: boxH, rx: 4, class: "mm-node" });
+      svg.text(4, f, cx[i]!, boxY + boxH / 2, a.label);
+    }
+  });
+  return svg.finish(width, y + boxH + MARGIN, id);
+}
+
+type Shape = "rect" | "round" | "stadium" | "circle" | "diamond" | "hexagon";
+type FlowNode = { id: string; text: string[]; shape: Shape; order: number };
+type FlowEdge = { from: string; to: string; text: string[]; dashed: boolean; thick: boolean; head: boolean; tail: boolean };
+
+const SHAPES: [string, string, Shape][] = [
+  ["(((", ")))", "circle"],
+  ["((", "))", "circle"],
+  ["([", "])", "stadium"],
+  ["[[", "]]", "rect"],
+  ["[(", ")]", "round"],
+  ["{{", "}}", "hexagon"],
+  ["[/", "/]", "rect"],
+  ["[\\", "\\]", "rect"],
+  ["[/", "\\]", "rect"],
+  ["[\\", "/]", "rect"],
+  ["[", "]", "rect"],
+  ["(", ")", "round"],
+  ["{", "}", "diamond"],
+  [">", "]", "rect"],
+];
+const NODE_ID = /^[\p{L}\p{N}_][\p{L}\p{N}_-]*?(?=$|[\s[\](){}>&:;|]|-[-.>xo=]|==|-\.)/u;
+const EDGE_TEXT = /^\s*(<)?(--|==|-\.)(?![->=.])\s*(.+?)\s*(-{2,}>|={2,}>|\.-+>|-{3,}|={3,}|\.-+)/;
+const EDGE = /^\s*(<)?(-{2,}>|={2,}>|-\.+-+>|-{3,}|={3,}|-\.+-+|-{2,}[xo]|={2,}[xo])\s*(?:\|([^|]*)\|)?/;
+
+function parseFlow(lines: string[]) {
+  const header = /^(?:flowchart|graph)(?:\s+(TD|TB|BT|LR|RL))?\s*;?$/i.exec(lines[0]!);
+  if (!header) return null;
+  const dir = (header[1] ?? "TD").toUpperCase();
+  const nodes = new Map<string, FlowNode>();
+  const edges: FlowEdge[] = [];
+  const node = (id: string, text?: string, shape?: Shape) => {
+    let n = nodes.get(id);
+    if (!n) nodes.set(id, (n = { id, text: labelLines(id), shape: "rect", order: nodes.size }));
+    if (text !== undefined) n.text = labelLines(text);
+    if (shape) n.shape = shape;
+    return n;
+  };
+  const readNode = (s: string): [string, string] | null => {
+    const m = NODE_ID.exec(s);
+    if (!m) return null;
+    const id = m[0];
+    let rest = s.slice(id.length);
+    let text: string | undefined;
+    let shape: Shape | undefined;
+    for (const [open, close, kind] of SHAPES) {
+      if (!rest.startsWith(open)) continue;
+      let body = rest.slice(open.length);
+      let end: number;
+      if (body.startsWith("\"")) {
+        const q = body.indexOf("\"", 1);
+        if (q < 0) return null;
+        end = body.indexOf(close, q + 1);
+      } else end = body.indexOf(close);
+      if (end < 0) continue;
+      text = body.slice(0, end);
+      body = body.slice(end + close.length);
+      rest = body;
+      shape = kind;
+      break;
+    }
+    rest = rest.replace(/^:::[\w-]+/, "");
+    node(id, text, shape);
+    return [id, rest];
+  };
+  const readGroup = (s: string): [string[], string] | null => {
+    const ids: string[] = [];
+    let rest = s;
+    for (;;) {
+      const r = readNode(rest.trimStart());
+      if (!r) return null;
+      ids.push(r[0]);
+      rest = r[1];
+      const amp = /^\s*&\s*/.exec(rest);
+      if (!amp) return [ids, rest];
+      rest = rest.slice(amp[0].length);
+    }
+  };
+  for (const raw of lines.slice(1)) {
+    for (const statement of raw.split(/;\s*(?=\S|$)/)) {
+      const line = statement.trim();
+      if (!line || /^(subgraph|end$|classDef|class\s|style|linkStyle|click|direction)\b/.test(line)) continue;
+      const first = readGroup(line);
+      if (!first) return null;
+      let [from, rest] = first;
+      while (rest.trim()) {
+        const withText = EDGE_TEXT.exec(rest);
+        const m = withText ?? EDGE.exec(rest);
+        if (!m) return null;
+        const op = withText ? `${m[2]}${m[4]}` : m[2]!;
+        const text = m[3] ?? "";
+        rest = rest.slice(m[0].length);
+        const next = readGroup(rest);
+        if (!next) return null;
+        const [to, after] = next;
+        for (const a of from) for (const b of to) {
+          edges.push({ from: a, to: b, text: text ? labelLines(text) : [], dashed: op.includes("."), thick: op.includes("="), head: /[>xo]$/.test(op), tail: m[1] === "<" });
+        }
+        from = to;
+        rest = after;
+      }
+    }
+  }
+  return nodes.size ? { dir, nodes: [...nodes.values()], edges } : null;
+}
+
+function renderFlow(doc: Document, lines: string[], f: Font): SVGSVGElement | null {
+  const parsed = parseFlow(lines);
+  if (!parsed) return null;
+  const { dir, nodes, edges } = parsed;
+  const vertical = dir === "TD" || dir === "TB" || dir === "BT";
+  const reverse = dir === "BT" || dir === "RL";
+  const index = new Map(nodes.map((n, i) => [n.id, i]));
+  const out = nodes.map(() => [] as number[]);
+  edges.forEach((e) => out[index.get(e.from)!]!.push(index.get(e.to)!));
+
+  const state = nodes.map(() => 0);
+  const back = new Set<string>();
+  const post: number[] = [];
+  const visit = (v: number) => {
+    state[v] = 1;
+    for (const w of out[v]!) {
+      if (state[w] === 1) back.add(`${v}>${w}`);
+      else if (state[w] === 0) visit(w);
+    }
+    state[v] = 2;
+    post.push(v);
+  };
+  nodes.forEach((_, v) => state[v] === 0 && visit(v));
+  const rank = nodes.map(() => 0);
+  for (const v of post.reverse()) for (const w of out[v]!) if (!back.has(`${v}>${w}`) && w !== v) rank[w] = Math.max(rank[w]!, rank[v]! + 1);
+
+  const ranks: number[][] = [];
+  rank.forEach((r, v) => (ranks[r] ??= []).push(v));
+  for (let r = 0; r < ranks.length; r++) ranks[r] ??= [];
+  const pos = nodes.map(() => 0);
+  const place = () => ranks.forEach((row) => row.forEach((v, i) => (pos[v] = i)));
+  place();
+  const incoming = nodes.map(() => [] as number[]);
+  edges.forEach((e) => {
+    const a = index.get(e.from)!;
+    const b = index.get(e.to)!;
+    if (a !== b) incoming[b]!.push(a);
+  });
+  const sweep = (row: number[], neighbors: (v: number) => number[]) => {
+    const key = new Map(row.map((v) => {
+      const near = neighbors(v);
+      return [v, near.length ? near.reduce((s, w) => s + pos[w]!, 0) / near.length : pos[v]!];
+    }));
+    row.sort((a, b) => key.get(a)! - key.get(b)! || nodes[a]!.order - nodes[b]!.order);
+  };
+  for (let pass = 0; pass < 4; pass++) {
+    for (let r = 1; r < ranks.length; r++) {
+      sweep(ranks[r]!, (v) => incoming[v]!);
+      place();
+    }
+    for (let r = ranks.length - 2; r >= 0; r--) {
+      sweep(ranks[r]!, (v) => out[v]!);
+      place();
+    }
+  }
+
+  const PAD_X = 16;
+  const PAD_Y = 8;
+  const size = nodes.map((n) => {
+    const tw = textWidth(f, n.text);
+    const th = n.text.length * f.line;
+    if (n.shape === "circle") {
+      const d = Math.max(tw, th) + PAD_Y * 2 + 8;
+      return { w: d, h: d };
+    }
+    if (n.shape === "diamond") return { w: tw * 1.5 + PAD_X * 2, h: th * 1.5 + PAD_Y * 3 };
+    return { w: Math.max(tw + PAD_X * 2, 48), h: th + PAD_Y * 2 };
+  });
+  const along = (v: number) => (vertical ? size[v]!.h : size[v]!.w);
+  const across = (v: number) => (vertical ? size[v]!.w : size[v]!.h);
+  const NODE_GAP = vertical ? 24 : 16;
+  const labelRoom = edges.reduce((m, e) => Math.max(m, e.text.length ? (vertical ? e.text.length * f.line : textWidth(f, e.text)) + 16 : 0), 0);
+  const RANK_GAP = Math.max(40, labelRoom + 24);
+  const MARGIN = 8;
+
+  const rankSize = ranks.map((row) => Math.max(0, ...row.map(along)));
+  const rowSpan = ranks.map((row) => row.reduce((s, v) => s + across(v), 0) + NODE_GAP * Math.max(0, row.length - 1));
+  const spanMax = Math.max(...rowSpan);
+  const hasBack = back.size > 0;
+  const sideRoom = hasBack ? 32 : 0;
+  const center = nodes.map(() => ({ a: 0, c: 0 }));
+  let cursor = MARGIN;
+  ranks.forEach((row, r) => {
+    let c = MARGIN + (spanMax - rowSpan[r]!) / 2;
+    for (const v of row) {
+      center[v] = { a: cursor + rankSize[r]! / 2, c: c + across(v) / 2 };
+      c += across(v) + NODE_GAP;
+    }
+    cursor += rankSize[r]! + RANK_GAP;
+  });
+  const totalAlong = cursor - RANK_GAP + MARGIN;
+  const totalAcross = spanMax + MARGIN * 2 + sideRoom;
+  const point = (a: number, c: number) => {
+    const aa = reverse ? totalAlong - a : a;
+    return vertical ? { x: c, y: aa } : { x: aa, y: c };
+  };
+
+  const svg = new Svg(doc);
+  const id = `mm${++diagramCount}`;
+  for (const e of edges) {
+    const a = index.get(e.from)!;
+    const b = index.get(e.to)!;
+    if (a === b) continue;
+    const ca = center[a]!;
+    const cb = center[b]!;
+    const cls = `mm-line${e.dashed ? " mm-dashed" : ""}${e.thick ? " mm-thick" : ""}`;
+    const marks: Record<string, string> = {};
+    if (e.head) marks["marker-end"] = `url(#${id}-arrow)`;
+    if (e.tail) marks["marker-start"] = `url(#${id}-arrow)`;
+    let d: string;
+    let mid: { x: number; y: number };
+    if (rank[b]! > rank[a]!) {
+      const s = point(ca.a + along(a) / 2, ca.c);
+      const t = point(cb.a - along(b) / 2, cb.c);
+      const m1 = point((ca.a + along(a) / 2 + cb.a - along(b) / 2) / 2, ca.c);
+      const m2 = point((ca.a + along(a) / 2 + cb.a - along(b) / 2) / 2, cb.c);
+      d = `M${s.x},${s.y} C${m1.x},${m1.y} ${m2.x},${m2.y} ${t.x},${t.y}`;
+      mid = { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 };
+    } else if (rank[b] === rank[a]) {
+      const left = ca.c < cb.c;
+      const s = point(ca.a, ca.c + (left ? 1 : -1) * across(a) / 2);
+      const t = point(cb.a, cb.c - (left ? 1 : -1) * across(b) / 2);
+      d = `M${s.x},${s.y} L${t.x},${t.y}`;
+      mid = { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 };
+    } else {
+      const edge = spanMax + MARGIN + sideRoom / 2;
+      const s = point(ca.a, ca.c + across(a) / 2);
+      const t = point(cb.a, cb.c + across(b) / 2);
+      const bendS = point(ca.a, edge);
+      const bendT = point(cb.a, edge);
+      d = `M${s.x},${s.y} C${bendS.x},${bendS.y} ${bendT.x},${bendT.y} ${t.x},${t.y}`;
+      mid = point((ca.a + cb.a) / 2, edge - sideRoom / 4);
+    }
+    svg.el(1, "path", { d, class: cls, fill: "none", ...marks });
+    if (e.text.length) {
+      const w = textWidth(f, e.text) + 8;
+      const h = e.text.length * f.line + 2;
+      svg.el(2, "rect", { x: mid.x - w / 2, y: mid.y - h / 2, width: w, height: h, rx: 3, class: "mm-label-bg" });
+      svg.text(2, f, mid.x, mid.y, e.text, "mm-text mm-muted");
+    }
+  }
+  nodes.forEach((n, v) => {
+    const c = point(center[v]!.a, center[v]!.c);
+    const { w, h } = size[v]!;
+    if (n.shape === "diamond") svg.el(3, "polygon", { points: `${c.x},${c.y - h / 2} ${c.x + w / 2},${c.y} ${c.x},${c.y + h / 2} ${c.x - w / 2},${c.y}`, class: "mm-node" });
+    else if (n.shape === "circle") svg.el(3, "circle", { cx: c.x, cy: c.y, r: w / 2, class: "mm-node" });
+    else if (n.shape === "hexagon") {
+      const k = h / 2;
+      svg.el(3, "polygon", { points: `${c.x - w / 2},${c.y} ${c.x - w / 2 + k},${c.y - h / 2} ${c.x + w / 2 - k},${c.y - h / 2} ${c.x + w / 2},${c.y} ${c.x + w / 2 - k},${c.y + h / 2} ${c.x - w / 2 + k},${c.y + h / 2}`, class: "mm-node" });
+    } else svg.el(3, "rect", { x: c.x - w / 2, y: c.y - h / 2, width: w, height: h, rx: n.shape === "stadium" ? h / 2 : n.shape === "round" ? 8 : 4, class: "mm-node" });
+    svg.text(4, f, c.x, c.y, n.text);
+  });
+  return vertical ? svg.finish(totalAcross, totalAlong, id) : svg.finish(totalAlong, totalAcross, id);
+}
+
+export function renderMermaid(doc: Document, source: string): SVGSVGElement | null {
+  const f = font();
+  if (!f) return null;
+  const lines = source
+    .split("\n")
+    .map((line) => line.replace(/%%.*$/, "").trim())
+    .filter(Boolean);
+  if (!lines.length) return null;
+  try {
+    if (lines[0] === "sequenceDiagram") return renderSequence(doc, lines.slice(1), f);
+    if (/^(flowchart|graph)\b/i.test(lines[0]!)) return renderFlow(doc, lines, f);
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function mermaidPreviews(html: string, label: string): string {
+  if (!html.includes("language-mermaid")) return html;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  let changed = false;
+  for (const code of doc.querySelectorAll("pre > code")) {
+    if (!MERMAID_LANGUAGE.test(code.className)) continue;
+    const svg = renderMermaid(doc, code.textContent ?? "");
+    if (!svg) continue;
+    const pre = code.parentElement!;
+    const card = doc.createElement("div");
+    card.className = "mermaid-preview";
+    const head = doc.createElement("div");
+    head.className = "mermaid-preview-head";
+    const name = doc.createElement("span");
+    name.textContent = label;
+    head.append(name);
+    const body = doc.createElement("div");
+    body.className = "mermaid-preview-body";
+    body.append(svg);
+    card.append(head, body);
+    pre.before(card);
+    pre.classList.add("mermaid-source");
+    pre.hidden = true;
+    changed = true;
+  }
+  return changed ? doc.body.innerHTML : html;
+}
+
+export function addMermaidButtons(root: HTMLElement, labels: { expand: string; showCode: string; hideCode: string; copy: string; copied: string }, onExpand: (svg: SVGSVGElement) => void) {
+  for (const card of root.querySelectorAll<HTMLElement>(".mermaid-preview")) {
+    const head = card.querySelector(":scope > .mermaid-preview-head");
+    const pre = card.nextElementSibling;
+    if (!head || !(pre instanceof HTMLPreElement) || head.querySelector("button")) continue;
+    const tools = document.createElement("span");
+    tools.className = "mermaid-preview-tools";
+    const button = (iconName: string) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "icon-button";
+      const icon = document.createElement("span");
+      icon.setAttribute("aria-hidden", "true");
+      icon.className = `codicon codicon-${iconName}`;
+      b.append(icon);
+      tools.append(b);
+      return { b, icon };
+    };
+    const svg = card.querySelector<SVGSVGElement>(":scope > .mermaid-preview-body > svg");
+    if (svg) {
+      const expand = button("screen-full");
+      expand.b.title = labels.expand;
+      expand.b.setAttribute("aria-label", labels.expand);
+      expand.b.addEventListener("click", () => onExpand(svg));
+      const body = svg.parentElement!;
+      body.title = labels.expand;
+      body.addEventListener("click", () => {
+        if (!window.getSelection()?.toString()) onExpand(svg);
+      });
+    }
+    const toggle = button("code");
+    const showToggle = () => {
+      const text = pre.hidden ? labels.showCode : labels.hideCode;
+      toggle.b.title = text;
+      toggle.b.setAttribute("aria-label", text);
+      toggle.b.setAttribute("aria-pressed", String(!pre.hidden));
+    };
+    showToggle();
+    toggle.b.addEventListener("click", () => {
+      pre.hidden = !pre.hidden;
+      showToggle();
+    });
+    const copy = button("copy");
+    const showCopy = (copied: boolean) => {
+      copy.icon.className = copied ? "codicon codicon-check" : "codicon codicon-copy";
+      copy.b.title = copied ? labels.copied : labels.copy;
+      copy.b.setAttribute("aria-label", copied ? labels.copied : labels.copy);
+    };
+    showCopy(false);
+    let timer: number | undefined;
+    copy.b.addEventListener("click", () => {
+      void navigator.clipboard.writeText(pre.querySelector("code")?.textContent ?? "").then(() => {
+        showCopy(true);
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => showCopy(false), 1500);
+      });
+    });
+    head.append(tools);
+  }
+}

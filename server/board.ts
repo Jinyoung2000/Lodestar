@@ -8,8 +8,6 @@ import { T } from "./strings";
 
 const BOARD_FILE = join(HOME, "board.json");
 
-// 칸반 보드의 저장과 검증. 값은 전부 여기서 검사하고 저장한다: 파일은 임시 파일에 쓴 뒤 rename 으로 바꿔서 도중에 끊겨도 반쪽 파일이 남지 않는다.
-// 워크스페이스와 세션이 실제로 있는지는 이 클래스가 모르므로 호출하는 쪽(server/index.ts)이 먼저 확인한다.
 export class BoardStore {
   private board: Board;
 
@@ -27,14 +25,12 @@ export class BoardStore {
     try {
       const raw = JSON.parse(readFileSync(BOARD_FILE, "utf8"));
       const board = sanitizeBoard(raw);
-      // 우선순위와 번호가 생기기 전 파일이면 방금 매긴 번호를 바로 저장한다(다음에 읽어도 같은 번호, 다음 번호도 이어짐).
       if (needsMigration(raw)) {
         this.board = board;
         this.save();
       }
       return board;
     } catch {
-      // 읽을 수 없는 파일은 덮어쓰지 않고 옆으로 치운다.
       const aside = `${BOARD_FILE}.corrupt-${Date.now()}`;
       renameSync(BOARD_FILE, aside);
       console.error(`[board] ${T.errBoardCorrupt(aside)}`);
@@ -113,7 +109,6 @@ export class BoardStore {
     this.column(columnId);
     if (typeof index !== "number" || !Number.isInteger(index)) throw new Error(T.errBadIndex);
     const next = moveCardIn(this.board, id, columnId, index);
-    // 열이 바뀔 때만 수정 시각을 갱신한다 (열 안 순서 바꾸기는 카드 내용이 아니다).
     const stamp = before.columnId === columnId ? before.updatedAt : new Date().toISOString();
     const cards = next.cards.map((c) => (c.id === id ? { ...c, updatedAt: stamp } : c));
     this.commit({ ...next, cards });
@@ -135,12 +130,10 @@ export class BoardStore {
     return next;
   }
 
-  // 자동 이동 대상. 대화의 한 부분을 담아 만든 카드는 그 세션이 도는 것과 상관없으므로 제외한다(다른 세션을 붙여 시작한 경우는 대상).
   cardsLinkedTo(agentId: string) {
     return this.board.cards.filter((c) => c.agentIds.includes(agentId) && c.source?.agentId !== agentId);
   }
 
-  // 지워진 세션과 워크스페이스를 카드에서 뗀다. 바뀐 것이 있으면 true.
   prune(liveAgentIds: Set<string>, liveWorkspaceIds: Set<string>) {
     let changed = false;
     const cards = this.board.cards.map((card) => {
@@ -154,7 +147,6 @@ export class BoardStore {
     return changed;
   }
 
-  // 자동 이동: 카드들을 목적지 열의 끝으로 옮긴다. 목적지 열이 없으면(사용자가 지움) 아무것도 하지 않는다.
   moveToRole(cardIds: string[], from: BoardRole[], to: BoardRole) {
     const target = columnByRole(this.board, to);
     if (!target) return false;
@@ -190,7 +182,6 @@ export class BoardStore {
     if (index === -1) throw new Error(T.errUnknownColumn(String(id)));
     if (this.board.columns.length === 1) throw new Error(T.errLastColumn);
     const columns = this.board.columns.filter((c) => c.id !== id);
-    // 카드는 바로 앞 열(첫 열을 지우면 다음 열)의 끝으로 옮긴다.
     const heir = columns[Math.max(0, index - 1)];
     const kept = this.board.cards.filter((c) => c.columnId !== id);
     const moved = this.board.cards.filter((c) => c.columnId === id).map((c) => ({ ...c, columnId: heir.id }));
@@ -203,7 +194,6 @@ export class BoardStore {
     this.commit(moveColumnIn(this.board, id, index));
   }
 
-  // 라벨 색을 팔레트 번호로 고정하거나(null 이면 기본 색으로) 되돌린다. 키는 소문자라 대소문자가 다른 같은 라벨은 한 색이다.
   setLabelColor(label: string, color: number | null) {
     const key = checkLabels([label])[0].toLowerCase();
     const labelColors = { ...this.board.labelColors };
@@ -220,8 +210,6 @@ export class BoardStore {
     this.commit({ ...this.board, cards: this.board.cards.map((c) => (c.id === next.id ? next : c)) });
   }
 }
-
-// --- 입력 검사 ---
 
 function checkTitle(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(T.errCardTitle);
@@ -261,7 +249,6 @@ function checkLinks(value: unknown): CardLink[] {
     } catch {
       throw new Error(T.errCardLink);
     }
-    // 화면에서 눌러 열리는 주소라 javascript: 나 file: 같은 스킴은 받지 않는다.
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error(T.errCardLink);
     if (title !== null && title !== undefined && (typeof title !== "string" || title.length > BOARD_LIMITS.linkTitle)) throw new Error(T.errCardField("links.title"));
     if (!links.some((l) => l.url === parsed.href)) links.push({ url: parsed.href, title: title?.trim() || null });
@@ -280,7 +267,6 @@ function checkOptionalId(value: unknown, field: string): string | null {
   return value;
 }
 
-// TOBOARD: 없으면 null. 있으면 세 필드의 모양을 검사한다. 세션이 실제로 있는지는 호출하는 쪽이 확인한다.
 function checkSource(value: unknown): CardSource | null {
   if (value === undefined || value === null) return null;
   const input = value as Partial<CardSource>;
@@ -299,7 +285,6 @@ function checkColumnName(value: unknown): string {
   return value.trim();
 }
 
-// 디스크의 source 는 모양이 틀리면 버린다(카드 전체를 버리지 않는다). 새 카드(strict)는 틀리면 던진다. 없으면 필드를 만들지 않아 옛 카드의 파일 모양이 그대로 남는다.
 function sanitizeSource(raw: unknown, strict = false): { source: CardSource } | Record<string, never> {
   try {
     const source = checkSource(raw);
@@ -310,7 +295,6 @@ function sanitizeSource(raw: unknown, strict = false): { source: CardSource } | 
   }
 }
 
-// 디스크에서 읽은 보드는 믿지 않고 모양을 다시 맞춘다. 모양이 아예 틀리면 던져서 파일을 치우게 한다.
 function sanitizeBoard(raw: unknown): Board {
   const input = raw as Partial<Board> | null;
   if (!input || !Array.isArray(input.columns) || !Array.isArray(input.cards) || input.columns.length === 0) throw new Error("bad board");
@@ -358,7 +342,6 @@ function sanitizeLabelColors(raw: unknown): Record<string, number> {
   return colors;
 }
 
-// 읽은 파일에 새 필드가 빠져 있으면 번호를 새로 매겼으므로 저장해야 한다.
 function needsMigration(raw: unknown): boolean {
   const input = raw as Partial<Board>;
   return typeof input.nextNumber !== "number" || (input.cards as Partial<BoardCard>[]).some((c) => typeof c?.number !== "number" || !isPriority(c.priority));

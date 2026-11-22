@@ -16,7 +16,6 @@ export function currentEditorOptions(): EditorOptions {
   return cache;
 }
 
-// 값이 바뀔 때만 listener 를 부른다(대화 상태가 바뀌는 잦은 갱신에는 부르지 않는다).
 export function subscribeEditorOptions(listener: (options: EditorOptions) => void) {
   let last = currentEditorOptions();
   const off = subscribe(() => {
@@ -28,7 +27,6 @@ export function subscribeEditorOptions(listener: (options: EditorOptions) => voi
   return () => void off();
 }
 
-// 직접 고른 값 하나를 저장한다. 고른 값 모음 전체를 바꿔 보낸다(데몬이 통째로 교체).
 export function saveEditorOption<K extends EditorOptionKey>(key: K, value: EditorOptions[K]) {
   const chosen = sanitizeEditorOptions(getState().settings?.editorOptions);
   void rpc.call("settings.set", { editorOptions: { ...chosen, [key]: value } });
@@ -39,7 +37,6 @@ export function resetEditorOption(key: EditorOptionKey) {
   void rpc.call("settings.set", { editorOptions: rest });
 }
 
-// editor.letterSpacing 는 CSS 변수로 쓴다(--editor-letter-spacing, 에디터 .cm-scroller 가 읽는다). 값이 바뀌면 Editor 가 같은 구독에서 다시 잰다.
 function applyLetterSpacing(options: EditorOptions) {
   if (typeof document === "undefined") return;
   document.documentElement.style.setProperty("--editor-letter-spacing", options.letterSpacing === 0 ? "normal" : `${options.letterSpacing}px`);

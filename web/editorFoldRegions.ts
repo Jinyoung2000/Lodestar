@@ -20,10 +20,8 @@ import { indentColumns } from "./editorGuidesModel";
 
 export type FoldSetup = { strategy: "auto" | "indentation"; markers: RegionMarkers | null; offSide: boolean };
 
-// 접기를 켠 에디터에만 있다. 없으면 접기 명령은 아무것도 하지 않는다.
 export const foldSetup = Facet.define<FoldSetup, FoldSetup | null>({ combine: (values) => values[0] ?? null });
 
-// 이 줄에서 시작하는 접기 구간. 없으면 null.
 export function regionAtLine(state: EditorState, lineNumber: number): FoldRegion | null {
   const setup = state.facet(foldSetup);
   if (!setup) return null;
@@ -37,7 +35,6 @@ export function regionAtLine(state: EditorState, lineNumber: number): FoldRegion
   return end === undefined ? null : { start: lineNumber, end };
 }
 
-// 시작 표식 줄에서 짝이 맞는 끝 표식 줄까지(중첩 고려). 끝 표식 줄도 구간에 들어간다.
 function markerRegion(doc: Text, lineNumber: number, markers: RegionMarkers): FoldRegion | null {
   let depth = 1;
   for (let n = lineNumber + 1; n <= doc.lines; n++) {
@@ -48,7 +45,6 @@ function markerRegion(doc: Text, lineNumber: number, markers: RegionMarkers): Fo
   return null;
 }
 
-// 언어가 구문 트리로 접기 정보를 주는지(foldNodeProp 을 가진 노드 종류가 있는지)
 const syntaxCapable = new WeakMap<object, boolean>();
 function hasSyntaxFolding(state: EditorState): boolean {
   const lang = state.facet(language);
@@ -92,7 +88,6 @@ function isUnfinished(node: { lastChild: { to: number; type: { isError: boolean 
   return child !== null && child.to === node.to && child.type.isError;
 }
 
-// 들여쓰기 구간은 본문이 바뀔 때만 다시 계산한다(같은 본문에서 줄마다 묻는다).
 const indentCache = new WeakMap<Text, Map<string, Map<number, number>>>();
 const INDENT_FOLD_MAX_LINES = 200_000;
 
@@ -112,12 +107,10 @@ function indentRegions(doc: Text, tabSize: number, offSide: boolean): Map<number
   return found;
 }
 
-// 구간을 CodeMirror 접기 범위로: 시작 줄 끝에서 마지막으로 숨는 줄의 끝까지
 export function rangeOf(doc: Text, region: FoldRegion): { from: number; to: number } {
   return { from: doc.line(region.start).to, to: doc.line(region.end).to };
 }
 
-// 문서 전체의 접기 구간
 function allRegions(state: EditorState): FoldRegion[] {
   const regions: FoldRegion[] = [];
   for (let n = 1; n <= state.doc.lines; n++) {
@@ -127,7 +120,6 @@ function allRegions(state: EditorState): FoldRegion[] {
   return regions;
 }
 
-// 줄 끝에서 시작하는 접힌 범위
 export function foldedAt(state: EditorState, line: { to: number }): { from: number; to: number } | null {
   let found: { from: number; to: number } | null = null;
   foldedRanges(state).between(line.to, line.to, (from, to) => {
@@ -173,7 +165,6 @@ export function toggleSpec(state: EditorState, regions: readonly FoldRegion[]): 
   return { effects, selection, scrollIntoView: true };
 }
 
-// 아이콘 클릭. 기본은 그 구간만, 수정키가 있으면 안쪽이나 다른 구간까지(planIconClick).
 export function iconClickSpec(state: EditorState, lineNumber: number, modifier: ClickModifier): TransactionSpec | null {
   const region = regionAtLine(state, lineNumber);
   if (!region) return null;
@@ -182,8 +173,6 @@ export function iconClickSpec(state: EditorState, lineNumber: number, modifier: 
   const index = model.regions.findIndex((candidate) => candidate.start === region.start);
   return index < 0 ? null : toggleSpec(state, planIconClick(model, index, modifier).map((i) => model.regions[i]!));
 }
-
-// --- 명령 ---
 
 type Planner = (model: FoldModel, state: EditorState) => number[];
 
@@ -195,7 +184,6 @@ function selectedLines(state: EditorState): number[] {
 
 const MAX = Number.MAX_VALUE;
 
-// 시작 줄 글이 블록 주석 여는 기호로 시작하는 구간(Fold All Block Comments)
 function blockCommentMatcher(state: EditorState): (startLine: number) => boolean {
   return (startLine) => {
     const line = state.doc.line(startLine);
@@ -226,7 +214,6 @@ export const FOLD_COMMANDS: readonly FoldCommandDef[] = [
   { id: "unfoldAllExcept", title: "Unfold All Except Selected", plan: (m, s) => planExcept(m, false, selectedLines(s)) },
 ];
 
-// 명령이 상태에 일으킬 변화. 접기를 켜지 않은 에디터거나 할 일이 없으면 null.
 export function foldCommandSpec(state: EditorState, command: FoldCommandDef): TransactionSpec | null {
   if (!state.facet(foldSetup)) return null;
   const model = foldModelOf(state);

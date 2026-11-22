@@ -14,9 +14,6 @@ import { isChordPending } from "./shortcuts";
 import { S } from "./strings";
 import { Button } from "./ui/button";
 
-// 메모 하나의 편집기. 코드 에디터(web/Editor.tsx)와 같은 CodeMirror 바탕, 글꼴, 색, 마크다운 강조를 쓰되 파일 탭과는 이어지지 않는 작은 보기다.
-// 글은 이 보기가 아니라 web/notesStore.ts 의 초안이 들고 있고, 보기는 바뀔 때마다 초안에 알린다(저장 시점은 저장소가 정한다).
-// 메모마다 새로 만든다(key=id): 메모를 옮기면 이전 보기가 사라지고 새 보기가 초안이나 데몬의 글로 시작한다.
 export function NoteEditor({ id }: { id: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -27,7 +24,6 @@ export function NoteEditor({ id }: { id: string }) {
   const remote = useNotes((s) => s.remote);
   const focusNonce = useNotes((s) => s.focusNonce);
   const focusSeen = useRef(focusNonce);
-  // 포커스 요청이 보기가 만들어지기 전에 왔으면 만들어진 뒤에 준다
   const pendingFocus = useRef(false);
 
   useEffect(() => {
@@ -42,7 +38,6 @@ export function NoteEditor({ id }: { id: string }) {
           state: EditorState.create({
             doc: text,
             extensions: [
-              // ⌘I 는 전역 빠른 질문이고, ⌘K 뒤의 ⌘화살표는 칸 이동 chord 의 두 번째 키다(Editor.tsx 와 같은 이유). chord 가 없을 때는 기본 편집 키 그대로다.
               Prec.highest(
                 keymap.of([
                   { key: "Mod-i", run: () => true },
@@ -89,7 +84,6 @@ export function NoteEditor({ id }: { id: string }) {
     };
   }, [id, retry]);
 
-  // 에디터 동작 설정과 코드 글꼴이 바뀌면 코드 에디터처럼 따라간다.
   useEffect(
     () =>
       subscribeEditorOptions((options) => {
@@ -102,12 +96,10 @@ export function NoteEditor({ id }: { id: string }) {
   );
   useEffect(() => subscribeEditorFont(() => viewRef.current?.requestMeasure()), []);
 
-  // 다른 창이 바꾼 글은 바뀐 부분만 갈아 끼워서 커서와 스크롤이 그대로 있게 한다.
   useEffect(() => {
     const view = viewRef.current;
     if (!view || !remote || remote.id !== id || remote.nonce === appliedRemote.current) return;
     appliedRemote.current = remote.nonce;
-    // 한글 같은 조합 입력 중에는 글을 갈아 끼우지 않고 조합이 끝난 뒤에 적용한다. 그 사이 이쪽에서 더 썼으면(초안이 바뀌었으면) 이쪽 글이 이긴다.
     const apply = () => {
       if (draftText(id) === remote.text) replaceChanged(view, remote.text);
     };
@@ -115,7 +107,6 @@ export function NoteEditor({ id }: { id: string }) {
     else apply();
   }, [remote, id]);
 
-  // 새 메모를 만들었거나 빈 메모가 이미 열려 있을 때 포커스를 준다.
   useEffect(() => {
     if (focusNonce === focusSeen.current) return;
     focusSeen.current = focusNonce;
@@ -136,7 +127,6 @@ export function NoteEditor({ id }: { id: string }) {
   return <div ref={hostRef} className="notes-editor-host" />;
 }
 
-// 앞뒤로 같은 글을 빼고 가운데만 바꾼다. 서로게이트 쌍(이모지)의 한가운데를 자르지 않도록 경계를 한 칸 넓힌다.
 function replaceChanged(view: EditorView, next: string) {
   const prev = view.state.doc.toString();
   if (prev === next) return;

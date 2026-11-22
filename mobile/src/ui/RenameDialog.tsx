@@ -4,8 +4,6 @@ import { radius, spacing, useColors } from "../theme/theme";
 import { Button } from "./Button";
 import { Text } from "./Text";
 
-// 세션 이름 바꾸기. Alert.prompt 는 iOS 에만 있어서(안드로이드에는 없다) 두 OS 가 같은 작은 창을 쓴다.
-// initial 이 null 이면 닫혀 있다. 저장이 실패하면 창 안에 이유를 보이고 열어 둔다.
 export function RenameDialog({ initial, onSubmit, onClose }: { initial: string | null; onSubmit: (title: string) => Promise<void>; onClose: () => void }) {
   const colors = useColors();
   const [text, setText] = useState("");

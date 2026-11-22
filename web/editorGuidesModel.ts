@@ -1,7 +1,5 @@
-// 줄마다 들여쓰기 칸 수를 돌려주는 원본. 공백뿐인 줄은 -1 이다. 줄 번호는 0부터.
 export type IndentSource = { lineCount: number; indentOf: (lineIndex: number) => number };
 
-// 앞쪽 공백과 탭으로 잰 들여쓰기 칸 수. 탭은 다음 탭 칸까지 올린다. 공백뿐이거나 빈 줄은 -1.
 export function indentColumns(text: string, tabSize: number): number {
   let columns = 0;
   let i = 0;
@@ -14,8 +12,6 @@ export function indentColumns(text: string, tabSize: number): number {
   return i === text.length ? -1 : columns;
 }
 
-// 빈 줄의 단 수: 위아래 가장 가까운 비어 있지 않은 줄의 들여쓰기에서 정한다.
-// offSide 언어(python, yaml 등)는 아래 줄을 따른다.
 export function whitespaceLineLevel(offSide: boolean, above: number, below: number, indentSize: number): number {
   if (above === -1 || below === -1) return 0;
   if (above < below) return 1 + Math.floor(above / indentSize);
@@ -23,7 +19,6 @@ export function whitespaceLineLevel(offSide: boolean, above: number, below: numb
   return 1 + Math.floor(below / indentSize);
 }
 
-// firstLine..lastLine(1부터, 양 끝 포함) 줄마다 그릴 안내선 수
 export function guideCounts(source: IndentSource, firstLine: number, lastLine: number, indentSize: number, offSide: boolean): number[] {
   const counts: number[] = [];
   let prevIndent = -1;
@@ -67,12 +62,10 @@ export function guideCounts(source: IndentSource, firstLine: number, lastLine: n
   return counts;
 }
 
-// 커서가 있는 줄이 속한 들여쓰기 블록: 줄 범위와 그 블록의 단 번호(1부터). indent 가 0 이면 활성 안내선이 없다.
 export type ActiveGuide = { startLine: number; endLine: number; indent: number };
 
 export function activeGuide(source: IndentSource, line: number, minLine: number, maxLine: number, indentSize: number, offSide: boolean): ActiveGuide {
   const lineCount = source.lineCount;
-  // 위쪽 줄 기준으로 가까운 비어 있지 않은 줄을 찾는 캐시: 위로, 아래로
   let aboveOfUp = -2;
   let aboveIndentOfUp = -1;
   let belowOfUp = -2;

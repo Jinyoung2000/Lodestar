@@ -10,8 +10,6 @@ import { reloadWorkspaceChanges } from "./workspaceChanges";
 import { onWorkspaceChanged } from "./workspaceEvents";
 import { announce } from "./announce";
 
-// FIX6B: 충돌 마커가 있는 파일 탭 머리 아래의 띠. 남은 충돌 개수와 이전/다음 이동, 다 풀리면 Mark as Resolved(저장하고 stage)를 보인다.
-// 충돌 파일이 아닌 평범한 파일에서는 아무것도 그리지 않는다(마커가 있었던 적이 있을 때만 git 상태를 묻는다).
 export function ConflictBar({ tabKey, workspaceId, path }: { tabKey: string; workspaceId: string; path: string }) {
   const count = useConflictCount(tabKey);
   const hadMarkers = useRef(false);
@@ -29,13 +27,11 @@ export function ConflictBar({ tabKey, workspaceId, path }: { tabKey: string; wor
   const markResolved = async () => {
     if (!unmerged || busy) return;
     const view = docView(tabKey);
-    // 마커가 남아 있으면 저장하지 않는다
     if (view && conflictBlocks(view.state).length > 0) return;
     setBusy(true);
     try {
       if (!(await saveTab(tabKey))) return;
       await rpc.call("scm.stage", { workspaceId, paths: [unmerged] });
-      // 충돌 목록에서 그 파일이 빠지는 것이 보이므로 낭독만 한다
       announce(M.markedResolved(name));
       void reloadWorkspaceChanges(workspaceId);
     } catch (error) {
@@ -68,7 +64,6 @@ export function ConflictBar({ tabKey, workspaceId, path }: { tabKey: string; wor
   );
 }
 
-// 이 파일이 git 에서 아직 병합 충돌 상태(Merge Changes)인지. 그렇다면 저장소 루트 기준 경로를 돌려준다.
 function useUnmergedEntry(workspaceId: string, path: string, enabled: boolean): string | null {
   const [rel, setRel] = useState<string | null>(null);
   const dir = useStore((s) => s.workspaces.find((w) => w.id === workspaceId)?.dir ?? "");

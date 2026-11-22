@@ -1,14 +1,12 @@
 import { SearchCursor } from "@codemirror/search";
 import type { EditorState } from "@codemirror/state";
 
-// OverviewRulerLane: Left 1, Center 2, Right 4, Full 7
 export type RulerLane = 1 | 2 | 4 | 7;
 export const LANE_LEFT = 1;
 export const LANE_CENTER = 2;
 export const LANE_RIGHT = 4;
 export const LANE_FULL = 7;
 
-// 가운데 칸이 남는 폭을 가져간다. 첫 칸은 왼쪽 경계선 1 장치 픽셀 뒤에서 시작한다. 인덱스는 칸 비트 합(1 왼쪽, 2 가운데, 4 오른쪽).
 export type RulerLanes = { x: number[]; w: number[] };
 
 export function rulerLanes(canvasWidth: number): RulerLanes {
@@ -22,16 +20,12 @@ export function rulerLanes(canvasWidth: number): RulerLanes {
   return { x: [0, c, l, c, u, c, l, c], w: [0, left, center, left + center, right, left + center + right, center + right, left + center + right] };
 }
 
-// 문서 세로 좌표(스크롤 높이 기준 px)로 적은 표시 하나
 export type RulerZone = { lane: RulerLane; top: number; bottom: number; color: string; z: number };
 export type RulerRect = { color: string; x: number; y: number; w: number; h: number };
 
-// 표시의 최소 높이는 6 CSS px(장치 픽셀로는 6*dpr). 더 작으면 가운데에 맞춰 키운다.
 export const MIN_ZONE_CSS_PX = 6;
 export const CURSOR_CSS_PX = 2;
 
-// 같은 (z, 색) 묶음 안에서 칸, 위치 순으로 훑고, 같은 칸에서 1 장치 픽셀 이하로 떨어진 표시는 한 사각형으로 합친다.
-// 묶음은 z 가 낮은 것부터 그려 높은 것이 위에 온다(오류 30, 경고 20, 정보 10).
 export function layoutZones(zones: readonly RulerZone[], metrics: { scrollHeight: number; canvasHeight: number; dpr: number; lanes: RulerLanes }): RulerRect[] {
   const { scrollHeight, canvasHeight, dpr, lanes } = metrics;
   if (scrollHeight <= 0 || canvasHeight <= 0) return [];
@@ -75,7 +69,6 @@ export function layoutZones(zones: readonly RulerZone[], metrics: { scrollHeight
   return rects;
 }
 
-// 커서 선: 높이 2 CSS px, 전체 폭(칸 7). 위치는 커서 줄의 위쪽. 이어진 줄은 한 선으로 합친다.
 export function layoutCursors(cursors: readonly { top: number; color: string }[], metrics: { scrollHeight: number; canvasHeight: number; dpr: number; lanes: RulerLanes }): RulerRect[] {
   const { scrollHeight, canvasHeight, dpr, lanes } = metrics;
   if (scrollHeight <= 0 || canvasHeight <= 0) return [];
@@ -103,7 +96,6 @@ export function layoutCursors(cursors: readonly { top: number; color: string }[]
   return rects;
 }
 
-// 세로 스크롤바 슬라이더. 최소 길이 20, 가로 스크롤바가 있으면 그 폭만큼 트랙이 짧다.
 export const MIN_SLIDER = 20;
 
 export type SliderMetrics = { needed: boolean; size: number; position: number; ratio: number; track: number };
@@ -131,7 +123,6 @@ export function overSlider(metrics: SliderMetrics, offset: number): boolean {
   return metrics.needed && offset >= metrics.position && offset <= metrics.position + metrics.size;
 }
 
-// highlightSelectionMatches() 와 같은 조건(커서 하나, 비어 있지 않은 선택, 200자 이하)에서 선택과 같은 글을 문서 전체에서 찾는다. 선택 자신은 뺀다.
 export const SELECTION_MATCH_MAX_LENGTH = 200;
 export const SELECTION_MATCH_LIMIT = 2000;
 const SELECTION_SCAN_MAX_CHARS = 4_000_000;

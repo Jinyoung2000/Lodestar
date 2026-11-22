@@ -15,7 +15,6 @@ type Location = { uri: string; range: LspRange };
 type LocationLink = { originSelectionRange?: LspRange; targetUri: string; targetRange: LspRange; targetSelectionRange: LspRange };
 
 export function definitionLink(workspaceId: string): Extension {
-  // 진단은 hover 상자의 한 블록으로 보인다(lint 자체 툴팁은 Editor.tsx 테마에서 숨긴다).
   return [linkField, modifierField, quickFix(), showTooltip.compute([linkField], (state) => linkTooltip(state.field(linkField), workspaceId)), lspHover(workspaceId), Prec.highest(ViewPlugin.define((view) => new DefinitionLinkController(view, workspaceId)))];
 }
 
@@ -34,7 +33,6 @@ class DefinitionLinkController {
     view.dom.addEventListener("mousemove", this.onMouseMove);
     view.dom.addEventListener("mouseleave", this.onMouseLeave);
     view.dom.addEventListener("mousedown", this.onMouseDown, true);
-    // 키 상태는 에디터에 포커스가 없어도(마우스만 올려 둔 채 ⌘ 를 눌러도) 바뀌어야 하므로 창 전체에서 듣는다.
     window.addEventListener("keydown", this.onKey, true);
     window.addEventListener("keyup", this.onKey, true);
     window.addEventListener("blur", this.onBlur);
@@ -73,7 +71,6 @@ class DefinitionLinkController {
     this.clear();
   };
 
-  // 클릭은 정의로 이동하므로(Editor.tsx 의 mousedown) 그 순간 링크는 쓸모를 다한다.
   private onMouseDown = () => this.clear();
 
   private onKey = (event: KeyboardEvent) => {
@@ -103,7 +100,6 @@ class DefinitionLinkController {
     const id = ++this.requestId;
     void this.resolve(hit).then((link) => {
       if (id !== this.requestId || !this.modifier) return;
-      // 정의를 기다리는 사이 마우스가 다른 글자로 옮겨 갔으면 그 글자의 요청이 따로 뒤따른다.
       if (link && this.pointer) {
         const now = wordUnder(view, this.pointer);
         if (!now || now.pos < link.from || now.pos > link.to) return;
@@ -142,7 +138,6 @@ class DefinitionLinkController {
   }
 }
 
-// 마우스 아래 글자(식별자). 줄 끝 너머나 글자 사이 빈 곳이면 null 이라 기호가 아닌 데서는 밑줄이 안 생긴다.
 function wordUnder(view: EditorView, point: { x: number; y: number }): { pos: number; word: Range } | null {
   const pos = view.posAtCoords(point);
   if (pos == null) return null;
@@ -154,8 +149,6 @@ function wordUnder(view: EditorView, point: { x: number; y: number }): { pos: nu
   if (point.y < start.top || point.y > start.bottom || point.x < start.left || point.x > end.right) return null;
   return { pos, word };
 }
-
-// --- 정의 미리보기 ---
 
 async function loadPreview(location: Location | LocationLink, workspaceId: string): Promise<Preview | null> {
   const uri = "targetUri" in location ? location.targetUri : location.uri;

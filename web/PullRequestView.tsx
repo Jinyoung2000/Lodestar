@@ -14,7 +14,6 @@ import { relativeTime } from "./sessionList";
 import type { PrViewTab } from "./store";
 import { Button } from "./ui/button";
 
-// 가운데에 열리는 PR 화면(사이드바 목록에서 연 것). 열린 PR 이 없으면 아무것도 그리지 않는다.
 export function PullRequestView() {
   const ref = usePr((s) => s.views[CENTER]?.ref ?? null);
   const scope = useMemo(() => ({ id: CENTER, ref }), [ref]);
@@ -26,11 +25,9 @@ export function PullRequestView() {
   );
 }
 
-// 에디터 칸의 탭으로 열리는 PR 화면(대화 속 링크에서 연 것). 같은 화면 컴포넌트를 쓰고, 탭 키로 자기 자리의 상태를 갖는다.
 export function PullRequestTab({ tab, active }: { tab: PrViewTab; active: boolean }) {
   const ref = useMemo<PrRef>(() => ({ repo: tab.repo, number: tab.number }), [tab.repo, tab.number]);
   const scope = useMemo(() => ({ id: tab.key, ref }), [tab.key, ref]);
-  // 창을 다시 읽어 복원된 탭은 상태가 비어 있다
   useEffect(() => ensureTabView(tab.key, ref), [tab.key, ref]);
   return (
     <PrViewContext.Provider value={scope}>
@@ -39,15 +36,12 @@ export function PullRequestTab({ tab, active }: { tab: PrViewTab; active: boolea
   );
 }
 
-// 머리(제목, 상태, 브랜치, 동작), Overview, Commits, Files Changed 탭. 가운데에 있을 때만 머리에 "세션으로 돌아가기" 가 있다(탭은 탭의 닫기 버튼이 있다).
-// 에디터 칸의 탭 본문은 활성이 아니어도 마운트된 채 남으므로 active 가 아니면 숨긴다(상태와 스크롤은 그대로).
 function PrScreen({ inTab, active }: { inTab: boolean; active: boolean }) {
   const open = usePrView((v) => v.ref);
   const detail = usePrView((v) => v.detail);
   const error = usePrView((v) => v.detailError);
   const loading = usePrView((v) => v.detailLoading);
   const tab = usePrView((v) => v.tab);
-  // 생성 파일은 Files Changed 목록에서 빠지므로 수도 같이 뺀다. 목록을 읽기 전에는 GitHub 가 준 전체 수다.
   const fileCount = usePrView((v) => v.files?.filter((f) => !isGeneratedPath(f.path)).length ?? v.detail?.changedFiles ?? 0);
   const commitCount = usePrView((v) => v.detail?.commitCount ?? 0);
   const busy = usePrView((v) => v.busy);
@@ -56,7 +50,6 @@ function PrScreen({ inTab, active }: { inTab: boolean; active: boolean }) {
   const now = useNow();
   useAnchorFocus(body);
 
-  // 창을 다시 읽은 뒤에는 열린 PR 의 내용이 비어 있다
   useEffect(() => {
     if (open && !detail && !loading && !error) void actions.reload();
   }, [open, detail, loading, error, actions]);
@@ -147,7 +140,6 @@ function PrScreen({ inTab, active }: { inTab: boolean; active: boolean }) {
           <PrReview />
         </div>
       </header>
-      {/* PR 마다 새로 만든다. 가운데 화면에서 다른 PR 을 열면 앞 PR 의 머지 확인 단계와 입력 중인 코멘트가 새 PR 에 남지 않게 */}
       <div className="pr-view-body" ref={body} key={refKey(open)}>
         {error && <div className="pr-empty">{error}</div>}
         {!error && !detail && <div className="pr-empty">{P.loading}</div>}
@@ -159,8 +151,6 @@ function PrScreen({ inTab, active }: { inTab: boolean; active: boolean }) {
   );
 }
 
-// 주소의 #앵커(코멘트, 리뷰, 체크)로 열렸으면 상세가 도착한 뒤 그 대상이 있는 탭과 파일로 옮기고, 요소가 그려지면 가운데로 스크롤해 잠깐 강조한다.
-// 대상이 없으면(지워졌거나 100개 한도 밖) 조용히 멈춘다. smooth 는 스크롤 컨테이너 안에서 조용히 취소되므로 쓰지 않는다.
 function useAnchorFocus(body: RefObject<HTMLElement | null>) {
   const focus = usePrView((v) => v.focus);
   const detail = usePrView((v) => v.detail);
@@ -177,7 +167,6 @@ function useAnchorFocus(body: RefObject<HTMLElement | null>) {
       return;
     }
     if (target.tab !== tab || (target.file !== null && target.file !== selectedFile)) actions.showFocus(target.tab, target.file);
-    // 앵커가 오면 한 번만 옮긴다(그 뒤 사용자가 탭을 바꿔도 되돌리지 않는다)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, detail]);
 
@@ -187,7 +176,6 @@ function useAnchorFocus(body: RefObject<HTMLElement | null>) {
     if (!target) return;
     const there = tab === target.tab && (target.file === null || (selectedFile === target.file && files !== null));
     if (!there) return;
-    // 해결된 스레드는 이 렌더 뒤의 effect 에서 펼쳐지므로 요소가 조금 늦게 생긴다
     let timer: ReturnType<typeof setTimeout> | undefined;
     let tries = 0;
     const find = () => {

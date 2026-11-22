@@ -1,5 +1,3 @@
-// 대화 속 이미지와 영상 미리보기의 읽기 허용 규칙(server/media.ts)과 GET /media(server/mediaHttp.ts) 시험.
-// 임시 폴더에 작업 폴더, 데몬 홈, scratchpad, 바깥 폴더를 만들고 진짜 http 서버(포트 0)로 요청한다. 실행: npm test
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { createServer, request, type IncomingHttpHeaders } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -21,7 +19,6 @@ const expect = (condition: boolean, detail: string) => {
 };
 const same = (actual: unknown, wanted: unknown, what = "") => expect(JSON.stringify(actual) === JSON.stringify(wanted), `${what} got ${JSON.stringify(actual)}, wanted ${JSON.stringify(wanted)}`);
 
-// 파일 만들기
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(992, 7)]);
 const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypisom"), Buffer.alloc(2000, 9)]);
 const MOV = Buffer.concat([Buffer.from([0, 0, 0, 0x14]), Buffer.from("ftypqt  "), Buffer.alloc(100, 1)]);
@@ -183,7 +180,6 @@ test("한꺼번에 확인: 순서와 길이 유지, 읽을 수 없는 것은 nul
   expect(threw, "배열이 아니면 오류");
 });
 
-// 진짜 서버
 type Reply = { status: number; headers: IncomingHttpHeaders; body: Buffer };
 function startServer() {
   const key = mediaKey("unit-token");
@@ -358,7 +354,6 @@ test("HTTP: 서명 뒤에 바뀐 파일(링크로 교체, 내용 교체, 삭제,
     put(target, PNG);
     truncateSync(target, 33 * 1024 * 1024);
     same((await get(s.port, url)).status, 404, "크기 초과");
-    // 폴더가 링크로 바뀐 경우: 경로는 같지만 realpath 가 다르다
     const dirTarget = join(scratch, "swapdir");
     put(join(dirTarget, "a.png"), PNG);
     const dirUrl = urlFor(s.key, join(dirTarget, "a.png"));

@@ -4,7 +4,6 @@ import { Text } from "./Text";
 
 type Props = { title: string; onPress: () => void; kind?: "primary" | "secondary" | "danger" | "plain"; disabled?: boolean; busy?: boolean; style?: StyleProp<ViewStyle>; flex?: boolean };
 
-// 높이 48pt(최소 터치 44pt 위). 눌린 상태는 색 농도로 보인다.
 export function Button({ title, onPress, kind = "secondary", disabled, busy, style, flex }: Props) {
   const colors = useColors();
   const bg = kind === "primary" ? colors.accent : kind === "danger" ? colors.danger : kind === "plain" ? "transparent" : colors.overlay;

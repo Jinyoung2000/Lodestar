@@ -18,7 +18,6 @@ const SECTION_GROUP: Record<Section, GroupId> = { browser: "browser", import: "i
 export function SettingsView() {
   const section = useStore((s) => (s.overlay?.kind === "status" ? s.overlay.section : undefined));
   const ctx = useSettingsCtx();
-  // 대화상자는 포털에 늦게 붙으므로 ref 객체 대신 상태로 받아야 크기 관찰이 시작된다
   const [dialogEl, setDialogEl] = useState<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [modifiedOnly, setModifiedOnly] = useState(false);
@@ -62,7 +61,6 @@ function SettingsSearch({ query, onQuery, modifiedOnly, onModifiedOnly, found, o
           spellCheck={false}
           onChange={(e) => onQuery(e.target.value)}
           onKeyDown={(e) => {
-            // 검색어가 있을 때 Esc 는 창을 닫지 않고 검색어만 지운다
             if (e.key === "Escape" && query) {
               e.stopPropagation();
               onQuery("");
@@ -89,7 +87,6 @@ function SettingsSearch({ query, onQuery, modifiedOnly, onModifiedOnly, found, o
 function SettingsBody({ ctx, groups, counts, visibleIds, searching, modifiedOnly, section }: { ctx: SettingsCtx; groups: GroupId[]; counts: Map<GroupId, number>; visibleIds: Set<string>; searching: boolean; modifiedOnly: boolean; section: GroupId | undefined }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState<GroupId | null>(null);
-  // 목차를 눌러 이동하는 동안에는 눌린 묶음을 그대로 강조한다. 사용자가 직접 스크롤하면 풀린다.
   const pinned = useRef<GroupId | null>(null);
 
   const spy = () => {
@@ -108,7 +105,6 @@ function SettingsBody({ ctx, groups, counts, visibleIds, searching, modifiedOnly
   };
 
   useEffect(spy, [groups.join(",")]);
-  // 다른 화면에서 특정 묶음을 열라고 한 경우. 포맷 목록처럼 늦게 오는 값이 있어 묶음이 보일 때까지 기다리지 않고 한 번만 이동한다.
   const jumped = useRef(false);
   useLayoutEffect(() => {
     if (section && !jumped.current && groups.includes(section)) {
@@ -190,7 +186,6 @@ function SettingRow({ def, ctx }: { def: SettingDef; ctx: SettingsCtx }) {
   );
 }
 
-// RELEASE: New version available 행의 상태 줄. 켜져 있고 최신 릴리스를 한 번이라도 읽었을 때만 보인다.
 function ReleaseVersions() {
   const on = useStore((s) => s.settings?.notifyNewVersion === true);
   const release = useStore((s) => s.release);
@@ -206,7 +201,6 @@ function ReleaseVersions() {
   );
 }
 
-// 이 높이(space-6)만큼 위에 머리가 걸린 묶음까지를 읽는 중으로 본다
 const SLACK = 24; // lint-tokens: allow 스크롤 계산용 숫자(space-6)
 
 function metaOf(def: SettingDef, ctx: SettingsCtx): SettingMeta {
@@ -221,7 +215,6 @@ function metaOf(def: SettingDef, ctx: SettingsCtx): SettingMeta {
   };
 }
 
-// 모든 행이 읽는 화면 상태를 한 번에 모은다. 값이 바뀔 때만 새 객체가 되도록 원본 참조로 메모한다.
 function useSettingsCtx(): SettingsCtx | null {
   const settings = useStore((s) => s.settings);
   const defaults = useStore((s) => s.defaults);
@@ -250,7 +243,6 @@ function useFormatConfig() {
   return config;
 }
 
-// 창 폭이 NARROW_WIDTH 아래면 목차를 접는다
 function useNarrow(el: HTMLElement | null) {
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {

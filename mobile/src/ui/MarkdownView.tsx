@@ -6,9 +6,6 @@ import { radius, spacing, useColors } from "../theme/theme";
 import { Icon } from "./Icon";
 import { Text } from "./Text";
 
-// 마크다운을 React Native 로 그린다. 문단과 목록과 인용은 글자 크기가 Dynamic Type 을 따르고,
-// 코드 블록과 표는 가로로 스크롤한다(줄바꿈하지 않아 들여쓰기가 유지된다). 같은 글의 파싱은 logic/markdown.ts 가 기억한다.
-
 type Tokens = Token[] | undefined;
 type Any = Token & Record<string, unknown>;
 
@@ -65,7 +62,6 @@ function Block({ token, selectable, last }: { token: Any; selectable: boolean; l
     case "space":
       return null;
     default:
-      // html 같은 나머지는 글자 그대로 보인다
       return typeof token.raw === "string" && token.raw.trim() ? (
         <Text selectable={selectable} style={{ marginBottom: gap }}>
           {token.raw.trim()}
@@ -74,7 +70,6 @@ function Block({ token, selectable, last }: { token: Any; selectable: boolean; l
   }
 }
 
-// 인라인: 굵게, 기울임, 코드, 링크, 취소선, 줄바꿈. 안쪽 Text 는 바깥 문단의 글자 크기를 그대로 상속한다.
 function Inline({ tokens, fallback }: { tokens: Tokens; fallback: string }): ReactNode {
   const colors = useColors();
   if (!tokens || tokens.length === 0) return <>{fallback}</>;
@@ -109,7 +104,6 @@ function Inline({ tokens, fallback }: { tokens: Tokens; fallback: string }): Rea
             );
           case "link": {
             const href = t.href;
-            // 열 수 없는 주소는 링크로 보이지 않고 글자만 남는다
             if (!isOpenableLink(href)) return <Inline key={i} tokens={t.tokens as Tokens} fallback={String(t.text ?? "")} />;
             return (
               <Text key={i} color="accentText" style={{ textDecorationLine: "underline", fontSize: undefined, lineHeight: undefined }} onPress={() => void Linking.openURL(href).catch(() => {})}>
@@ -136,7 +130,6 @@ function Inline({ tokens, fallback }: { tokens: Tokens; fallback: string }): Rea
   );
 }
 
-// marked 는 인라인 text 의 &amp; 같은 엔티티를 그대로 남긴다
 function decode(text: string) {
   return text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 }
@@ -167,7 +160,6 @@ function List({ token, selectable, marginBottom }: { token: Any; selectable: boo
 
 const CODE_PREVIEW_LINES = 40;
 
-// 코드 블록: 고정폭, 가로 스크롤, 긴 블록은 40줄까지만 보이고 펼친다. 길게 눌러 복사할 필요 없이 복사 단추가 있다.
 function CodeBlock({ code, lang, marginBottom }: { code: string; lang: string; marginBottom: number }) {
   const colors = useColors();
   const [copied, setCopied] = useState(false);
@@ -208,7 +200,6 @@ function CodeBlock({ code, lang, marginBottom }: { code: string; lang: string; m
   );
 }
 
-// 한글과 한자는 영문보다 넓다. 표 열 너비를 글자 종류로 어림한다(14pt 기준).
 function textWidth(text: string) {
   let width = 0;
   for (const ch of text) width += /[\u1100-\u11ff\u3040-\u30ff\u3130-\u318f\u4e00-\u9fff\uac00-\ud7af]/.test(ch) ? 15 : /[A-Z0-9]/.test(ch) ? 10 : 8;

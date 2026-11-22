@@ -26,7 +26,6 @@ export const P = {
   changesRequested: "Changes requested",
   reviewRequired: "Review required",
   rowAria: (number: number, title: string) => `Pull request #${number} ${title}`,
-  // 열린 PR 화면
   overview: "Overview",
   filesChanged: "Files Changed",
   commits: "Commits",
@@ -60,7 +59,6 @@ export const P = {
   requested: "Review requested",
   truncated: "This pull request has more than 100 threads or comments. Only the first 100 are shown.",
   notFound: "Pull request not found.",
-  // 파일
   files: (n: number) => `${n} files`,
   viewed: "Viewed",
   noPatch: "No diff is available for this file (binary or too large). Open it on GitHub.",
@@ -90,7 +88,6 @@ export const P = {
   edit: "Edit",
   delete: "Delete",
   deleteConfirm: "Delete this comment?",
-  // 리뷰 제출
   finishReview: "Review",
   submitReview: "Submit Review",
   reviewBodyPlaceholder: "Leave a review summary (optional)",
@@ -117,7 +114,6 @@ export const P = {
   openPrTip: (n: number) => `Open #${n} in Lodestar`,
   openCheckTip: (name: string) => `Open ${name} on GitHub`,
   noChecks: "No checks",
-  // 머지 영역(Overview 아래). 문구는 확장의 pr-description 웹뷰와 같다.
   mergeSection: "Merge",
   prMerged: "Pull request successfully merged.",
   prClosed: "This pull request is closed.",
@@ -138,7 +134,6 @@ export const P = {
   selectMergeMethod: "Select merge method",
   mergeMethod: { merge: "Create Merge Commit", squash: "Squash and Merge", rebase: "Rebase and Merge" } satisfies Record<PrMergeMethod, string>,
   notEnabled: " (not enabled)",
-  // 확인 단계의 제출 버튼. rebase 만 앞에 Confirm 이 붙는다
   confirmMerge: (method: PrMergeMethod, label: string) => (method === "rebase" ? `Confirm ${label}` : label),
   commitTitle: "Commit title",
   commitBody: "Commit message",
@@ -150,7 +145,6 @@ export const P = {
   deleteRemoteBranch: "Delete Remote Branch",
   deletedRemoteBranch: (branch: string) => `Deleted remote branch ${branch}.`,
   branchGone: "The pull request branch was already deleted.",
-  // 코드 보기(hover, 정의 이동)의 상태 표시. 파일 머리의 작은 표시와 그 title
   lspLoading: "Loading",
   lspLoadingTitle: "Opening this file for hover and Go to Definition.",
   lspOff: "Code navigation off",

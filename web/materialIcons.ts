@@ -33,7 +33,6 @@ export function fileIconId(theme: IconTheme, path: string, scheme: Scheme): stri
   const light = scheme === "light" ? theme.light : null;
   const byName = light?.fileNames[name] ?? theme.fileNames[name];
   if (byName) return byName;
-  // a.test.ts 의 확장자 후보는 test.ts, ts 순서다. 점 하나만 앞에 있는 .gitignore 류는 gitignore 가 후보다.
   for (let dot = name.indexOf("."); dot !== -1; dot = name.indexOf(".", dot + 1)) {
     const extension = name.slice(dot + 1);
     const byExtension = light?.fileExtensions[extension] ?? theme.fileExtensions[extension];
@@ -62,8 +61,6 @@ export function iconUrl(id: string): string {
   return `/material-icons/${id}.svg`;
 }
 
-// --- 매핑 파일은 처음 쓸 때 읽는다(번들과 별도 청크). 읽는 동안은 기본 아이콘이 보이고 도착하면 바뀐다. ---
-
 let loaded: IconTheme | null = null;
 let loading: Promise<void> | null = null;
 const listeners = new Set<() => void>();
@@ -87,7 +84,6 @@ export function useIconTheme(): IconTheme | null {
   );
 }
 
-// <html data-theme> 가 light 인지. 테마를 바꾸면 같이 바뀐다.
 export function useScheme(): Scheme {
   return useSyncExternalStore(
     (listener) => {

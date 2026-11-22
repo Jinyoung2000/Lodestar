@@ -21,7 +21,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Several tests create commits in temporary repositories.
       - name: Git identity for test repositories
         run: |
           git config --global user.name "CI"
@@ -39,13 +38,9 @@ jobs:
       - name: React hooks lint
         run: npm run lint:hooks
 
-      # The daemon serves the web build, and one test loads a page from it,
-      # so the build comes before the tests. It also proves the bundles compile.
       - name: Build
         run: npm run build
 
-      # The tests use fakes for the Claude CLI, gh, Codex, the keychain and xcrun,
-      # and start their own daemon on a temporary data folder and a free port.
       - name: Tests
         run: npm test
 
@@ -65,8 +60,6 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
-      # The phone client's tests import the daemon's pairing code from ../server,
-      # which needs the root dependencies.
       - name: Install root dependencies
         run: npm ci
         working-directory: .

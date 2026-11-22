@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type HTMLAttributes } from "react";
 import type { Harness, PermissionMode } from "../shared/protocol";
-import { CODEX_MODE_NOTES, codexSupportsMode } from "../shared/codexPermission"; // CODEX
+import { CODEX_MODE_NOTES, codexSupportsMode } from "../shared/codexPermission";
+import { ANTIGRAVITY_MODE_NOTES } from "../shared/antigravityPermission";
 import { PermissionAsk, PermissionAuto, PermissionBypass, PermissionEdits, PermissionPlan } from "./icons";
 import { Popup } from "./Popup";
 import { S } from "./strings";
@@ -11,8 +12,6 @@ export const PERMISSION_MODES: { value: PermissionMode; label: string; descripti
   description: S.permissionDescriptions[value],
 }));
 
-// ⇧Tab 이 도는 순서. 세션을 늘 allowDangerouslySkipPermissions 로 띄우므로(server/agents.ts) Claude Code 의 bypass 허용 세션처럼 bypassPermissions 까지 돈다.
-// Codex 에 없는 모드(plan)는 건너뛴다.
 const CYCLE: readonly PermissionMode[] = ["default", "acceptEdits", "plan", "auto", "bypassPermissions"];
 export function nextPermissionMode(mode: PermissionMode, harness: Harness = "claude"): PermissionMode {
   const modes = harness === "codex" ? CYCLE.filter(codexSupportsMode) : CYCLE;
@@ -59,7 +58,7 @@ export function PermissionRow({ mode, onChange, tip, harness = "claude" }: { mod
                 data-active={index === active || undefined}
                 data-tone={m.value === "bypassPermissions" ? "warn" : undefined}
                 disabled={harness === "codex" && !codexSupportsMode(m.value)}
-                title={harness === "codex" ? CODEX_MODE_NOTES[m.value] : undefined}
+                title={harness === "codex" ? CODEX_MODE_NOTES[m.value] : harness === "antigravity" ? ANTIGRAVITY_MODE_NOTES[m.value] : undefined}
                 onMouseEnter={() => setActive(index)}
                 onClick={() => {
                   setOpen(false);
@@ -68,7 +67,7 @@ export function PermissionRow({ mode, onChange, tip, harness = "claude" }: { mod
               >
                 <PermissionModeIcon mode={m.value} size={12} />
                 <span className="permission-option-name">{m.label}</span>
-                <span className="permission-option-description">{harness === "codex" ? S.permissionDescriptionsCodex[m.value] : m.description}</span>
+                <span className="permission-option-description">{harness === "codex" ? S.permissionDescriptionsCodex[m.value] : harness === "antigravity" ? S.permissionDescriptionsAntigravity[m.value] : m.description}</span>
               </button>
             ))}
           </div>
@@ -86,7 +85,6 @@ export function PermissionRow({ mode, onChange, tip, harness = "claude" }: { mod
   );
 }
 
-// 권한 모드마다 아이콘 하나. 줄과 메뉴 항목이 같은 기호를 쓴다.
 export function PermissionModeIcon({ mode, size = 16 }: { mode: PermissionMode; size?: number }) {
   if (mode === "acceptEdits") return <PermissionEdits size={size} />;
   if (mode === "plan") return <PermissionPlan size={size} />;

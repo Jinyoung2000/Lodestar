@@ -22,7 +22,6 @@ import { hiddenCommands } from "./screenVisibility";
 import { openBrowser, setState, useStore } from "./store";
 import { S } from "./strings";
 
-// 빠른 선택창 모음: 파일 열기(⌘P), 워크스페이스 심볼(⇧⌘O), 통합 검색(⌘K, 세션 선택 ⌃⌥R), 명령 팔레트(⇧⌘P).
 export function Overlays() {
   const overlay = useStore((s) => s.overlay);
   return (
@@ -46,8 +45,6 @@ export function Overlays() {
   );
 }
 
-// --- 명령 팔레트 ---
-
 function CommandPalette({ initialQuery }: { initialQuery: string }) {
   const [query, setQuery] = useState(initialQuery);
   const [index, setIndex] = useState(0);
@@ -68,7 +65,6 @@ function CommandPalette({ initialQuery }: { initialQuery: string }) {
   const choose = (item: PaletteCommand | undefined) => {
     if (!item) return;
     setState({ overlay: null });
-    // 대화상자가 닫히며 포커스를 돌려주는 일이 끝난 뒤에 실행해야 입력창 포커스 같은 명령이 묻히지 않는다
     setTimeout(() => runCommand(item.command), 0);
   };
 
@@ -79,7 +75,6 @@ function CommandPalette({ initialQuery }: { initialQuery: string }) {
       placeholder={S.commandPlaceholder}
       query={query}
       onQuery={(value) => {
-        // ">" 를 지우면 파일 열기로 바뀐다
         if (!value.startsWith(">")) {
           setState({ overlay: { kind: "quickOpen" }, quickOpenQuery: value });
           return;
@@ -110,8 +105,6 @@ function CommandPalette({ initialQuery }: { initialQuery: string }) {
     </Palette>
   );
 }
-
-// --- 심볼 검색(빠른 열기는 QuickOpen.tsx) ---
 
 const SYMBOL_KIND: Record<number, string> = {
   5: "class",
@@ -158,7 +151,6 @@ function SymbolSearch({ initialQuery }: { initialQuery: string }) {
     return () => clearTimeout(timer);
   }, [workspaceId, query]);
 
-  // CMDT: 링크 모양의 글이면 심볼 결과 위에 실행 줄을 붙인다. 심볼 검색은 같은 글로 그대로 돈다.
   const actions = useMemo(() => linkActions(query), [query]);
   const simulator = useBootedSimulators(needsSimulator(actions));
   const linkRowList = useMemo(() => linkRows(actions, simulator), [actions, simulator]);
@@ -239,7 +231,6 @@ function LinkRowButton({ row, active, onRun }: { row: LinkRow; active: boolean; 
   );
 }
 
-// 켜진 시뮬레이터 목록. 링크 줄이 시뮬레이터를 필요로 하게 될 때마다 새로 읽는다(그 사이 기기가 켜지거나 꺼졌을 수 있다).
 function useBootedSimulators(enabled: boolean): SimulatorState | null {
   const [booted, setBooted] = useState<SimulatorState | null>(null);
   useEffect(() => {

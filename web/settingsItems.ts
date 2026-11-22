@@ -17,16 +17,11 @@ import { S } from "./strings";
 import { N } from "./notionStrings";
 import { isModified, type GroupId } from "./settingsSchema";
 
-// Settings 화면의 행 정의. 데이터만 담고 화면은 SettingsView.tsx 가 그린다.
-// 행 하나는 짧은 이름, 설명, 컨트롤 종류와 읽기/쓰기, 기본값(바뀜 표시와 Reset)을 가진다. 저장은 기존과 같이 settings.set 이고 검증은 서버(server/store.ts)에서 한다.
-
 export type FormatConfig = { formatOnSave: boolean; source: import("../shared/protocol").DefaultSource; languages: FormatLanguage[] };
 
-// 값을 읽고 되돌릴 때 필요한 화면 상태 모음. SettingsView 가 한 번 모아서 모든 행에 넘긴다.
 export type SettingsCtx = {
   settings: Settings;
   draft: DraftDefaults;
-  // 데몬이 해석한 기본값(출처 포함). 옛 데몬이면 null
   defaults: ResolvedDefaults | null;
   diffView: DiffView;
   format: FormatConfig | null;
@@ -45,9 +40,7 @@ type Common = {
   source?: (c: SettingsCtx) => string | null;
   modified: (c: SettingsCtx) => boolean;
   reset?: (c: SettingsCtx) => void;
-  // 컨트롤이 길어 설명 아래 한 줄을 다 쓰는 행
   wide?: boolean;
-  // 설명 아래에 붙는 상태 줄(SettingsView 가 그린다). release 는 설치된 버전과 최신 버전, 릴리스 노트 링크
   extra?: "release";
 };
 
@@ -62,7 +55,6 @@ export type SettingDef = Common &
 
 const save = (patch: Partial<Settings>) => void rpc.call("settings.set", patch);
 
-// settings.json 의 키 하나를 그대로 읽고 쓰는 행에 공통으로 붙는 부분. 값이 없으면 def 를 쓴다.
 function plain<K extends keyof Settings>(key: K, def: NonNullable<Settings[K]>) {
   const current = (c: SettingsCtx) => c.settings[key] ?? def;
   return {
@@ -88,14 +80,11 @@ const modelValue = (c: SettingsCtx) => {
   return c.draft.model ? (models.find((m) => m.value === c.draft.model || m.resolvedModel === c.draft.model)?.value ?? c.draft.model) : "";
 };
 
-// "While Claude is replying" 행에서 고른 값 없음(null)을 나타내는 선택지 값
 const FOLLOW_VSCODE = "vscode";
 
 const BUDGET_CHOICES = [0.1, 0.25, 0.5, 1, 2];
 const INBOX_INTERVALS = [0, 5, 10, 30];
-// FIX3-7: 0 은 닫지 않음
 const KEEP_WARM_MINUTES = [5, 10, 30, 60, 0];
-// PERFDAEMON: 0 은 한도 없음
 const MAX_WARM_SESSIONS = [2, 3, 4, 6, 8, 0];
 
 function editorOptionRow(def: EditorOptionDef): SettingDef {
@@ -117,7 +106,6 @@ function editorOptionRow(def: EditorOptionDef): SettingDef {
 }
 
 export const SETTING_DEFS: readonly SettingDef[] = [
-  // --- Appearance ---
   {
     ...text("theme"),
     group: "appearance",
@@ -146,14 +134,12 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   { ...text("chatFontSize"), group: "appearance", kind: "number", ...plain("chatFontSize", UI_TYPE_DEFAULTS.chatFontSize), value: (c) => c.settings.chatFontSize ?? UI_TYPE_DEFAULTS.chatFontSize, set: (v) => save(chatSizePatch(getState().settings, v)), reset: () => save(chatSizePatch(getState().settings, UI_TYPE_DEFAULTS.chatFontSize)), ...UI_TYPE_RANGES.chatFontSize, step: 0.5 },
   { ...text("chatLineHeight"), group: "appearance", kind: "number", ...plain("chatLineHeight", UI_TYPE_DEFAULTS.chatLineHeight), value: (c) => c.settings.chatLineHeight ?? UI_TYPE_DEFAULTS.chatLineHeight, set: (v) => save({ chatLineHeight: v }), ...UI_TYPE_RANGES.chatLineHeight, step: 0.5 },
 
-  // --- Layout ---
   {
     ...text("defaultLayout"),
     group: "layout",
     kind: "enum",
     ...plain("defaultLayout", "chat"),
     value: (c) => c.settings.defaultLayout ?? "chat",
-    // 고르면 시작 배치만 바꾸지 않고 지금 화면도 그 배치로 바꾼다(사용자 10-20 "근데 안바뀌는데"). 세션별 기억이 켜져 있으면 지금 세션의 배치로 기억된다.
     set: (v) => {
       save({ defaultLayout: v as LayoutMode });
       setLayoutMode(v as LayoutMode);
@@ -190,7 +176,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     ],
   },
 
-  // --- Editor ---
   { ...text("editorFontFamily"), group: "editor", kind: "text", wide: true, commit: "change", checkFont: true, ...plain("editorFontFamily", EDITOR_FONT_DEFAULTS.editorFontFamily), value: (c) => c.settings.editorFontFamily ?? EDITOR_FONT_DEFAULTS.editorFontFamily, set: (v) => save({ editorFontFamily: v }) },
   { ...text("editorFontSize"), group: "editor", kind: "number", ...plain("editorFontSize", EDITOR_FONT_DEFAULTS.editorFontSize), value: (c) => c.settings.editorFontSize ?? EDITOR_FONT_DEFAULTS.editorFontSize, set: (v) => save({ editorFontSize: v }), min: 8, max: 32, step: 0.5 },
   { ...text("editorLineHeight"), group: "editor", kind: "number", ...plain("editorLineHeight", EDITOR_FONT_DEFAULTS.editorLineHeight), value: (c) => c.settings.editorLineHeight ?? EDITOR_FONT_DEFAULTS.editorLineHeight, set: (v) => save({ editorLineHeight: v }), min: 10, max: 64, step: 1 },
@@ -223,7 +208,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
 
   ...EDITOR_OPTION_DEFS.map(editorOptionRow),
 
-  // --- Diff ---
   {
     ...text("diffView"),
     group: "diff",
@@ -245,7 +229,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     reset: () => save({ diffInlineWhenNarrow: null }),
   },
 
-  // --- Formatting ---
   {
     ...text("formatOnSave"),
     group: "formatting",
@@ -267,7 +250,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     reset: () => save({ formatters: {} }),
   },
 
-  // --- Browser ---
   {
     ...text("browserDataStorage"),
     group: "browser",
@@ -327,7 +309,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   },
   { ...text("browserUserTools"), group: "browser", kind: "switch", ...plain("browserUserTools", false), value: (c) => c.settings.browserUserTools ?? false, set: (v) => save({ browserUserTools: v }) },
 
-  // --- Board, Notifications ---
   { ...text("showBoard"), group: "board", kind: "switch", ...plain("showBoard", false), value: (c) => c.settings.showBoard ?? false, set: (v) => save({ showBoard: v }) },
   { ...text("boardAutoMove"), group: "board", kind: "switch", ...plain("boardAutoMove", true), value: (c) => c.settings.boardAutoMove ?? true, set: (v) => save({ boardAutoMove: v }) },
   { ...text("morningReviewEnabled"), group: "board", kind: "switch", ...plain("morningReviewEnabled", true), value: (c) => c.settings.morningReviewEnabled ?? true, set: (v) => save({ morningReviewEnabled: v }) },
@@ -347,7 +328,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   { ...text("notifyOnApproval"), group: "notifications", kind: "switch", ...plain("notifyOnApproval", true), value: (c) => c.settings.notifyOnApproval ?? true, set: (v) => save({ notifyOnApproval: v }) },
   { ...text("notifyNewVersion"), group: "notifications", kind: "switch", ...plain("notifyNewVersion", false), value: (c) => c.settings.notifyNewVersion ?? false, set: (v) => save({ notifyNewVersion: v }), keywords: "update release version github", extra: "release" },
 
-  // --- Slack Mentions ---
   { ...text("showSlack"), group: "mentions", kind: "switch", ...plain("showSlack", false), value: (c) => c.settings.showSlack ?? false, set: (v) => save({ showSlack: v }) },
   { ...text("autoAddRequests"), group: "mentions", kind: "switch", ...plain("autoAddRequests", false), value: (c) => c.settings.autoAddRequests ?? false, set: (v) => save({ autoAddRequests: v }) },
   {
@@ -414,7 +394,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     ],
   },
 
-  // --- New Session Defaults: 값 옆 출처, Reset 은 고른 값(출처가 last 면 마지막으로 고른 값)을 지운다 ---
   {
     ...text("defaultPermissionMode"),
     group: "sessions",
@@ -426,7 +405,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     reset: (c) => (c.draft.permissionSource === "last" ? forgetPick("permissionMode") : save({ defaultPermissionMode: null })),
     options: () => PERMISSION_MODES.map((m) => ({ value: m.value, label: m.label })),
   },
-  // QUICKENTRY: 전역 빠른 입력창. 등록은 Electron 메인이 하고(web/quickEntrySync.ts 가 설정을 알린다), 상태는 단축키 행이 보인다.
   { ...text("expandSteps"), group: "sessions", kind: "switch", keywords: "steps tools collapse expand finished working", ...plain("expandSteps", false), value: (c) => c.settings.expandSteps === true, set: (v) => save({ expandSteps: v }) },
   { ...text("quickEntryEnabled"), group: "general", kind: "switch", keywords: "global shortcut hotkey option c quick entry launcher", ...plain("quickEntryEnabled", true), value: (c) => c.settings.quickEntryEnabled ?? true, set: (v) => save({ quickEntryEnabled: v }) },
   {
@@ -493,7 +471,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     reset: (c) => (c.draft.effortSource === "last" ? forgetPick("effort") : save({ defaultEffort: null })),
     options: (c) => {
       const levels = supportedLevels(c.draft.model);
-      // 고른 모델이 지원하지 않는 단계가 이미 저장돼 있어도 현재 값은 목록에 남긴다.
       const list: EffortLevel[] = c.draft.effort && !levels.includes(c.draft.effort) ? EFFORT_LEVELS.filter((l) => levels.includes(l) || l === c.draft.effort) : levels;
       return list.map((l) => ({ value: l, label: effortName(l) }));
     },
@@ -549,14 +526,11 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   { ...text("feedbackAutoTidy"), group: "general", kind: "switch", ...plain("feedbackAutoTidy", false), value: (c) => c.settings.feedbackAutoTidy ?? false, set: (v) => save({ feedbackAutoTidy: v }), keywords: "improvements feedback worktree backup disk cleanup" },
   { ...text("useProviderEnv"), group: "general", kind: "switch", ...plain("useProviderEnv", false), value: (c) => c.settings.useProviderEnv ?? false, set: (v) => save({ useProviderEnv: v }), keywords: "api key anthropic bedrock vertex foundry billing environment" },
 
-  // --- Mobile ---
   { ...text("mobileAccess"), group: "mobile", kind: "switch", ...plain("mobileAccess", false), value: (c) => c.settings.mobileAccess ?? false, set: (v) => save({ mobileAccess: v }), keywords: "iphone phone ios lan qr pairing" },
   { ...text("mobilePairing"), group: "mobile", kind: "custom", component: "mobileAccess", wide: true, keywords: "iphone phone ios qr pairing device code", modified: () => false },
 
-  // --- Linear ---
   { ...text("linear"), group: "linear", kind: "custom", component: "linear", wide: true, keywords: "issues tickets api key keychain board", modified: () => false },
 
-  // --- 목록과 상태 ---
   { ...text("importSessions"), group: "import", kind: "custom", component: "importSessions", wide: true, keywords: "vscode claude session history", modified: () => false },
   { ...text("mcpServers"), group: "mcp", kind: "custom", component: "mcpServers", wide: true, keywords: "server connector reconnect", modified: () => false },
   { ...text("daemon"), group: "status", kind: "custom", component: "daemon", wide: true, keywords: "account version connection", modified: () => false },

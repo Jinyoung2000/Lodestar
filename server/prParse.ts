@@ -1,8 +1,6 @@
 import { commitTexts, requiredReviews } from "../shared/prMerge";
 import type { PrChecksState, PrCheck, PrCommit, PrComment, PrDetail, PrFile, PrListResult, PrMergeInfo, PrQueryName, PrReviewer, PrSummary, PrThread, PrTimelineEntry, PrUser } from "../shared/prTypes";
 
-// GraphQL 문서와 응답 변환. 순수 함수만 둔다(시험 대상). 연산 이름은 가짜 gh 가 응답을 고르는 키이기도 하다.
-
 const SUMMARY_FIELDS = `number title url isDraft state updatedAt reviewDecision baseRefName headRefName
   author { login avatarUrl }
   comments { totalCount }
@@ -15,13 +13,11 @@ export const LIST_QUERY = `query PrList($waiting: String!, $assigned: String!, $
   all: search(query: $all, type: ISSUE, first: 30) { nodes { ... on PullRequest { ${SUMMARY_FIELDS} } } }
 }`;
 
-// GitHub Pull Requests 확장의 기본 쿼리와 같은 조건: 열린 PR, 내 리뷰 대기, 나에게 배정, 내가 만듦, 전부.
 export function listVariables(repo: string): Record<PrQueryName, string> {
   const base = `repo:${repo} is:pr is:open sort:updated-desc`;
   return { waiting: `${base} review-requested:@me`, assigned: `${base} assignee:@me`, created: `${base} author:@me`, all: base };
 }
 
-// 일반 코멘트(IssueComment)에는 state 와 pullRequestReview 가 없다(실제 GitHub 가 거절한다).
 const ISSUE_COMMENT_FIELDS = `id fullDatabaseId body createdAt lastEditedAt viewerCanUpdate viewerCanDelete author { login avatarUrl }`;
 const COMMENT_FIELDS = `${ISSUE_COMMENT_FIELDS} state pullRequestReview { id state }`;
 
@@ -60,7 +56,6 @@ export const DETAIL_QUERY = `query PrDetail($owner: String!, $name: String!, $nu
   }
 }`;
 
-// 원격 브랜치 삭제 직전에 다시 읽는 것: PR 이 정말 닫혔는지, 화면이 본 ref 가 지금의 head 인지, 기본 브랜치가 아닌지
 export const DELETE_BRANCH_QUERY = `query PrDeleteBranchInfo($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { pullRequest(number: $number) { state headRefName headRef { id } headRepository { defaultBranchRef { name } } } }
 }`;
@@ -69,7 +64,7 @@ export const VIEWED_QUERY = `query PrViewed($owner: String!, $name: String!, $nu
   repository(owner: $owner, name: $name) { pullRequest(number: $number) { files(first: 100) { nodes { path viewerViewedState } } } }
 }`;
 
-type Json = Record<string, any>; // lint 대상 아님: GraphQL 응답은 모양을 믿고 읽는다
+type Json = Record<string, any>;
 
 const user = (raw: Json | null | undefined): PrUser | null => (raw?.login ? { login: String(raw.login), avatarUrl: raw.avatarUrl ?? null } : null);
 
@@ -181,7 +176,6 @@ function parseReviewers(raw: Json): PrReviewer[] {
 
 const WRITE_PERMISSIONS = new Set(["WRITE", "MAINTAIN", "ADMIN"]);
 
-// 머지 영역 값. 필드가 없으면(옛 가짜 응답, 권한이 없어 null) 머지를 막는 쪽으로 읽는다: 방식 전부 꺼짐, 쓰기 권한 없음.
 export function parseMergeInfo(repo: string, repository: Json, pr: Json): PrMergeInfo {
   const headOwner = pr.headRepositoryOwner?.login ?? repo.split("/")[0];
   const headLabel = `${headOwner}:${pr.headRefName ?? ""}`;
@@ -246,7 +240,6 @@ export function parseDetail(repo: string, data: Json): PrDetail {
   };
 }
 
-// REST /pulls/N/files 의 한 항목과 GraphQL files 의 viewed 상태를 합친다.
 export function parseFiles(rest: Json[], viewed: Json): PrFile[] {
   const states = new Map<string, boolean>();
   for (const node of (viewed.repository?.pullRequest?.files?.nodes ?? []) as Json[]) states.set(node.path, node.viewerViewedState === "VIEWED");

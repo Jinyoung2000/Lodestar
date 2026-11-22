@@ -1,5 +1,3 @@
-// FBMERGE: 피드백과 본 작업 폴더가 같은 파일을 둘 다 고쳤을 때 3-way 병합으로 합쳐 반영하는 흐름 단독 시험(임시 git 저장소와 임시 홈, 모델 호출 없음).
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,8 +16,6 @@ const { FeedbackRunner } = await import("../server/feedback");
 const { canRetryChecks } = await import("../shared/feedbackRetry");
 type Runner = InstanceType<typeof FeedbackRunner>;
 
-// 검사 스크립트(루트에 한 벌, worktree 안에서 돈다): 검사가 본 styles.css 를 <repo>.seen 에 남기고,
-// <repo>.hook.json 이 있으면 검사 도중 다른 에이전트가 본 작업 폴더를 고치는 것처럼 파일을 쓴다. always 면 매번(n 을 올리며), 아니면 한 번.
 const HOOK = join(root, "hook.mjs");
 writeFileSync(
   HOOK,
@@ -40,7 +36,6 @@ writeFileSync("dist/index.html", "built");
 `,
 );
 
-// l1..l20 한 줄씩. over 로 몇 줄만 바꾼다.
 const styles = (over: Record<number, string> = {}) => Array.from({ length: 20 }, (_, i) => over[i + 1] ?? `l${i + 1}`).join("\n") + "\n";
 
 function sourceRepo(name: string, extra: Record<string, string | Buffer> = {}) {
@@ -93,7 +88,6 @@ async function settled(runner: Runner, id: string) {
   throw new Error(`timed out at ${runner.get(id).status}`);
 }
 
-// 피드백을 만들고, 개선 세션이 worktree 를 고친 것처럼 edit 한 뒤 턴이 끝난 상태까지 돌린다. main 은 피드백이 시작된 뒤 본 작업 폴더에서 일어난 변경.
 async function runFeedback(runner: Runner, main: () => void, edit: (worktree: string) => void) {
   const feedback = await runner.create({ text: "change the styles", element: null, screenshot: null, screenshotNote: null });
   main();
@@ -105,7 +99,6 @@ async function runFeedback(runner: Runner, main: () => void, edit: (worktree: st
 
 const setLines = (worktree: string, over: Record<number, string>) => writeFileSync(join(worktree, "web/styles.css"), styles(over));
 
-// 1. 같은 파일의 다른 줄: 병합되고, 검사가 양쪽 변경을 본 채로 통과해 반영된다.
 let applied: { src: ReturnType<typeof sourceRepo>; runner: Runner; id: string };
 {
   const src = sourceRepo("src1");
@@ -120,14 +113,12 @@ let applied: { src: ReturnType<typeof sourceRepo>; runner: Runner; id: string };
   applied = { src, runner, id };
 }
 
-// 2. 병합 반영 뒤 revert: 반영 직전 본 작업 폴더의 파일로 돌아간다(본 작업 폴더의 변경은 남고 피드백 변경만 빠진다).
 {
   const { src, runner, id } = applied;
   await runner.revert(id);
   check("revert after a merged apply restores the main folder's own version", runner.get(id).status === "reverted" && src.read("web/styles.css") === styles({ 15: "main-l15" }));
 }
 
-// 3. 같은 줄: 충돌로 실패, 본 작업 폴더 파일은 그대로. 그 사이 본 작업 폴더가 충돌 줄을 되돌리면 Retry 로 반영된다.
 {
   const src = sourceRepo("src3");
   const { runner } = harness(src.dir);
@@ -153,7 +144,6 @@ let applied: { src: ReturnType<typeof sourceRepo>; runner: Runner; id: string };
   check("result has the feedback line and the main folder's other line", src.read("web/styles.css") === styles({ 3: "fb-l3", 15: "main-l15" }));
 }
 
-// 4. 검사와 반영 사이에 본 작업 폴더가 또 바뀌면 자동으로 sync + 병합 + 검사를 한 번 더 돌고 반영한다.
 {
   const src = sourceRepo("src4");
   const { runner } = harness(src.dir);
@@ -165,7 +155,6 @@ let applied: { src: ReturnType<typeof sourceRepo>; runner: Runner; id: string };
   check("both changes are in the main folder", src.read("web/styles.css") === styles({ 3: "fb-l3", 15: "main-l15" }));
 }
 
-// 4b. 검사 도중 본 작업 폴더의 다른 줄이 두 번 바뀌어도(줄이 겹치지 않는 경쟁) 세 번째 시도에서 반영된다. 실패 카드를 거치지 않는다.
 {
   const src = sourceRepo("src4b");
   const { runner } = harness(src.dir);
@@ -177,7 +166,6 @@ let applied: { src: ReturnType<typeof sourceRepo>; runner: Runner; id: string };
   check("a race is not marked as a conflict", !f.conflict);
 }
 
-// 5. 세 번 시도해도 또 바뀌면 실패하고(Merge Again), 바뀌는 게 멈춘 뒤 다시 병합하면 반영된다.
 {
   const src = sourceRepo("src5");
   const { runner } = harness(src.dir);
@@ -195,7 +183,6 @@ let applied: { src: ReturnType<typeof sourceRepo>; runner: Runner; id: string };
   check("retry applies once the main folder stops changing", runner.get(id).status === "applied" && src.read("web/styles.css") === styles({ 3: "fb-l3", 15: "main-edit-3" }), runner.get(id).failure ?? "");
 }
 
-// 5b. 반영 뒤 만든 다음 피드백은 반영된 파일을 기준으로 시작한다: 두 피드백이 같은 파일을 순서대로 반영한다.
 {
   const src = sourceRepo("src5b");
   const { runner } = harness(src.dir);
@@ -204,7 +191,6 @@ let applied: { src: ReturnType<typeof sourceRepo>; runner: Runner; id: string };
   check("two feedbacks on one file apply in order", runner.get(first).status === "applied" && runner.get(second).status === "applied" && src.read("web/styles.css") === styles({ 3: "fb1-l3", 18: "fb2-l18" }), `${runner.get(first).status} ${runner.get(first).failure ?? ""} / ${runner.get(second).status} ${runner.get(second).failure ?? ""}`);
 }
 
-// 6. 합치지 않는 경우(바이너리, 양쪽 새 파일, 한쪽 삭제)는 파일을 그대로 두고 이유와 함께 실패한다.
 {
   const src = sourceRepo("src6", { "web/bin.dat": Buffer.from([1, 0, 2, 3]), "web/gone.txt": "gone\n", "web/dead.txt": "dead\n" });
   const { runner } = harness(src.dir);
@@ -233,7 +219,6 @@ let applied: { src: ReturnType<typeof sourceRepo>; runner: Runner; id: string };
   check("main folder files are untouched", src.read("web/new.txt") === "main new\n" && src.read("web/gone.txt") === "gone, edited in main\n" && !existsSync(join(src.dir, "web/dead.txt")) && [...readFileSync(join(src.dir, "web/bin.dat"))].join() === "1,0,9,9");
 }
 
-// 7. 양쪽이 똑같이 고친 파일은 충돌이 아니라 그대로 합쳐지고, 반영 목록에는 피드백만의 변경이 남는다.
 {
   const src = sourceRepo("src7");
   const { runner } = harness(src.dir);

@@ -1,16 +1,19 @@
 import type { ServerEvent, UserAttachment } from "../shared/protocol";
 import type { AgentRunner } from "./agents";
 import type { BoardStore } from "./board";
-import { discardUpload, resolveFiles } from "./fileAttach"; // FILEATTACH
+import { discardUpload, resolveFiles } from "./fileAttach";
 import { generateHandoff, readHandoff, saveHandoff } from "./handoff";
 import { saveImage } from "./images";
+import { join } from "node:path";
+import { resolveInside } from "./files";
+import { openWithDefaultApp } from "./reveal";
 import { sessionFiles } from "./sessionTouch";
-import type { Store } from "./store";
+import { HOME, type Store } from "./store";
 import type { HandlersFor, MethodsIn } from "./rpcHandlers";
 
 export type AgentHandlerDeps = { store: Store; runner: AgentRunner; board: BoardStore; broadcast: (event: ServerEvent) => void };
 
-export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<MethodsIn<"agents">, "agents.timelinePage" | "agents.worktreeStatus" | "agents.setLinearIssue" | "agents.respondNotionWrite"> | MethodsIn<"handoff"> | MethodsIn<"diffFeedback"> | MethodsIn<"images"> | MethodsIn<"attachments"> | "app.showAgent"> {
+export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<MethodsIn<"agents">, "agents.timelinePage" | "agents.worktreeStatus" | "agents.setLinearIssue" | "agents.respondNotionWrite" | "agents.moveToFolder"> | MethodsIn<"handoff"> | MethodsIn<"diffFeedback"> | MethodsIn<"images"> | MethodsIn<"attachments"> | "app.showAgent"> {
   const { store, runner, board, broadcast } = deps;
   return {
     "agents.list": () => store.agents,
@@ -19,11 +22,11 @@ export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<Metho
       if (params.boardCardId !== undefined) board.card(params.boardCardId);
       return runner.create(params);
     },
-    // HANDOFF: 인계 문서. 만드는 데 모델을 한 번 부르므로 응답이 늦을 수 있다(화면이 칩에 진행 표시를 둔다).
+    "agents.addFolder": ({ agentId, workspaceId }) => runner.addFolder(agentId, workspaceId),
+    "agents.removeFolder": ({ agentId, workspaceId }) => runner.removeFolder(agentId, workspaceId),
     "handoff.create": async ({ agentId }) => {
-      runner.assertClaude(agentId, "Handoff"); // CODEX
+      runner.assertClaude(agentId, "Handoff");
       const agent = store.agent(agentId);
-      // FIX4A: 문서 질문이 이 세션이 만진 파일을 폴더 전체의 변경과 구분하게, Session 범위와 같은 장부의 목록을 넘긴다
       const files = agent.workspaceId === null ? null : (await sessionFiles(agent, store).catch(() => null))?.map((f) => f.rel) ?? null;
       return generateHandoff(agent, files);
     },
@@ -32,24 +35,16 @@ export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<Metho
       saveHandoff(id, text);
       return null;
     },
-    // B3: 응답 중이면 steer 가 아닌 한 큐에 들어간다. 전송 자체(모델 호출)는 기다리지 않고, 큐에 들어갔는지만 바로 돌려준다.
     "agents.send": async ({ agentId, prompt, steer, images, files }) => {
-      // FILEATTACH: 파일은 여기서 먼저 확인한다(사라졌으면 이 호출이 실패해 화면이 입력을 그대로 두고 알린다). 모델에는 글 뒤에 경로 블록이 붙은 메시지가 가고, 말풍선에는 글(display)과 파일 칩이 보인다.
       const attached = await resolveFiles(files);
-      const queued = runner.willQueue(agentId, steer === true);
-      // fixB: 이미지는 칩(말풍선 위 썸네일)과 모델에 가는 image 블록으로 함께 간다. 글이 없는 메시지의 말풍선은 칩만 둔다.
       const chips: UserAttachment[] = [...(images ?? []).map((image) => ({ kind: "image" as const, ...image })), ...attached.chips];
       const attach = chips.length ? { display: prompt, attachments: chips } : {};
-      void runner.send(agentId, attached.model(prompt),{ steer: steer === true, ...attach }).catch((error) => console.error("[agent] send failed", error));
-      return { queued };
+      return runner.send(agentId, attached.model(prompt), { steer: steer === true, ...attach });
     },
-    // fixB: 입력창 이미지 저장
     "images.upload": (params) => saveImage(params),
-    // FILEATTACH: 보내기 전에 칩을 지운 업로드 폴백 파일 정리
     "attachments.discard": ({ id }) => discardUpload(id),
     "agents.dequeue": ({ agentId, queueId }) => runner.dequeue(agentId, queueId),
     "agents.cancelSteering": ({ agentId, steeringId }) => runner.cancelSteering(agentId, steeringId),
-    // DIFFFB: 쌓인 diff 피드백
     "diffFeedback.list": ({ agentId }) => store.diffFeedback(store.agent(agentId).id),
     "diffFeedback.add": ({ agentId, item }) => runner.addDiffFeedback(agentId, item),
     "diffFeedback.update": ({ agentId, id, text }) => {
@@ -66,7 +61,7 @@ export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<Metho
     },
     "diffFeedback.send": ({ agentId, text, steer, ids }) => runner.sendDiffFeedback(agentId, { text, steer, ids }),
     "agents.sendQueuedNow": async ({ agentId, queueId }) => {
-      void runner.sendQueuedNow(agentId, queueId).catch((error) => console.error("[agent] send queued failed", error));
+      await runner.sendQueuedNow(agentId, queueId);
       return null;
     },
     "agents.interrupt": async ({ agentId }) => {
@@ -94,7 +89,6 @@ export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<Metho
       runner.respondPermission(agentId, itemId, decision);
       return null;
     },
-    // fixB: 질문 답과 계획 승인
     "agents.answerQuestion": ({ agentId, itemId, answers }) => {
       runner.answerQuestion(agentId, itemId, answers);
       return null;
@@ -108,7 +102,6 @@ export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<Metho
       return null;
     },
     "agents.fork": ({ agentId, beforeItemId }) => (beforeItemId ? runner.forkBefore(agentId, beforeItemId) : runner.fork(agentId)),
-    // B2: 체크포인트 복원과 Redo
     "agents.restoreCheckpoint": ({ agentId, itemId }) => runner.restoreCheckpoint(agentId, itemId),
     "agents.previewCheckpoint": ({ agentId, itemId }) => runner.previewCheckpoint(agentId, itemId),
     "agents.cancelRestore": ({ agentId }) => {
@@ -140,6 +133,11 @@ export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<Metho
     },
     "agents.rename": ({ agentId, title }) => {
       runner.rename(agentId, title);
+      return null;
+    },
+    "agents.openChatFile": async ({ agentId, path }) => {
+      const agent = store.agent(agentId);
+      await openWithDefaultApp(resolveInside(join(HOME, "chats", agent.id), String(path)));
       return null;
     },
   };

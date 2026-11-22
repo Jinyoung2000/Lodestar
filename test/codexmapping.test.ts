@@ -1,12 +1,12 @@
-// CODEX: Codex 앱 서버 항목 -> 타임라인 항목 대응(server/codex/mapping.ts), 권한 모드 표(shared/codexPermission.ts), 옛 저장본 호환을 단독 시험한다. 데몬도 Codex 도 필요 없다.
-// 실행: npm test
 import { CODEX_FALLBACK_MODE, CODEX_MODE_NOTES, codexPermission, codexSupportsMode } from "../shared/codexPermission";
 import { CLAUDE_EFFORT_LEVELS, claudeEffort, EFFORT_LEVELS, harnessOf, isEffortLevel, PERMISSION_MODE_VALUES, type Agent, type TimelineItem } from "../shared/protocol";
-import { CARRY_MAX_CHARS, carryAfterCut, carryTranscript, checkpointLocked, remapSeen, switchBlock, switchedState } from "../shared/harnessSwitch";
+import { CARRY_MAX_CHARS, carryAfterCut, carryTranscript, checkpointLocked, harnessAtStart, remapSeen, switchBlock, switchedState } from "../shared/harnessSwitch";
 import { toolChanges } from "../web/timelineModel";
 import { previewEdit } from "../web/approvalPreview";
 import { commandApproval, diffHunks, displayCommand, editToolOf, fileChangeApproval, itemToTimeline, mcpResultText, planToTool, summarizeDiff, turnErrorOf } from "../server/codex/mapping";
 import { taskState } from "../shared/tasks";
+import { chooseOption, commandOutput, modelChoice, parseAgyModels, toolOf } from "../server/antigravity/mapping";
+import { antigravityApprovesAll, antigravityMode } from "../shared/antigravityPermission";
 
 const cases: { name: string; run: () => void }[] = [];
 const test = (name: string, run: () => void) => cases.push({ name, run });
@@ -140,7 +140,6 @@ test("옛 저장본 호환: harness 가 없는 세션은 claude 이고, 새 필�
   const codex = { ...old, harness: "codex" as const, codexThreadId: "th-1", sessionId: null };
   const round = JSON.parse(JSON.stringify(codex)) as Agent;
   expect(harnessOf(round) === "codex" && round.codexThreadId === "th-1", "저장 후에도 유지");
-  // 모바일 앱과 옛 화면은 모르는 필드를 무시한다: 옛 필드 집합은 그대로 들어 있다
   const keys = Object.keys(old);
   expect(keys.every((k) => k in round), "옛 필드가 모두 남아 있다");
 });
@@ -211,6 +210,24 @@ test("effort: ultra 는 저장값으로 받지만 Claude 단계에는 없다", (
   expect(CLAUDE_EFFORT_LEVELS.join() === "low,medium,high,xhigh,max", CLAUDE_EFFORT_LEVELS.join());
   expect(isEffortLevel("ultra") && !isEffortLevel("huge") && !isEffortLevel(null), "검증");
   expect(claudeEffort("ultra") === null && claudeEffort("max") === "max" && claudeEffort(undefined) === null, "Claude 로 갈 때");
+});
+
+test("Antigravity mapping: append writes, edits from diffs, commands, permission options, models and modes", () => {
+  const append = toolOf({ toolCallId: "c1", name: "write_file", kind: "edit", args: { Append: true, Content: "x\n", Path: "/repo/n.txt" }, content: [{ type: "diff", path: "/repo/n.txt", newText: "x\n" }] }, "/repo");
+  expect(JSON.stringify(append) === JSON.stringify({ name: "Edit", input: { file_path: "/repo/n.txt", old_string: "", new_string: "x\n", append: true } }), JSON.stringify(append));
+  const created = toolOf({ toolCallId: "c2", name: "write_file", kind: "edit", args: { Content: "y\n", Path: "n.txt" } }, "/repo");
+  expect(JSON.stringify(created) === JSON.stringify({ name: "Write", input: { file_path: "/repo/n.txt", content: "y\n" } }), JSON.stringify(created));
+  const edited = toolOf({ toolCallId: "c3", kind: "edit", content: [{ type: "diff", path: "/repo/n.txt", oldText: "a\n", newText: "b\n" }] }, "/repo");
+  expect(edited.name === "Edit" && edited.input.old_string === "a\n" && edited.input.new_string === "b\n", JSON.stringify(edited));
+  expect(commandOutput("Created At: x\nCommand exited with code 0.\n\nCommand output:\na\r\nb\r\n") === "a\nb\n" && commandOutput("Command exited with code 0.\n\nNo output from the command.") === "", "command output");
+  const options = [{ optionId: "ok", kind: "allow_once" }, { optionId: "no", kind: "reject_once" }];
+  expect(chooseOption(options, "allow") === "ok" && chooseOption(options, "allowAlways") === "ok" && chooseOption(options, "deny") === "no", "options");
+  const models = parseAgyModels("gemini-4-neon-high\tGemini 4 Neon (High)\ngemini-4-neon-xhigh\tGemini 4 Neon (XHigh)\ngemini-4-neon-low\tGemini 4 Neon (Low)\ngemini-pro-orchestrator-neon\tOrchestrator (Neon)\ngpt-oss-120b-medium\tGPT-OSS 120B (Medium)\n");
+  expect(JSON.stringify(models.map((m) => [m.value, m.displayName, m.supportedEffortLevels.join("/")])) === JSON.stringify([["gemini-4-neon", "Gemini 4 Neon", "low/high/xhigh"], ["gemini-pro-orchestrator-neon", "Orchestrator (Neon)", ""], ["gpt-oss-120b-medium", "GPT-OSS 120B (Medium)", ""]]), JSON.stringify(models));
+  const config = [{ id: "model", options: [{ value: "gemini-4-neon" }] }, { id: "thought_level", options: [{ value: "low" }, { value: "high" }] }];
+  expect(JSON.stringify(modelChoice("gemini-4-neon-low", null, config)) === JSON.stringify({ model: "gemini-4-neon", effort: "low" }) && modelChoice(null, "max", config).effort === null, "model choice");
+  expect(PERMISSION_MODE_VALUES.map(antigravityMode).join() === "default,accept-edits,plan,auto,auto" && antigravityApprovesAll("bypassPermissions") && !antigravityApprovesAll("auto"), "modes");
+  expect(harnessAtStart([{ id: "d", kind: "notice", text: "", divider: true, switched: "codex", switchedFrom: "antigravity" }], "codex") === "antigravity", "first tool from the divider");
 });
 
 let failed = 0;

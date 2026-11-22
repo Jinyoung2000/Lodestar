@@ -14,9 +14,6 @@ import { StatusDot } from "./StatusDot";
 import { Text } from "./Text";
 import { showActionMenu } from "./actionMenu";
 
-// 워크스페이스 탭: 맥에 등록된 프로젝트 폴더 목록(Paseo 사이드바의 프로젝트 목록에 해당). 한 줄이 프로젝트 하나이고,
-// 이름과 경로, 지금 브랜치와 커밋 안 한 변경, worktree 수, 세션 수와 대표 상태 점이 보인다. 누르면 그 프로젝트의 세션과 worktree 를 보는 화면으로 간다.
-// 목록 순서는 위쪽 Sort 줄에서 고른다(최근 활동순, 이름순, 직접 정한 순서). 직접 정한 순서에서는 Reorder 로 위아래 단추가 나오고, 길게 눌러도 옮길 수 있다.
 export function WorkspacesView({ query }: { query: string }) {
   const router = useRouter();
   const colors = useColors();
@@ -30,7 +27,6 @@ export function WorkspacesView({ query }: { query: string }) {
   const [reordering, setReordering] = useState(false);
   const { sort, order } = prefs.projects;
   const projects = useMemo(() => buildProjects(workspaces, agents, query, sort, order), [workspaces, agents, query, sort, order]);
-  // 옮기기는 검색으로 걸러지지 않은 전체 목록 기준이다(걸러진 목록에서 한 칸은 전체에서 몇 칸일지 알 수 없다)
   const movable = sort === "manual" && query.trim() === "";
   const move = useCallback(
     (id: string, direction: "up" | "down" | "top" | "bottom") => {
@@ -40,7 +36,6 @@ export function WorkspacesView({ query }: { query: string }) {
   );
   const changeSort = useCallback(
     (next: ProjectSort) => {
-      // 처음 직접 정한 순서로 바꿀 때는 지금 보이는 순서가 시작점이다
       sortPrefs.setProjectSort(next, orderOf(buildProjects(workspaces, agents, "", sort, order)));
       if (next !== "manual") setReordering(false);
     },
@@ -48,7 +43,6 @@ export function WorkspacesView({ query }: { query: string }) {
   );
   const topIds = useMemo(() => workspaces.filter((w) => !w.parentId && !w.feedback).map((w) => w.id).join(","), [workspaces]);
 
-  // 탭을 열 때와 폴더 목록이 바뀔 때 폴더마다 브랜치를 읽는다(폴더당 git 호출 하나)
   useEffect(() => {
     if (conn === "online" && topIds) void store.refreshGit(topIds.split(","));
   }, [conn, topIds]);
@@ -105,7 +99,6 @@ export function WorkspacesView({ query }: { query: string }) {
   );
 }
 
-// 목록에서 빼기 확인: 파일은 그대로이고, 세션은 숨겨졌다가 같은 폴더를 다시 더하면 돌아온다.
 export function confirmRemove(id: string, name: string, then?: () => void) {
   Alert.alert(`Remove “${name}” from the list?`, "Files on your Mac are not changed. Its sessions are hidden and come back if you add the folder again.", [
     { text: "Cancel", style: "cancel" },

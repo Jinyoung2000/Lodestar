@@ -1,4 +1,3 @@
-// 바깥에서 넘어온 경로 열기의 순수 로직 시험(shared/openPath.ts): 경로 판정(폴더, 파일, 없음, 심볼릭 링크), 실행 인자, 창 고르기, worktree 배치, 데몬 준비 전 대기열. 실행: npm test
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,13 +12,11 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 const base = { home: "/Users/me", cwd: "/work" };
 
-// 경로 글자 정리
 check("resolvePosix: . 와 .. 와 겹친 / 를 정리", resolvePosix("/a//b/./c/../d/", "/") === "/a/b/d");
 check("resolvePosix: 상대 경로는 base 에서", resolvePosix("x/y", "/work") === "/work/x/y" && resolvePosix("../x", "/work/y") === "/work/x");
 check("dirNameOf", dirNameOf("/a/b/c.ts") === "/a/b" && dirNameOf("/c.ts") === "/");
 check("absoluteOpenPath: 홈, file://, 상대, 빈 글자", absoluteOpenPath("~/Repo/x", base) === "/Users/me/Repo/x" && absoluteOpenPath("~", base) === "/Users/me" && absoluteOpenPath("file:///a/b%20c/", base) === "/a/b c" && absoluteOpenPath("sub", base) === "/work/sub" && absoluteOpenPath("  ", base) === null);
 
-// 가짜 파일 시스템으로 판정 규칙
 {
   const entries: Record<string, "dir" | "file" | "other"> = { "/repo": "dir", "/repo/src": "dir", "/repo/src/a.ts": "file", "/sock": "other", "/link-dir": "dir", "/link-file": "file" };
   const links: Record<string, string> = { "/link-dir": "/repo/src", "/link-file": "/repo/src/a.ts", "/tmp": "/private/tmp", "/tmp/x": "/private/tmp/x" };
@@ -35,7 +32,6 @@ check("absoluteOpenPath: 홈, file://, 상대, 빈 글자", absoluteOpenPath("~/
   check("빈 글자는 없는 경로", classifyOpenPath("", base, fs).kind === "missing");
 }
 
-// 진짜 파일 시스템(임시 폴더): 심볼릭 링크, 끊긴 링크, /tmp 의 /private/tmp
 {
   const real: PathFs = {
     kind: (p) => {
@@ -63,7 +59,6 @@ check("absoluteOpenPath: 홈, file://, 상대, 빈 글자", absoluteOpenPath("~/
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
-  // macOS 의 /tmp 는 /private/tmp 로 이어진다. git 과 워크스페이스는 실제 경로를 쓴다.
   const viaTmp = mkdtempSync("/tmp/openpath-");
   try {
     const want = realpathSync(viaTmp);
@@ -73,7 +68,6 @@ check("absoluteOpenPath: 홈, file://, 상대, 빈 글자", absoluteOpenPath("~/
   }
 }
 
-// 실행 인자
 {
   const opts = { defaultApp: false, cwd: "/work", home: "/Users/me" };
   check("패키징 앱: 실행 파일을 빼고 경로만", same(argvOpenPaths(["/Applications/Lodestar.app/Contents/MacOS/Lodestar", "/repo"], opts), ["/repo"]));
@@ -85,7 +79,6 @@ check("absoluteOpenPath: 홈, file://, 상대, 빈 글자", absoluteOpenPath("~/
   check("같은 경로 두 번은 하나", same(argvOpenPaths(["/x/Lodestar", "/repo", "/repo/"], opts), ["/repo"]));
 }
 
-// 칸이 보여 주는 폴더
 {
   const workspaces = [
     { id: "w-a", dir: "/repo" },
@@ -113,7 +106,6 @@ check("absoluteOpenPath: 홈, file://, 상대, 빈 글자", absoluteOpenPath("~/
   check("세션 칸과 새 세션 칸의 폴더(worktree 는 자기 폴더)", same(dirs, ["/other", "/repo", "/repo.worktrees/x"]));
 }
 
-// 창 고르기
 {
   const win = (id: string, ...dirs: string[]) => ({ id, dirs: new Set(dirs) });
   const windows = [win("w1", "/a"), win("w2", "/b", "/c"), win("w3", "/c")];
@@ -133,7 +125,6 @@ check("absoluteOpenPath: 홈, file://, 상대, 빈 글자", absoluteOpenPath("~/
   check("배치를 모르는 창(옛 페이지)은 고르지 않고 빈 창을 쓴다", same(planOpenWindow({ windows, dir: "/a", focusedId: null, lastActiveId: null, spareId: "w9", reuseLayout: "editor" }), { kind: "spare", windowId: "w9" }));
 }
 
-// worktree 배치
 {
   const tree = { root: "/repo.worktrees/feat", mainRoot: "/repo" };
   check("worktree 뿌리는 원 레포 뿌리 아래", worktreeParentDir("/repo.worktrees/feat", tree) === "/repo");
@@ -141,7 +132,6 @@ check("absoluteOpenPath: 홈, file://, 상대, 빈 글자", absoluteOpenPath("~/
   check("뿌리 밖이면 원 레포 뿌리", worktreeParentDir("/elsewhere", tree) === "/repo");
 }
 
-// 데몬 준비 전 대기열
 {
   const log: string[] = [];
   const queue = new OpenQueue<string, string>(async (path) => {

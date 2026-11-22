@@ -1,5 +1,3 @@
-// PR 머지: 머지 영역의 판정(허용 방식, 기본 방식, 머지 불가 사유, 기본 커밋 문구)과 머지, Ready for Review, 원격 브랜치 삭제 RPC 를 확인한다.
-// GitHub 에는 닿지 않는다: gh 는 test/fixtures/pr/bin/gh (가짜)가 대신한다. 실행: npm test
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -15,7 +13,6 @@ const data = JSON.parse(readFileSync(join(here, "fixtures/pr/data.json"), "utf8"
 const tmp = mkdtempSync(join(tmpdir(), "agent-nav-prmerge-"));
 const logFile = join(tmp, "gh.log");
 const stateFile = join(tmp, "gh-state.json");
-// 가짜 gh 를 PATH 맨 앞에 둔다. 이 시험 프로세스에서만 유효하다.
 process.env.PATH = `${resolve(here, "fixtures/pr/bin")}:${process.env.PATH}`;
 process.env.FAKE_GH_LOG = logFile;
 process.env.FAKE_GH_STATE = stateFile;
@@ -25,7 +22,6 @@ const reset = () => rmSync(logFile, { force: true });
 const scenario = (name: string, extra: Record<string, unknown> = {}) => writeFileSync(stateFile, JSON.stringify({ replies: {}, pending: null, threads: [], comments: {}, deleted: [], resolved: {}, viewed: {}, reviews: [], issue: [], seq: 100, scenario: name, ...extra }));
 
 try {
-  // 허용 방식 파싱: GraphQL 저장소 필드에서. 없는 필드는 꺼짐(머지를 막는 쪽)
   const base = data.detail.repository;
   const info = parseMergeInfo("acme/widgets", base, base.pullRequest);
   assert.deepEqual(info.methods, { merge: true, squash: true, rebase: false });
@@ -39,19 +35,16 @@ try {
   assert.equal(parseMergeInfo("acme/widgets", { viewerPermission: "MAINTAIN" }, {}).canWrite, true);
   assert.equal(parseMergeInfo("acme/widgets", { viewerPermission: "ADMIN" }, {}).canWrite, true);
   assert.equal(parseMergeInfo("acme/widgets", { viewerPermission: "TRIAGE" }, {}).canWrite, false);
-  // fork PR 의 브랜치 삭제 권한은 head 저장소 권한으로 본다
   assert.equal(parseMergeInfo("acme/widgets", { viewerPermission: "ADMIN" }, { headRepository: { nameWithOwner: "me/widgets", viewerPermission: "READ" } }).canDeleteHead, false);
   assert.equal(parseMergeInfo("acme/widgets", {}, { headRefName: "main", headRepository: { nameWithOwner: "acme/widgets", defaultBranchRef: { name: "main" } } }).headIsDefault, true);
   assert.equal(parseMergeInfo("acme/widgets", {}, { headRef: null }).headRefId, null, "원격 head 가 지워졌으면 null");
 
-  // 기본 방식: 확장처럼 merge 가 허용되면 merge, 아니면 merge, squash, rebase 순으로 허용된 첫 방식
   assert.equal(defaultMergeMethod({ merge: true, squash: true, rebase: true }), "merge");
   assert.equal(defaultMergeMethod({ merge: false, squash: true, rebase: true }), "squash");
   assert.equal(defaultMergeMethod({ merge: false, squash: false, rebase: true }), "rebase");
   assert.equal(defaultMergeMethod({ merge: false, squash: false, rebase: false }), null);
   assert.equal(defaultMergeMethod({ merge: true, squash: true, rebase: true }, "squash"), "squash", "설정한 방식이 허용되면 그것");
 
-  // 머지 가능 판정(확장의 pu): 충돌이 우선, 그다음 BLOCKED, BEHIND. UNSTABLE, HAS_HOOKS, DRAFT 는 머지 가능
   assert.equal(mergeReadiness("CONFLICTING", "BLOCKED"), "conflict");
   assert.equal(mergeReadiness("MERGEABLE", "BLOCKED"), "blocked");
   assert.equal(mergeReadiness("MERGEABLE", "BEHIND"), "behind");
@@ -62,7 +55,6 @@ try {
   assert.equal(mergeReadiness("UNKNOWN", "UNKNOWN"), "unknown");
   assert.equal(mergeReadiness("UNKNOWN", null), "unknown");
 
-  // 머지 영역의 동작: draft 면 Ready for Review(고칠 수 있을 때), 머지 가능하고 쓰기 권한이 있으면 Merge, 아니면 없음. 닫힌 PR 은 브랜치 삭제만
   const pr = (patch: Partial<PrDetail>, merge: Partial<PrDetail["merge"]> = {}) => ({ state: "OPEN", isDraft: false, ...patch, merge: { ...info, ...merge } }) as Pick<PrDetail, "state" | "isDraft" | "merge">;
   assert.deepEqual(mergeArea(pr({})), { state: "open", readiness: "mergeable", action: "merge", canDeleteBranch: false });
   assert.equal(mergeArea(pr({}, { canWrite: false })).action, null, "쓰기 권한이 없으면 머지 버튼 없음");
@@ -78,7 +70,6 @@ try {
   assert.equal(mergeArea(pr({ state: "MERGED" }, { headIsDefault: true })).canDeleteBranch, false, "기본 브랜치는 제안하지 않음");
   assert.equal(mergeArea(pr({ state: "MERGED" }, { canDeleteHead: false })).canDeleteBranch, false, "head 저장소에 쓰기 권한이 없으면 제안하지 않음");
 
-  // 기본 커밋 문구(확장의 om)
   const src = { number: 42, title: "Add loud option", body: "Body text", headLabel: "acme:feature/42", commitMessages: ["First line\n\nmore detail"] };
   assert.deepEqual(commitTextFor("MERGE_MESSAGE", "PR_TITLE", src), { title: "Merge pull request #42 from acme:feature/42", body: "Add loud option" });
   assert.deepEqual(commitTextFor("PR_TITLE", "PR_BODY", src), { title: "Add loud option (#42)", body: "Body text" });
@@ -91,7 +82,6 @@ try {
   assert.equal(detail.merge.commitText.squash.title, "Add loud option to greet (#42)", "커밋 셋이면 PR 제목");
   assert.match(detail.merge.commitText.squash.body, /^\* Add loud option to greet\n\n\* Document the loud option/);
 
-  // 필수 리뷰와 체크 요약 문구(확장의 getRequiredReviewSummary, getSummaryLabel)
   assert.equal(requiredReviews(0, [], []), null);
   assert.deepEqual(detail.merge.requiredReviews, { count: 1, approvals: ["jun"], requestedChanges: [], state: "success" });
   assert.equal(requiredReviewSummary(requiredReviews(2, ["a"], [])!), "At least 2 approving reviews is required by reviewers with write access.");
@@ -101,7 +91,6 @@ try {
   assert.equal(checksSummary([check("success"), check("failure"), check("success")]), "2 successful checks and 1 failed check");
   assert.equal(checksSummary(detail.checkList), "2 successful checks and 1 failed check and 1 pending check", "처음 나온 상태 순서로 센다");
 
-  // 서버: 확인 없는 머지, Ready for Review, 브랜치 삭제는 gh 를 부르지 않고 거절한다
   const { prHandlers } = await import("../server/pr");
   const handlers = prHandlers({ workspaces: () => [], addWorkspace: () => { throw new Error("unused"); }, workspaceOfDir: () => undefined, announce: () => undefined } as never);
   const ref = { repo: "acme/widgets", number: 42 };
@@ -114,7 +103,6 @@ try {
   await assert.rejects(() => handlers["pr.merge"]({ ...ref, confirmed: true, prId: "PR_node_42", method: "fast-forward", expectedHeadOid: "abc", commitHeadline: "t", commitBody: "" } as never), /Unknown merge method/);
   assert.equal(calls().length, 0, "모르는 방식도 gh 전에 거절");
 
-  // 서버: 확인된 머지가 gh 에 싣는 내용(GraphQL mergePullRequest, stdin JSON)
   const ok = { confirmed: true as const };
   scenario("");
   await handlers["pr.merge"]({ ...ref, ...ok, prId: "PR_node_42", method: "squash", expectedHeadOid: "abc1234def5678", commitHeadline: "Add loud option (#42) @file", commitBody: "* a" });
@@ -134,7 +122,6 @@ try {
   assert.equal(afterMerge.state, "MERGED", "가짜 gh 는 머지 뒤 MERGED 를 준다");
   assert.equal(mergeArea(afterMerge).canDeleteBranch, true, "저장소가 자동 삭제하지 않으면 머지 뒤 브랜치 삭제를 제안");
 
-  // 서버: Ready for Review
   scenario("draft");
   reset();
   assert.equal(mergeArea(await handlers["pr.get"](ref)).action, "ready");
@@ -143,7 +130,6 @@ try {
   assert.deepEqual(JSON.parse(calls()[1].stdin ?? "").variables.input, { pullRequestId: "PR_node_42" });
   assert.equal((await handlers["pr.get"](ref)).isDraft, false);
 
-  // 서버: 원격 브랜치 삭제는 PR 을 다시 읽어 확인한 뒤 deleteRef
   scenario("", { merged: "MERGE" });
   reset();
   assert.deepEqual(await handlers["pr.deleteBranch"]({ ...ref, ...ok, headRefId: "REF_feature_42" }), { branch: "feature/42" });
@@ -160,7 +146,6 @@ try {
   assert.equal(mergeArea(await handlers["pr.get"](ref)).canDeleteBranch, false, "저장소가 머지 뒤 지웠으면 제안하지 않음");
   assert.ok(!ops().includes("PrDeleteRef"), "거절된 삭제는 deleteRef 를 부르지 않는다");
 
-  // 서버: 머지 상황별 판정이 가짜 gh 응답에서 그대로 나온다
   const areaOf = async (name: string) => {
     scenario(name);
     return mergeArea(await handlers["pr.get"](ref));
@@ -175,7 +160,6 @@ try {
   scenario("rebaseonly");
   assert.equal(defaultMergeMethod((await handlers["pr.get"](ref)).merge.methods), "rebase");
 
-  // 방패 gh: 머지 경로(gh pr merge, GraphQL mutation)는 실제 gh 를 부르지 않고 거절한다
   const guardLog = join(tmp, "guard.log");
   const guard = (args: string[], stdin: string) => {
     try {

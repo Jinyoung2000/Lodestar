@@ -1,5 +1,3 @@
-// 이름 바꾸기 미리 보기의 순수 로직: WorkspaceEdit 를 파일별 항목으로 바꾸고, 체크한 항목만 다시 WorkspaceEdit 로 만든다.
-// 실행: npm test
 import { buildPreview, collectEdits, countEdits, fileState, selectedEdit, visibleBreaks, type WorkspaceEdit } from "../web/renameModel";
 
 let failed = 0;
@@ -47,7 +45,6 @@ const longLine = "x".repeat(100) + "NAME" + "y".repeat(100);
 const trimmed = buildPreview({ changes: { [a]: [{ range: range(0, 100, 104), newText: "N" }] } }, () => longLine).files[0]!.edits[0]!;
 check("context is trimmed to a short stretch on each side", trimmed.prefix.length === 30 && trimmed.suffix.length === 50);
 
-// ---- 선택 ----
 const none = new Set<string>();
 check("nothing unchecked keeps every edit", countEdits(selectedEdit(files, none)).edits === 5);
 const offOne = new Set([files[0]!.edits[0]!.id]);

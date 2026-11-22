@@ -30,7 +30,6 @@ export function BrowserTabView({ tab, active }: { tab: BrowserTab; active: boole
   const [zoom, setZoom] = useState(defaultZoom);
   const [findOpen, setFindOpen] = useState(false);
   const [emulation, setEmulation] = useState<Emulation | null>(null);
-  // 요소 선택 모드(Add Element, Comment on Elements, Area Screenshot) 중 어느 것이 켜져 있는가
   const [picking, setPicking] = useState<PickKind | null>(null);
   const favorites = useFavorites();
   const request = useStore((s) => s.browserAction);
@@ -40,7 +39,6 @@ export function BrowserTabView({ tab, active }: { tab: BrowserTab; active: boole
   const isNotion = isNotionUrl(tab.url);
   const sharedWith = tab.sharedWith ?? null;
   const engine: BrowserSearchEngine = settings?.browserSearchEngine ?? "bing";
-  // Refresh Automatically: 이 탭의 선택이 있으면 그것, 없으면 설정 Auto Reload On File Change(기본 켬). file: 주소일 때만 뜻이 있다.
   const isFile = filePathOf(tab.url) !== null;
   const autoReload = isFile && (tab.autoReload ?? settings?.browserAutoReload ?? true);
 
@@ -51,7 +49,6 @@ export function BrowserTabView({ tab, active }: { tab: BrowserTab; active: boole
     if (tab.url && tab.title) recordTitle(tab.url, tab.title);
   }, [tab.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 요소 선택 계열은 한 번에 하나만 켠다. 켜진 모드의 단추를 다시 누르면(또는 다른 모드를 누르면) 지금 것을 취소한다.
   const startPick = async (kind: PickKind) => {
     const id = engineRef.current.webContentsId();
     if (picking) {
@@ -77,7 +74,6 @@ export function BrowserTabView({ tab, active }: { tab: BrowserTab; active: boole
     if (preset) setEmulation((e) => ({ ...(e ?? DEFAULT_EMULATION), width: preset.width, height: preset.height, dpr: preset.dpr, mobile: preset.mobile, userAgent: preset.userAgent }));
   };
 
-  // 메뉴, 단축키, 팔레트, History 선택창이 store 의 browserAction 으로 보낸 요청을 이 탭이 처리한다.
   useEffect(() => {
     if (!request || request.key !== tab.key || request.nonce === handled.current) return;
     handled.current = request.nonce;
@@ -139,8 +135,6 @@ export function BrowserTabView({ tab, active }: { tab: BrowserTab; active: boole
   );
 }
 
-// 새 창 요청이 메인 프로세스의 setWindowOpenHandler(electron/main.ts)까지 가게 한다. 이 속성이 없으면 <webview> 가 요청을 핸들러에 보이기 전에 막는다. 핸들러가 앱 안 창은 로그인 창 외에 만들지 않는다.
-// React 의 타입은 이 속성을 boolean 으로 보지만 DOM 에는 문자열이 있어야 붙어서 펼침 속성으로 넘긴다.
 const ALLOW_POPUPS: object = { allowpopups: "true" };
 
 type PickKind = "element" | "comment" | "area";
@@ -155,7 +149,6 @@ async function clearStorage(partition: string | undefined) {
   }
 }
 
-// 엔진이 탭에 알려 주는 손잡이. 엔진이 렌더될 때마다 자기 것으로 채운다.
 type Engine = {
   navigate: (url: string) => void;
   webContentsId: () => number | null;
@@ -166,20 +159,15 @@ type Engine = {
 const NO_ENGINE: Engine = { navigate: () => undefined, webContentsId: () => null, find: () => undefined, stopFind: () => undefined, reload: () => undefined };
 
 type BarActions = {
-  // NOTION: 지금 페이지가 Notion 이면 고정(Pin to Sidebar)과 본문 첨부(Add Page to Chat) 동작. 아니면 null.
   notion: { pinned: boolean; onPin: () => void; onAddPage: () => void } | null;
-  // file: 주소를 보여 주는 탭인가, Refresh Automatically 가 켜져 있는가(켜면 파일이 바뀔 때 다시 읽는다)
   isFile: boolean;
   autoReload: boolean;
-  // 이 탭의 저장 범위(Clear Storage 메뉴 이름이 따른다)
   scope: EffectiveStorage;
   onToggleAutoReload: () => void;
-  // 설정 Experimental User Tools 가 켜졌는가(Add Full Page Screenshot to Chat 이 보인다)
   userTools: boolean;
   onFullPageScreenshot: () => void;
   favorited: boolean;
   picking: PickKind | null;
-  // 이 탭을 공유한 세션 id. null 이면 공유 안 함.
   sharedWith: string | null;
   engine: BrowserSearchEngine;
   emulationOn: boolean;
@@ -227,7 +215,6 @@ function WebviewBrowser({ tab, active, engineRef, zoom, emulation, setEmulation,
   const [nav, setNav] = useState<NavState>({ back: false, forward: false });
   const [notice, setNotice] = useState<string | null>(null);
   const [found, setFound] = useState<{ index: number; total: number } | null>(null);
-  // 새 글로 처음 하는 찾기(findNext 없음)는 Chromium 이 결과 알림을 안 줄 때가 있다(창이 비활성일 때 확인). 알림이 없으면 findNext 로 한 번 더 요청한다.
   const foundSeq = useRef(0);
   const started = startUrl !== "";
   const [dialog, setDialog] = useState<{ type: string; message: string; defaultPrompt: string } | null>(null);
@@ -259,7 +246,6 @@ function WebviewBrowser({ tab, active, engineRef, zoom, emulation, setEmulation,
       watchRef.current();
     };
     const onTitle = (event: Event) => updateBrowserTab(tab.key, { title: (event as Event & { title: string }).title });
-    // -3 은 다른 이동이 앞선 취소(ERR_ABORTED)라 오류로 안 친다
     const onFail = (event: Event) => {
       const detail = event as Event & { errorCode: number; errorDescription: string; isMainFrame: boolean };
       if (detail.isMainFrame && detail.errorCode !== -3) setNotice(S.browserLoadFailed(detail.errorDescription));
@@ -290,7 +276,6 @@ function WebviewBrowser({ tab, active, engineRef, zoom, emulation, setEmulation,
     if (viewRef.current && ready.current) viewRef.current.setZoomLevel(zoom);
   }, [zoom]);
 
-  // Auto Reload On File Change: file: 주소를 보여 주는 동안 메인이 그 파일을 지켜보고, 바뀌면 알린다. 보이지 않는 탭은 보일 때 다시 읽는다.
   const watchRef = useRef<() => void>(() => undefined);
   watchRef.current = () => {
     const id = webContentsId();
@@ -311,7 +296,6 @@ function WebviewBrowser({ tab, active, engineRef, zoom, emulation, setEmulation,
     }
   }, [active]);
 
-  // 공유 중인 탭의 페이지가 대화상자(alert, confirm, prompt, beforeunload)를 띄우면 사용자도 여기서 답할 수 있다(에이전트는 handle_dialog 로 답한다).
   useEffect(() => {
     return window.agentNavNative?.onBrowserDialog?.(({ id, dialog: next }) => {
       if (id === webContentsId()) setDialog(next);
@@ -343,9 +327,7 @@ function WebviewBrowser({ tab, active, engineRef, zoom, emulation, setEmulation,
     }
   };
 
-  // 에이전트의 도구가 이 탭의 webContents 를 찾을 수 있게 알려 둔다(공유된 탭만 쓰인다).
   useEffect(() => registerGuest(tab.key, () => engineRef.current.webContentsId()), [tab.key, engineRef]);
-  // Add Page to Chat 이 이 탭의 페이지 본문을 읽을 수 있게 알려 둔다(Notion 페이지에서만 쓰인다).
   useEffect(() => registerTabReader(tab.key, async (code) => (viewRef.current && ready.current ? viewRef.current.executeJavaScript(code) : Promise.reject(new Error("not ready")))), [tab.key]);
 
   useEffect(() => {
@@ -367,7 +349,6 @@ function WebviewBrowser({ tab, active, engineRef, zoom, emulation, setEmulation,
     };
   });
 
-  // 기기 에뮬레이션의 DPR 과 화면 크기를 guest 에 적용한다. 크기가 auto 면 이 칸을 채우는 크기(emuSize)를 쓴다.
   const [emuSize, setEmuSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     const id = webContentsId();
@@ -426,14 +407,12 @@ function FrameBrowser({ tab, active, engineRef, zoom, emulation, setEmulation, a
   const [notice, setNotice] = useState<string | null>(null);
   const [reloads, setReloads] = useState(0);
   const [check, setCheck] = useState<FrameCheck>({ state: "checking" });
-  // 프레임 안 페이지의 주소를 읽을 수 있었는지. 같은 출처일 때만 읽히므로 보통은 false 이고, 그때는 한계를 안내 문구로 남긴다.
   const [followed, setFollowed] = useState<boolean | null>(null);
   const [emuSize, setEmuSize] = useState({ width: 0, height: 0 });
   const current = history.urls[history.index] ?? "";
 
   useFocusOnOpen(inputRef, active, tab.url === "");
 
-  // 주소가 바뀌면 데몬이 응답 머리를 받아 iframe 으로 열 수 있는지 본다. 막히면 빈 프레임 대신 이유를 보인다.
   useEffect(() => {
     if (!current) return;
     let cancelled = false;
@@ -473,7 +452,6 @@ function FrameBrowser({ tab, active, engineRef, zoom, emulation, setEmulation, a
     setAddress(url);
     updateBrowserTab(tab.key, { url, title: new URL(url).host });
   };
-  // 프레임이 다 뜨면 안의 주소와 제목을 읽어 본다. 같은 출처면 링크를 따라간 주소로 주소창과 탭 제목을 맞추고, 아니면 읽을 수 없다.
   const onFrameLoad = (frame: HTMLIFrameElement) => {
     const location = readFrameLocation(frame.contentWindow);
     setFollowed(location !== null);
@@ -540,14 +518,12 @@ function Stage({ emulation, onSize, onResize, shared, children }: { emulation: E
     return () => observer.disconnect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const frame = emulation ? emulatedFrame(emulation, available) : null;
-  // 손잡이를 끌기 시작한 때의 틀 크기와 배율을 기억해 두고, 움직인 만큼 크기 칸(CSS px)으로 바꾼다.
   const startDrag = (axis: "x" | "y") => (event: PointerEvent<HTMLDivElement>) => {
     if (!frame || event.button !== 0) return;
     event.preventDefault();
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
-      // 캡처가 안 돼도(합성 이벤트 등) window 에서 이어서 받는다
     }
     const start = { x: event.clientX, y: event.clientY, container: (axis === "x" ? frame.width : frame.height) * frame.scale, scale: frame.scale, pane: (axis === "x" ? available.width : available.height) - SASH_ROOM };
     setDragging(axis);
@@ -582,7 +558,6 @@ function Stage({ emulation, onSize, onResize, shared, children }: { emulation: E
   );
 }
 
-// 페이지가 띄운 대화상자(alert, confirm, prompt, beforeunload)를 사용자가 직접 답하는 줄
 function PageDialogBar({ dialog, onAnswer }: { dialog: { type: string; message: string; defaultPrompt: string }; onAnswer: (accept: boolean, text?: string) => void }) {
   const [text, setText] = useState(dialog.defaultPrompt);
   return (
@@ -615,7 +590,6 @@ type BarProps = {
   onReload: (hard: boolean) => void;
   onDevTools: (() => void) | null;
   actions: BarActions;
-  // 앱(webview)이면 true. 요소 선택, 스크린샷, 찾기, 저장소 지우기는 앱에서만 된다.
   native: boolean;
 };
 
@@ -761,7 +735,6 @@ function MenuRow({ label, hint, disabled, checked, onSelect }: { label: string; 
 function EmulationBar({ emulation, onChange, tabKey, native, available }: { emulation: Emulation; onChange: (value: Emulation | null) => void; tabKey: string; native: boolean; available: { width: number; height: number } }) {
   const [text, setText] = useState({ width: emulation.width ? String(emulation.width) : "", height: emulation.height ? String(emulation.height) : "", dpr: emulation.dpr ? String(emulation.dpr) : "" });
   const [invalid, setInvalid] = useState(false);
-  // 프리셋이나 초기화로 값이 바뀌면 입력칸도 맞춘다
   useEffect(() => {
     setText({ width: emulation.width ? String(emulation.width) : "", height: emulation.height ? String(emulation.height) : "", dpr: emulation.dpr ? String(emulation.dpr) : "" });
     setInvalid(false);
@@ -814,12 +787,10 @@ function EmulationBar({ emulation, onChange, tabKey, native, available }: { emul
   );
 }
 
-// 페이지 안 찾기(⌘F). 입력할 때마다 찾고 Enter 와 ⇧Enter 가 다음, 이전 일치다. Esc 로 닫는다.
 function FindBar({ found, onFind, onClose }: { found: { index: number; total: number } | null; onFind: (text: string, options: { matchCase: boolean; forward: boolean; next: boolean }) => void; onClose: () => void }) {
   const [text, setText] = useState("");
   const [matchCase, setMatchCase] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  // 메뉴가 닫히며 포커스를 트리거로 되돌리므로 그 뒤에 입력줄로 옮긴다.
   useEffect(() => {
     const timer = window.setTimeout(() => inputRef.current?.focus(), 80);
     return () => window.clearTimeout(timer);
@@ -916,7 +887,6 @@ async function checkFrame(url: string): Promise<FrameCheck> {
   try {
     const probe = await rpc.call("browser.probe", { url });
     if (probe.ok) return { state: "ok" };
-    // 연결이 안 되는 이유(서버가 안 떠 있음)도 프레임을 못 띄우는 이유다
     return { state: "blocked", message: probe.status === null ? (probe.reason ?? S.browserLoadFailed("unreachable")) : `${S.browserFrameBlocked(probe.reason ?? "")} ${S.browserFrameBlockedHint}` };
   } catch {
     return { state: "ok" };

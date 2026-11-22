@@ -1,5 +1,3 @@
-// Files 탭 트리의 펼침과 고른 행(web/filesView.ts). 탭 우클릭의 Reveal in Explorer View 가 쓰는 revealFilePath 와 작업 폴더별로 분리돼 남는 상태를 본다. 순수 모듈만 본다.
-// 실행: npm test
 import { expandFolders, filesViewOf, revealFilePath, setFilesView, toggleFolder } from "../web/filesView";
 
 const cases: { name: string; run: () => string }[] = [];

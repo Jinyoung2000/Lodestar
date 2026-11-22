@@ -1,5 +1,3 @@
-// ⌘ hover 정의 링크(web/definitionLinkState.ts)를 DOM 없이 확인한다. 밑줄 장식이 링크 상태에서만 생기고 글이 바뀌면 사라지는지, 미리보기 자르기.
-// 실행: npm test
 import { EditorState } from "@codemirror/state";
 import { EditorView, type DecorationSet } from "@codemirror/view";
 import { linkField, setLink, sliceDeclaration } from "../web/definitionLinkState";
@@ -11,7 +9,6 @@ const expect = (condition: boolean, detail: string) => {
   return detail;
 };
 
-// 상태에 든 모든 mark 장식을 { from, to, class } 로 모은다.
 function marks(state: EditorState) {
   const found: { from: number; to: number; cls: string }[] = [];
   for (const source of state.facet(EditorView.decorations)) {

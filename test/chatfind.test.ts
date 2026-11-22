@@ -1,5 +1,3 @@
-// Q2: 대화 안 찾기의 계산(web/chatFindModel.ts). DOM 이 없다.
-// 실행: npm test
 import { buildPattern, partIndexAt, stepIndex, textMatches } from "../web/chatFindModel";
 
 const cases: { name: string; run: () => string }[] = [];

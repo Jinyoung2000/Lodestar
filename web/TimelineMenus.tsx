@@ -1,19 +1,14 @@
 import { memo, useEffect, useState, type RefObject } from "react";
-import type { Agent, TimelineItem } from "../shared/protocol";
+import { harnessOf, type Agent, type TimelineItem } from "../shared/protocol";
 import { Codicon } from "./icons";
-import { flash, getState, openSide, setState, startDraft, topWorkspaceId } from "./store";
+import { addAttachment, flash, getState, openSide, setState, startDraft, topWorkspaceId } from "./store";
 import { S } from "./strings";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { hint } from "./hint";
-import { sourcePart } from "../shared/toBoard";
-import { canAddToBoard, openToBoard } from "./toBoardState";
 
 type Anchor = { x: number; y: number; text: string };
-// itemId: 고른 글이 든 대화 항목(없으면 그 턴의 사용자 메시지). Add to Board 가 카드와 메시지를 잇는 데 쓴다.
-type BarAnchor = Anchor & { itemId: string | null };
+type BarAnchor = Anchor & { commenting?: boolean };
 
-// 대화 본문 우클릭 메뉴(Copy, Copy All, New Chat)와 글을 고르면 뜨는 작은 도구 막대(Ask in a Side Chat, Quote, Copy). B2-19.
-// 대화 항목은 메뉴를 그리거나 누를 때 store 에서 읽는다. props 로 받으면 응답 이벤트마다 닫혀 있는 메뉴(Radix 컴포넌트 20개 남짓)까지 다시 그려졌다(PERF2).
 export const TimelineMenus = memo(function TimelineMenus({ containerRef, agent, paneId }: { containerRef: RefObject<HTMLDivElement | null>; agent: Agent; paneId: string }) {
   const items = (): TimelineItem[] => getState().timelines[agent.id] ?? [];
   const [menu, setMenu] = useState<Anchor | null>(null);
@@ -27,14 +22,13 @@ export const TimelineMenus = memo(function TimelineMenus({ containerRef, agent, 
       setBar(null);
       setMenu({ x: event.clientX, y: event.clientY, text: selectedText(el) });
     };
-    // 선택이 끝난 뒤(mouseup 다음 틱)에 읽어야 브라우저가 선택 범위를 확정해 둔다.
     const onUp = () =>
       window.setTimeout(() => {
         const text = selectedText(el);
         const range = text ? window.getSelection()?.getRangeAt(0) : null;
         if (!range) return setBar(null);
         const rect = range.getBoundingClientRect();
-        setBar({ x: Math.min(rect.left, window.innerWidth - 400), y: rect.bottom + 6, text, itemId: itemOf(range.startContainer) });
+        setBar({ x: Math.min(rect.left, window.innerWidth - 400), y: rect.bottom + 6, text });
       }, 0);
     const clear = () => setBar(null);
     el.addEventListener("contextmenu", onContext);
@@ -52,11 +46,27 @@ export const TimelineMenus = memo(function TimelineMenus({ containerRef, agent, 
   const copy = (text: string) => {
     void navigator.clipboard.writeText(text).then(() => hint(S.copied, undefined, { check: true }), () => flash(S.mcpCopyFailed));
   };
-  // 인용은 입력창에 쓰던 글 앞에 붙인다.
   const quote = (text: string) => {
     const draft = (document.getElementById(`composer-${paneId}`) as HTMLTextAreaElement | null)?.value ?? "";
     const quoted = text.trim().split("\n").map((line) => `> ${line}`).join("\n");
     setState((s) => ({ composerPrefill: { ...s.composerPrefill, [paneId]: { text: `${quoted}\n\n${draft}`, nonce: Date.now() } }, focusComposer: { paneId, nonce: Date.now() } }));
+  };
+  useEffect(() => {
+    if (!bar || bar.commenting) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey || event.code !== "Quote") return;
+      event.preventDefault();
+      quote(bar.text);
+      setBar(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [bar]);
+  const addComment = (text: string, comment: string) => {
+    if (!comment.trim()) return;
+    addAttachment(paneId, { workspaceId: null, path: "", startLine: null, endLine: null, text, quote: { comment: comment.trim() } });
+    window.getSelection()?.removeAllRanges();
+    setBar(null);
   };
   const newChat = () => startDraft(topWorkspaceId(agent.workspaceId) ?? agent.workspaceId);
 
@@ -83,20 +93,57 @@ export const TimelineMenus = memo(function TimelineMenus({ containerRef, agent, 
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {bar && (
-        <div className="selection-bar" role="toolbar" aria-label={S.selectionToolbarAria} style={{ left: bar.x, top: bar.y }} onMouseDown={(event) => event.preventDefault()}>
-          <button
-            type="button"
-            onClick={() => {
-              openSide(agent.id, bar.text);
-              setBar(null);
+      {bar?.commenting && (
+        <form
+          className="selection-bar selection-comment"
+          aria-label={S.quoteComment}
+          style={{ left: bar.x, top: bar.y }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            addComment(bar.text, String(new FormData(event.currentTarget).get("comment") ?? ""));
+          }}
+        >
+          <textarea
+            name="comment"
+            className="selection-comment-input"
+            aria-label={S.quoteCommentPlaceholder}
+            placeholder={S.quoteCommentPlaceholder}
+            rows={1}
+            autoFocus
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setBar(null);
+              } else if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
             }}
-          >
-            <Codicon name="comment-discussion" size={14} />
-            {S.askInSideChat}
+          />
+          <button type="submit">{S.quoteCommentAdd}</button>
+        </form>
+      )}
+      {bar && !bar.commenting && (
+        <div className="selection-bar" role="toolbar" aria-label={S.selectionToolbarAria} style={{ left: bar.x, top: bar.y }} onMouseDown={(event) => event.preventDefault()}>
+          {harnessOf(agent) === "claude" && (
+            <button
+              type="button"
+              onClick={() => {
+                openSide(agent.id, bar.text);
+                setBar(null);
+              }}
+            >
+              <Codicon name="comment-discussion" size={14} />
+              {S.askInSideChat}
+            </button>
+          )}
+          <button type="button" title={S.quoteCommentTip} onClick={() => setBar({ ...bar, commenting: true })}>
+            <Codicon name="comment" size={14} />
+            {S.quoteComment}
           </button>
           <button
             type="button"
+            title={S.quoteTip}
             onClick={() => {
               quote(bar.text);
               setBar(null);
@@ -104,46 +151,13 @@ export const TimelineMenus = memo(function TimelineMenus({ containerRef, agent, 
           >
             <Codicon name="quote" size={14} />
             {S.quote}
+            <span className="faint xs">{S.quoteKey}</span>
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              copy(bar.text);
-              setBar(null);
-            }}
-          >
-            <Codicon name="copy" size={14} />
-            {S.copyResponse}
-          </button>
-          {bar.itemId && canAddToBoard() && (
-            <button
-              type="button"
-              title={S.toBoardSelectionTip}
-              data-action="add-to-board"
-              onClick={(event) => {
-                const { left, top, right, bottom } = event.currentTarget.getBoundingClientRect();
-                openToBoard({ agentId: agent.id, itemId: bar.itemId!, text: bar.text, part: sourcePart(bar.text), rect: { left, top, right, bottom } });
-                setBar(null);
-              }}
-            >
-              <Codicon name="project" size={14} />
-              {S.addToBoard}
-            </button>
-          )}
         </div>
       )}
     </>
   );
 });
-
-// 선택이 시작된 곳을 품은 대화 항목 id. 항목 표시가 없는 곳(단계 묶음의 출력 등)이면 그 턴의 사용자 메시지.
-function itemOf(node: Node): string | null {
-  const el = node instanceof Element ? node : node.parentElement;
-  const item = el?.closest("[data-item-id]")?.getAttribute("data-item-id");
-  if (item) return item;
-  const turn = el?.closest("[data-turn-key]")?.getAttribute("data-turn-key");
-  return turn && turn !== "head" ? turn : null;
-}
 
 function selectedText(container: HTMLElement) {
   const selection = window.getSelection();
@@ -151,13 +165,11 @@ function selectedText(container: HTMLElement) {
   return container.contains(selection.getRangeAt(0).commonAncestorContainer) ? selection.toString().trim() : "";
 }
 
-// 마지막으로 확정된 응답 한 덩어리
 function finalResponse(items: TimelineItem[]) {
   const last = items.findLast((i) => i.kind === "assistant" && !i.streaming);
   return last?.kind === "assistant" ? last.text : "";
 }
 
-// 사용자 메시지와 확정된 응답을 순서대로 이은 글
 function conversationText(items: TimelineItem[]) {
   return items
     .filter((i) => (i.kind === "user" && i.source !== "system") || (i.kind === "assistant" && !i.streaming))

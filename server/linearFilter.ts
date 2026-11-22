@@ -1,6 +1,5 @@
 import { LINEAR_PRIORITIES, LINEAR_STATE_TYPES, type LinearIssueFilter, type LinearPriority, type LinearStateType } from "../shared/linear";
 
-// LINEAR: 화면이 보낸 필터를 검증하고 Linear IssueFilter 로 바꾼다. 필드 이름은 공식 스키마(IssueFilter)에서 확인했다.
 // 같은 객체 안의 칸은 AND, `or` 는 그 안의 후보 중 하나. 칸마다 서로 다른 조건이라 모두 한 객체에 두고, 검색어만 or 로 묶는다.
 
 export class BadFilter extends Error {}
@@ -8,10 +7,8 @@ export class BadFilter extends Error {}
 const MAX_IDS = 50;
 const MAX_ID_LENGTH = 100;
 const MAX_QUERY = 200;
-// 식별자 모양의 검색어(JOBL-123)는 팀 key 와 번호로도 찾는다.
 const IDENTIFIER = /^([A-Za-z][A-Za-z0-9]{0,15})-(\d{1,9})$/;
 
-// 같은 필터가 같은 캐시 키를 갖도록 정리한 모양. 빈 칸과 순서는 지운다.
 export function normalizeFilter(raw: unknown): LinearIssueFilter {
   if (raw === undefined || raw === null) return {};
   if (typeof raw !== "object" || Array.isArray(raw)) throw new BadFilter("filter must be an object");
@@ -58,7 +55,6 @@ export function normalizeFilter(raw: unknown): LinearIssueFilter {
   return out;
 }
 
-// stateTypes 를 고르면 그 종류만, 안 고르고 includeCompleted 도 아니면 completed 와 canceled 를 뺀다.
 export function buildIssueFilter(filter: LinearIssueFilter): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (filter.teamIds?.length) out.team = { id: { in: filter.teamIds } };

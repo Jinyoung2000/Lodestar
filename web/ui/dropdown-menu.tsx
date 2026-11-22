@@ -3,7 +3,6 @@ import { forwardRef, type ComponentPropsWithoutRef } from "react";
 import { Check, ChevronRight } from "../icons";
 import { cn } from "../lib/utils";
 
-// shadcn/ui DropdownMenu. 항목 높이 28px(size-row-lg), 좌우 space-2.
 export const DropdownMenu = DropdownMenuPrimitive.Root;
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
@@ -38,7 +37,6 @@ export const DropdownMenuSeparator = forwardRef<HTMLDivElement, ComponentPropsWi
   return <DropdownMenuPrimitive.Separator ref={ref} className={cn("my-1 h-px bg-border-subtle", className)} {...props} />;
 });
 
-// B1: 서브메뉴와 체크 표시 항목(사이드바 필터 메뉴). 선택된 항목은 왼쪽 체크 칸에 체크가 보이고, 선택되지 않은 항목도 같은 칸을 비워 글자 줄이 맞는다.
 export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 

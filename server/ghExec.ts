@@ -1,7 +1,5 @@
 import { spawn } from "node:child_process";
 
-// gh CLI 를 부르는 유일한 곳. 토큰은 gh 가 알아서 쓰고 이 프로세스는 읽거나 저장하지 않는다.
-// 본문 같은 사용자 글은 -f/-F 인자가 아니라 stdin 의 JSON(--input -)으로만 넘겨서 "@파일" 해석과 인자 길이 문제를 피한다.
 export class GhError extends Error {
   constructor(
     message: string,
@@ -41,7 +39,6 @@ export async function ghGraphql(query: string, variables: Record<string, unknown
   return reply.data ?? {};
 }
 
-// REST. body 가 있으면 JSON 으로 stdin 에 싣는다. 목록 읽기는 --paginate --slurp 로 페이지를 합친 배열을 받는다.
 export async function ghRest(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<unknown> {
   const args = method === "GET" ? ["api", path] : ["api", "-X", method, path];
   if (body !== undefined) args.push("--input", "-");

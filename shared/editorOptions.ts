@@ -14,7 +14,6 @@ export type EditorOptions = {
   foldingHighlight: boolean;
   foldingStrategy: "auto" | "indentation";
   showFoldingControls: "always" | "never" | "mouseover";
-  // EDPARITY(E): 개요 눈금자
   overviewRulerBorder: boolean;
   hideCursorInOverviewRuler: boolean;
   minimap: boolean;
@@ -107,14 +106,12 @@ export const EDITOR_OPTION_DEFAULTS = Object.fromEntries(EDITOR_OPTION_DEFS.map(
 
 const DEF_BY_KEY = new Map<string, EditorOptionDef>(EDITOR_OPTION_DEFS.map((def) => [def.key, def]));
 
-// 한 값이 이 설정의 허용 값인지. 맞으면 그 값(숫자는 범위 안으로 한정하지 않고 범위 밖이면 거절)을 돌려주고 아니면 undefined.
 export function acceptEditorOption(def: EditorOptionDef, value: unknown): unknown {
   if (def.kind === "boolean") return typeof value === "boolean" ? value : undefined;
   if (def.kind === "number") return typeof value === "number" && Number.isFinite(value) && value >= def.min && value <= def.max ? value : undefined;
   return typeof value === "string" && def.options.some((o) => o.value === value) ? value : undefined;
 }
 
-// 직접 고른 값 모음 정리: 모르는 키와 허용 밖 값은 버린다.
 export function sanitizeEditorOptions(raw: unknown): Partial<EditorOptions> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: Record<string, unknown> = {};
@@ -133,7 +130,6 @@ export function parseVscodeEditorOptions(settings: Record<string, unknown>): Par
   for (const def of EDITOR_OPTION_DEFS) {
     if (NOT_FROM_VSCODE.has(def.key)) continue;
     let value = settings[def.vscode];
-    // [typescript] 같은 언어별 블록과 중첩 객체 표기(editor.minimap: {enabled})는 읽지 않는다. 최상위 점 표기만 본다.
     if (def.key === "wordWrap" && (value === "bounded" || value === "wordWrapColumn")) value = "on";
     if (def.key === "lightbulb" && typeof value === "boolean") value = value ? "on" : "off";
     if (def.key === "lineNumbers" && value === "interval") value = "on";

@@ -11,14 +11,12 @@ export function wsUrl(path: string, params: Record<string, string> = {}) {
   return `${protocol}//${location.host}${path}?${search}`;
 }
 
-// FILEATTACH: 같은 출처의 데몬 HTTP 주소. 업로드 폴백(POST /attachments)이 쓴다.
 export function httpUrl(path: string, params: Record<string, string> = {}) {
   const search = new URLSearchParams(params).toString();
   return `${location.protocol}//${location.host}${path}${search ? `?${search}` : ""}`;
 }
 
 const HELD_UPSERT_MAX_MS = 100;
-// 응답이 흐를 때 같은 대화를 다시 그리는 간격의 하한. 응답 글은 초당 최대 20번 갱신된다.
 const HELD_UPSERT_MIN_GAP_MS = 50;
 
 type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void };
@@ -49,7 +47,6 @@ class RpcClient {
         this.dispatch(data.event);
         return;
       }
-      // 응답이 앞선 이벤트보다 먼저 처리되지 않게, 쥐고 있던 항목 갱신을 먼저 내보낸다
       this.releaseUpserts();
       const pending = this.pending.get(data.id);
       if (!pending) return;
@@ -62,7 +59,6 @@ class RpcClient {
       for (const listener of this.statusListeners) listener(false);
       for (const pending of this.pending.values()) pending.reject(new Error(S.daemonDisconnected));
       this.pending.clear();
-      // 실패로 알린 요청을 다음 연결에서 보내지 않는다. 보내면 실패로 보고 다시 보낸 메시지가 두 번 간다.
       this.queue = [];
       setTimeout(() => this.connect(), 1000);
     };
@@ -82,7 +78,6 @@ class RpcClient {
     for (const listener of this.eventListeners) listener(event);
   }
 
-  // 같은 항목의 timelineUpsert 는 한 프레임에 마지막 것만 내보낸다(web/upsertHold.ts).
   private upserts = new UpsertHold<string, Extract<ServerEvent, { type: "timelineUpsert" }>>((events) => {
     for (const event of events) this.dispatch(event);
   }, frameAfterGap(HELD_UPSERT_MIN_GAP_MS, HELD_UPSERT_MAX_MS));

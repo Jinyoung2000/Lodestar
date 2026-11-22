@@ -8,7 +8,6 @@ import { Text } from "../Text";
 import { AnsweredRow, ApprovalCard, PlanCard, QuestionCard, type Actions } from "./Cards";
 import { StepsRow } from "./StepsRow";
 
-// 타임라인 행 하나를 그린다. FlashList 가 행을 재활용하므로 행 종류(type)로 getItemType 을 준다.
 export const ChatRow = memo(function ChatRow({ row, actions }: { row: Row; actions: Actions }) {
   const colors = useColors();
   switch (row.type) {
@@ -43,7 +42,6 @@ export const ChatRow = memo(function ChatRow({ row, actions }: { row: Row; actio
       );
     case "steps":
       return <StepsRow steps={row.steps} running={row.running} failed={row.failed} />;
-    // 카드는 항목 id 로 새로 만든다. FlashList 는 같은 종류의 행 컴포넌트를 다른 항목에 다시 쓰므로, 그대로 두면 앞 요청의 바쁨 표시와 고른 답이 다음 요청 카드에 남는다.
     case "approval":
       return <ApprovalCard key={row.item.id} item={row.item} tool={row.tool} reviewOnDesktop={row.reviewOnDesktop} actions={actions} />;
     case "question":

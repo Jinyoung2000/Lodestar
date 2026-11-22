@@ -10,15 +10,13 @@ import { G } from "./searchStrings";
 import { getStamps, startRecentTracking } from "./searchRecents";
 import { runCommand } from "./shortcuts";
 import { boardShown, slackShown } from "./screenVisibility";
-import { ensureFiles, getState, isTopWorkspace, openAgent, openCard, openFile, openImprovements, openInboxItem, openNotes, setState, startCardSession, startDraft, useStore } from "./store";
+import { ensureFiles, getState, isTopWorkspace, openAgent, openEditorChatSession, openCard, openFile, openImprovements, openInboxItem, openNotes, setState, startCardSession, startDraft, useStore } from "./store";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent } from "./ui/dialog";
 
-// Recent 가 쓰는 "연 시각"은 앱이 뜬 때부터 듣는다(검색창을 처음 열 때부터가 아니라).
 startRecentTracking();
 
-// 통합 검색(⌘K). Claude 데스크톱의 Search 창처럼 위에 입력, 유형 탭, 묶음 목록, 아래에 키 안내를 둔다. 계산은 web/searchModel.ts.
 export function GlobalSearch({ initialTab }: { initialTab: SearchScope }) {
   const data = useSearchData();
   const tabs = useMemo(() => visibleTabs(data), [data]);
@@ -57,7 +55,6 @@ export function GlobalSearch({ initialTab }: { initialTab: SearchScope }) {
 
   const changeQuery = (value: string) => {
     const parsed = parseSlash(value, tabs);
-    // "/sessions foo" 는 Sessions 탭으로 좁히고 입력에는 foo 만 남긴다.
     if (parsed?.kind === "scope") {
       pickTab(parsed.tab);
       setQuery(parsed.rest);
@@ -205,11 +202,12 @@ function emptyText(data: SearchData, tab: SearchScope, query: string, filtering:
   return query.trim() || tab === "all" ? G.none : G.typeToSearch;
 }
 
-// Enter 는 기본 동작, ⌥Enter 는 보조 동작(altLabel 이 이름을 알려 준다).
 function openRow(row: SearchRow, alt: boolean) {
   setState({ overlay: null });
-  if (row.kind === "session") openAgent(row.agent.id, alt ? "new" : "active");
-  else if (row.kind === "file") {
+  if (row.kind === "session") {
+    if (getState().layoutMode === "editor") openEditorChatSession(row.agent.id);
+    else openAgent(row.agent.id, alt ? "new" : "active");
+  } else if (row.kind === "file") {
     openFile({ workspaceId: row.workspaceId, path: row.path }, { side: alt });
   } else if (row.kind === "workspace") startDraft(row.workspace.id, alt ? "new" : "active");
   else if (row.kind === "pr") {
@@ -225,7 +223,6 @@ function openRow(row: SearchRow, alt: boolean) {
     if (alt) window.open(row.item.permalink, "_blank");
     else openInboxItem(row.item.id);
   } else {
-    // 대화상자가 닫히며 포커스를 돌려주는 일이 끝난 뒤에 실행해야 입력창 포커스 같은 명령이 묻히지 않는다
     setTimeout(() => runAction(row.command), 0);
   }
 }

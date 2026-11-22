@@ -6,7 +6,6 @@ import { spacing } from "../theme/theme";
 import { Button } from "../ui/Button";
 import { Text } from "../ui/Text";
 
-// QR 스캔: 첫 인식 결과를 연결 화면에 넘기고 닫는다.
 export default function Scan() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();

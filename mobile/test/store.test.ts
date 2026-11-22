@@ -192,7 +192,6 @@ test("재연결: 끊긴 사이 생긴 항목을 끝 조각으로 다시 받아 �
   await store.openSession("s2");
   link.setStatus("offline");
   expect(store.getState().conn === "offline", "status mirrors the link");
-  // 끊긴 사이 서버에서 일어난 일: 새 항목 둘, 기존 항목 갱신, 상태 변경
   link.timelines.s2 = [a("x1", "edited while away"), a("x2"), a("x3")];
   link.agents = [agent("s1"), agent("s2", { status: "running" })];
   link.setStatus("online");
@@ -240,7 +239,6 @@ test("동작은 연결이 없으면 오류로 돌려준다", async () => {
   return message;
 });
 
-// 워크스페이스 동작은 데몬이 돌려주는 값을 흉내 내는 연결로 시험한다(실제 데몬과의 왕복은 루트 시험이 본다)
 class WorkspaceLink extends FakeLink {
   timeouts: (number | undefined)[] = [];
   override async call(method: string, params: unknown, timeoutMs?: number): Promise<unknown> {

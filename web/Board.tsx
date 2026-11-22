@@ -19,9 +19,6 @@ import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
-// 가운데 영역에 세션 격자 대신 보이는 칸반 보드. 열 편집, 카드 만들기, 검색과 필터, 정렬, 끌기와 키보드 이동, 우클릭 메뉴가 여기 있다.
-// 끌기는 포인터 이벤트로 직접 만든다 (Resizer 와 같은 방식). 카드를 5px 이상 움직이면 끌기, 아니면 클릭(카드 열기).
-
 const DRAG_THRESHOLD = 5;
 const EDGE_SCROLL = 48;
 const ALL = "all";
@@ -30,13 +27,11 @@ const SORTS: BoardSort[] = ["manual", "priority", "updated"];
 
 type Drag = {
   cardId: string;
-  // 포인터 위치(창 기준)와 카드 안에서 집은 지점
   x: number;
   y: number;
   grabX: number;
   grabY: number;
   width: number;
-  // 놓일 자리: 이 열의 beforeId 카드 앞 (null 이면 열 끝)
   columnId: string;
   beforeId: string | null;
 };
@@ -65,11 +60,9 @@ export function BoardView() {
     try {
       localStorage.setItem(SORT_KEY, next);
     } catch {
-      // 저장이 막힌 환경이면 이번 화면에서만 적용한다.
     }
   };
 
-  // 키보드로 옮긴 카드는 다른 열로 가면 새로 만들어지므로, 보드가 바뀐 직후 다시 포커스한다.
   useLayoutEffect(() => {
     const id = focusAfter.current;
     if (!id) return;
@@ -77,14 +70,11 @@ export function BoardView() {
     scrollerRef.current?.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(id)}"]`)?.focus();
   }, [board]);
 
-  // 카드를 열면 상세 칸이 보드 폭을 줄이므로, 열린 카드가 가려지지 않게 그 자리로 스크롤한다.
   useEffect(() => {
     if (!boardCardId) return;
     scrollerRef.current?.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(boardCardId)}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
   }, [boardCardId]);
 
-  // 보드 단축키 (Linear 와 같다): C 는 그 자리에서 카드 만들기(포커스나 마우스가 있는 카드의 열, 없으면 첫 열), 0 ~ 4 는 포커스나 마우스가 있는 카드의 우선순위.
-  // 입력칸, 메뉴, 대화상자 안의 키와 수정키가 눌린 키, 한글 조합 중인 키는 건드리지 않는다. 한글 입력 상태의 C 는 key 가 ㅊ 이라 latinKeyOf 가 물리 키로 읽는다.
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
@@ -129,17 +119,14 @@ export function BoardView() {
     if (!q) return true;
     return cardKey(card).toLowerCase().includes(q) || card.title.toLowerCase().includes(q) || card.body.toLowerCase().includes(q) || card.labels.some((l) => l.toLowerCase().includes(q));
   };
-  // 상세 칸에 열린 카드는 검색이나 작업 폴더 필터와 맞지 않게 되어도(상세에서 폴더를 바꾼 경우) 열려 있는 동안 남긴다.
   const visibleOf = (columnId: string) => sortCards(board.cards.filter((c) => c.columnId === columnId && (matches(c) || c.id === boardCardId)), sort);
   const topWorkspaces = workspaces.filter(isTopWorkspace);
   const firstColumn = board.columns.find((c) => c.role === "backlog") ?? board.columns[0];
   const sorted = sort !== "manual";
 
-  // 낙관적 이동: 화면을 먼저 바꾸고 서버에 보낸다. 실패하면 서버의 보드로 되돌린다.
   const moveTo = (cardId: string, columnId: string, beforeId: string | null) => {
     const current = getState().board;
     if (!current) return;
-    // 정렬 중에는 열 안 순서가 정렬이 정하므로 같은 열 안에서의 이동은 없다.
     if (sorted && current.cards.find((c) => c.id === cardId)?.columnId === columnId) return;
     const index = indexBefore(current, columnId, cardId, beforeId);
     const next = moveCardIn(current, cardId, columnId, index);
@@ -151,7 +138,6 @@ export function BoardView() {
     setAnnounce(S.cardMoved(current.cards.find((c) => c.id === cardId)?.title ?? "", column?.name ?? "", position, next.cards.filter((c) => c.columnId === columnId).length));
   };
 
-  // 포인터가 가리키는 열과 그 안의 자리를 DOM 에서 읽는다. 검색으로 숨겨진 카드는 DOM 에 없으므로 보이는 카드 기준이다.
   const locate = (x: number, y: number, movingId: string) => {
     const columns = Array.from(scrollerRef.current?.querySelectorAll<HTMLElement>("[data-column-id]") ?? []);
     if (!columns.length) return null;
@@ -164,7 +150,6 @@ export function BoardView() {
       const r = el.getBoundingClientRect();
       return y < r.top + r.height / 2;
     });
-    // 정렬 중에는 놓은 열의 끝으로만 간다(열 안 자리는 정렬이 정한다).
     return { columnId: column.dataset.columnId!, beforeId: sorted ? null : (before?.dataset.cardId ?? null) };
   };
 
@@ -211,7 +196,6 @@ export function BoardView() {
       window.removeEventListener("keydown", onKey, true);
       setDrag(null);
     };
-    // 끄는 중의 Esc 는 끌기만 취소한다(전역 Esc 가 Board 를 닫지 않게 먼저 받는다). 이어서 마우스를 놓아도 이동하지 않고 카드도 열리지 않는다.
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== "Escape" || !dragging) return;
       e.stopPropagation();
@@ -226,7 +210,6 @@ export function BoardView() {
     window.addEventListener("keydown", onKey, true);
   };
 
-  // 카드 사이 포커스 이동: ↑ ↓ 는 같은 열의 앞뒤 카드, ← → 는 옆으로 가며 카드가 있는 첫 열의 같은 자리(없으면 마지막) 카드.
   const focusNeighbor = (card: BoardCard, key: string) => {
     const own = visibleOf(card.columnId);
     const at = own.findIndex((c) => c.id === card.id);
@@ -246,7 +229,6 @@ export function BoardView() {
     element?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
   };
 
-  // 카드에 포커스를 두고 방향키는 카드 사이 이동, ⌥← ⌥→ 는 카드를 옆 열로(같은 자리 근처), ⌥↑ ⌥↓ 는 열 안에서 한 칸 옮긴다. 정렬 중에는 ⌥↑ ⌥↓ 가 없고 ⌥← ⌥→ 는 옆 열의 끝으로 간다.
   const onCardKeyDown = (event: KeyboardEvent<HTMLElement>, card: BoardCard) => {
     if (event.target !== event.currentTarget) return;
     if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
@@ -440,7 +422,6 @@ function ColumnView({
 }) {
   const [renaming, setRenaming] = useState(false);
   const dropHere = drag && drag.columnId === column.id;
-  // 정렬 중 같은 열에 놓는 것은 이동이 아니므로 놓일 자리 선을 그리지 않는다.
   const showLine = dropHere && !(sorted && board.cards.find((c) => c.id === drag.cardId)?.columnId === column.id);
 
   const remove = async () => {
@@ -519,7 +500,6 @@ function ColumnView({
   );
 }
 
-// 카드 구성 (Linear 순서): 번호와 우선순위, 제목(두 줄까지), 설명 미리보기, 상태 아이콘과 라벨, 세션 상태 점과 워크스페이스와 링크 수와 날짜.
 function CardView({
   card,
   role,
@@ -563,7 +543,6 @@ function CardView({
         onMenu({ cardId: card.id, x: e.clientX, y: e.clientY, only: null });
       }}
       onClick={(e) => {
-        // 우선순위 메뉴 같은 포털 안의 클릭도 React 트리로는 이 카드까지 올라오므로 DOM 으로 이 카드 안의 클릭만 받는다.
         if (!e.currentTarget.contains(e.target as Node)) return;
         if (!suppressClick.current) openCard(card.id);
       }}
@@ -620,7 +599,6 @@ function CardView({
   );
 }
 
-// 이름 한 줄 입력: Enter 로 확정, Esc 로 취소, 포커스를 잃으면 비어 있지 않을 때만 확정한다. keepOpen 이면 확정 뒤에도 열려 있어 연달아 입력할 수 있다.
 function NameInput({ label, placeholder, initial, keepOpen = false, onSubmit, onCancel }: { label: string; placeholder?: string; initial: string; keepOpen?: boolean; onSubmit: (value: string) => void; onCancel: () => void }) {
   const [value, setValue] = useState(initial);
   const done = useRef(false);

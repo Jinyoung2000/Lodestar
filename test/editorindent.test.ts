@@ -11,7 +11,6 @@ const check = (name: string, ok: boolean, detail = "") => {
 const guess = (text: string, tabSize = 4, insertSpaces = true) => guessIndentation(leadingLines(text), tabSize, insertSpaces);
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-// --- 감지 ---
 check("empty file keeps the defaults", same(guess(""), { insertSpaces: true, tabSize: 4 }));
 check("empty file keeps tab defaults", same(guess("", 8, false), { insertSpaces: false, tabSize: 8 }));
 check("two-space file", same(guess("a {\n  b {\n    c;\n  }\n}\n"), { insertSpaces: true, tabSize: 2 }));
@@ -36,7 +35,6 @@ check("2 wins over 4 at the two thirds line", (() => {
 })());
 check("histogram ties go to the smaller candidate", guess("a\n  b\na\n    c\n").tabSize === 2);
 check("an alignment line under a trailing comma does not count", (() => {
-  // 앞 줄이 쉼표로 끝나고 그 줄의 공백 위치에 맞춘 줄은 3 칸 증거로 세지 않는다
   const text = ["a, b,", "   x", "a, b,", "   x", "y", "  z"].join("\n");
   return guess(text).tabSize === 2;
 })());
@@ -54,7 +52,6 @@ check("leadingLines stops at the limit", leadingLines("a\nb\nc\nd", 2).length ==
 check("base indentation uses the settings when detection is off", same(baseIndentation({ tabSize: 3, insertSpaces: false, detectIndentation: false }, "  a\n    b\n"), { useSpaces: false, size: 3, source: "config" }));
 check("base indentation detects when asked", same(baseIndentation({ tabSize: 4, insertSpaces: true, detectIndentation: true }, "a\n  b\n"), { useSpaces: true, size: 2, source: "detected" }));
 
-// --- 파일별 상태 ---
 const make = (info: { useSpaces: boolean; size: number }, doc: string, extra: Extension = []) => EditorState.create({ doc, extensions: [indentState({ ...info, source: "config" }), extra] });
 const apply = (state: EditorState) => {
   let current = state;
@@ -87,7 +84,6 @@ check("without a manual choice a reconfigure takes the new base", (() => {
   return same(indentInfoOf(s), { useSpaces: false, size: 8, source: "config" });
 })());
 
-// --- Tab, Shift+Tab ---
 const cursorAt = (state: EditorState, pos: number) => state.update({ selection: { anchor: pos } }).state;
 const tabbed = (doc: string, pos: number, info = { useSpaces: true, size: 2 }) => {
   const target = apply(cursorAt(make(info, doc), pos));
@@ -144,7 +140,6 @@ check("Tab with two cursors inserts at both", (() => {
   return t.state.doc.toString() === "  a\n  b";
 })());
 
-// --- 변환 ---
 check("convert to spaces replaces each leading tab with tabSize spaces and records the choice", (() => {
   const t = apply(make({ useSpaces: false, size: 4 }, "a\n\tb\n\t\tc\n\t \td\ne\t\tf\n"));
   convertIndentation(t, true);
@@ -172,14 +167,12 @@ check("convert with nothing to change still records the choice", (() => {
   return t.state.doc.toString() === "a\nb" && indentInfoOf(t.state).useSpaces === true;
 })());
 
-// --- 내용에서 다시 감지 ---
 check("Detect Indentation reads the current text and marks it detected", (() => {
   const t = apply(make({ useSpaces: false, size: 4 }, "a {\n  b;\n}\n"));
   detectIndentation(t, { tabSize: 4, insertSpaces: true });
   return same(indentInfoOf(t.state), { useSpaces: true, size: 2, source: "detected" });
 })());
 
-// --- 다시 들여쓰기 ---
 check("Reindent Lines fixes JavaScript indentation", (() => {
   const t = apply(make({ useSpaces: true, size: 2 }, "function f() {\nconst a = 1;\n      if (a) {\nreturn a;\n}\n}\n", javascript()));
   reindentLines(t, false);

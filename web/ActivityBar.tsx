@@ -34,7 +34,8 @@ export function ActivityBar() {
     search: S.activitySearch(useCommandKey("findInFiles")),
     card: S.activityCard,
   };
-  const sessionsKey = useCommandKey("sessions");
+  const tips: Record<ActivityView, string> = { ...labels, changes: S.activityChangesTip, scm: S.activityScmTip(labels.scm) };
+  const sessionsKey =useCommandKey("sessions");
   const groupRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -65,6 +66,10 @@ export function ActivityBar() {
   };
   const activate = (item: ActivityView) => {
     const s = getState();
+    if (item === "changes" && s.editorSessionChangesId) {
+      setFocusView("changes");
+      return;
+    }
     const next = pressActivity(s.focusSideOpen, sideKeyOf(s.sideTabKey, !!s.selectedCardId), item);
     setFocusView(next.view, next.open);
   };
@@ -88,7 +93,7 @@ export function ActivityBar() {
     <nav className="activity-bar" aria-label={S.activityBarAria}>
       <div className="activity-group" ref={groupRef}>
         {shown.map((item) => (
-          <ViewButton key={item} view={item} label={labels[item]} pressed={open && view === item} dragging={drag?.moved === true && drag.view === item} onPointerDown={(e) => onPointerDown(e, item)} onPointerMove={onPointerMove} onPointerUp={() => onPointerUp(item)} onActivate={() => activate(item)} onMenu={(x, y) => setMenu({ view: item, x, y })}>
+          <ViewButton key={item} view={item} label={labels[item]} tip={tips[item]} pressed={open && view === item} dragging={drag?.moved === true && drag.view === item} onPointerDown={(e) => onPointerDown(e, item)} onPointerMove={onPointerMove} onPointerUp={() => onPointerUp(item)} onActivate={() => activate(item)} onMenu={(x, y) => setMenu({ view: item, x, y })}>
             {item === "changes" && !prefs.hiddenBadges.includes("changes") && <ChangesBadge />}
           </ViewButton>
         ))}
@@ -104,15 +109,15 @@ export function ActivityBar() {
   );
 }
 
-type ViewButtonProps = { view: ActivityView; label: string; pressed: boolean; dragging: boolean; onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerUp: () => void; onActivate: () => void; onMenu: (x: number, y: number) => void; children?: ReactNode };
+type ViewButtonProps = { view: ActivityView; label: string; tip: string; pressed: boolean; dragging: boolean; onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerUp: () => void; onActivate: () => void; onMenu: (x: number, y: number) => void; children?: ReactNode };
 
-function ViewButton({ view, label, pressed, dragging, onPointerDown, onPointerMove, onPointerUp, onActivate, onMenu, children }: ViewButtonProps) {
+function ViewButton({ view, label, tip, pressed, dragging, onPointerDown, onPointerMove, onPointerUp, onActivate, onMenu, children }: ViewButtonProps) {
   return (
     <button
       type="button"
       className="activity-item"
       aria-label={label}
-      title={label}
+      title={tip}
       aria-pressed={pressed}
       data-view={view}
       data-dragging={dragging || undefined}

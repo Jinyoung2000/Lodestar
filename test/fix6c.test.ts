@@ -1,4 +1,3 @@
-// 6회차 묶음 C(FIX6C)의 순수 로직: 바쁜 세션 판정, 복원 토스트 개수, 첨부 키, 핸드오프 칩 저장, 단축키 목록, 변경 거터, 문제 목록, 칸 폭. 실행: npm test
 import { Text } from "@codemirror/state";
 import type { Agent } from "../shared/protocol";
 import { isBusyAgent } from "../shared/agentBusy";
@@ -26,8 +25,6 @@ const same = (actual: unknown, wanted: unknown, label: string) => {
 
 const NOW = "2026-10-16T00:00:00.000Z";
 const agent = (id: string, workspaceId: string, patch: Partial<Agent> = {}): Agent => ({ id, workspaceId, cwd: "/tmp", worktree: null, forkedFrom: null, resumeFrom: null, startCommit: null, feedbackId: null, title: id, sessionId: id, status: "idle", permissionMode: "default", model: null, effort: null, activeModel: null, activeEffort: null, backgroundTasks: 0, createdAt: NOW, updatedAt: NOW, ...patch });
-
-// --- 발견 3: 바쁜 세션 판정 ---
 
 test("isBusyAgent: running, waiting, 백그라운드 작업이 남은 idle 만 바쁘다. error 는 CLI 가 죽었으니 아니다", () => {
   expect(isBusyAgent({ status: "running", backgroundTasks: 0 }), "running");
@@ -62,8 +59,6 @@ test("removeFolder: 도는 세션이 하나라도 있으면 그대로 거절한�
   return "rejected";
 });
 
-// --- 발견 13: 복원 토스트 개수 ---
-
 test("restoreToastText: 확인 창의 되돌림 2, 휴지통 1 이 토스트에도 그대로 나온다", () => {
   const text = restoreToastText({ files: 3, reverted: 2, removed: 1 });
   expect(text.startsWith("2 files restored, 1 moved to the Trash"), text);
@@ -76,8 +71,6 @@ test("restoreToastText: reverted 가 없으면 files 에서 휴지통 수를 뺀
   expect(restoreToastText({ files: 1, reverted: 1 }).startsWith("1 file restored."), "no trash");
   return "3 cases";
 });
-
-// --- 발견 10: 첨부는 세션 id 에 묶인다 ---
 
 test("attachmentKey: 세션이 열린 칸은 세션 id, 새 세션 화면은 new:<칸 id>", () => {
   const panes = [
@@ -97,8 +90,6 @@ test("attachmentKey: 같은 칸 id 에 다른 세션이 들어와도 앞 칸의 
   expect(attachmentKey(after, "pane-1") !== handoffKey, "B 의 키는 핸드오프 칩이 든 키와 다르다");
   return `${handoffKey} -> ${attachmentKey(after, "pane-1")}`;
 });
-
-// --- 발견 20: 핸드오프 칩 저장 ---
 
 test("snapshotHandoffs 와 restoreHandoffs: 문서가 다 만들어진 칩만 저장하고 같은 모양으로 되살린다", () => {
   const ready = { id: "c1", workspaceId: "w1", text: "doc", handoff: { sourceId: "s1", title: "Do it", status: "ready", id: "h1" } };
@@ -120,8 +111,6 @@ test("sanitizeExtras: handoffs 의 깨진 항목은 버린다", () => {
   expect(extras.handoffs["new:pane-1"].length === 1 && !("bad" in extras.handoffs), JSON.stringify(extras.handoffs));
   return "ok";
 });
-
-// --- 발견 11: 단축키 목록 ---
 
 test("shortcutRows: 단축키 표(BINDINGS)의 모든 명령(escape 제외)이 이름과 범주와 함께 한 줄씩 나온다", () => {
   const rows = shortcutRows();
@@ -194,8 +183,6 @@ test("categoryOf 와 groupByCategory: 이름 앞의 범주, 없으면 General �
   return groups.map((g) => g.category).join(", ");
 });
 
-// --- 발견 18: 변경 거터와 문제 목록 ---
-
 const lines = (text: string) => Text.of(text.split("\n"));
 
 test("gutterMarks: 추가, 수정, 삭제 줄을 현재 문서의 줄 번호로 돌려준다", () => {
@@ -208,7 +195,6 @@ test("gutterMarks: 추가, 수정, 삭제 줄을 현재 문서의 줄 번호로 
 });
 
 test("gutterMarks: 여러 덩어리와 문서 끝 삭제", () => {
-  // 파일은 보통 줄바꿈으로 끝나서 문서의 마지막 줄이 빈 줄이다
   const base = lines("1\n2\n3\n4\n5\n6\n");
   const marks = gutterMarks(base, lines("1\nTWO\n3\n4\n5\n6\n7\n"));
   same(marks, [{ line: 2, kind: "modified" }, { line: 7, kind: "added" }], "수정과 끝 추가");
@@ -230,8 +216,6 @@ test("severityOf 와 groupProblems: 파일은 경로순, 문제는 줄순, 줄�
   same(countProblems(files), { errors: 2, warnings: 1, total: 3 }, "개수");
   return "ok";
 });
-
-// --- 발견 14: 칸 폭 ---
 
 test("stretchedMin: 칸이 모두 최소 폭 이상으로 들어가면 늘리지 않는다(스크롤 없이 나눠 갖는다)", () => {
   let checked = 0;

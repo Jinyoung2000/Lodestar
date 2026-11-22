@@ -28,8 +28,6 @@
   border-bottom: 1px solid var(--editor-cursor);
 }
 
-/* 깜빡임. blink 는 번들이 500ms 마다 visibility 를 뒤집는다(1초 주기, 반은 보이고 반은 숨김).
-   smooth, phase, expand 는 커서가 움직인 뒤 500ms 고정으로 보이다가 .5s ease-in-out alternate 를 20번 돈다(애니메이션 지연으로 같은 효과). */
 @keyframes cm-vsc-blink-a {
   0% {
     opacity: 1;

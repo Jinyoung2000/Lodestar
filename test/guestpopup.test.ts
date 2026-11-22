@@ -1,4 +1,3 @@
-// Browser 탭 guest 의 새 창 판정과 로그인 요청 헤더 정리를 확인한다. 실제 로그인은 하지 않는다. 실행: npm test
 import { chromeLikeUserAgent, guestPopupDecision } from "../electron/guestPopup";
 
 const cases: { name: string; run: () => string }[] = [];

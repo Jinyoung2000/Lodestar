@@ -8,10 +8,6 @@ import { NotionChatStore } from "./notionChats";
 import { NotionService, type NotionRead } from "./notion";
 import type { Store } from "./store";
 
-// Notion 연동을 데몬에 꽂는 곳. 서비스(읽기와 승인된 쓰기), 페이지 전용 대화의 목록, 에이전트 세션에 붙는 도구의 호스트, RPC 처리기를 한 군데서 만든다.
-// server/index.ts 는 이 파일이 돌려주는 hooks 와 handlers 를 연결만 한다.
-
-// 이 시간 안에 읽은 내용이 있으면 대화를 시작할 때 다시 읽지 않는다.
 const FRESH_MS = 2 * 60 * 1000;
 
 export type NotionDeps = { store: Store; board: BoardStore; runner: Pick<AgentRunner, "create" | "respondNotionWrite">; broadcast: (event: ServerEvent) => void; publishBoard: () => void; service?: NotionService; chats?: NotionChatStore };

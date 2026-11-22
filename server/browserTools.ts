@@ -24,7 +24,6 @@ export function browserToolNeedsApproval(name: string, input: Record<string, unk
 }
 
 type Args = Record<string, unknown>;
-// SDK 가 이 타입을 내보내지 않아 tool() 핸들러의 반환 타입에서 가져온다.
 type CallToolResult = Awaited<ReturnType<Parameters<typeof tool>[3]>>;
 
 export function fileUrlInside(url: string, roots: string[]): boolean {
@@ -39,7 +38,6 @@ export function fileUrlInside(url: string, roots: string[]): boolean {
   return filePathInside(path, roots);
 }
 
-// 경로가 허락된 폴더 안인가. ".." 와 심볼릭 링크를 푼 실제 경로로 본다(글자만 비교하면 <폴더>/../../.ssh/id_rsa 나 밖을 가리키는 링크가 통과한다).
 export function filePathInside(path: string, roots: string[]): boolean {
   const real = (p: string) => {
     try {
@@ -55,7 +53,6 @@ export function filePathInside(path: string, roots: string[]): boolean {
   });
 }
 
-// 주소가 file: 인가. 브라우저는 앞 공백과 중간의 탭, 줄바꿈을 지우고 읽으므로(" file:///...", "fi\tle:///...") 글자가 아니라 해석한 결과로 판단한다.
 function isFileUrl(url: string): boolean {
   try {
     return new URL(url).protocol === "file:";
@@ -64,7 +61,6 @@ function isFileUrl(url: string): boolean {
   }
 }
 
-// 도구 한 번을 실행해 MCP 결과로 만든다. 페이지에서 온 글은 믿을 수 없는 데이터라는 문장을 앞에 붙인다. file: 로 이동하려면 허락된 폴더 안이어야 하고, 확인한 도구 호출에만 fileOk 를 붙인다(모델이 보낸 값은 덮어쓴다).
 export async function runBrowserTool(bridge: BrowserBridge, enabled: () => boolean, agentId: string, tool: BrowserToolName, args: Args, allowedFileRoots: () => string[] = () => []): Promise<CallToolResult> {
   if (!enabled()) return failure(T.errBrowserOff);
   try {
@@ -97,7 +93,6 @@ export function listBrowserPages(bridge: BrowserBridge, enabled: () => boolean, 
   return { content: [{ type: "text", text }] };
 }
 
-// open_browser_page: 사용자 화면에 Browser 탭을 열고 이 세션에 공유한다. url 이 없으면 사용자에게 공유할 열린 탭을 고르게 한다.
 export async function openBrowserPage(bridge: BrowserBridge, enabled: () => boolean, agentId: string, args: Args, allowedFileRoots: () => string[] = () => []): Promise<CallToolResult> {
   if (!enabled()) return failure(T.errBrowserOff);
   const url = typeof args.url === "string" && args.url ? args.url : null;
@@ -107,7 +102,6 @@ export async function openBrowserPage(bridge: BrowserBridge, enabled: () => bool
     const output = await bridge.open(agentId, url, args.forceNew === true);
     const content: CallToolResult["content"] = [];
     const text = output.text ?? "Done.";
-    // 페이지를 읽은 결과(Page ID 로 시작)에는 믿을 수 없는 데이터라는 문장을 붙인다
     content.push({ type: "text", text: text.startsWith("Page ID:") ? `${T.browserUntrusted(url ?? "the page")}\n\n${text}` : text });
     return { content };
   } catch (error) {

@@ -1,11 +1,6 @@
 import { SLACK_NOT_CONNECTED_PREFIX } from "../shared/mcp";
 
-// 데몬이 UI 로 보내는 사용자 노출 문구(오류, 알림, 라벨)를 한 곳에 모은다. 값은 영어 문장이다.
-// 값이 함수인 항목은 이름이나 숫자가 들어가는 문장이다. 언어를 바꿀 때는 이 파일만 교체한다.
-// 모델에게 주는 지시문(quick.ts, side.ts 의 SYSTEM_PROMPT)은 UI 문구가 아니라 여기에 두지 않는다.
-
 export const T = {
-  // 모바일 접속 (server/mobileAccess.ts)
   errMobileMethod: (method: string) => `The phone app cannot call ${method}`,
   errMobileParam: (name: string) => `Invalid ${name}`,
   errMobilePairInvalid: "That pairing code is not valid",
@@ -19,7 +14,6 @@ export const T = {
   errMobileFolderRoot: "Pick a folder inside your home folder, not the home folder itself",
   errMobileOff: "Mobile access is off. Turn it on in Settings first",
 
-  // 보드
   errCardTitle: "A card needs a title",
   errCardTitleLong: (max: number) => `Card titles are limited to ${max} characters`,
   errCardBodyLong: (max: number) => `Card descriptions are limited to ${max} characters`,
@@ -36,12 +30,10 @@ export const T = {
   errBadIndex: "Position must be a whole number",
   errBoardCorrupt: (path: string) => `board.json could not be read, so it was moved to ${path} and a new board was started`,
 
-  // 메모장
   errUnknownNote: (id: string) => `Unknown note: ${id}`,
   errNoteText: "A note needs text",
   errNoteLong: (max: number) => `Notes are limited to ${max.toLocaleString("en-US")} characters`,
 
-  // 세션과 에이전트
   newSessionTitle: "New Session",
   compacted: "Conversation compacted",
   backgroundTask: (status: "completed" | "failed" | "stopped", summary: string) => {
@@ -50,7 +42,6 @@ export const T = {
   },
   backgroundTaskDetails: "Full result",
   stopped: "Stopped",
-  // ASIDEVIEW: Bash 포커스 가드가 대화에 남기는 줄
   focusGuardRewrote: (count: number) => (count === 1 ? "Added -g to an open command so the app stays in the background" : `Added -g to ${count} open commands so the apps stay in the background`),
   focusGuardBlocked: "Blocked a command that would take your focus or input",
   truncated: "… (truncated)",
@@ -63,7 +54,6 @@ export const T = {
   errWorkingDirectoryGone: (cwd: string) => `Error: (workingDirectoryFailed) This session couldn't be loaded because its working directory no longer exists: ${cwd.replace(/^\/private(?=\/(?:tmp|var)\/)/, "")}`,
   processEnded: "The session process ended unexpectedly. Send again to resume.",
   daemonStoppedMidReply: "The daemon stopped while Claude was replying, so this reply was cut off. Send a message to resume.",
-  // CODEX
   daemonStoppedMidReplyCodex: "The daemon stopped while Codex was replying, so this reply was cut off. Send a message to resume.",
   claudeNotInstalled: "Claude Code CLI was not found. Install Claude Code, then send again.",
   codexNotInstalled: (bin: string) => `Codex CLI was not found (${bin}). Install Codex and send again.`,
@@ -71,12 +61,21 @@ export const T = {
   codexServerEnded: "The Codex app server ended unexpectedly. Send again to resume.",
   codexResumeFailed: "Codex could not resume the earlier thread, so this session continues in a new thread without the earlier context.",
   codexUnsupported: (what: string) => `${what} is not available for Codex sessions yet`,
+  harnessUnsupported: (tool: string, what: string) => `${what} is not available for ${tool} sessions yet`,
+  daemonStoppedMidReplyAntigravity: "The daemon stopped while Antigravity was replying, so this reply was cut off. Send a message to resume.",
+  antigravityNotInstalled: (bin: string) => `Antigravity CLI was not found (${bin}). Install agy and send again.`,
+  antigravityNotLoggedIn: "Antigravity is not signed in. Run `agy` in a terminal and sign in, then send again.",
+  antigravityEnded: "The Antigravity agent process ended unexpectedly. Send again to resume.",
+  antigravityResumeFailed: "Antigravity could not resume the earlier conversation, so this session continues in a new conversation without the earlier context.",
+  steerFailed: (message: string) => `Could not steer the current reply. ${message}`,
+  antigravityRefused: "Antigravity declined to continue this turn.",
+  antigravityStopped: (reason: string) => (reason === "max_tokens" ? "Antigravity stopped because the reply reached its token limit." : "Antigravity stopped because the turn reached its request limit."),
   codexPlanUnavailable: "Codex sessions cannot use Plan mode",
   switchedTo: (tool: string, model: string | null) => (model && model !== "default" ? `Switched to ${tool} · ${model}` : `Switched to ${tool}`),
   switchBlocked: {
-    running: "Wait for the reply to finish before switching between Claude and Codex",
-    background: "Wait for the background tasks to finish before switching between Claude and Codex",
-    waiting: "Answer the pending request before switching between Claude and Codex",
+    running: "Wait for the reply to finish before switching tools",
+    background: "Wait for the background tasks to finish before switching tools",
+    waiting: "Answer the pending request before switching tools",
     notion: "Notion page chats run on Claude only",
     feedback: "Improvement sessions run on Claude only",
     imported: "Sessions imported from VS Code run on Claude only",
@@ -88,13 +87,24 @@ export const T = {
   errPermissionHandled: "This permission request was already handled",
   errWorktreeShared: "Other sessions still use this worktree",
   errChatNoWorktree: "A chat without a folder cannot use a worktree",
+  errFolderListInvalid: "Folders must be a list of workspace ids",
+  errFolderNotAddable: (name: string) => `${name} cannot be added to a session`,
+  errFolderFeedbackSession: "Improvement sessions cannot use more folders",
+  errMoveHasFolder: "Only a chat without a folder can be moved into a folder",
+  errMoveUnsupported: "This session cannot be moved into a folder",
+  errMoveDataFolder: "Choose a folder outside Lodestar's data folder",
+  movedToFolder: (name: string) => `Moved to ${name}`,
+  createdFolder: (path: string) => `Created folder ${path}`,
+  addedFolder: (name: string) => `Added ${name}`,
+  removedFolder: (name: string) => `Removed ${name}`,
+  unknownFolder: "a folder that is no longer listed",
+  errFolderExists: (path: string) => `${path} already exists`,
   errWorktreeDirty: (summary: string) => `The worktree still has changes, so it was not deleted:\n${summary}`,
   errRepoNotFound: "Could not find the original repo",
   permissionDeniedByUser: "The user denied this request",
   errNeedsAnswer: "This request needs an answer from the session view",
   imageTitle: "Image",
   permissionModeTimeout: "The session did not confirm the permission mode change. Try again in a moment.",
-  // B2: 체크포인트
   errNoCheckpoint: "This message has no checkpoint",
   errCheckpointUnmatched: "Could not match this message to the session history",
   errCheckpointGone: "That message is no longer in the session history",
@@ -104,7 +114,6 @@ export const T = {
   errRestoreCancelled: "Restore cancelled",
   forkedTitle: (title: string) => `Forked: ${title}`,
 
-  // git
   errBranchInvalid: "Invalid branch name",
   errBranchDash: "A branch name can't start with a dash",
   errBranchSpace: "A branch name can't contain spaces",
@@ -140,8 +149,8 @@ export const T = {
   baseSnapshots: "Before this session's edits",
   baseTouched: "Files this session edited",
 
-  // 파일, 폴더, 터미널
   errFolderNotFound: (path: string) => `Folder not found: ${path}`,
+  errFolderName: "Use a folder name without slashes",
   errRelocateBusy: (count: number) => `Can't move this folder while ${count === 1 ? "a session is" : `${count} sessions are`} running. Stop ${count === 1 ? "it" : "them"} first.`,
   errFolderBusy: (count: number) => `${count === 1 ? "A session in this folder is" : `${count} sessions in this folder are`} still running. Stop ${count === 1 ? "it" : "them"} before removing the folder.`,
   errNotChangedFile: "Not a changed file in this session",
@@ -156,7 +165,6 @@ export const T = {
   errFormatFailed: (tool: string, detail: string) => `${tool} could not format this file: ${detail}`,
   formatNotAddedFolder: "This folder was not added as a workspace (a pull request checkout or a repository Lodestar downloaded), so its formatters and their config files are not run.",
   errBadScreenshot: "The screenshot is not a PNG image or is too large.",
-  // G7: 에이전트의 Browser 도구가 받는 문장(모델이 읽는다)
   errBrowserNoPages: "No browser pages are currently shared with you. Ask the user to press Share with Agent on a Browser tab in Lodestar (desktop app).",
   errBrowserNotShared: (pageId: string) => `Browser page ${pageId} is not shared with this session. Use list_browser_pages to see the pages you can use.`,
   errBrowserPickPage: (ids: string[]) => `Several pages are shared with you (${ids.join(", ")}). Pass pageId.`,
@@ -172,7 +180,6 @@ export const T = {
   terminalUnavailable: (reason: string) => `Cannot open a terminal: ${reason}`,
   webBuildMissing: "No web build found. Run npm run build first.",
 
-  // 빠른 질문과 곁다리 대화
   errQuickRunMissing: "Quick Ask history not found",
   errQuickOnlyRead: "Quick Ask can only use Read",
   errSessionNotCreated: "The session has not been created yet",
@@ -184,19 +191,16 @@ export const T = {
   reloginHint: (text: string) => `${text}\n\nSign in again in a terminal with ~/.local/bin/claude auth login.`,
   quickLines: (start: number, end: number) => (start === end ? `line ${start}` : `lines ${start}-${end}`),
 
-  // 피드백 개선 (server/feedback.ts)
   fbErrNotGit: (path: string) => `The Lodestar source folder is not a git repo: ${path}`,
   fbErrEmptyText: "Write what should change",
   fbErrBadScreenshot: "The screenshot is not a PNG or is too large",
   fbErrUnknown: (id: string) => `Unknown feedback: ${id}`,
   fbErrNotApplied: "This feedback is not applied",
   fbErrNewerApplied: (id: string) => `Revert the newer feedback ${id} first`,
-  // 알림은 첫 줄만 보여서 파일과 이유를 첫 줄에 둔다.
   fbErrConflict: (files: string) => `${files.split("\n").join(", ")} changed in the main folder since the feedback started, so nothing was applied`,
   fbErrRevertConflict: (files: string) => `Changed again after this feedback was applied, so it was not reverted:\n${files}`,
   fbErrDependency: "The feedback changed package.json or the lockfile, which is never applied automatically",
   fbErrAgent: "The improvement session ended with an error, so nothing was applied",
-  // FBREDO: 데몬 재시작에 끊긴 피드백을 이어 가는 길
   fbResumed: "The daemon restarted while this feedback was running. The session continues where it stopped",
   fbResumedChecks: "The daemon restarted while the checks were running. Running them again",
   fbResumeShown: "The app restarted and cut you off. Continue where you stopped",
@@ -217,7 +221,6 @@ export const T = {
   fbResolved: "Marked as resolved by hand",
   fbDismissed: "Dismissed from the list",
   fbErrRunAgainState: "Only a feedback that the daemon restart cut off, or whose session could not start, can be run again",
-  // FBBLOCK: 환경이나 인증 때문에 멈춘 피드백. 알림은 첫 줄만 보여서 문제와 앞으로의 일을 첫 줄 한 문장에 둔다.
   fbProblemTool: (tool: string) => `Lodestar couldn't find ${tool}`,
   fbProblemStart: "Lodestar couldn't start the checks",
   fbProblemNetwork: "The network looks unreachable",
@@ -244,7 +247,6 @@ export const T = {
   fbNotApplied: (check: string, output: string, fixTries = 0) => `Not applied: ${check} failed${fixTries ? `. Tried to fix ${fixTries} ${fixTries === 1 ? "time" : "times"}` : ""}\n${output}`,
   fbFixing: (attempt: number, max: number, check: string) => `${check} failed because of this feedback's changes. The session is fixing it (${attempt} of ${max})`,
   fbFixShown: (check: string, attempt: number, max: number) => `${check} failed because of your changes. Fix it (${attempt} of ${max})`,
-  // 자동 수정 턴과 본 폴더 위 재적용 턴(FBREBASE)의 화면용 문구인지(요약을 뽑을 때 그 턴의 답을 건너뛴다). fbFixShown, fbReapplyShown 의 모양과 같이 고친다.
   fbIsFixShown: (shown: string) => /^.+ failed because of your changes\. Fix it \(\d+ of \d+\)$/.test(shown) || /^The main folder changed and your edits collided with it\. Apply them again on top of it \(\d+ of \d+\)$/.test(shown),
   fbFixPrompt: (check: string, failures: string, output: string, attempt: number, max: number) =>
     [
@@ -261,7 +263,6 @@ export const T = {
       "Keep working inside the allowed folders. When you are done the checks run again by themselves.",
     ].join("\n"),
   fbNotAppliedConflict: (detail: string) => `Not applied: ${detail}`,
-  // FBMERGE: 피드백과 본 작업 폴더가 같은 파일을 둘 다 고쳤을 때 3-way 병합이 못 합친 이유
   fbMergeCheck: "Merge with the main folder",
   fbConflictSameLines: "both changed the same lines",
   fbConflictBinary: "binary file changed in both",
@@ -270,7 +271,6 @@ export const T = {
   fbConflictMainDeleted: "changed by the feedback, deleted in the main folder",
   fbConflictMergeFailed: "the merge did not finish",
   fbConflictAgain: "changed again in the main folder",
-  // FBREBASE: 본 작업 폴더가 바뀌어 개선 세션의 변경이 충돌했을 때 본 폴더 위에 다시 적용하게 하는 길
   fbConflictLanded: "already landed in the main folder by hand",
   fbReapplying: (attempt: number, max: number) => `The main folder changed under this feedback's edits. Re-applying them on top of the main folder (${attempt} of ${max})`,
   fbReapplyShown: (attempt: number, max: number) => `The main folder changed and your edits collided with it. Apply them again on top of it (${attempt} of ${max})`,
@@ -286,7 +286,6 @@ export const T = {
       "Read the listed files again and apply the change you intended on top of what the main folder has now. Keep the main folder's changes and do not undo them. Where the two disagree about the same thing, the user's feedback wins. Do not ask the user about this, decide yourself.",
       "If the main folder already contains what you intended, change nothing in that file. When you are done the checks run again by themselves. End with the one-sentence summary as before.",
     ].join("\n"),
-  // 사용자가 이어서 보낸 턴 앞에 모델에게만 붙는 안내(대화 화면에는 보이지 않는다)와, 대화에 남기는 알림
   fbSyncNote: (landed: boolean, files: { rel: string; reason: string }[], droppedDir: string) =>
     [
       landed
@@ -306,14 +305,12 @@ export const T = {
   fbDeniedPath: (path: string) => `Path is outside the improvement worktree: ${path}`,
   fbTitle: (text: string) => `Feedback: ${text}`,
 
-  // MCP
   errMcpName: "name must be a server name",
   errMcpEnabled: "enabled must be true or false",
   errMcpUnknown: (name: string) => `Server not found: ${name}`,
   errMcpBusy: (name: string) => `${name} is already being changed`,
   errMcpRestarted: "The status check restarted, so the result was not read",
 
-  // Slack Inbox
   errUnknownInboxItem: (id: string) => `Unknown inbox item: ${id}`,
   errInboxIds: "ids must be a list of item ids",
   errInboxFlag: (field: string) => `${field} must be true or false`,
@@ -334,7 +331,6 @@ export const T = {
   compactedDivider: "Compacted conversation",
   errPreCompact: "This message is from before the conversation was compacted, so it cannot be restored or forked",
   importUntitled: "Untitled session",
-  // HANDOFF: 핸드오프
   handoffTitle: (title: string) => `Handoff: ${title}`,
   handoffLabel: (title: string) => `Handoff from ${title}`,
   handedOffTo: (title: string) => `Handed off to ${title}`,
@@ -343,7 +339,6 @@ export const T = {
   errHandoffEmpty: "The handoff document came back empty. Try again.",
   errHandoffTimeout: "Writing the handoff took too long. Try again.",
   errHandoffRunning: "A handoff for this session is already being written",
-  // MORNINGREVIEW
   errReviewRunning: "A morning review is already being written",
   errReviewTimeout: "Writing the morning review took too long. Try again.",
   errReviewEmpty: "The morning review came back empty. Try again.",

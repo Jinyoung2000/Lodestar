@@ -7,23 +7,17 @@ import { highlightPattern } from "./searchText";
 import type { SearchRun, SearchToggles, SearchViewOptions } from "./searchViewModel";
 import { S } from "./strings";
 
-// 본문 검색의 화면(입력줄, 토글, 포함과 제외, 결과). 상태는 들고 있지 않고 부르는 쪽이 준다.
-// 에디터 탭의 Search(web/SearchTab.tsx)는 탭 안 state 로, 왼쪽 사이드바의 Search 뷰(web/SearchView.tsx)는 store 로 이 화면을 감싼다.
-// compact 는 사이드바 폭(약 300px)용이다: 컨텍스트 줄 수 입력이 상세 줄로 내려간다.
 export type SearchPanelProps = {
   idPrefix: string;
   options: SearchViewOptions;
   run: SearchRun;
-  // 검색어는 있는데 아직 결과가 없다(되살린 탭, 다른 폴더에서 돌린 결과)
   stale: boolean;
   compact?: boolean;
   hidden?: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
-  // run 이 true 면 patch 를 적용한 값으로 바로 검색한다
   onChange: (patch: Partial<SearchViewOptions>, run?: boolean) => void;
   onRun: () => void;
   onOpen: SearchOpen;
-  // 있으면 결과 자리에 이 안내만 보인다(폴더가 없을 때)
   notice?: string | null;
 };
 
@@ -111,12 +105,10 @@ function ToggleButton({ label, icon, on, onClick }: { label: string; icon: strin
   );
 }
 
-// 결과는 읽기 전용 글 편집기 하나다. 경로 줄(밑줄 친 "경로:")의 화살표로 그 파일의 줄들을 접고, 글을 선택하고 복사할 수 있다.
 function SearchResults({ result, query, toggles, onOpen }: { result: SearchResultLike; query: string; toggles: SearchToggles; onOpen: SearchOpen }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const doc = useMemo(() => buildSearchDoc(result), [result]);
   const pattern = useMemo(() => highlightPattern(query, toggles), [query, toggles]);
-  // 부르는 쪽이 매 렌더 새 함수를 줘도 편집기를 다시 만들지 않는다
   const openRef = useRef(onOpen);
   openRef.current = onOpen;
   useEffect(() => {

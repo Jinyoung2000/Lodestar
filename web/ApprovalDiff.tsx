@@ -6,8 +6,6 @@ import type { EditPreview } from "./approvalPreview";
 import { DIFF_CONFIG } from "./diffMarks";
 import { COLLAPSE_UNCHANGED, diffCodeExtensions } from "./diffSplit";
 
-// 편집 승인 카드 안의 변경 미리보기. 변경 패널 diff 와 같은 확장(색, 구문 강조, 줄 번호, 바뀌지 않은 줄 접기)으로 읽기 전용 unified diff 를 그린다.
-// 새 파일은 기준이 빈 문서라 전체가 추가로 보인다.
 export function ApprovalDiff({ preview }: { preview: EditPreview }) {
   const hostRef = useRef<HTMLDivElement>(null);
   useEffect(() => {

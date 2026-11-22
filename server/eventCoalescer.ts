@@ -1,8 +1,5 @@
 import type { ServerEvent } from "../shared/protocol";
 
-// PERFDAEMON: 스트리밍 중인 어시스턴트 초안은 글자가 늘 때마다 지금까지의 전체 글을 timelineUpsert 로 보낸다(350단어 답 하나에 596번, 612KB).
-// 보낸 양이 답 길이의 제곱으로 늘기 때문에, 초안 갱신만 같은 항목끼리 시간 간격으로 묶는다: 처음 한 번은 바로 보내고(첫 글자 지연 없음), 간격 안에 온 것은 마지막 것만 간격이 끝날 때 보낸다.
-// 간격은 글이 길수록 늘린다(긴 글일수록 한 번에 보내는 양이 크다). 초안이 아닌 이벤트는 그대로 지나가되, 같은 세션의 밀린 초안을 먼저 보내 순서를 지킨다.
 export type CoalescerOptions = {
   now?: () => number;
   setTimer?: (run: () => void, ms: number) => unknown;
@@ -49,7 +46,6 @@ export function createCoalescer(send: (event: ServerEvent) => void, options: Coa
     for (const slot of slots.values()) if (slot.agentId === agentId && slot.pending) release(slot);
   };
 
-  // 턴이 끝났거나 멈춘 세션의 초안 자리는 비운다(초안은 timelineRemove 로 지워지는데, 그 전에 끝난 것이 쌓이지 않게).
   const dropAgent = (agentId: string) => {
     for (const [key, slot] of slots) {
       if (slot.agentId !== agentId) continue;
@@ -91,7 +87,6 @@ export function createCoalescer(send: (event: ServerEvent) => void, options: Coa
       send(event);
       if (agentId && event.type === "agent" && event.agent.status !== "running") dropAgent(agentId);
     },
-    // 밀린 초안을 지금 보낸다(종료 직전, 시험).
     flush() {
       for (const slot of slots.values()) release(slot);
     },

@@ -18,7 +18,6 @@ export function ImportSettings({ scroll }: { scroll: boolean }) {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [summary, setSummary] = useState<{ text: string; failures: VscodeImportResult[] } | null>(null);
 
-  // 목록이 들어온 뒤에야 묶음이 길어져서 맨 위까지 스크롤할 수 있다
   const loaded = list !== null;
   useEffect(() => {
     if (scroll) ref.current?.scrollIntoView({ block: "start" });
@@ -57,7 +56,6 @@ export function ImportSettings({ scroll }: { scroll: boolean }) {
     setProgress(null);
     setSelected(new Set());
     setSummary({ text, failures: results.filter((r) => r.outcome === "failed" || r.outcome === "skipped") });
-    // 같은 요약이 가져오기 구역 안에 이미 그려지므로 낭독만 한다
     announce(text);
     reload();
   };

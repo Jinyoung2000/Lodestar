@@ -7,12 +7,10 @@ import { radius, spacing, useColors } from "../../theme/theme";
 import { Icon } from "../Icon";
 import { Text } from "../Text";
 
-// 연속한 도구 호출을 한 줄로 접어 보인다: "Ran npm test" 또는 "5 steps". 누르면 줄마다 펼쳐지고, 줄을 누르면 입력과 출력이 보인다.
 type Props = { steps: Step[]; running: boolean; failed: boolean };
 
 export const StepsRow = memo(function StepsRow({ steps, running, failed }: Props) {
   const colors = useColors();
-  // FlashList 가 이 행을 다른 묶음에 다시 쓰면 펼침을 닫는다(앞 묶음을 펼쳐 둔 상태가 다른 묶음에 남지 않게)
   const [open, setOpen] = useRecyclingState(false, [steps[0]?.id]);
   const tools = steps.filter((s): s is ToolItem => s.kind === "tool");
   const active = [...tools].reverse().find((t) => t.status === "running") ?? tools[tools.length - 1];
@@ -99,7 +97,6 @@ function StepDetail({ step }: { step: ToolItem }) {
 }
 
 function detailText(input: Record<string, unknown>): string {
-  // 명령과 경로처럼 한 값이 전부인 입력은 값만, 나머지는 줄마다 키: 값
   const entries = Object.entries(input);
   if (entries.length === 1 && typeof entries[0][1] === "string") return clipLines(entries[0][1] as string, DETAIL_LINES);
   return clipLines(entries.map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join("\n"), DETAIL_LINES);

@@ -11,7 +11,6 @@
   color: var(--fg);
 }
 
-/* 진행 표시. 검색이 300ms 넘게 걸릴 때만 보인다 */
 .sv-progress {
   position: absolute;
   top: 0;
@@ -46,7 +45,6 @@
   }
 }
 
-/* 검색 위젯 */
 .sv-widgets {
   flex-shrink: 0;
   margin: 0 var(--space-2) 0 var(--space-0_5);
@@ -173,7 +171,6 @@
   display: none;
 }
 
-/* 바꾸기 줄 */
 .sv-replace-row {
   display: flex;
   align-items: flex-start;
@@ -206,7 +203,6 @@
   cursor: default;
 }
 
-/* "..." 상세 토글 */
 .sv-details-toggle {
   position: relative;
   z-index: 1;
@@ -228,7 +224,6 @@
   background: var(--find-button-hover-bg);
 }
 
-/* files to include, files to exclude */
 .sv-details {
   position: relative;
   flex-shrink: 0;
@@ -249,7 +244,6 @@
   margin-top: 0;
 }
 
-/* 요약 줄 */
 .sv-messages {
   position: relative;
   flex-shrink: 0;
@@ -275,7 +269,6 @@
   text-decoration: underline;
 }
 
-/* 결과 트리 */
 .sv-results {
   flex: 1;
   min-height: 0;
@@ -402,7 +395,6 @@
   background: var(--diff-add-gutter);
 }
 
-/* hover 단추. 평소에는 숨고 행에 마우스를 올리거나 행이 선택돼 목록에 포커스가 있을 때 나타난다 */
 .sv-actions {
   flex: none;
   display: none;

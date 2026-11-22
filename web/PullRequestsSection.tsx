@@ -11,7 +11,6 @@ import { useStore } from "./store";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
-// 사이드바의 Pull Requests 구역. GitHub Pull Requests 확장처럼 쿼리 묶음(Waiting For My Review, Assigned To Me, Created By Me, All Open)을 저장소별로 보인다.
 export function PullRequestsSection() {
   const collapsed = usePr((s) => s.collapsed.section !== false);
   const status = usePr((s) => s.status);
@@ -67,7 +66,6 @@ function SectionBody() {
   if (!status) return <div className="pr-note">{P.loading}</div>;
   if (!status.available) return <div className="pr-note" title={status.reason ?? ""}>{status.reason ?? P.unavailable}</div>;
   if (status.repos.length === 0) return <div className="pr-note">{status.reason ?? P.noRepos}</div>;
-  // 저장소별로 나누지 않고 쿼리 묶음 하나에 모든 저장소의 PR 을 합친다(사용자 11-03 "리포별로 나누지 말자").
   return (
     <div className="pr-body">
       {PR_QUERIES.map((query) => (
@@ -86,7 +84,6 @@ function QueryGroup({ repos, query }: { repos: PrRepo[]; query: PrQueryName }) {
     const error = lists[repo.fullName]?.error;
     return error ? [{ repo: repo.fullName, error }] : [];
   });
-  // 최근에 바뀐 것부터. 저장소가 섞이니 저장소 안 순서 대신 updatedAt 으로 다시 늘어놓는다.
   const prs = loaded.flatMap((repo) => lists[repo.fullName]?.data?.[query] ?? []).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const waitingAll = loaded.length === 0 && errors.length === 0;
   const now = useNow();
@@ -144,7 +141,6 @@ function PrRow({ pr, query, now, showRepo }: { pr: PrSummary; query: PrQueryName
           </span>
           <span className="session-detail">
             <PrAvatar user={pr.author} size={12} />
-            {/* 저장소가 여럿이면 어느 저장소 PR 인지 번호 앞에 짧은 이름(app-client#13175)으로 붙인다 */}
             <span className="pr-row-meta" title={showRepo ? pr.repo : undefined}>
               {showRepo && pr.repo.slice(pr.repo.lastIndexOf("/") + 1)}#{pr.number} {pr.author?.login ?? ""}
             </span>
@@ -159,7 +155,6 @@ function PrRow({ pr, query, now, showRepo }: { pr: PrSummary; query: PrQueryName
 }
 
 
-// 사이드바에서 마지막으로 누른 PR 줄의 묶음. 줄 칠하기에만 쓰여서 저장하지 않는다.
 type Picked = { repo: string; number: number; query: PrQueryName };
 let picked: Picked | null = null;
 const pickedListeners = new Set<() => void>();

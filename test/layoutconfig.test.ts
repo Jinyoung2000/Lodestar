@@ -1,4 +1,3 @@
-// Customize Layout 의 순수 로직(web/layoutConfig.ts)을 확인한다. 실행: npm test
 import { DEFAULT_LAYOUT_CONFIG, PANEL_ALIGNMENTS, SIDE_BAR_POSITIONS, gridPlan, gridVars, isDefaultLayoutConfig, parseLayoutConfig, restoredLayoutConfig, type LayoutConfig } from "../web/layoutConfig";
 
 const cases: { name: string; run: () => string }[] = [];
@@ -54,7 +53,6 @@ test("gridPlan: panel alignment decides which side bars are shortened", () => {
 
 test("gridPlan: alignment is physical, so a right side bar swaps which side bar the panel runs under", () => {
   const left = gridPlan({ sideBar: "right", panelAlignment: "left" });
-  // 왼쪽 열은 Secondary, 오른쪽 열이 Primary
   expect(left.primaryColumn === 5 && left.secondaryColumn === 1 && left.primaryResizerColumn === 4 && left.secondaryResizerColumn === 2, "columns");
   expect(left.panelColumns === "1 / 4" && left.secondaryRows === "1" && left.primaryRows === "1 / 4", `secondary shortened ${left.secondaryRows} ${left.primaryRows}`);
   expect(left.primaryDirection === -1 && left.secondaryDirection === 1, "directions flip");

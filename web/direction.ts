@@ -4,7 +4,6 @@ import { dismissNotice, notify } from "./notices";
 import { openChoice } from "./QuickChoice";
 import { S } from "./strings";
 
-// 디자인 시안 미리보기. <html data-direction> 이 있을 때만 web/directions/*.css 가 적용되고, 선택은 이 브라우저의 localStorage 에만 남는다(서버 설정은 건드리지 않는다).
 const KEY = "agent-nav.design-direction";
 
 export const DIRECTIONS = [
@@ -27,13 +26,11 @@ export async function previewDesignDirection() {
   try {
     localStorage.setItem(KEY, picked);
   } catch {
-    // 저장이 막혀도 이번 실행에서는 바뀐다
   }
   applyDirection(picked as DirectionId);
   announceDirection(picked as DirectionId);
 }
 
-// 미리보기 중이라는 것과 되돌리는 방법을 토스트로 알린다. 되돌리기 단추는 Default 를 고른 것과 같다.
 function announceDirection(id: DirectionId) {
   if (id === "default") {
     if (previewNotice !== null) dismissNotice(previewNotice);
@@ -54,7 +51,6 @@ function revertDirection() {
   try {
     localStorage.setItem(KEY, "default");
   } catch {
-    // 저장이 막혀도 이번 실행에서는 바뀐다
   }
   applyDirection("default");
   previewNotice = null;
@@ -72,7 +68,6 @@ function storedDirection(): DirectionId {
   }
 }
 
-// default 는 속성을 지운다. 속성이 없으면 시안 CSS 가 하나도 걸리지 않는다.
 function applyDirection(id: DirectionId) {
   if (id === "default") delete document.documentElement.dataset.direction;
   else document.documentElement.dataset.direction = id;

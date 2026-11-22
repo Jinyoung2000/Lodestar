@@ -3,7 +3,6 @@ import { openFile, setState, useStore } from "./store";
 import { S } from "./strings";
 import { Button } from "./ui/button";
 
-// 정의 찾기의 "Find All References" 결과. 세션 오른쪽 패널(Chat 중심)과 왼쪽 사이드바(Editor 중심) 아래에 붙는다. 결과가 없으면 아무것도 그리지 않는다.
 export function ReferencesPanel() {
   const references = useStore((s) => s.references);
   if (!references) return null;

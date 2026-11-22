@@ -3,7 +3,6 @@ export type FuzzyScore = { score: number; labelMatch?: Range[]; descriptionMatch
 export type ScoreItem = { label: string; description?: string; path?: string };
 
 const NO_SCORE: FuzzyScore = { score: 0 };
-// 점수 구간: 경로 전체가 질의와 같음 > 이름 맨 앞 일치 > 이름 일치 > 경로에만 일치
 const PATH_IDENTITY_SCORE = 1 << 18;
 const LABEL_PREFIX_SCORE = 1 << 17;
 const LABEL_SCORE = 1 << 16;
@@ -19,7 +18,6 @@ function normalizePiece(text: string) {
   return { pathNormalized, normalized, normalizedLowercase: normalized.toLowerCase() };
 }
 
-// 공백으로 나눈 낱말은 모두 맞아야 하고, "따옴표" 안의 낱말은 이어서 맞아야 한다.
 export function prepareQuery(original: string): PreparedQuery {
   const { pathNormalized, normalized, normalizedLowercase } = normalizePiece(original);
   const words = original.split(" ");
@@ -34,7 +32,6 @@ export function prepareQuery(original: string): PreparedQuery {
   return { original, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator: pathNormalized.includes("/"), expectContiguousMatch: isQuoted(original) };
 }
 
-// 글자 하나가 맞을 때의 점수: 기본 1, 앞 글자와 이어 맞으면 가산(3글자까지 6점씩, 그 뒤 3점씩), 대소문자까지 같으면 1, 이름 맨 앞이면 8, 구분자 바로 뒤면 4~5, 대문자 시작이면 2
 function charScore(queryChar: string, queryLowerChar: string, target: string, targetLower: string, index: number, sequence: number) {
   const lower = targetLower[index];
   if (queryLowerChar !== lower && !((queryLowerChar === "/" || queryLowerChar === "\\") && (lower === "/" || lower === "\\"))) return 0;
@@ -67,7 +64,6 @@ function separatorScore(code: number) {
   }
 }
 
-// 행렬이 질의 길이 x 대상 길이라 한 번에 크게 만들어 두고 다시 쓴다(입력마다 수천 번 부른다).
 let scoreBuffer = new Int32Array(4096);
 let runBuffer = new Int32Array(4096);
 
@@ -172,7 +168,6 @@ function scoreSingle(item: ScoreItem, piece: QueryPiece, preferLabel: boolean, a
   return NO_SCORE;
 }
 
-// 파일 하나의 점수. 0 이면 맞지 않는다. 경로에 "/" 가 있는 질의는 이름 우선을 끄고 경로 전체에서 찾는다.
 export function scoreFileItem(item: ScoreItem, query: PreparedQuery, allowNonContiguous: boolean): FuzzyScore {
   if (!query.normalized) return NO_SCORE;
   const preferLabel = !item.path || !query.containsPathSeparator;
@@ -197,7 +192,6 @@ export function scoreFileItem(item: ScoreItem, query: PreparedQuery, allowNonCon
 
 export type Scored<T extends ScoreItem> = { item: T; match: FuzzyScore };
 
-// 정렬 규칙(compareItemsByFuzzyScore): 경로 전체 일치 > 점수 > 이름에 맞은 것 > 맞은 구간이 짧은 것 > 짧은 이름과 경로 > 가나다순
 export function compareScored<T extends ScoreItem>(a: Scored<T>, b: Scored<T>, query: PreparedQuery): number {
   const scoreA = a.match.score;
   const scoreB = b.match.score;
@@ -255,7 +249,6 @@ function compareByLength(a: ScoreItem, b: ScoreItem, query: PreparedQuery) {
   return 0;
 }
 
-// 질의로 시작하는 쪽, 질의로 끝나는 쪽을 먼저 두고 나머지는 글자 순서
 function compareText(a: string, b: string, lookFor: string) {
   const lowerA = a.toLowerCase();
   const lowerB = b.toLowerCase();
@@ -267,12 +260,10 @@ function compareText(a: string, b: string, lookFor: string) {
   const endsA = lowerA.endsWith(needle);
   const endsB = lowerB.endsWith(needle);
   if (endsA !== endsB) return endsA ? -1 : 1;
-  // localeCompare 는 동점이 많은 큰 목록에서 느려 글자 코드 순서로 비교한다
   if (lowerA !== lowerB) return lowerA < lowerB ? -1 : 1;
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-// 점수를 매기기 전에 거르는 빠른 검사: 낱말마다 글자가 순서대로(따옴표 낱말은 이어서) 들어 있어야 후보다.
 export function mightMatch(lowerPath: string, query: PreparedQuery) {
   const pieces = query.values && query.values.length > 1 ? query.values : [query];
   for (const piece of pieces) {

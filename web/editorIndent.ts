@@ -10,21 +10,17 @@ import { tabShouldMoveFocus } from "./tabFocus";
 
 export type IndentInfo = IndentInfoShape;
 
-// 지금 파일의 들여쓰기 설정. size 는 Tab 한 칸의 열 수(탭 문자로 들여써도 이 값만큼 보인다)
 export function indentInfoOf(state: EditorState): IndentInfo {
   return indentInfoOfState(state);
 }
 
-// 사용자가 상태 표시줄이나 명령으로 고른 값을 이 파일에 적용한다(설정이 바뀌어도 이 파일에서는 유지된다).
 export function setIndentation(view: EditorView, next: { useSpaces: boolean; size: number }) {
   view.dispatch({ effects: indentEffect(next) });
 }
 
-// 설정과 본문에서 감지한 값으로 만든 확장(Editor.tsx 가 설정 묶음에 넣는다)
 export function indentExtension(options: EditorOptions, context: OptionContext): Extension {
   return [
     indentState(baseIndentation(options, context.text)),
-    // 포커스 이동 모드(⌃⇧M, Esc 다음 Tab)이면 false 를 돌려줘 브라우저가 Tab 으로 포커스를 옮기게 한다.
     keymap.of([{ key: "Tab", run: (view) => !tabShouldMoveFocus() && tabCommand(view), shift: (view) => !tabShouldMoveFocus() && shiftTabCommand(view) }]),
     options.formatOnPaste ? formatOnPasteExtension() : [],
   ];
@@ -51,7 +47,6 @@ function pickTabSize(view: EditorView, useSpaces: boolean, displaySizeOnly: bool
     detail: size === configured && size === current ? "Configured Tab Size" : size === configured ? "Default Tab Size" : size === current ? "Current Tab Size" : undefined,
   }));
   const title = displaySizeOnly ? "Change Tab Display Size" : useSpaces ? "Indent Using Spaces" : "Indent Using Tabs";
-  // 선택창이 열리는 동안 포커스가 에디터를 떠나므로 명령이 들어온 뷰를 붙들어 둔다.
   void import("./QuickChoice").then(async ({ openChoice }) => {
     const picked = await openChoice({ title, placeholder: "Select Tab Size for Current File", items });
     if (picked === null || !view.dom.isConnected) return;

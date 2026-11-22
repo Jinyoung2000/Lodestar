@@ -1,7 +1,3 @@
-// 데몬의 접근 검사와 경로 탈출 방지를 실제 요청으로 확인한다.
-// 기본은 시험이 자기 데몬을 임시 홈과 빈 포트로 띄우고 끝나면 끈다(test/testDaemon.ts). AGENT_NAV_PORT 와 AGENT_NAV_HOME 을 주면 그 시험 데몬을 대상으로 한다.
-// 사용자의 앱(7788, ~/.agent-nav)은 대상이 될 수 없다.
-// 실행: npm test
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { request } from "node:http";
@@ -34,7 +30,6 @@ async function rpc(method: string, params: unknown) {
   const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws/rpc?token=${TOKEN}`, { headers: { origin: ORIGIN } });
   await new Promise((r) => ws.on("open", r));
   ws.send(JSON.stringify({ id: 1, method, params }));
-  // 변경 호출은 응답보다 먼저 board, settings 같은 이벤트가 같은 연결로 온다. id 가 맞는 메시지만 응답으로 본다.
   const reply = await new Promise<{ result?: unknown; error?: string }>((resolve) =>
     ws.on("message", (data) => {
       const message = JSON.parse(String(data)) as { id?: number; result?: unknown; error?: string };
@@ -78,7 +73,6 @@ test("Worktree branch name escaping the workspace is rejected", async () => {
   const reply = await rpc("agents.create", { workspaceId: ws.id, prompt: "x", permissionMode: "default", model: "haiku", effort: null, worktree: { branch: "../../escape", base: "main" } });
   return expect(typeof reply.error === "string", reply.error ?? "allowed");
 });
-// fetch(undici) 는 Host 헤더를 덮어쓰지 못하므로 node:http 로 직접 보낸다 (DNS rebinding 흉내).
 test("Mismatched Host header is HTTP 403", async () => {
   const status = await new Promise<number>((resolve, reject) => {
     const req = request({ host: "127.0.0.1", port: PORT, path: "/", headers: { host: "evil.example:80" } }, (res) => {
@@ -110,7 +104,6 @@ test("Creating or saving a file outside the workspace is rejected, even through 
   }
   return "create and save refused for 3 escaping paths";
 });
-// SEARCHREPLACE: 바꾸기는 파일 쓰기라 files.save 와 같은 경계를 지킨다. 요청은 읽기만 하는 /etc/hosts 와 존재하지 않는 경로로 하고, 쓰기가 일어났다면 실패하도록 내용을 확인한다.
 test("search.replace refuses paths outside the workspace and writes nothing", async () => {
   const { result } = (await rpc("workspaces.list", {})) as { result: { id: string }[] };
   const hosts = readFileSync("/etc/hosts", "utf8");
@@ -141,7 +134,6 @@ test("Writing a file with no edit record is rejected", async () => {
   const reply = await rpc("files.write", { agentId: result[0].id, path: "/tmp/agent-nav-should-not-exist", text: "x" });
   return expect(typeof reply.error === "string" && /Not a changed file|outside the workspace/.test(reply.error), reply.error ?? "allowed");
 });
-// 정책이 뚫려도 파일이 망가지지 않게, 지금 내용을 읽어 같은 내용으로 쓴다. 커밋이 없는 레포(기준 없음)와 기준이 있는 레포 둘 다 본다.
 test("Writing a file inside the session cwd but outside the change set is rejected", async () => {
   const { result } = (await rpc("agents.list", {})) as { result: { id: string; cwd: string; workspaceId: string }[] };
   if (!result.length) return "no agent, skipped";
@@ -176,7 +168,6 @@ test("Revert, restart and mark-seen on an unknown feedback id are errors", async
   }
   return "all rejected";
 });
-// --- 칸반 보드 RPC: 잘못된 입력은 거절하고, 정상 흐름은 board.json 까지 남는다. 만든 카드와 열은 끝에 지운다 (7788 의 실제 보드에 돌려도 흔적이 남지 않게). ---
 type BoardShape = { columns: { id: string; name: string; role: string | null }[]; cards: { id: string; columnId: string; title: string; links: { url: string }[]; labels: string[] }[] };
 const boardReply = async () => ((await rpc("board.get", {})) as { result: BoardShape }).result;
 const rejected = (reply: { error?: string }, detail: string) => expect(typeof reply.error === "string", `${detail}: ${reply.error ?? "accepted"}`);
@@ -259,14 +250,11 @@ test("Board columns and cards round-trip through board.json", async () => {
       const created = (await rpc("board.createCard", { title: `agent-nav test ${title}`, columnId, labels: ["t"], links: [{ url: "https://example.com/a" }] })) as { result: { id: string } };
       cardIds.push(created.result.id);
     }
-    // 세 번째 카드를 맨 앞으로: 열 안 순서가 바뀐다
     expect(!(await rpc("board.moveCard", { id: cardIds[2], columnId, index: 0 })).error, "move within column");
     const order = (await boardReply()).cards.filter((c) => c.columnId === columnId).map((c) => c.title);
     expect(order.join("|") === "agent-nav test third|agent-nav test first|agent-nav test second", order.join("|"));
-    // 파일에도 같은 내용이 있다
     const onDisk = JSON.parse(readFileSync(join(home, "board.json"), "utf8")) as BoardShape;
     expect(onDisk.cards.filter((c) => c.columnId === columnId).map((c) => c.title).join("|") === order.join("|"), "board.json differs");
-    // 열을 지우면 카드는 바로 앞 열의 끝으로 간다
     const columns = (await boardReply()).columns;
     const previous = columns[columns.findIndex((c) => c.id === columnId) - 1];
     expect(!(await rpc("board.deleteColumn", { id: columnId })).error, "delete column");
@@ -340,7 +328,6 @@ test("Browser data storage, auto reload, title bar and user tools settings accep
   const set = async (patch: unknown) => ((await rpc("settings.set", patch)) as { result: Extra }).result;
   const before = await get();
   try {
-    // 기본값(default, 켬, whenOpen, 끔)은 새 홈의 데몬에서만 확인할 수 있어(이미 바꾼 홈이면 달라진다) 여기서는 모양만 본다
     expect(typeof before.browserDataStorage === "string" && typeof before.browserAutoReload === "boolean" && ["boolean", "string"].includes(typeof before.browserShowInTitleBar) && typeof before.browserUserTools === "boolean", `shape ${JSON.stringify(before)}`);
     let now = await set({ browserDataStorage: "ephemeral", browserAutoReload: false, browserShowInTitleBar: true, browserUserTools: true });
     expect(now.browserDataStorage === "ephemeral" && now.browserAutoReload === false && now.browserShowInTitleBar === true && now.browserUserTools === true, "valid values accepted");
@@ -361,7 +348,6 @@ test("browser.readShot refuses paths outside the shot folders", async () => {
   expect(dots.result?.png === null, "dot dot path");
   return "ok";
 });
-// --- Slack Inbox RPC: 잘못된 입력은 거절한다. inbox.refresh 와 inbox.thread 는 Slack 을 부르는(모델 호출) 동작이라 시험에서 부르지 않는다. ---
 type InboxShape = { selfUserId: string | null; items: { id: string; read: boolean; archived: boolean }[]; unread: number; fetching: boolean; lastFetchedAt: string | null };
 test("inbox.get returns the state shape", async () => {
   const reply = (await rpc("inbox.get", {})) as { result?: InboxShape };
@@ -403,7 +389,6 @@ test("Inbox settings reject out-of-range intervals and bad team ids", async () =
   expect((await set({ slackTeamId: "https://evil" })).slackTeamId === before.slackTeamId, "team id with a url");
   return "ok";
 });
-// --- MCP 재연결과 켜기/끄기: 잘못된 입력은 SDK 에 닿기 전에 거절한다 (실제 서버 상태를 건드리는 호출은 여기서 하지 않는다). ---
 test("mcp.reconnect rejects an unknown server name", async () => {
   const reply = await rpc("mcp.reconnect", { name: "agent-nav-no-such-server" });
   return expect(typeof reply.error === "string" && reply.error.includes("Server not found"), reply.error ?? "accepted");

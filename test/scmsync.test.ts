@@ -1,5 +1,3 @@
-// FIX6B: pull, push, fetch 의 실패 분류와 병합, 리베이스, 충돌 해결, 중단(server/scm.ts)을 로컬 bare 원격과 /tmp 저장소로 끝까지 시험한다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,7 +29,6 @@ const parents = (dir: string, rev = "HEAD") => run(dir, "log", "-1", "--format=%
 const nums = (n: number, mark = "") => Array.from({ length: n }, (_, i) => `line ${i + 1}${i + 1 === 5 ? mark : ""}`).join("\n") + "\n";
 
 let counter = 0;
-// 원격 하나와 같은 시작 커밋을 가진 두 클론(a 는 원격에 올리는 쪽, b 는 앱이 보는 쪽)
 function world() {
   const root = join(base, `w${counter++}`);
   mkdirSync(root);
@@ -47,7 +44,6 @@ function world() {
 }
 
 try {
-  // --- 갈라짐: ff 는 이유를 알려 주고 멈추고, merge 와 rebase 는 합친다 ---
   {
     const { a, b } = world();
     commit(a, "remote.txt", "r\n", "remote work");
@@ -79,7 +75,6 @@ try {
     expect(parents(b) === 1 && run(b, "log", "--format=%s", "-3").trim().split("\n").join("|") === "local work|remote work|init", "linear history, local on top");
   }
 
-  // --- push 거절 ---
   {
     const { a, b } = world();
     commit(a, "remote.txt", "r\n", "remote work");
@@ -90,7 +85,6 @@ try {
     expect((await scm.status(b)).ahead === 1, "rejected push changes nothing");
   }
 
-  // --- 작업 트리가 더러움 ---
   {
     const { a, b } = world();
     commit(a, "f.txt", nums(10, " theirs"), "remote edit");
@@ -102,7 +96,6 @@ try {
     expect(read(b, "f.txt") === nums(10, " mine uncommitted"), "local edit untouched");
   }
 
-  // --- 병합 충돌: 해결하고 이어가기 ---
   {
     const { a, b } = world();
     commit(a, "f.txt", nums(10, " theirs"), "remote edit");
@@ -115,7 +108,6 @@ try {
     expect(st.operation === "merge" && st.merging && st.conflicts.length === 1 && st.conflicts[0].rel === "f.txt", "status shows the merge in progress");
     expect(/^Merge /.test(st.mergeMessage ?? "") && !(st.mergeMessage ?? "").includes("#"), `merge message ${JSON.stringify(st.mergeMessage)}`);
     expect((st.operationText ?? "").startsWith("Merge "), `operation text ${st.operationText}`);
-    // 충돌이 남았을 때 이어가기는 이유를 알리고 아무것도 하지 않는다
     const early = await scm.continueOperation(b);
     expect(!early.ok && early.problem.kind === "conflict", "continue refused while conflicts remain");
     const text = read(b, "f.txt");
@@ -131,7 +123,6 @@ try {
     expect(run(b, "log", "-1", "--format=%s").startsWith("Merge "), "default merge message used");
   }
 
-  // --- 병합 충돌: 중단 ---
   {
     const { a, b } = world();
     commit(a, "f.txt", nums(10, " theirs"), "remote edit");
@@ -148,7 +139,6 @@ try {
     expect(again === "There is no merge or rebase in progress.", `abort without operation: ${again}`);
   }
 
-  // --- 리베이스 충돌: 해결하고 이어가기, 중단 ---
   {
     const { a, b } = world();
     commit(a, "f.txt", nums(10, " theirs"), "remote edit");
@@ -161,7 +151,6 @@ try {
     expect(st.operation === "rebase" && !st.merging && st.conflicts.length === 1, "status shows the rebase");
     expect(/^main 1\/1$/.test(st.operationText ?? ""), `rebase text ${st.operationText}`);
     const text = read(b, "f.txt");
-    // 리베이스에서 current 는 원격 쪽(위에 쌓는 기준)이고 incoming 이 내 커밋이다
     expect(conflicts.parseConflicts(text.split("\n"))[0].current.some((l) => l.includes("theirs")), "current side is the upstream during a rebase");
     write(b, "f.txt", conflicts.resolveAllConflicts(text, "incoming"));
     await scm.stage(b, ["f.txt"]);
@@ -183,7 +172,6 @@ try {
     expect(st.operation === null && st.branch === "main" && read(b, "f.txt") === nums(10, " mine") && st.ahead === 1 && st.behind === 1, `rebase aborted: ${JSON.stringify({ op: st.operation, branch: st.branch, a: st.ahead, b: st.behind })}`);
   }
 
-  // --- upstream 없음, 원격 없음, 잘못된 원격 ---
   {
     const { b } = world();
     run(b, "switch", "-q", "-c", "topic");
@@ -208,14 +196,12 @@ try {
     expect(!fetched.ok && fetched.problem.kind === "remoteMissing", `bad remote: ${JSON.stringify(fetched)}`);
   }
 
-  // --- 이미 최신이면 성공 ---
   {
     const { b } = world();
     const pull = await scm.pullOp(b, "ff");
     expect(pull.ok && /up to date/i.test(pull.output), `up to date: ${JSON.stringify(pull)}`);
   }
 
-  // --- 병합 커밋 메시지: 병합 중에는 메시지가 비어도 커밋된다 ---
   {
     const { a, b } = world();
     commit(a, "g.txt", "g\n", "remote file");

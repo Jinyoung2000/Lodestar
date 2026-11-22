@@ -1,5 +1,3 @@
-// 한글 문장에서 굵게, 기울임이 CommonMark 의 구분자 규칙 때문에 별표로 남지 않는지 확인한다. 코드 안은 건드리지 않는다.
-// 실행: npm test
 import { parseMarkdown } from "../web/markdownParse";
 
 const cases: { name: string; run: () => string }[] = [];
@@ -16,7 +14,6 @@ test("bold opened by punctuation after Korean", () => expectHtml("한글**(괄�
 test("bold with quotes and a particle", () => expectHtml('**"인용"**은 맞다', "<p><strong>&quot;인용&quot;</strong>은 맞다</p>"));
 test("italic closed by punctuation and followed by Korean", () => expectHtml("*기울임)*이다", "<p><em>기울임)</em>이다</p>"));
 test("inline code inside bold still renders", () => expectHtml("**`code`(x)**으로", "<p><strong><code>code</code>(x)</strong>으로</p>"));
-// fix5-2: 하위 에이전트 결과 본문도 같은 렌더 경로(Markdown)를 쓴다. 굵게 안의 인라인 코드에 한글 조사가 바로 붙는 경우
 test("bold wrapping inline code followed by a Korean particle", () => expectHtml("함수의 이름은 **`price`**입니다.", "<p>함수의 이름은 <strong><code>price</code></strong>입니다.</p>"));
 test("bold wrapping inline code after Korean with no space", () => expectHtml("함수**`price`**는 쓴다", "<p>함수<strong><code>price</code></strong>는 쓴다</p>"));
 test("bold that already worked is unchanged", () => expectHtml("**각 단계에서** 본다", "<p><strong>각 단계에서</strong> 본다</p>"));

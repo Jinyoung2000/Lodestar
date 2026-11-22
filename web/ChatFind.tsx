@@ -17,14 +17,12 @@ export function ChatFind({ paneId, scrollRef }: { paneId: string; scrollRef: Ref
   const [result, setResult] = useState<Result>(NO_RESULT);
   const { query, options } = find;
 
-  // 열 때(⌘F 를 다시 눌러도) 입력칸에 포커스를 주고 글을 모두 선택한다.
   useLayoutEffect(() => {
     if (find.paneId !== paneId) return;
     inputRef.current?.focus();
     inputRef.current?.select();
   }, [find.nonce, find.paneId, paneId]);
 
-  // 검색을 다시 한다. restart 는 보이는 영역 이후의 첫 일치로, 아니면 지금 번호를 유지한다. reveal 이면 그 일치로 스크롤한다.
   const search = useCallback(
     (restart: boolean, doReveal: boolean) => {
       const root = scrollRef.current;
@@ -50,7 +48,6 @@ export function ChatFind({ paneId, scrollRef }: { paneId: string; scrollRef: Ref
     search(true, true);
   }, [search]);
 
-  // 대화가 이어지는 동안(응답이 오는 중, 도구 줄이 펼쳐지는 중) 일치를 새로 센다. 스크롤은 건드리지 않는다.
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
@@ -84,7 +81,6 @@ export function ChatFind({ paneId, scrollRef }: { paneId: string; scrollRef: Ref
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
-    // 한글 조합 중 Enter 는 조합을 끝내는 키라 이동하지 않는다.
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === "Escape") {
       event.preventDefault();
@@ -97,7 +93,6 @@ export function ChatFind({ paneId, scrollRef }: { paneId: string; scrollRef: Ref
       event.preventDefault();
       toggleChatFindOption(event.code === "KeyC" ? "caseSensitive" : event.code === "KeyW" ? "wholeWord" : "regexp");
     }
-    // 입력칸의 키는 앱 단축키(Esc, ⌘F 다시 누르기 등)로 올라가지 않는다. ⌘F 만 다시 입력칸을 고르게 둔다.
     if (!(event.metaKey && event.code === "KeyF")) event.stopPropagation();
   };
 

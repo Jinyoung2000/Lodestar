@@ -10,12 +10,6 @@ import { useSyncExternalStore } from "react";
 import { markLanguage, refineGraphql, refineJavascript, type SyntaxGroup } from "./editorSyntax";
 import { languageIdFor, languageIdForFence, mayHaveShebang, type LanguageId } from "./languageId";
 
-// 언어 id(web/languageId.ts)를 CodeMirror 언어로 바꾼다.
-// TS, JS, JSON, CSS, 마크다운은 처음부터 번들에 들어 있고, 나머지는 처음 쓸 때 동적 import 로 읽어 온다(Vite 가 언어마다 청크로 쪼갠다).
-// 읽는 동안에는 색 없이 보이다가, 다 읽으면 열려 있는 에디터가 스스로 다시 칠하고 동기 소비자(PR diff, 대화 코드 블록)는 useLanguagesVersion 으로 다시 그린다.
-
-// 에디터, diff, 피크 뷰가 파일 경로로 부르는 진입점. 아직 안 읽은 언어면 읽는 동안 비어 있다가 도착하면 바뀐다.
-// firstLine 을 주면 셔뱅까지 그 자리에서 판단하고, 안 주면 문서를 연 뒤 첫 줄을 읽어 판단한다.
 export function languageFor(path: string, firstLine?: string): Extension {
   const id = languageIdFor(path, firstLine);
   if (id) {
@@ -26,7 +20,6 @@ export function languageFor(path: string, firstLine?: string): Extension {
   return [];
 }
 
-// 언어 id 로 이미 읽은 CodeMirror 언어를 돌려준다. 아직이면 읽기를 시작하고 null. 동기 소비자(Lezer 파서를 직접 부르는 곳)가 쓴다.
 export function languageById(id: LanguageId | null): Language | null {
   if (!id) return null;
   const support = supportOf(id);
@@ -34,12 +27,10 @@ export function languageById(id: LanguageId | null): Language | null {
   return support?.language ?? null;
 }
 
-// 마크다운 코드 펜스 이름, LSP 언어 이름으로 부르는 같은 함수
 export function languageByName(name: string): Language | null {
   return languageById(languageIdForFence(name));
 }
 
-// 읽기를 시작하고 다 읽으면 resolve. 이미 읽었으면 바로.
 export function loadLanguage(id: LanguageId): Promise<LanguageSupport> {
   const ready = supportOf(id);
   if (ready) return Promise.resolve(ready);
@@ -58,12 +49,10 @@ export function loadLanguage(id: LanguageId): Promise<LanguageSupport> {
   return promise;
 }
 
-// 언어를 새로 읽을 때마다 부르는 구독. React 밖(CodeMirror 플러그인)이 쓴다.
 export function subscribeLanguages(listener: () => void): () => void {
   return subscribe(listener);
 }
 
-// 언어를 새로 읽을 때마다 올라가는 번호. 동기로 색을 칠하는 React 화면이 구독해 다시 그린다.
 export function useLanguagesVersion(): number {
   return useSyncExternalStore(subscribe, () => version);
 }
@@ -88,7 +77,6 @@ function supportOf(id: LanguageId): LanguageSupport | null {
   return support;
 }
 
-// 번들에 처음부터 들어 있는 언어
 const EAGER: Partial<Record<LanguageId, () => LanguageSupport>> = {
   typescript: () => refineJavascript({ typescript: true }),
   typescriptreact: () => refineJavascript({ typescript: true, jsx: true }),
@@ -99,7 +87,6 @@ const EAGER: Partial<Record<LanguageId, () => LanguageSupport>> = {
   markdown: () => markdown({ codeLanguages: codeBlockLanguage }),
 };
 
-// 마크다운 파일 속 ```yaml 블록도 같은 언어 결정으로 칠한다.
 function codeBlockLanguage(info: string): LanguageDescription | null {
   const id = languageIdForFence(info);
   if (!id || id === "markdown") return null;
@@ -112,7 +99,6 @@ function codeBlockLanguage(info: string): LanguageDescription | null {
 
 const descriptions = new Map<LanguageId, LanguageDescription>();
 
-// 처음 쓸 때 읽는 언어. 모듈 하나가 여러 id 를 만들 수 있어도 id 마다 지원 객체를 따로 둔다.
 const LAZY: Partial<Record<LanguageId, () => Promise<LanguageSupport>>> = {
   yaml: async () => {
     const { yamlLanguage } = await import("@codemirror/lang-yaml");
@@ -190,7 +176,6 @@ function register(group: SyntaxGroup | null, support: LanguageSupport): Language
   return support;
 }
 
-// 에디터 안에서 언어가 도착하면 Compartment 를 바꿔 끼운다. 문서가 열린 시점의 첫 줄로 id 를 정하는 쪽(셔뱅)도 같은 경로다.
 function lazyLanguage(idOf: (firstLine: string) => LanguageId | null): Extension {
   const slot = new Compartment();
   const plugin = ViewPlugin.fromClass(
@@ -233,9 +218,6 @@ function yamlScalar(): StreamLanguage<null> {
   return scalar;
 }
 
-// --- 셸: 명령 이름을 함수색으로 ---
-// 레거시 셸 모드는 알고 있는 명령(git, cd 등)만 구분한다. 줄 맨 앞, 파이프, &&, ; 뒤의 단어는 모두 명령으로 본다.
-// 백틱과 $( ) 안은 레거시 모드가 quote 로 내는데, 이 이름은 마크다운 인용 태그라 안쪽 코드를 주석색으로 칠하게 되어 색 없이 둔다.
 type ShellState = { tokens: unknown[]; command: boolean; continued: boolean; assignment: boolean };
 const COMMAND_WORD = /^[\w./~+-][\w./~+:@%-]*$/;
 const CONTROL_WORDS = new Set(["if", "then", "do", "else", "elif", "while", "until", "time", "!"]);
@@ -259,7 +241,6 @@ async function shellSupport(): Promise<LanguageSupport> {
       if (text === "\\" && stream.eol()) state.continued = true;
       if (style === "quote") return null;
       if (state.tokens.length > 0) return style;
-      // FOO=bar cmd: 대입의 오른쪽 단어는 명령이 아니다
       if (state.assignment) {
         if (text === "=") return style;
         state.assignment = false;
@@ -287,7 +268,6 @@ async function shellSupport(): Promise<LanguageSupport> {
   return register("shell", new LanguageSupport(StreamLanguage.define(mode)));
 }
 
-// --- .gitignore 류: 주석, 부정(!), 글롭(*, **, ?, [ ]), 커밋 해시(.git-blame-ignore-revs) ---
 const gitignoreMode: StreamParser<null> = {
   name: "gitignore",
   startState: () => null,

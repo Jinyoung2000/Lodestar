@@ -4,7 +4,6 @@ import { EditorSelection, type ChangeSpec, type EditorState, type SelectionRange
 
 export type Target = { state: EditorState; dispatch: (tr: Transaction) => void };
 
-// 줄 합치기(⌃J). 선택마다 다음 줄의 앞 공백을 걷고 한 칸 띄워 이어 붙인다. 커서만 있으면 커서는 이어 붙인 자리에 놓인다.
 export function joinLines({ state, dispatch }: Target): boolean {
   if (state.readOnly) return false;
   const doc = state.doc;
@@ -95,7 +94,6 @@ export function addCommentLine(target: Target): boolean {
   return addCommentLayer(target);
 }
 
-// ForceAdd 는 빈 줄을 건너뛴다(comments.ignoreEmptyLines 기본값). 선택한 줄이 모두 비어 있으면 할 일이 없다.
 function touchesNonBlankLine(state: EditorState): boolean {
   return state.selection.ranges.some((range) => {
     for (let n = state.doc.lineAt(range.from).number; n <= state.doc.lineAt(range.to).number; n++) if (/\S/.test(state.doc.line(n).text)) return true;
@@ -132,7 +130,6 @@ function addCommentLayer({ state, dispatch }: Target): boolean {
   return true;
 }
 
-// 끝 공백 제거(⌘K ⌘X). 모든 줄의 끝 공백과 탭을 지운다. 선택은 CodeMirror 가 변경을 따라 옮긴다.
 export function trimTrailingWhitespace({ state, dispatch }: Target): boolean {
   if (state.readOnly) return false;
   const changes: ChangeSpec[] = [];
@@ -148,7 +145,6 @@ export function trimTrailingWhitespace({ state, dispatch }: Target): boolean {
 
 const COLLATOR = new Intl.Collator();
 
-// 선택 줄을 정렬한다. 선택이 한 줄이면 문서 전체를 정렬한다. 끝 열이 1 이면 마지막 줄은 빼고, 하나라도 이미 정렬되어 있으면 아무것도 안 한다.
 export function sortLines(descending: boolean) {
   return ({ state, dispatch }: Target): boolean => {
     if (state.readOnly) return false;
@@ -167,7 +163,6 @@ export function sortLines(descending: boolean) {
   };
 }
 
-// 중복 줄 지우기. 같은 내용의 줄은 처음 것만 남긴다. 선택이 한 줄이면 문서 전체가 대상이고 그때는 선택을 따로 정하지 않는다.
 export function deleteDuplicateLines({ state, dispatch }: Target): boolean {
   if (state.readOnly) return false;
   const doc = state.doc;
@@ -208,7 +203,6 @@ export function deleteDuplicateLines({ state, dispatch }: Target): boolean {
   return true;
 }
 
-// 선택 복제. 커서만 있으면 줄을 아래로 복제하고 커서는 복제본으로 내려가며, 선택이 있으면 선택 뒤에 같은 글을 끼우고 그 복제본을 선택한다.
 export function duplicateSelection({ state, dispatch }: Target): boolean {
   if (state.readOnly) return false;
   let lastLine = -1;
@@ -226,7 +220,6 @@ export function duplicateSelection({ state, dispatch }: Target): boolean {
   return true;
 }
 
-// 줄 선택 확장(키 없음). 선택마다 시작 줄의 처음에서 끝 줄 다음 줄의 처음까지, 마지막 줄이면 그 줄의 끝까지 잡는다.
 export function expandLineSelection({ state, dispatch }: Target): boolean {
   const doc = state.doc;
   const ranges = state.selection.ranges.map((range) => {
@@ -252,8 +245,6 @@ function lineSpans(state: EditorState): { startLine: number; endLine: number }[]
   );
 }
 
-// 같은 줄에 걸친 선택(한 줄의 커서 둘, 앞 선택이 끝난 줄에서 시작하는 다음 선택)은 한 구간으로 합친다.
-// 따로 두면 같은 줄을 바꾸는 변경 둘이 겹쳐 그 줄이 두 번 들어가거나 이웃 줄과 붙는다. 선택은 앞에서부터 정렬되어 있다.
 function mergeSpans(spans: { startLine: number; endLine: number }[]): { startLine: number; endLine: number }[] {
   const out: { startLine: number; endLine: number }[] = [];
   for (const span of spans) {

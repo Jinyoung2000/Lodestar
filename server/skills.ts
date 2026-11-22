@@ -3,9 +3,6 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { CommandInfo } from "../shared/protocol";
 
-// `/` 메뉴의 스킬과 명령은 데몬을 띄울 때 한 번 읽은 목록이라, 그 뒤에 만든 스킬과 워크스페이스 폴더의 스킬이 빠진다.
-// 사용자 폴더와 워크스페이스 폴더의 .claude 를 그때그때 읽어 보충한다(디스크만 읽으니 싸다).
-
 function frontmatterDescription(text: string): string {
   const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
   if (!m) return "";
@@ -13,7 +10,6 @@ function frontmatterDescription(text: string): string {
   const at = lines.findIndex((l) => l.startsWith("description:"));
   if (at < 0) return "";
   const first = lines[at].slice("description:".length).trim();
-  // `>` 와 `|` 는 다음 들여쓴 줄들이 값이다
   if (/^[>|][+-]?$/.test(first)) {
     const body: string[] = [];
     for (const l of lines.slice(at + 1)) {

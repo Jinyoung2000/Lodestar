@@ -9,17 +9,13 @@ import { toTarget } from "./lsp";
 import { MiniFrame } from "./MiniChat";
 import { handleNotificationAction, type NotificationAction } from "./notifications";
 import { Overlays } from "./lazyViews";
-import { EffortPicker, ModelPicker } from "./Pickers";
+import { EffortPicker, ModelPicker } from "./ModelPopover";
 import { addAttachment, getState, initStore, setState, subscribe, useStore, type Pane } from "./store";
 import { initScrollbars } from "./scrollbars";
 import { applyHostColors, type EmbedFromHost } from "../shared/embed";
 
-// 세션 하나만 보이는 화면. 사이드바, 제목줄, 오른쪽 패널, 아래 패널 없이 대화 칸 하나와 입력창이 전부다.
-// params.mini 면 Electron 의 미니 채팅 패널이다(electron/quickEntry.ts): 같은 화면을 둥근 카드 틀(web/MiniChat.tsx)에 넣고, 테마는 설정을, 알림 클릭은 메인이 보내는 이벤트를 따른다.
-// 보내기, 중단, 큐, 승인 카드, 체크포인트, 변경 칩은 PaneView 가 그대로 그린다. 파일 열기와 변경 보기는 store 의 openFile, openDiff, openChanges 가 확장으로 넘긴다.
 export function startEmbed(params: EmbedParams) {
   const pane: Pane = params.agentId ? { id: "embed", kind: "agent", agentId: params.agentId } : { id: "embed", kind: "draft", workspaceId: params.workspaceId ?? "" };
-  // 새 세션 입력창과 미니 패널은 열리자마자 글을 쓸 수 있게 입력창에 포커스를 준다.
   setState({ panes: [pane], activePaneId: pane.id, centerView: "sessions", sidebarOpen: false, rightOpen: false, bottomOpen: false, ...(pane.kind === "draft" || params.mini ? { focusComposer: { paneId: pane.id, nonce: Date.now() } } : {}) });
   document.documentElement.dataset.embed = "session";
   document.documentElement.dataset.theme = params.theme;
@@ -33,7 +29,6 @@ export function startEmbed(params: EmbedParams) {
   createRoot(document.getElementById("root")!).render(<EmbedSession mini={params.mini} />);
 }
 
-// 미니 패널 전용: 테마는 설정(system 이면 OS)을 따르고, 패널을 다시 열 때 입력창에 포커스를 주고, 알림을 눌러 열렸을 때(메인이 CustomEvent 를 보낸다) 그 세션 처리를 한다.
 function startMini() {
   const media = window.matchMedia("(prefers-color-scheme: light)");
   const applyTheme = () => {
@@ -71,7 +66,6 @@ function EmbedBody() {
     <div className="app">
       <div className="body">
         <div className="center-and-bottom">
-          {/* 칸 id 를 달아야 모델과 생각 수준 팝업이 칩을 찾는다(anchorInActivePane). 없으면 팝업이 화면 가운데에 뜬다. */}
           <div className="center" data-columns="one" data-pane-id={pane?.id}>
             {pane && <PaneView pane={pane} />}
           </div>
@@ -93,7 +87,6 @@ function EmbedBody() {
   );
 }
 
-// 새 세션 입력창에서 첫 메시지를 보내면 칸이 세션으로 바뀐다. 확장이 패널을 그 세션에 묶도록 알린다.
 function watchSession() {
   let announced: string | null = null;
   const announce = () => {

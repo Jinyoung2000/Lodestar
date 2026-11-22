@@ -16,7 +16,6 @@ type Problem = { diagnostic: LspDiagnostic; from: number; to: number; severity: 
 const KIND = { 1: "error", 2: "warning", 3: "info" } as const;
 const sessions = new WeakMap<EditorView, { problems: Problem[]; index: number }>();
 
-// 한 파일의 문제 목록(힌트는 뺀다). 심각도 순(오류, 경고, 정보) 다음 위치 순.
 export function sortedProblems(view: EditorView): Problem[] {
   const plugin = LSPPlugin.get(view);
   if (!plugin) return [];
@@ -31,7 +30,6 @@ export function sortedProblems(view: EditorView): Problem[] {
   return problems.sort((a, b) => a.severity - b.severity || a.from - b.from || a.to - b.to);
 }
 
-// 처음 보일 문제의 번호(MarkerList._initIdx): 목록 순서로 처음 만나는, 위치를 품었거나 위치가 그 시작 앞인 문제. 없으면 앞으로는 처음, 뒤로는 마지막.
 export function initialIndex(ranges: { from: number; to: number }[], head: number, forward: boolean): number {
   let index = -1;
   let containing = false;
@@ -48,7 +46,6 @@ export function initialIndex(ranges: { from: number; to: number }[], head: numbe
   return index < 0 ? ranges.length - 1 : index;
 }
 
-// ⌥F8, ⇧⌥F8. 띠가 이미 열려 있고 그 문제를 가리키던 중이면 다음, 이전 문제로, 아니면 커서 기준으로 처음 연다.
 export function gotoProblem(view: EditorView, direction: 1 | -1) {
   const problems = sortedProblems(view);
   if (!problems.length) {
@@ -61,12 +58,10 @@ export function gotoProblem(view: EditorView, direction: 1 | -1) {
   if (open) index = (session.index + direction + problems.length) % problems.length;
   else {
     index = initialIndex(problems, view.state.selection.main.head, direction === 1);
-    // 처음 열 때는 가리킨 문제를 그대로 보이고(다음 문제로 건너뛰지 않는다), 이미 문제 위에 있으면 그 문제다.
   }
   showProblem(view, problems, index);
 }
 
-// hover 의 View Problem: 그 문제를 바로 띠로 보인다.
 export function viewProblem(view: EditorView, diagnostic: LspDiagnostic) {
   const problems = sortedProblems(view);
   const index = problems.findIndex((p) => p.diagnostic === diagnostic || (p.diagnostic.message === diagnostic.message && p.diagnostic.range.start.line === diagnostic.range.start.line && p.diagnostic.range.start.character === diagnostic.range.start.character));

@@ -1,10 +1,7 @@
-// 0: 둥글게, 1: 안쪽 모서리를 채워 오목하게, 2: 각지게
 export type Corner = 0 | 1 | 2;
 export type PieceCorners = { startTop: Corner; startBottom: Corner; endTop: Corner; endBottom: Corner };
 export type PieceSpan = { left: number; right: number };
 
-// 줄마다 하나인 선택 조각들(위에서 아래로 이어진 줄)의 네 모서리 모양.
-// 이웃 줄과 왼쪽 가장자리가 글자 폭의 1/4 안이면 각지고, 이웃 줄 안쪽으로 들어가 있으면 오목하고, 그 밖에는 둥글다.
 export function pieceCorners(pieces: readonly PieceSpan[], charWidth: number): PieceCorners[] {
   const tolerance = charWidth / 4;
   return pieces.map((piece, i) => {
@@ -29,7 +26,6 @@ export function pieceCorners(pieces: readonly PieceSpan[], charWidth: number): P
   });
 }
 
-// 조각의 모서리 클래스: 둥근 모서리(0)에만 반지름을 준다
 export function radiusClasses(corners: PieceCorners): string[] {
   const classes: string[] = [];
   if (corners.startTop === 0) classes.push("cm-sel-top-left");
@@ -39,7 +35,6 @@ export function radiusClasses(corners: PieceCorners): string[] {
   return classes;
 }
 
-// 오목한 모서리를 채우는 조각(선택 색 조각 위에 배경색 조각을 올리고 한 모서리만 둥글게 한다)이 필요한 쪽과 모서리
 export type FilletPiece = { side: "start" | "end"; radius: string[] };
 
 export function filletPieces(corners: PieceCorners): FilletPiece[] {

@@ -1,4 +1,3 @@
-// 대화 바닥 고정 판정(web/timelineScroll.ts) 단독 시험. 실행: npm test
 import { BOTTOM_SLACK, followsBottom } from "../web/timelineScroll";
 
 const cases: { name: string; run: () => string }[] = [];

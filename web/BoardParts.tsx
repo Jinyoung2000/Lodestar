@@ -6,12 +6,8 @@ import { S } from "./strings";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Close } from "./icons";
 
-// BOARDUX: 보드와 카드 상세가 같이 쓰는 작은 부품. 색은 전부 tokens.json 의 status-*, priority-*, label-* 토큰이고, 정보가 있을 때만 쓴다.
-
-// 메뉴나 선택 목록을 Esc 로 닫을 때 같은 키가 앱의 전역 Esc(보드 닫기)까지 가지 않게 한다. 보드 안의 Radix 메뉴와 Select 의 onEscapeKeyDown 에 넘긴다.
 export const stopEscape = (event: KeyboardEvent) => event.stopPropagation();
 
-// 열의 역할(상태)을 나타내는 원 아이콘. Backlog 점선 원, Todo 빈 원, In Progress 반 찬 원, Review 4분의 3 찬 원, Done 체크 원, 역할 없는 열은 가운데 점이 있는 원.
 export function StatusIcon({ role, size = 14 }: { role: BoardRole | null; size?: number }) {
   return (
     <svg className="status-icon" data-role={role ?? "custom"} width={size} height={size} viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -55,7 +51,6 @@ function StatusShape({ role }: { role: BoardRole | null }) {
   );
 }
 
-// 우선순위 아이콘 (Linear 와 같은 모양). Urgent 는 경고색 사각형에 느낌표, High, Medium, Low 는 회색 막대 세 칸 중 3, 2, 1 칸, 없음은 흐린 점선 세 개.
 export function PriorityIcon({ priority, size = 14 }: { priority: BoardPriority; size?: number }) {
   return (
     <svg className="priority-icon" data-priority={priority} width={size} height={size} viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -93,7 +88,6 @@ function PriorityShape({ priority }: { priority: BoardPriority }) {
   );
 }
 
-// 작은 색 점과 글자. 색은 라벨 이름으로 정해지고(같은 이름은 항상 같은 색), 사용자가 고른 색이 있으면 그것이다.
 export function LabelChip({ label, children }: { label: string; children?: ReactNode }) {
   const colors = useStore((s) => s.board?.labelColors);
   return (
@@ -105,7 +99,6 @@ export function LabelChip({ label, children }: { label: string; children?: React
   );
 }
 
-// 카드 상세의 라벨 칩. 점을 누르면 팔레트에서 색을 고르고, X 로 라벨을 뗀다.
 export function EditableLabelChip({ label, onPick, onRemove }: { label: string; onPick: (color: number | null) => void; onRemove: () => void }) {
   const colors = useStore((s) => s.board?.labelColors);
   const color = labelColorOf(colors, label);

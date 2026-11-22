@@ -1,21 +1,14 @@
-// 구간: start 줄은 보이고 start+1..end 줄이 숨는다. 줄 번호는 1부터.
 export type FoldRegion = { start: number; end: number };
-
-// --- 들여쓰기로 만드는 구간 ---
 
 export type IndentRegionInput = {
   lineCount: number;
-  // 줄(0부터)의 들여쓰기 칸 수. 공백뿐인 줄은 -1.
   indentOf: (lineIndex: number) => number;
   offSide: boolean;
-  // #region 표식. 있으면 표식 쌍도 구간으로 만든다(끝 표식 줄까지 포함).
   markers?: { start: RegExp; end: RegExp; textOf: (lineIndex: number) => string } | null;
 };
 
 type Pending = { indent: number; endAbove: number; line: number };
 
-// 줄 끝에서 위로 훑으며 더 깊게 들여쓴 줄이 이어지는 곳마다 구간을 만든다. 구간 끝은 같은 깊이 이하로 돌아오는 다음 줄의 바로 앞 줄이고,
-// offSide 가 아닌 언어는 그 사이 빈 줄도 포함한다. 결과는 시작 줄 오름차순.
 export function computeIndentRegions(input: IndentRegionInput): FoldRegion[] {
   const { lineCount, indentOf, offSide, markers } = input;
   const found: FoldRegion[] = [];
@@ -62,7 +55,6 @@ export function computeIndentRegions(input: IndentRegionInput): FoldRegion[] {
   return found.reverse();
 }
 
-// 표식(#region)만으로 만드는 구간. 문법으로 접는 언어에서 표식 줄만 따로 접을 때 쓴다.
 export function computeMarkerRegions(lineCount: number, textOf: (lineIndex: number) => string, start: RegExp, end: RegExp): FoldRegion[] {
   const found: FoldRegion[] = [];
   const ends: number[] = [];
@@ -76,15 +68,11 @@ export function computeMarkerRegions(lineCount: number, textOf: (lineIndex: numb
   return found.reverse();
 }
 
-// --- 구간 트리 ---
-
 export type RegionTree = {
   regions: readonly FoldRegion[];
-  // 바깥 구간의 번호, 없으면 -1
   parent: readonly number[];
 };
 
-// 시작 줄 순으로 정렬해 안쪽에 포함되는 구간만 남긴다(겹치는 구간은 버린다). 같은 시작 줄은 하나만.
 export function buildRegionTree(input: readonly FoldRegion[]): RegionTree {
   const sorted = [...input].filter((r) => r.end > r.start).sort((a, b) => a.start - b.start || b.end - a.end);
   const regions: FoldRegion[] = [];
@@ -102,7 +90,6 @@ export function buildRegionTree(input: readonly FoldRegion[]): RegionTree {
   return { regions, parent };
 }
 
-// 줄을 포함하는 가장 안쪽 구간의 번호, 없으면 -1
 export function regionIndexAt(tree: RegionTree, line: number): number {
   const { regions, parent } = tree;
   let low = 0;
@@ -120,7 +107,6 @@ export function regionIndexAt(tree: RegionTree, line: number): number {
   return -1;
 }
 
-// 줄을 포함하는 모든 구간, 안쪽부터. level 은 가장 안쪽이 1.
 export function regionsAtLine(tree: RegionTree, line: number, filter?: (index: number, level: number) => boolean): number[] {
   const result: number[] = [];
   let index = regionIndexAt(tree, line);
@@ -139,7 +125,6 @@ const containedBy = (tree: RegionTree, inner: number, outer: number) => {
   return a.start >= b.start && a.end <= b.end;
 };
 
-// 구간 안쪽(없으면 문서 전체)의 모든 구간. level 은 대상 바로 아래가 1.
 export function regionsInside(tree: RegionTree, outer: number | null, filter?: (index: number, level: number) => boolean): number[] {
   const result: number[] = [];
   const first = outer === null ? 0 : outer + 1;
@@ -154,11 +139,8 @@ export function regionsInside(tree: RegionTree, outer: number | null, filter?: (
   return result;
 }
 
-// --- 명령이 고르는 구간. 돌려준 번호는 접힘 상태를 뒤집을 구간이다. collapsed(i) 는 지금 접혀 있는지. ---
-
 export type PlanInput = { tree: RegionTree; collapsed: (index: number) => boolean };
 
-// 선택 줄의 구간과 levels 단계 안쪽 구간을 target 상태로 만든다. 줄이 없으면 문서 전체. (Fold All, Unfold All, Fold Recursively, Unfold, Unfold Recursively)
 export function planSetState({ tree, collapsed }: PlanInput, target: boolean, levels: number, lines?: readonly number[]): number[] {
   const result: number[] = [];
   if (lines && lines.length > 0) {
@@ -174,7 +156,6 @@ export function planSetState({ tree, collapsed }: PlanInput, target: boolean, le
   return result;
 }
 
-// Fold(⌥⌘[): 줄을 포함하는 구간 중 아직 target 이 아닌 가장 안쪽 하나. 이미 접힌 구간이면 바깥 구간.
 export function planFoldAtLines({ tree, collapsed }: PlanInput, target: boolean, lines: readonly number[]): number[] {
   const result: number[] = [];
   for (const line of lines) {
@@ -184,7 +165,6 @@ export function planFoldAtLines({ tree, collapsed }: PlanInput, target: boolean,
   return result;
 }
 
-// Toggle Fold(⌘K ⌘L), Toggle Fold Recursively
 export function planToggle({ tree, collapsed }: PlanInput, levels: number, lines: readonly number[]): number[] {
   const result: number[] = [];
   for (const line of lines) {
@@ -197,12 +177,10 @@ export function planToggle({ tree, collapsed }: PlanInput, levels: number, lines
   return result;
 }
 
-// Fold Level n(⌘K ⌘1~7): 깊이가 정확히 n 이고 선택 줄을 포함하지 않는 구간을 접는다.
 export function planLevel({ tree, collapsed }: PlanInput, level: number, target: boolean, lines: readonly number[]): number[] {
   return regionsInside(tree, null, (i, at) => at === level && collapsed(i) !== target && !lines.some((line) => line >= tree.regions[i]!.start && line <= tree.regions[i]!.end));
 }
 
-// Fold All Except Selected(⌘K ⌘-), Unfold All Except Selected(⌘K ⌘=): 선택 줄의 가장 안쪽 구간과 포함 관계가 없는 구간 전부
 export function planExcept({ tree, collapsed }: PlanInput, target: boolean, lines: readonly number[]): number[] {
   const kept: number[] = [];
   for (const line of lines) {
@@ -212,7 +190,6 @@ export function planExcept({ tree, collapsed }: PlanInput, target: boolean, line
   return regionsInside(tree, null, (i) => kept.every((k) => !containedBy(tree, k, i) && !containedBy(tree, i, k)) && collapsed(i) !== target);
 }
 
-// 시작 줄이 조건에 맞는 구간을 target 으로(Fold All Block Comments, Fold All Regions)
 export function planByStartLine({ tree, collapsed }: PlanInput, target: boolean, matches: (startLine: number) => boolean): number[] {
   const result: number[] = [];
   for (let i = tree.regions.length - 1; i >= 0; i--) {
@@ -221,7 +198,6 @@ export function planByStartLine({ tree, collapsed }: PlanInput, target: boolean,
   return result;
 }
 
-// 아이콘 클릭(번들 onEditorMouseUp). 기본은 그 구간만, shift 나 가운데 버튼은 안쪽에서 같은 상태인 구간까지, alt 는 포함 관계가 없는 모든 구간.
 export type ClickModifier = "plain" | "recursive" | "others";
 
 export function planIconClick({ tree, collapsed }: PlanInput, index: number, modifier: ClickModifier): number[] {
@@ -237,8 +213,6 @@ export function planIconClick({ tree, collapsed }: PlanInput, index: number, mod
   if (wasCollapsed || !recursive || result.length === 0) result.push(index);
   return result;
 }
-
-// --- 언어별 접기 표식과 offSide ---
 
 export type RegionMarkers = { start: RegExp; end: RegExp };
 

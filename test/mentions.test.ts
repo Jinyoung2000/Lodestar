@@ -1,5 +1,3 @@
-// 멘션 요청 판단, 분석 큐, 카드 자동 생성의 단독 시험 (모델과 Slack 없이). 판단과 분석은 가짜 함수로 바꿔 끼운다.
-// 실행: npm test
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -26,7 +24,6 @@ const expect = (condition: boolean, detail: string) => {
   return detail;
 };
 
-// 작업 폴더: 워크스페이스 하나와 그 안의 파일 하나, 바깥 파일 하나
 const wsDir = join(home, "repo");
 mkdirSync(join(wsDir, "src"), { recursive: true });
 writeFileSync(join(wsDir, "src", "Report.tsx"), "x");
@@ -54,8 +51,6 @@ const item = (n: number, extra: Partial<Item> = {}): Item => ({
 });
 
 const info = { at: "2026-10-14T00:00:00.000Z", counts: { mention: 0, dm: 0, thread: 0 }, added: 0, partial: false, error: null, tools: [], costUsd: null, turns: null };
-
-// --- 순수 함수 ---
 
 test("parseJudgments keeps valid rows by n, clamps confidence, and nulls anything malformed or missing", () => {
   const out = parseJudgments(
@@ -187,11 +182,8 @@ test("mentionStatus orders analysis state, card, verdict and judgment", () => {
   return expect(mentionStatus({}, false) === "none", "nothing");
 });
 
-// --- 저장소와 큐 ---
-
 type Rig = { inbox: InstanceType<typeof InboxStore>; board: InstanceType<typeof BoardStore>; pipeline: InstanceType<typeof MentionPipeline>; settings: Partial<Settings>; judgeCalls: number[]; analyzeCalls: string[]; maxParallel: () => number };
 
-// 판단은 n 번째 메시지의 본문 "thing N" 으로 정해진다: 짝수는 요청(0.9), 3 의 배수는 낮은 확신 요청(0.5), 나머지는 요청 아님.
 function rig(options: { judge?: (batch: ReturnType<typeof toJudgeInput>[]) => Promise<never> | undefined; analyze?: (item: Item) => Outcome } = {}): Rig {
   rmSync(join(home, "inbox.json"), { force: true });
   rmSync(join(home, "board.json"), { force: true });
@@ -261,7 +253,6 @@ test("Judge, queue and card: only confident requests are analysed, serially, and
   const second = await r.pipeline.judgeNew();
   await r.pipeline.idle();
   expect(second.judged === 0 && r.judgeCalls.length === 1 && r.analyzeCalls.length === 3 && r.board.get().cards.length === 3, "second pass: no judge call, no analysis, no new cards");
-  // 같은 멘션을 다시 가져와도 (merge) 판단과 카드는 그대로다.
   feed(r, [2, 4].map((n) => item(n)));
   await r.pipeline.judgeNew();
   await r.pipeline.idle();
@@ -430,7 +421,6 @@ test("Migration v1 to v3: DMs and old thread replies stay in the file but leave 
   expect(store.item(item(2).id).kind === "dm", "hidden items are still addressable");
   const again = new InboxStore();
   expect(again.state(false).items.length === 1 && existsSync(join(home, "inbox.v1.json")), "reload is stable");
-  // 판단은 이 항목들을 건드리지 않는다.
   return expect(again.mentions().filter((i) => !i.judgment).length === 0, "nothing left to judge");
 });
 

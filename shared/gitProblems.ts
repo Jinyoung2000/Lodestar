@@ -17,10 +17,8 @@ export type GitProblemKind =
 
 export type GitProblem = {
   kind: GitProblemKind;
-  // 한 줄 제목과 다음에 할 일 한 문장
   title: string;
   hint: string;
-  // dirty 일 때 git 이 가로막은 파일들(최대 5개)
   files?: string[];
 };
 
@@ -28,7 +26,6 @@ const VERB_NAME: Record<GitVerb, string> = { pull: "Pull", push: "Push", fetch: 
 
 export function classifyGitFailure(output: string, verb: GitVerb, context: { branch?: string | null } = {}): GitProblem {
   const text = output;
-  // 병합이나 리베이스가 충돌로 멈춘 것은 실패라기보다 해결할 일이다. 다른 어떤 문구보다 먼저 본다.
   if (/^CONFLICT \(|Automatic merge failed|Resolve all conflicts manually|could not apply [0-9a-f]+|When you have resolved this problem/m.test(text)) {
     const what = verb === "rebase" || /could not apply|rebase --continue/i.test(text) ? "Rebase" : "Merge";
     return { kind: "conflict", title: `${what} stopped because of conflicts`, hint: "Open the files under Merge Changes, choose which side to keep, then mark them resolved and continue." };
@@ -74,7 +71,6 @@ export function classifyGitFailure(output: string, verb: GitVerb, context: { bra
   return { kind: "unknown", title: `${VERB_NAME[verb]} failed`, hint: firstUseful(text.split("\n")) || "Git did not give a reason." };
 }
 
-// git 이 낸 문장 중 사람이 읽을 첫 줄. "Command failed: git ..." 줄과 hint: 줄은 건너뛰고 fatal:, error: 접두를 뗀다.
 function firstUseful(lines: string[]): string {
   for (const raw of lines) {
     const line = raw.trim();
@@ -84,7 +80,6 @@ function firstUseful(lines: string[]): string {
   return "";
 }
 
-// "would be overwritten" 다음에 탭으로 들여 쓴 파일 이름들
 function listedFiles(text: string): string[] {
   const files: string[] = [];
   for (const line of text.split("\n")) {

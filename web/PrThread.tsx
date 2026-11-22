@@ -9,17 +9,13 @@ import { P } from "./prStrings";
 import { relativeTime } from "./sessionList";
 import { Button } from "./ui/button";
 
-// 리뷰 스레드 한 묶음. diff 줄 아래에 붙고, 해결된 스레드는 한 줄로 접힌다.
 export function PrThreadView({ thread, original }: { thread: PrThread; original?: string[] }) {
-  // 주소가 이 스레드의 코멘트를 가리키면 해결된 스레드여도 펼쳐서 보인다
   const focused = usePrView((v) => {
     const focus = v.focus;
     return focus?.kind === "comment" && thread.comments.some((c) => c.anchorId === focus.id);
   });
   const [expanded, setExpanded] = useState(!thread.isResolved || focused);
-  // 해결하면 접고, 다시 열면 펼친다
   useEffect(() => setExpanded(!thread.isResolved), [thread.isResolved]);
-  // 주소로 찾아온 스레드는 화면이 앵커를 처리한 뒤(focus 가 지워진 뒤)에도 펼친 채 둔다
   useEffect(() => {
     if (focused) setExpanded(true);
   }, [focused]);
@@ -89,7 +85,6 @@ export function PrThreadView({ thread, original }: { thread: PrThread; original?
   );
 }
 
-// 코멘트 하나. 내 코멘트(viewerCanUpdate, viewerCanDelete)만 수정과 삭제가 보인다. 삭제는 한 번 더 눌러야 실행된다.
 export function PrCommentView({ comment, kind, original }: { comment: PrComment; kind: "review" | "issue"; original?: string[] }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);

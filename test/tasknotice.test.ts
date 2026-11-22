@@ -1,5 +1,3 @@
-// 백그라운드 작업 "completed" 알림을 대화에 글로 남길지 고르는 규칙(server/taskNotice.ts).
-// 실행: npm test
 import { showsTaskNotice } from "../server/taskNotice";
 
 type Item = import("../shared/protocol").TimelineItem;

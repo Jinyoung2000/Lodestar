@@ -1,4 +1,3 @@
-// notion-fetch 응답 해석과 enhanced markdown 변환을 확인한다. 응답 모양은 2026-10-16 실제 응답(Frontend 페이지)에서 확인한 구조를 합성 내용으로 옮긴 것이다. 실행: npm test
 import { enhancedToMarkdown, parseFetchResult, propertyRows } from "../shared/notionFetch";
 import { fenceFor, clip, pageContext } from "../shared/notionContext";
 import { notionRefToUrl } from "../shared/notionLink";

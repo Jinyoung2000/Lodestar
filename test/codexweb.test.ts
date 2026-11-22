@@ -1,5 +1,3 @@
-// CODEX: 입력창과 새 세션 화면이 쓰는 Codex 쪽 계산(web/harness.ts)과 마지막 선택의 기억(web/store.ts)을 단독 시험한다.
-// 브라우저 전역은 최소한으로 흉내 낸다. Codex 도 데몬도 부르지 않는다. 실행: npm test
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,13 +11,14 @@ const g = globalThis as unknown as Record<string, unknown>;
 g.localStorage = fake;
 g.sessionStorage = fake;
 g.window = g;
-g.addEventListener = () => {}; // 브라우저의 window 는 이벤트 대상이다. web/idleReload.ts 가 불러올 때 입력 이벤트를 단다
+g.addEventListener = () => {};
 g.removeEventListener = () => {};
 g.document = { querySelector: () => null, documentElement: { dataset: {}, style: {} }, addEventListener() {}, hasFocus: () => true, visibilityState: "visible" };
 g.location = { reload() {}, origin: "http://localhost" };
 
 const { codexDefaultModel, codexLevels, codexModelChip, codexModelInfos, paneHarness } = await import("../web/harness");
 const { getState, rememberPick, setState, startDraft } = await import("../web/store");
+const { carryLevel, choiceRows, claudeModels, landingKey, pickerRows, pinKey, rowKey, stepTab, toolModels } = await import("../web/modelChoices");
 type CodexMeta = import("../shared/protocol").CodexMeta;
 type Agent = import("../shared/protocol").Agent;
 
@@ -96,6 +95,29 @@ test("새 세션 화면을 다시 열면 그 칸의 도구 선택은 지워지�
   const again = startDraft(null, "active");
   expect(again === pane && !(pane in getState().draftHarness), "같은 칸에 새 초안이 열리면 고른 도구가 지워진다");
   return "ok";
+});
+
+test("model popover rows: provider tab, search across providers with headers, pinned, status, custom name", () => {
+  const providers = [
+    { tool: "claude" as const, models: claudeModels([{ value: "opus", resolvedModel: "claude-opus-5-5", displayName: "Opus 5.5", supportedEffortLevels: [] }], "opus"), status: null },
+    { tool: "codex" as const, models: toolModels("codex", meta), status: null },
+    { tool: "antigravity" as const, models: [], status: "Antigravity CLI was not found." },
+  ];
+  const names = (rows: ReturnType<typeof pickerRows>) => rows.map((r) => (r.kind === "header" ? `#${r.tool}` : r.kind === "status" ? `!${r.text}` : r.kind === "model" ? r.model.value : `+${r.value}`)).join(",");
+  expect(names(pickerRows(providers, "codex", "", [], "codex")) === "#codex,gpt-a,gpt-b", names(pickerRows(providers, "codex", "", [], "codex")));
+  expect(names(pickerRows(providers, "antigravity", "", [], "antigravity")) === "#antigravity,!Antigravity CLI was not found.", "missing provider shows its status");
+  expect(names(pickerRows(providers, "codex", "opus", [], "codex")) === "#claude,opus", "search finds models of other providers too");
+  expect(names(pickerRows(providers, "claude", "a", [], "claude")) === "#codex,gpt-a,#claude,+a", names(pickerRows(providers, "claude", "a", [], "claude")));
+  expect(names(pickerRows(providers, "pinned", "", [pinKey("codex", "gpt-b"), "opus"], "claude")) === "#claude,opus,#codex,gpt-b", "pinned grouped by provider");
+  expect(names(pickerRows(providers, "pinned", "", [], "claude")) === "", "nothing pinned");
+  const claude = providers[0].models[0];
+  expect(claude.isDefault && claude.levels.join() === "low,medium,high,xhigh,max" && claude.defaultLevel === "high", JSON.stringify(claude));
+  const codex = toolModels("codex", meta);
+  expect(codex[0].defaultLevel === "medium" && !codex.some((m) => m.isDefault), "default comes from config.toml even when it is not listed");
+  const rows = choiceRows(pickerRows(providers, "claude", "", [], "claude"));
+  expect(landingKey(rows, [["claude", "claude-opus-5-5"]]) === rowKey(rows[0]), "resolved id lands on its row");
+  expect(carryLevel("high", ["low", "medium", "high"], "medium") === "high" && carryLevel("max", ["low"], "low") === "low" && carryLevel("high", [], "high") === null, "level carry");
+  return expect(stepTab("pinned", -1) === "antigravity" && stepTab("antigravity", 1) === "pinned" && stepTab("claude", 1) === "codex", "tab cycle");
 });
 
 let failed = 0;

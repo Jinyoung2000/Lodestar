@@ -1,4 +1,3 @@
-// 세션 참조(shared/sessionRef.ts) 시험: 찾기, 풀기, 모델 맥락 블록. 실행: npm test
 import type { TimelineItem } from "../shared/protocol";
 import { CONTEXT_CHARS, findSessionRefs, parseSessionArg, recentMessages, resolveSessionRef, sessionContextBlock, sessionRef, shortSessionId, type ContextAgent } from "../shared/sessionRef";
 
@@ -18,11 +17,9 @@ const F = "cafe0001-0000-4000-8000-000000000006";
 const agent = (id: string, extra: Partial<ContextAgent> = {}): ContextAgent => ({ id, feedbackId: null, title: `title ${id.slice(0, 4)}`, status: "idle", cwd: `/work/${id.slice(0, 4)}`, ...extra });
 const agents = [agent(A), agent(B), agent(C), agent(D), agent(E, { feedbackId: "fb1" }), agent(F)];
 
-// 만들기
 check("짧은 id 는 uuid 앞 8자", shortSessionId(C) === "abcdef12");
 check("참조는 lodestar://session/<앞 8자>", sessionRef(C) === "lodestar://session/abcdef12");
 
-// 찾기
 check("두 스킴 모두 읽는다", same(findSessionRefs("see lodestar://session/abcdef12 and agent-nav://session/deadbeef"), ["abcdef12", "deadbeef"]));
 check("전체 uuid 도 읽는다", same(findSessionRefs(`agent-nav://session/${C}`), [C]));
 check("대문자는 소문자로 맞춘다", same(findSessionRefs("LODESTAR://SESSION/ABCDEF12"), ["abcdef12"]));
@@ -33,7 +30,6 @@ check("스킴 없는 id 와 다른 스킴은 무시", same(findSessionRefs("abcd
 check("parseSessionArg: 링크, uuid, 앞부분", parseSessionArg("lodestar://session/abcdef12") === "abcdef12" && parseSessionArg(C) === C && parseSessionArg(" ABCDEF ") === "abcdef");
 check("parseSessionArg: 짧거나 hex 가 아니면 null", parseSessionArg("abc") === null && parseSessionArg("zzzzzz") === null && parseSessionArg("") === null);
 
-// 풀기
 const found = (r: ReturnType<typeof resolveSessionRef>) => (r.kind === "found" ? r.agent.id : r.kind);
 check("유일한 앞부분은 찾는다", found(resolveSessionRef("abcdef12", agents)) === C && found(resolveSessionRef("lodestar://session/deadbe", agents)) === D);
 check("전체 uuid 로 찾는다", found(resolveSessionRef(B, agents)) === B);
@@ -48,7 +44,6 @@ check("없으면 notFound", resolveSessionRef("999999", agents).kind === "notFou
 check("피드백 개선 세션은 풀리지 않는다", resolveSessionRef("feedc0de", agents).kind === "notFound" && resolveSessionRef(E, agents).kind === "notFound");
 check("피드백 세션은 앞부분 겹침 판정에도 안 센다", found(resolveSessionRef("feedc0", [...agents, agent("feedc0de-9999-4000-8000-000000000009", { feedbackId: "fb2" })])) === "notFound");
 
-// 맥락 블록
 const user = (text: string, extra: Partial<Extract<TimelineItem, { kind: "user" }>> = {}): TimelineItem => ({ id: `u${text}`, kind: "user", text, ...extra });
 const assistant = (text: string, streaming = false): TimelineItem => ({ id: `a${text}`, kind: "assistant", text, streaming });
 const timelines: Record<string, TimelineItem[]> = {
@@ -78,7 +73,6 @@ check("자기 참조는 3개 한도에 안 센다", (block("lodestar://session/1
 check("같은 세션을 짧은 id 와 uuid 로 두 번 써도 한 번만", (block(`lodestar://session/abcdef12 agent-nav://session/${C}`)!.match(/^Title:/gm) ?? []).length === 1);
 check("메시지가 없는 세션", block("lodestar://session/11112222")!.includes("No messages yet."));
 
-// 글자 수 제한
 const long: TimelineItem[] = [assistant("OLD".repeat(3000)), assistant("x".repeat(5000)), user("NEWEST")];
 const clipped = recentMessages(long);
 check("세션당 맥락은 CONTEXT_CHARS 안(말줄임 3자 포함)", clipped.length <= CONTEXT_CHARS + 3, String(clipped.length));

@@ -1,5 +1,3 @@
-// 단축키 표와 chord 상태 기계(web/keymap.ts), 격자 구조(web/gridLayout.ts)를 DOM 없이 확인한다.
-// 실행: npm test
 import { BINDINGS, BROWSER_STROKES, CHORD_TIMEOUT_MS, INTERCEPT_STROKES, latinKeyOf, stepKey, strokeOf, terminalKeySequence, type KeyContext, type Pending } from "../web/keymap";
 import { gridOf, moveToRow, neighbor, paneOrder, reconcileGrid, splitDown, step, swapPanes } from "../web/gridLayout";
 
@@ -60,7 +58,6 @@ test("chord: ⌘K 뒤 ⌘\\ 는 splitDown, ⌘\\ 단독은 split", () => {
 });
 
 test("chord: 수정키 입력은 호출하는 쪽이 건너뛰므로 상태가 그대로 이어진다", () => {
-  // strokeOf 가 수정키만 눌린 입력에 null 을 주고 runShortcut 이 null 을 무시한다. 같은 pending 으로 다음 키가 처리되는지 확인한다.
   const pending: Pending = { prefix: "Meta+KeyK", at: 0 };
   expect(strokeOf(key("MetaLeft", { meta: true })) === null && strokeOf(key("ShiftLeft", { shift: true })) === null, "modifier null");
   const r = stepKey(pending, "KeyW", ctx, 200);
@@ -123,7 +120,6 @@ test("수정키 없는 키는 chord 밖에서 아무것도 하지 않는다", ()
 test("Electron 가로채기 집합: ⌘, ⌥ 조합만 들고 ⌃ 단독과 맨 키는 뺀다", () => {
   for (const s of ["Meta+Backslash", "Meta+KeyW", "Alt+KeyH", "Ctrl+Alt+KeyR", "Alt+Meta+ArrowLeft", "Ctrl+Meta+ArrowLeft"]) expect(INTERCEPT_STROKES.has(s), s);
   for (const s of ["Ctrl+KeyC", "Ctrl+Minus", "KeyW", "ArrowLeft", "Escape"]) expect(!INTERCEPT_STROKES.has(s), s);
-  // chord 의 첫 키(⌘K)와 두 번째 키(⌘←→↑↓)는 단독 키가 아니라 가로채지 않는다. 가로채면 에디터와 입력칸의 ⌘←→↑↓ 가 사라진다(2026-10 버그).
   for (const s of ["Meta+KeyK", "Meta+ArrowLeft", "Meta+ArrowRight", "Meta+ArrowUp", "Meta+ArrowDown"]) expect(!INTERCEPT_STROKES.has(s), `가로채지 않음: ${s}`);
   return "ok";
 });
@@ -137,11 +133,9 @@ test("Browser 탭 전용 키: Browser 탭이 활성일 때만 듣고, 가로채�
     const other = stepKey(null, stroke, ctx, 0);
     if (stroke === "Meta+KeyT") expect(other.kind === "run" && other.command === "symbols" && INTERCEPT_STROKES.has(stroke) && BROWSER_STROKES.has(stroke), "⌘T 는 다른 탭에서 워크스페이스 심볼");
     else expect(other.kind === "pass", `${stroke} 은 다른 탭에서 그대로 통과`);
-    // ⌘=, ⌘-, ⌘NumPad0 는 창 확대 키이기도 해서 가로채기 집합에 든다(페이지가 포커스를 보고 가른다)
     const windowZoom = ["Meta+Equal", "Meta+Minus", "Meta+Numpad0"].includes(stroke);
     if (stroke !== "Meta+KeyT") expect(INTERCEPT_STROKES.has(stroke) === windowZoom && BROWSER_STROKES.has(stroke), `${stroke} 집합`);
   }
-  // 에디터의 ⌘F, ⌘D 가 막히지 않는다
   expect(stepKey(null, "Meta+KeyF", { ...ctx, inEditor: true }, 0).kind === "pass", "editor ⌘F");
   const search = stepKey(null, "Shift+Meta+KeyF", ctx, 0);
   expect(search.kind === "run" && search.command === "findInFiles" && INTERCEPT_STROKES.has("Shift+Meta+KeyF"), "⇧⌘F 는 어디서나 Search 뷰(Find in Files)");
@@ -234,7 +228,6 @@ test("B7: ⌘S, ⇧⌥F, ⌘K ⌘F, ⌘\\ 와 ⌘K ⌘\\ 는 에디터에서 에
 
 test("B7: 새 키가 Electron 이 가로채는 집합에 든다(⌘S, ⌥⇧F, ⌃⌘ 방향키)", () => {
   for (const stroke of ["Meta+KeyS", "Ctrl+Meta+ArrowLeft", "Ctrl+Meta+ArrowRight"]) expect(INTERCEPT_STROKES.has(stroke), `intercept ${stroke}`);
-  // ⌥⇧F 는 에디터에서만 맞는 키라 가로채지 않고 페이지가 맥락을 보고 가른다
   expect(!INTERCEPT_STROKES.has("Alt+Shift+KeyF"), "⌥⇧F 는 가로채지 않음");
   return "ok";
 });
@@ -258,8 +251,6 @@ test("B7: 채팅을 위, 아래 행으로 옮기면 행 끝에 붙고 없으면 
   return "ok";
 });
 
-// 단축키 점검(keys): 포커스 맥락별 키 판정. 텍스트 편집 영역의 기본 편집 키가 앱 단축키보다 우선한다.
-// 실제 DOM 에서 에디터 그룹의 .cm-editor 는 늘 .editor-area 안이다
 const inEditorCtx: KeyContext = { inTerminal: false, inEditor: true, inEditorArea: true };
 const inComposerCtx: KeyContext = { inTerminal: false, inEditor: false, inComposer: true };
 const inTerminalCtx: KeyContext = { inTerminal: true, inEditor: false };
@@ -273,7 +264,6 @@ test("keys: 에디터에서는 VS Code 에디터 키가 앱 키보다 먼저다(
     expect(verdict(stroke, inEditorCtx) === "pass", `에디터에서 ${stroke} 는 앱이 건드리지 않는다: ${verdict(stroke, inEditorCtx)}`);
     expect(verdict(stroke, ctx) !== "pass", `에디터 밖에서 ${stroke} 는 앱 키: ${verdict(stroke, ctx)}`);
   }
-  // ⇧⌘L 은 에디터에서 같은 글 전부 선택(editor:selectHighlights)이고 밖에서는 Inbox 다
   expect(verdict("Shift+Meta+KeyL", inEditorCtx) === "editor:selectHighlights" && verdict("Shift+Meta+KeyL", ctx) === "inbox", "⇧⌘L");
   expect(verdict("Alt+Meta+ArrowUp", ctx) === "promptPrev" && verdict("Alt+Meta+ArrowDown", ctx) === "promptNext", "말풍선 이동");
   expect(verdict("Shift+Meta+KeyK", ctx) === "board" && verdict("Shift+Meta+KeyL", ctx) === "inbox" && verdict("Alt+Meta+KeyF", ctx) === "feedback", "Board, Inbox, Feedback");
@@ -350,7 +340,6 @@ test("keys: 터미널 줄 편집 키는 VS Code 맥 기본에 사용자의 keybi
   expect(k("c", { meta: true }) === "\x19", "선택 없는 ⌘C 는 ^Y(사용자)");
   expect(terminalKeySequence({ key: "c", metaKey: true, altKey: false, shiftKey: false, ctrlKey: false }, true) === null, "선택이 있으면 복사");
   expect(k("c", { ctrl: true }) === null && k("ArrowLeft") === null && k("a") === null, "그 밖은 xterm 이 처리");
-  // 한글 입력 중에는 ⌘C 의 key 가 ㅊ 이다. 물리 키(code)로 읽는다.
   expect(terminalKeySequence({ key: "ㅊ", code: "KeyC", metaKey: true, altKey: false, shiftKey: false, ctrlKey: false }, false) === "\x19", "한글 입력의 선택 없는 ⌘C");
   expect(latinKeyOf({ key: "ㅊ", code: "KeyC" }) === "c" && latinKeyOf({ key: "j", code: "KeyC" }) === "j" && latinKeyOf({ key: "Enter", code: "Enter" }) === "Enter", "latinKeyOf: 자모는 code, 로마자는 key(Dvorak), 글자 키가 아니면 key");
   return "ok";
@@ -445,8 +434,6 @@ test("groups: 정의를 옆 그룹에 여는 ⌘K F12 는 에디터(.cm-editor)�
   return "ok";
 });
 
-
-// --- FOCUS: Editor 중심(포커스 모드)에서만 다른 뜻이 되는 키 ---
 
 const focusCtx: KeyContext = { inTerminal: false, inEditor: false, inFocusLayout: true };
 const focusVerdict = (stroke: string, c: KeyContext) => {

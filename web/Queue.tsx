@@ -8,9 +8,6 @@ import { flash, setState } from "./store";
 import { S } from "./strings";
 import { Markdown } from "./Timeline";
 
-// 대화 맨 아래의 큐(B3-08): 응답 중에 보낸 메시지가 줄을 서 있는 자리. 턴이 정상으로 끝나면 맨 앞부터 이어서 나간다.
-// 말풍선에 마우스를 올리거나 행에 포커스를 두면 Edit(입력창으로 되돌림), Send Immediately(지금 끼어들기), Remove from Queue. 행에서 Delete 나 Backspace 도 Remove.
-// 끼어들기로 보낸 메시지는 모델이 받을 때까지 그 위에 Steering 으로 보인다(B3-09). QUEUECANCEL: 아직 안 넘어갔으면 Edit 과 Cancel 이 있고, 이미 넘어갔으면 "Already sent to Claude" 만 보인다.
 export function QueuedMessages({ agent, paneId }: { agent: Agent; paneId: string }) {
   const queue = agent.queue ?? [];
   const steering = agent.steering ?? [];
@@ -22,8 +19,6 @@ export function QueuedMessages({ agent, paneId }: { agent: Agent; paneId: string
   );
 }
 
-// 큐나 끼어들기 대기에서 거두고 입력창에 쓴 글을 돌려받는다. 거두지 못했으면 null(이미 나갔다).
-// 같은 항목에 대한 요청이 끝나기 전의 두 번째 요청(더블클릭, 키 반복)은 무시한다.
 const inFlight = new Set<string>();
 export async function takePending(agentId: string, pending: PendingRef): Promise<{ text: string } | null> {
   if (inFlight.has(pending.id)) return null;
@@ -45,7 +40,6 @@ export async function takePending(agentId: string, pending: PendingRef): Promise
   }
 }
 
-// 거둔 글을 입력창으로 되돌린다(입력창에 글이 있으면 아래 줄에 붙인다).
 export function restoreToComposer(paneId: string, text: string) {
   setState((s) => ({ composerPrefill: { ...s.composerPrefill, [paneId]: { text, nonce: Date.now(), append: true } }, focusComposer: { paneId, nonce: Date.now() } }));
 }
@@ -55,7 +49,6 @@ export async function editPending(agentId: string, paneId: string, pending: Pend
   if (taken) restoreToComposer(paneId, taken.text);
 }
 
-// DIFFFB: 큐와 끼어들기 항목은 모델에 간 프롬프트(text)가 아니라 입력창에 쓴 글(shown)과 피드백 칩을 보인다.
 function QueuedBubble({ agentId, item }: { agentId: string; item: QueuedMessage }) {
   const chips = (item.attachments ?? []).filter((a) => a.kind === "diffFeedback");
   const text = item.shown ?? item.text;
@@ -68,7 +61,6 @@ function QueuedBubble({ agentId, item }: { agentId: string; item: QueuedMessage 
           ))}
         </div>
       )}
-      {/* 첨부한 코드 선택은 글 끝에 코드 블록으로 붙는다. 보낸 말풍선처럼 마크다운으로 그려 펜스가 날것으로 보이지 않게 한다. */}
       {(text !== "" || chips.length === 0) && (
         <div className="row-user queued-bubble">
           <Markdown className="row-user-text" text={text} breaks linkify={false} />
@@ -115,7 +107,6 @@ function PendingRow({ agentId, paneId, pending, item }: { agentId: string; paneI
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if ((e.key !== "Delete" && e.key !== "Backspace") || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey || sent) return;
     e.preventDefault();
-    // 지워질 행 대신 이웃 행으로 포커스를 옮겨 두고, 이웃이 없으면 거둔 뒤 입력창으로 보낸다.
     const row = e.currentTarget;
     const neighbor = [row.nextElementSibling, row.previousElementSibling].find((el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("queued-item")) ?? null;
     neighbor?.focus();

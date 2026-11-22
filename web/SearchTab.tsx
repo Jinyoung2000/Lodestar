@@ -7,14 +7,12 @@ import { openFile, patchSearchTab, toggleSearchDetails, updateSearchTab, useStor
 export function SearchTabView({ tab, active }: { tab: SearchTab; active: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [local, setLocal] = useState<SearchViewOptions>(() => ({ ...DEFAULT_SEARCH_VIEW, ...tab.seed, query: tab.query, include: tab.include ?? tab.seed?.include ?? "" }));
-  // details 는 탭 머리의 Toggle Search Details 단추와 ⌥⌘L 도 바꾸므로 store 의 탭이 갖는다
   const options: SearchViewOptions = { ...local, details: !!tab.details };
   const allTabs = useStore((s) => s.tabs);
   const openPaths = useMemo(() => allTabs.filter((t) => t.kind === "file" && t.workspaceId === tab.workspaceId).map((t) => (t as { path: string }).path), [allTabs, tab.workspaceId]);
   const [run, setRun] = useState<SearchRun>({ kind: "idle" });
   const seq = useRef(0);
 
-  // + 메뉴가 닫히며 포커스를 트리거로 되돌리므로 탭이 활성이 된 뒤에 입력줄로 옮긴다.
   useEffect(() => {
     if (!active) return;
     const timer = window.setTimeout(() => inputRef.current?.focus(), 80);
@@ -41,7 +39,6 @@ export function SearchTabView({ tab, active }: { tab: SearchTab; active: boolean
     if (!tab.autoRun) return;
     patchSearchTab(tab.key, { autoRun: false });
     void search(options);
-    // 한 번만: autoRun 은 위에서 바로 꺼진다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

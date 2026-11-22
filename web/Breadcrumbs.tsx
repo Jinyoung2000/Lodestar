@@ -19,9 +19,7 @@ export function Breadcrumbs({ tabKey, workspaceId, path, deleted }: { tabKey: st
   const navRef = useRef<HTMLElement>(null);
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [context, setContext] = useState<{ path: string; file: boolean; x: number; y: number } | null>(null);
-  // 같은 조각을 다시 누르면 닫혀야 한다. 바깥을 누를 때 이미 닫혔으므로 곧이어 오는 클릭이 다시 열지 않게 닫힌 때를 기억한다.
   const closed = useRef<{ index: number; at: number } | null>(null);
-  // 목록을 여는 동안 에디터가 미리 스크롤한 것을 취소할 때 돌아갈 스크롤 위치
   const restore = useRef<ReturnType<EditorView["scrollSnapshot"]> | null>(null);
   const ids = crumbs.map((crumb) => crumb.id).join("\n");
 
@@ -70,7 +68,6 @@ export function Breadcrumbs({ tabKey, workspaceId, path, deleted }: { tabKey: st
     if (menu?.index === index) return closeMenu("layout");
     const recent = closed.current;
     if (recent && recent.index === index && performance.now() - recent.at < 400) return;
-    // 키보드로 누른 클릭(Enter)은 위치가 없다
     openMenu(index, event.detail === 0 ? null : event.clientX);
   };
 
@@ -150,7 +147,6 @@ export function Breadcrumbs({ tabKey, workspaceId, path, deleted }: { tabKey: st
 
 type OpenMenu = { index: number; pointerX: number | null; source: MenuSource; anchor: HTMLElement; name: string };
 
-// 목록을 연 순간의 심볼 트리로 형제 목록을 만든다(훅이 준 값은 트리만 바뀐 갱신을 못 받아 조금 낡을 수 있다)
 function menuSource(workspaceId: string, path: string, tabKey: string, index: number): MenuSource | null {
   const fresh = currentBreadcrumbSymbols(tabKey);
   const crumb = crumbsFor(path, fresh.tree, fresh.path)[index];
@@ -179,7 +175,6 @@ function scrollNearTop(view: EditorView, pos: number) {
   view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: "start", yMargin: view.defaultLineHeight * 3 }) });
 }
 
-// 이전 동작(폴더 조각을 누르면 Files 탭에서 그 폴더를 고름)을 우클릭 메뉴로 남긴 것
 function revealInFiles(workspaceId: string, path: string, isFile: boolean) {
   if (isFile) revealFilePath(workspaceId, path);
   else {

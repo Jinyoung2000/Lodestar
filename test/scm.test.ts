@@ -1,6 +1,3 @@
-// SCM: Source Control 보기의 서버 동작(server/scm.ts)과 순수 함수(shared/scm.ts)를 /tmp 임시 저장소와 bare 원격으로 시험한다. 데몬도 모델도 필요 없다.
-// 사용자의 전역 git 설정(서명, 훅)이 섞이지 않게 설정 파일을 임시로 바꾸고, 휴지통도 임시 폴더로 보낸다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,7 +31,6 @@ const write = (dir: string, rel: string, text: string) => {
 const rels = (list: { rel: string }[]) => list.map((e) => e.rel).join(",");
 
 try {
-  // --- 순수 함수 ---
   {
     const raw = ["M  a.txt", " M b.txt", "MM c.txt", "?? d dir/e.txt", "R  new name.txt", "old name.txt", "UU f.txt", " D g.txt", "A  h.txt", "!! ignored.txt", ""].join("\0");
     const parsed = shared.parseStatus(raw, "/r");
@@ -55,7 +51,6 @@ try {
     expect(shared.scmEntriesUnder(src!).length === 2, "entries under");
   }
 
-  // --- 경로 정규화 ---
   {
     const root = join(base, "paths");
     mkdirSync(root);
@@ -66,7 +61,6 @@ try {
     }
   }
 
-  // --- 아직 커밋이 없는 저장소 (이 레포 자신처럼) ---
   const fresh = join(base, "fresh");
   mkdirSync(fresh);
   run(fresh, "init");
@@ -91,14 +85,12 @@ try {
     const first = await scm.commit(fresh, { message: "feat: first", stageAll: true });
     expect(first.status === "committed", `first commit ${JSON.stringify(first)}`);
     expect(run(fresh, "log", "-1", "--format=%s") === "feat: first", "first commit subject");
-    // 첫 커밋 되돌리기: HEAD 만 지우고 파일은 스테이지된 채 남는다
     const undone = await scm.undoLastCommit(fresh);
     s = await scm.status(fresh);
     expect(undone.message === "feat: first" && !s.hasHead && rels(s.staged) === "a.txt,dir/b.txt", `undo root ${undone.message} ${s.hasHead} ${rels(s.staged)}`);
     await scm.commit(fresh, { message: "feat: first again" });
   }
 
-  // --- 작업 저장소와 bare 원격 ---
   const origin = join(base, "origin.git");
   const work = join(base, "work");
   mkdirSync(origin);
@@ -114,7 +106,6 @@ try {
   run(work, "remote", "add", "origin", origin);
   run(work, "push", "-u", "origin", "main");
 
-  // 상태 글자
   write(work, "keep.txt", "keep changed\n");
   rmSync(join(work, "gone.txt"));
   write(work, "new/deep/n1.txt", "n1\n");
@@ -130,7 +121,6 @@ try {
     expect(s.lastCommit?.subject === "init" && s.lastCommit.pushed && s.lastCommit.parents === 0, `last commit ${JSON.stringify(s.lastCommit)}`);
   }
 
-  // 폴더 스테이지와 해제 (이름 바뀜은 옛 경로까지)
   await scm.stage(work, ["new"]);
   expect(rels((await scm.status(work)).staged) === "new/deep/n1.txt,new/deep/n2.txt,src/three.ts", "stage folder");
   await scm.unstage(work, ["new/deep"]);
@@ -147,7 +137,6 @@ try {
   expect((await scm.status(work)).staged.find((e) => e.rel === "gone.txt")?.code === "D", "stage a deletion");
   await scm.unstage(work, ["gone.txt"]);
 
-  // 경로 탈출 거절. 아무것도 바뀌지 않는다
   {
     const before = JSON.stringify(await scm.status(work));
     for (const bad of ["../outside.txt", "/etc/hosts", ".git/config"]) {
@@ -155,15 +144,12 @@ try {
         expect((await failure(() => op(work, [bad]))) !== null, `${op.name} rejects ${bad}`);
       }
     }
-    // 저장소 안 파일과 섞여 있어도 하나라도 밖이면 전부 거절한다
     expect((await failure(() => scm.stage(work, ["keep.txt", "../x"]))) !== null, "mixed rejects");
     expect(JSON.stringify(await scm.status(work)) === before, "rejected calls changed nothing");
-    // pathspec 문법으로 읽히지 않는다
     await scm.stage(work, [":(top)keep.txt"]);
     expect((await scm.status(work)).staged.length === 0, "literal pathspec");
   }
 
-  // 변경 버리기: 추적 파일은 되돌리고, 새 파일은 휴지통으로 옮긴다
   const trash = process.env.AGENT_NAV_TRASH_DIR!;
   {
     const result = await scm.discard(work, ["keep.txt", "gone.txt", "new"]);
@@ -172,14 +158,12 @@ try {
     expect(!existsSync(join(work, "new/deep/n1.txt")) && !existsSync(join(work, "new")), "new files moved and empty folders pruned");
     expect(readdirSync(trash).sort().join(",") === "n1.txt,n2.txt", `trash ${readdirSync(trash)}`);
     expect(readFileSync(join(trash, "n1.txt"), "utf8") === "n1\n", "trash keeps content");
-    // 같은 이름이 또 오면 덮어쓰지 않는다
     write(work, "again/n1.txt", "second\n");
     await scm.discard(work, ["again/n1.txt"]);
     expect(readFileSync(join(trash, "n1.txt"), "utf8") === "n1\n" && readFileSync(join(trash, "n1 2.txt"), "utf8") === "second\n", "trash collision");
     await scm.discard(work, ["src"]);
   }
 
-  // 저장소 밖을 가리키는 심볼릭 링크: 링크만 휴지통으로 가고 가리키던 폴더는 그대로다
   {
     const outside = join(base, "outside");
     write(outside, "precious.txt", "keep me\n");
@@ -190,7 +174,6 @@ try {
     expect(existsSync(join(trash, "link")), "link moved to trash");
   }
 
-  // 커밋
   {
     expect((await failure(() => scm.commit(work, { message: "  " }))) === "Please provide a commit message.", "empty message");
     expect((await scm.commit(work, { message: "feat: x" })).status === "nothingToCommit", "nothing to commit");
@@ -207,7 +190,6 @@ try {
     expect(all.status === "committed" && (await scm.status(work)).changes.length === 0, "stage all and commit");
   }
 
-  // amend: push 한 커밋이면 확인을 요구한다
   {
     run(work, "push");
     const s = await scm.status(work);
@@ -225,7 +207,6 @@ try {
     expect(forced.status === "committed", "amend unpushed again");
   }
 
-  // 마지막 커밋 되돌리기: 변경은 스테이지된 채 남고 메시지가 돌아온다
   {
     const head = run(work, "rev-parse", "HEAD~1");
     const undone = await scm.undoLastCommit(work);
@@ -234,12 +215,10 @@ try {
     await scm.commit(work, { message: "chore: second" });
   }
 
-  // 커밋하고 push, sync
   {
     write(work, "p1.txt", "p1\n");
     const pushed = await scm.commit(work, { message: "feat: p1", stageAll: true, then: "push" });
     expect(pushed.status === "committed" && pushed.pushError === null && run(origin, "log", "-1", "--format=%s", "main") === "feat: p1", `commit and push ${JSON.stringify(pushed)}`);
-    // 다른 클론이 먼저 올려 갈라지면 sync 는 ff-only pull 에서 멈추고 오류를 돌려준다. 커밋은 남는다.
     const other = join(base, "other");
     run(base, "clone", origin, other);
     write(other, "remote.txt", "r\n");
@@ -254,7 +233,6 @@ try {
     write(work, "p2b.txt", "p2b\n");
     const synced = await scm.commit(work, { message: "feat: p2b", stageAll: true, then: "sync" });
     expect(synced.status === "committed" && synced.pushError === null && run(origin, "log", "-1", "--format=%s", "main") === "feat: p2b", `sync ${JSON.stringify(synced)}`);
-    // upstream 이 없는 브랜치는 커밋은 되고 push 오류만 돌아온다
     run(work, "switch", "-c", "no-upstream");
     write(work, "p3.txt", "p3\n");
     const lost = await scm.commit(work, { message: "feat: p3", stageAll: true, then: "push" });
@@ -263,7 +241,6 @@ try {
     run(work, "switch", "main");
   }
 
-  // 훅이 실패하면 출력 전문을 돌려주고, 사용자가 고르면 --no-verify 로 다시 커밋한다
   {
     const hook = join(work, ".git/hooks/pre-commit");
     writeFileSync(hook, "#!/bin/sh\necho 'lint-staged: 2 errors' \necho 'src/x.ts:1 bad thing' >&2\nexit 1\n");
@@ -277,7 +254,6 @@ try {
     rmSync(hook);
   }
 
-  // Graph, 커밋 파일, 커밋 diff
   {
     const commits = await scm.graph(work, 5);
     expect(commits.length === 5 && commits[0].subject === "feat: hooked" && commits[0].refs.includes("main"), `graph ${commits.map((c) => c.subject)} ${commits[0].refs}`);
@@ -292,7 +268,6 @@ try {
     expect((await failure(() => scm.commitFileDiff(work, commits[0].hash, "../x"))) !== null, "diff path escape rejected");
   }
 
-  // 충돌
   {
     run(work, "switch", "-c", "left");
     write(work, "conflict.txt", "left\n");
@@ -305,7 +280,6 @@ try {
     try {
       run(work, "merge", "left");
     } catch {
-      // 충돌이 나는 것이 시험 대상이다
     }
     let s = await scm.status(work);
     expect(rels(s.conflicts) === "conflict.txt" && s.conflicts[0].code === "!" && s.conflicts[0].conflict === "AA" && s.merging, `conflict ${JSON.stringify(s.conflicts)} merging ${s.merging}`);
@@ -318,7 +292,6 @@ try {
     expect(merged.status === "committed" && (await scm.status(work)).lastCommit?.parents === 2, "merge commit");
   }
 
-  // Worktrees
   {
     const wt = join(base, "work.worktrees/feature/a");
     run(work, "worktree", "add", "-b", "feature/a", wt);
@@ -329,7 +302,6 @@ try {
     write(wt, "wt2.txt", "wt2\n");
     run(wt, "add", "-A");
     run(wt, "commit", "-m", "second in worktree");
-    // 같은 저장소의 두 폴더를 모두 주어도 저장소는 한 번만 센다
     const repos = await scm.worktrees([work, wt, fresh]);
     expect(repos.length === 2, `repos ${repos.map((r) => r.root)}`);
     const repo = repos.find((r) => r.root === work)!;
@@ -343,7 +315,6 @@ try {
     expect(rels((await scm.status(wt)).staged) === "dirty.txt" && (await scm.status(work)).staged.length === 0, "worktrees keep separate indexes");
   }
 
-  // 커밋 메시지 생성: 스테이지된 diff 와 최근 제목이 질의에 실리고, 답은 제목 한 줄로 다듬어진다
   {
     const messages = await import("../server/scmMessage");
     expect((await failure(() => messages.generateCommitMessage(work, "haiku", async () => "unused"))) === "There are no changes to describe.", "no changes");
@@ -361,7 +332,6 @@ try {
     expect(seen.includes("Diff of the staged changes") && seen.includes("+line for message") && !seen.includes("unstaged only") && seen.includes("- feat: p2b"), "prompt carries the staged diff and recent subjects");
     expect(messages.COMMIT_MESSAGE_SYSTEM_PROMPT.includes("Co-Authored-By") && messages.COMMIT_MESSAGE_SYSTEM_PROMPT.includes("No body"), "system prompt forbids body and trailers");
     expect((await failure(() => messages.generateCommitMessage(work, "haiku", async () => "   "))) === "The model did not return a commit message.", "empty answer");
-    // 스테이지된 게 없으면 작업 트리 변경으로 대신한다
     await scm.unstage(work, ["m.txt"]);
     await messages.generateCommitMessage(work, "haiku", async (_cwd, _model, prompt) => {
       seen = prompt;
@@ -370,7 +340,6 @@ try {
     expect(seen.includes("working tree changes") && seen.includes("new file: m.txt"), "falls back to the working tree");
   }
 
-  // 저장소가 아닌 폴더
   {
     const plain = join(base, "plain");
     mkdirSync(plain);

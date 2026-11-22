@@ -4,8 +4,6 @@ import type { SwitcherSession } from "./sessionSwitcherModel";
 import { S } from "./strings";
 import "./sessionSwitcher.css";
 
-// ⌃Tab 세션 전환 창(web/sessionSwitcher.ts). 최근에 포커스를 둔 순서의 세션 목록이고 입력 상자는 없다.
-// 행: 상태 점(사이드바와 같은 모양), 제목, 흐린 폴더 이름, worktree 세션이면 브랜치. 열린 직후 잠깐은 그리지 않는다(빠르게 눌렀다 떼면 창 없이 넘어간다).
 export function SessionSwitcherView() {
   const open = useSessionSwitcher();
   if (!open || !open.visible) return null;
@@ -39,7 +37,6 @@ function SwitcherEntry({ row, selected, onPick }: { row: SwitcherSession; select
   );
 }
 
-// 사이드바 행의 상태 점과 같은 규칙: 실행 중과 승인 대기는 스피너, 오류, 안 읽음, 그 밖.
 function EntryStatus({ row }: { row: SwitcherSession }) {
   if (row.status === "running" || row.status === "waiting") return <DotSpinner state={row.status} />;
   if (row.status === "error") {

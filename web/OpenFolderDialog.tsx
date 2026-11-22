@@ -3,7 +3,6 @@ import { rpc } from "./rpc";
 import { S } from "./strings";
 import { Dialog, DialogContent } from "./ui/dialog";
 
-// Open Folder...: 사이드바의 Add Workspace 와 같은 경로 입력. 신뢰 확인은 만들지 않는다.
 export function OpenFolderDialog({ onClose, onOpened }: { onClose: () => void; onOpened: (workspaceId: string) => void }) {
   const [dir, setDir] = useState("");
   const [error, setError] = useState<string | null>(null);

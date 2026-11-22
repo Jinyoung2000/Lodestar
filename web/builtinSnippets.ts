@@ -41,7 +41,6 @@ export function snippetOptions(): Completion[] {
     label: s.prefix,
     detail: s.description,
     type: "snippet",
-    // 서버 제안과 섞였을 때 같은 이름이면 서버 쪽(키워드, 변수)이 위에 오도록 뒤로 보낸다.
     boost: -5,
     apply: snippet(toCodeMirrorSnippet(s.body)),
   }));

@@ -1,26 +1,27 @@
 #!/usr/bin/env node
-// Lodestar CLI: 실행 중인 데몬에 UI 와 같은 WebSocket RPC 로 붙어 세션을 보고, 다른 세션에 메시지를 보낸다.
-// 심볼릭 링크(~/.local/bin/lodestar)로 실행되니 ws 는 이 파일의 실제 위치 기준으로 찾는다.
-import { readFileSync, realpathSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(realpathSync(fileURLToPath(import.meta.url)));
 const WebSocket = require("ws");
 
-const HOME = process.env.AGENT_NAV_HOME || join(homedir(), ".agent-nav");
-const PORT = process.env.AGENT_NAV_PORT || "7788";
+const HOME = process.env.AGENT_NAV_HOME || process.env.LODESTAR_DAEMON_HOME || join(homedir(), ".agent-nav");
+const PORT = process.env.AGENT_NAV_PORT || process.env.LODESTAR_DAEMON_PORT || "7788";
 const SELF_REF = process.env.LODESTAR_SESSION_REF || "";
 const SELF_ID = process.env.LODESTAR_SESSION_ID || "";
 
-const USAGE = `Usage: lodestar session <command>
+const USAGE = `Usage: lodestar <path>[:line[:column]] ...   Open folders or files in the Lodestar app
+       lodestar session <command>
 
   list [--all] [--json]                  Recent sessions, newest first (default 20)
   show <ref> [--last N] [--json]         Header and the last N user/assistant messages (default 10)
   send <ref> <message...>                Message another session (reads stdin when no message is given)
   wait <ref> [--timeout SECONDS]         Wait until the session is idle, then print its last reply (default 600)
+  move <folder>                          Move this chat (one without a folder) into <folder>; the next message starts there
   id                                     Print this session's own reference
 
 <ref> is lodestar://session/<id>, a full uuid, or a unique id prefix of 6+ hex chars.`;
@@ -28,14 +29,29 @@ const USAGE = `Usage: lodestar session <command>
 async function main() {
   const [group, command, ...rest] = process.argv.slice(2);
   if (!group || group === "help" || group === "--help" || group === "-h") return console.log(USAGE);
-  if (group !== "session" || !command) return usage();
+  if (group !== "session") return openPaths(process.argv.slice(2));
+  if (!command) return usage();
   const args = parseArgs(rest);
   if (command === "id") return printId();
   if (command === "list") return list(args);
   if (command === "show") return show(args);
   if (command === "send") return send(args);
   if (command === "wait") return wait(args);
+  if (command === "move") return move(args);
   usage();
+}
+
+const APP_ID = "dev.gene.agent-nav";
+const POSITION_SUFFIX = /:\d+(?::\d+)?$/;
+
+function openPaths(args) {
+  const paths = args.filter((arg) => arg !== "-g" && arg !== "--goto").map((arg) => (arg.startsWith("file://") ? arg : resolvePath(process.cwd(), arg)));
+  if (!paths.length) usage();
+  const positioned = paths.some((path) => POSITION_SUFFIX.test(path) && !existsSync(path));
+  const openArgs = positioned ? ["-n", "-b", APP_ID, "--args", ...paths] : ["-b", APP_ID, ...paths];
+  execFile("open", openArgs, (error, _stdout, stderr) => {
+    if (error) fail(stderr.trim() || error.message);
+  });
 }
 
 function usage() {
@@ -48,7 +64,6 @@ function fail(message, code = 1) {
   process.exit(code);
 }
 
-// --name value 와 --flag 를 가르고 나머지는 위치 인자로 둔다. 숫자 옵션만 값을 받는다.
 function parseArgs(argv) {
   const flags = {};
   const positional = [];
@@ -64,7 +79,6 @@ function parseArgs(argv) {
   return { flags, positional };
 }
 
-// --- 세션 참조: shared/sessionRef.ts 의 파서를 복제했다(.mjs 에서 TypeScript 를 불러오지 않으려고). 정규식을 바꾸면 거기도 맞춘다. ---
 const REF_PATTERN = /(?:lodestar|agent-nav):\/\/session\/([0-9a-f][0-9a-f-]{5,35})/i;
 
 function parseRef(input) {
@@ -89,7 +103,6 @@ function resolve(input, agents) {
   fail(`"${input}" matches ${matches.length} sessions, use a longer prefix:\n${matches.map((a) => `  ${shortId(a.id)}  ${a.title}`).join("\n")}`);
 }
 
-// --- RPC ---
 let socket = null;
 let nextId = 1;
 const pending = new Map();
@@ -106,7 +119,6 @@ function connect() {
     const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws/rpc?token=${token}`, { headers: { origin: `http://127.0.0.1:${PORT}` } });
     ws.on("open", () => resolveSocket(ws));
     ws.on("error", (error) => reject(new Error(`cannot reach the Lodestar daemon on port ${PORT} (${error.message})`)));
-    // 답을 받기 전에 연결이 끊기면(데몬 재시작) 기다리던 호출을 실패로 끝낸다. 그대로 두면 이벤트 루프가 비어 아무것도 찍지 않고 0 으로 끝나서, wait 와 send 가 성공한 것처럼 보였다.
     ws.on("close", () => {
       for (const waiter of pending.values()) waiter.reject(new Error("the Lodestar daemon closed the connection"));
       pending.clear();
@@ -137,7 +149,6 @@ async function done(code = 0) {
   process.exit(code);
 }
 
-// --- 명령 ---
 function printId() {
   if (!SELF_REF) fail("not inside a Lodestar session (LODESTAR_SESSION_REF is not set)");
   console.log(SELF_REF);
@@ -175,14 +186,31 @@ async function send({ positional }) {
   if (!text) usage();
   const agent = resolve(target, await rpc("agents.list"));
   if (SELF_ID && agent.id === SELF_ID) fail("cannot send a message to your own session");
-  // 받는 세션이 누가 썼는지 알도록 보낸 세션의 참조를 맨 앞에 붙인다. 받는 쪽 데몬이 이 참조를 풀어 보낸 세션의 최근 대화를 맥락으로 붙인다.
   const prompt = SELF_REF ? `From session ${SELF_REF}:\n${text}` : text;
   const { queued } = await rpc("agents.send", { agentId: agent.id, prompt });
   console.log(queued ? `Queued for ${refOf(agent.id)} (it is busy and will get it after the current turn)` : `Sent to ${refOf(agent.id)}`);
   await done();
 }
 
-// 응답 중(running)이거나 승인 대기(waiting)가 아니면 쉬는 상태다. 보낸 직후에는 상태가 running 으로 바뀌기 전일 수 있어 쉬는 상태를 두 번 연달아 봐야 끝으로 친다.
+async function move({ positional }) {
+  const [target] = positional;
+  if (!target || positional.length > 1) usage();
+  const dir = resolvePath(process.cwd(), target.replace(/^~(?=\/|$)/, homedir()));
+  if (!existsSync(dir)) fail(`${dir} does not exist. Create the folder first.`);
+  const agents = await rpc("agents.list");
+  const self = SELF_ID ? agents.find((a) => a.id === SELF_ID) : chatAt(agents, process.cwd());
+  if (!self) fail(SELF_ID ? `this session (${SELF_ID}) is not in the Lodestar daemon on port ${PORT}` : "not inside a Lodestar session (LODESTAR_SESSION_ID is not set)");
+  const moved = await rpc("agents.moveToFolder", { agentId: self.id, dir });
+  console.log(`Moved ${refOf(moved.id)} to ${moved.cwd}. The next message continues there.`);
+  await done();
+}
+
+function chatAt(agents, cwd) {
+  const real = realpathSync(cwd);
+  const matches = agents.filter((a) => a.workspaceId === null && a.cwd && existsSync(a.cwd) && realpathSync(a.cwd) === real);
+  return matches.length === 1 ? matches[0] : null;
+}
+
 async function wait({ flags, positional }) {
   if (!positional[0]) usage();
   const agent = resolve(positional[0], await rpc("agents.list"));
@@ -202,7 +230,6 @@ async function wait({ flags, positional }) {
   fail(`timed out after ${flags.timeout ?? 600}s, ${refOf(agent.id)} is still busy`);
 }
 
-// 사용자 메시지(시스템이 넣은 것 제외)와 끝난 어시스턴트 메시지만, 화면에 보이는 글(shown) 기준으로 최근 count 개.
 function lastMessages(items, count) {
   const out = [];
   for (const item of items) {

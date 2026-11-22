@@ -9,13 +9,10 @@ type NoticeCardProps = {
   detail?: string | null;
   actions?: NoticeAction[];
   onClose: () => void;
-  // 마우스가 올라가 있는 동안 true. 자동으로 사라지는 알림이 멈추는 데 쓴다.
   onHold?: (held: boolean) => void;
-  // 시험과 e2e 가 카드를 집는 데 쓰는 data-* 속성
   data?: Record<string, string | undefined>;
 };
 
-// 알림 한 장: 아이콘, 메시지, (이유), 버튼 줄, 닫기. 토스트 스택 안의 모든 알림이 이 모양을 쓴다.
 export function NoticeCard({ severity, message, detail, actions = [], onClose, onHold, data }: NoticeCardProps) {
   return (
     <div className="notice-card" role={severity === "error" ? "alert" : "status"} data-severity={severity} onMouseEnter={onHold && (() => onHold(true))} onMouseLeave={onHold && (() => onHold(false))} {...data}>

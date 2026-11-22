@@ -1,5 +1,3 @@
-// SESSIONORDER 사이드바 세션 순서 바꾸기: 순서 계산(shared/sessionOrder.ts), 묶음 계산에 입히기(web/sessionList.ts), 놓을 자리 판정(web/sessionDropSlot.ts),
-// 데몬의 저장과 입력 검사(server/store.ts)를 단독으로 시험한다. 모델도 데몬도 필요 없다. 실행: npm test
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -74,7 +72,6 @@ const input = (agents: Agent[], extra: Partial<GroupInput> = {}): GroupInput => 
 });
 const rowIds = (groups: ReturnType<typeof buildGroups>, id: string) => groups.find((g) => g.id === id)!.rows.map((r) => r.agent.id).join(",");
 
-// 기본 정렬(created)은 최근에 만든 세션이 위: a(1분 전), b(2분), c(3분), d(4분)
 const A = agent("a", 1);
 const B = agent("b", 2);
 const C = agent("c", 3);
@@ -86,10 +83,8 @@ test("applySessionOrder: 저장 순서, 새 세션은 맨 위, 지워진 id 는 
   expect(ids(order.applySessionOrder(items, undefined)) === "a,b,c,d", "no saved order keeps the default sort");
   expect(ids(order.applySessionOrder(items, [])) === "a,b,c,d", "an empty saved list is not a custom order");
   expect(ids(order.applySessionOrder(items, ["c", "a", "d", "b"])) === "c,a,d,b", "saved order wins over the default sort");
-  // b 가 새 세션(저장 목록에 없음)이면 맨 위. 새 세션이 둘이면 기본 정렬 순서를 유지한다.
   expect(ids(order.applySessionOrder(items, ["d", "c", "a"])) === "b,d,c,a", "one new session goes on top");
   expect(ids(order.applySessionOrder(items, ["d", "c"])) === "a,b,d,c", "two new sessions go on top in default order");
-  // zz 는 지워진 세션
   return expect(ids(order.applySessionOrder(items, ["zz", "d", "yy", "c", "b", "a"])) === "d,c,b,a", "deleted ids are skipped");
 });
 
@@ -110,7 +105,6 @@ test("stepInOrder: 한 칸씩, 가장자리와 Show more 경계에서 멈춤", (
   expect(order.stepInOrder(ids, "c", 1)?.join() === "a,b,d,c,e", "down");
   expect(order.stepInOrder(ids, "a", -1) === null, "top stays");
   expect(order.stepInOrder(ids, "e", 1) === null, "bottom stays");
-  // 보이는 것이 앞의 3개(a,b,c)면 c 를 아래로 밀어 접힌 d 와 바꾸지 않는다
   expect(order.stepInOrder(ids, "c", 1, 3) === null, "does not swap with a folded session");
   expect(order.stepInOrder(ids, "b", 1, 3)?.join() === "a,c,b,d,e", "within the visible part");
   return expect(order.stepInOrder(ids, "x", 1) === null, "unknown id");
@@ -125,7 +119,6 @@ test("buildGroups: 워크스페이스 묶음에 저장 순서를 입히고, 순�
   const custom = buildGroups(input(agents, { orders: { w1: ["d", "b", "a", "c"] } }));
   expect(rowIds(custom, "ws:w1") === "d,b,a,c", "w1 follows the saved order");
   expect(rowIds(custom, "ws:w2") === "w2a,w2b", "w2 has no saved order and keeps the default sort");
-  // 새 세션 e 는 저장 목록에 없으니 맨 위
   const withNew = buildGroups(input([...agents, agent("e", 0)], { orders: { w1: ["d", "b", "a", "c"] } }));
   return expect(rowIds(withNew, "ws:w1") === "e,d,b,a,c", `new session on top: ${rowIds(withNew, "ws:w1")}`);
 });
@@ -137,7 +130,6 @@ test("buildGroups: 고정 묶음과 완료 묶음은 자기 scope 로만 정렬�
   const X2 = agent("x2", 13, { done: true });
   const agents = [A, B, P1, P2, X1, X2];
   const view = { ...DEFAULT_VIEW, show: "all" as const, showDone: true };
-  // w1 scope 에 고정 세션 id 를 섞어 넣어도 워크스페이스 묶음에는 고정 세션이 안 들어온다
   const groups = buildGroups(input(agents, { view, orders: { w1: ["p2", "b", "x2", "a", "p1"], [order.PINNED_SCOPE]: ["p2", "p1"], [order.DONE_SCOPE]: ["x2", "x1"] } }));
   expect(rowIds(groups, "ws:w1") === "b,a", `workspace group: ${rowIds(groups, "ws:w1")}`);
   expect(rowIds(groups, "pinned") === "p2,p1", `pinned group follows @pinned: ${rowIds(groups, "pinned")}`);
@@ -159,7 +151,6 @@ test("buildGroups: 갈래 세션은 같은 부모 안에서만 순서가 바뀜"
   const rows = custom.find((g) => g.id === "ws:w1")!.rows;
   expect(rows.find((r) => r.agent.id === "k3")!.scope === order.kidsScope("parent"), "child rows carry the kids scope");
   expect(rows.find((r) => r.agent.id === "parent")!.scope === "w1", "top rows carry the workspace scope");
-  // 부모를 접어도 전체 순서 목록과 되돌리기 scope 에는 남는다
   const collapsed = sidebarLayout({ ...input(agents, { collapsedParents: new Set(["parent"]) }), collapsedGroups: new Set() });
   expect(rowIds(collapsed.groups, "ws:w1") === "parent,other", "collapsed parent hides its children");
   expect(collapsed.scopes[order.kidsScope("parent")]?.ids.join() === "k1,k2,k3", "the full kids list is still published");
@@ -179,7 +170,7 @@ test("buildGroups: Show more 로 접힌 항목도 전체 순서에 남고, 시�
 test("pickSlot: 블록 안 가운데 선, 틈, 묶음 머리, 목록 끝, 범위 밖", () => {
   const blocks = [
     { id: "a", top: 100, bottom: 140 },
-    { id: "b", top: 142, bottom: 200 }, // 자손 행 포함
+    { id: "b", top: 142, bottom: 200 },
     { id: "c", top: 202, bottom: 242 },
   ];
   const bounds = { top: 80, bottom: 280 };
@@ -206,7 +197,6 @@ test("Store: 입력 검사, 없는 세션 id 제거, 비면 삭제, 저장과 �
   store.setSessionOrder(order.PINNED_SCOPE, ["s2", "s1"]);
   store.setSessionOrder(order.kidsScope("s1"), ["s3", "s2"]);
 
-  // 모양이 틀린 입력은 던지고 저장된 것을 건드리지 않는다
   expect(/Invalid session order scope/.test(throws(() => store.setSessionOrder("a/b", [])) ?? ""), "scope with a slash");
   expect(/Invalid session order scope/.test(throws(() => store.setSessionOrder(7, [])) ?? ""), "scope that is not a string");
   expect(/Unknown workspace/.test(throws(() => store.setSessionOrder("no-such-workspace", ["s1"])) ?? ""), "unknown workspace");
@@ -217,17 +207,14 @@ test("Store: 입력 검사, 없는 세션 id 제거, 비면 삭제, 저장과 �
   expect(/more than/.test(throws(() => store.setSessionOrder(workspace.id, Array.from({ length: order.MAX_ORDER_IDS + 1 }, (_, i) => `x${i}`))) ?? ""), "too many ids");
   expect(store.sessionOrders[workspace.id].join() === "s3,s1,s2", "rejected requests change nothing");
 
-  // 다시 읽어도 같다(여러 창과 재시작에서 같은 순서). state.json 저장은 묶여서 늦게 쓰이니 먼저 내려 쓴다.
   store.flush();
   const reloaded = new Store();
   expect(reloaded.sessionOrders[workspace.id].join() === "s3,s1,s2" && reloaded.sessionOrders[order.PINNED_SCOPE].join() === "s2,s1", "persisted in state.json");
 
-  // 지우기: 하나라도 모양이 틀리면 아무것도 안 지운다
   expect(/array|Invalid/.test(throws(() => store.resetSessionOrders([workspace.id, "a/b"])) ?? ""), "reset with a bad scope throws");
   expect(store.sessionOrders[workspace.id] !== undefined, "and nothing was removed");
   const afterReset = store.resetSessionOrders([workspace.id, order.kidsScope("s1")]);
   expect(afterReset[workspace.id] === undefined && afterReset[order.kidsScope("s1")] === undefined && afterReset[order.PINNED_SCOPE] !== undefined, "reset removes only the named scopes");
-  // 빈 목록은 순서 해제와 같다
   const cleared = store.setSessionOrder(order.PINNED_SCOPE, []);
   return expect(cleared[order.PINNED_SCOPE] === undefined, "an empty list removes the order");
 });

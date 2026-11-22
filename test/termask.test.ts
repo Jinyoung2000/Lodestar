@@ -1,5 +1,3 @@
-// 터미널 명령 질문(⌘I)의 순수 함수: 맥락 수집, 비밀값 가리기, 위험 명령 판정, 응답에서 명령 추출, 직전 오류 판정, 단축키 표.
-// 실행: npm test
 import { composeTermPrompt, dangerOf, extractCommand, isMultiline, looksLikeError, projectSummary, recentOutput, redactSecrets, runConfirmReasons, selectionContext } from "../shared/termAsk";
 import { stepKey, type KeyContext } from "../web/keymap";
 

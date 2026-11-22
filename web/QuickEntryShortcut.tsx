@@ -9,8 +9,6 @@ import { S } from "./strings";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
-// Settings 의 빠른 입력창 단축키 행 컨트롤: 후보 목록에서 고르거나, 녹화 버튼을 누르고 새 키를 눌러 정한다. 아래에 전역 등록 결과가 보인다.
-// 녹화는 Cmd 조합을 받지 않는다. Cmd 조합은 앱 메뉴와 단축키 표가 먼저 가로채서 녹화 중에 다른 명령이 실행된다. Cmd 를 쓰려면 후보 목록의 항목을 고른다.
 const CANDIDATES = ["Alt+C", "Alt+Space", "Alt+Shift+C", "Control+Alt+C", "Control+Alt+Space", "Alt+Shift+Space", "CommandOrControl+Shift+Space"] as const;
 
 export function QuickEntryShortcut({ ctx }: { ctx: SettingsCtx }) {
@@ -22,9 +20,6 @@ export function QuickEntryShortcut({ ctx }: { ctx: SettingsCtx }) {
 
   const save = (accelerator: string) => void rpc.call("settings.set", { quickEntryShortcut: accelerator });
 
-  // 녹화 중에는 창 단계에서 키를 먼저 받고 다른 곳(Settings 를 닫는 Esc 포함)에 넘기지 않는다.
-  // 앱 단축키 표에 있는 키는 받지 않는다: 전역 단축키가 되면 앱 안에서도 그 키를 가져가 원래 명령(⌃⌥R 세션 검색, ⌥Z 줄 바꿈 등)이 죽는다.
-  // 그중 Electron 메인이 가로채는 키(⌥H, ⌃⌥R, ⌃⌥L 과 ⌘ 조합)는 keydown 없이 표로 바로 가서, 녹화 중에 그 명령이 실행되지 않게 claimKeys 로 먼저 받는다.
   useEffect(() => {
     if (!recording) return;
     const onKey = (e: KeyboardEvent) => {
@@ -98,7 +93,6 @@ export function QuickEntryShortcut({ ctx }: { ctx: SettingsCtx }) {
   );
 }
 
-// 지금 프리셋의 단축키 표가 단독 키나 chord 의 첫 키로 쓰는 키인가
 const usedByApp = (stroke: string | null) => !!stroke && activeBindings().some((b) => b.keys[0] === stroke);
 
 function StatusLine({ status }: { status: QuickShortcutStatus | null }) {

@@ -17,8 +17,6 @@ const same = (actual: unknown, wanted: unknown, label: string) => {
   if (a !== w) throw new Error(`${label}: ${a} != ${w}`);
 };
 
-// --- 선택 글로 검색어 채우기 ---
-
 test("seedQuery: 한 줄 안의 선택만 검색어가 된다", () => {
   same(seedQuery("useStore"), "useStore", "한 낱말");
   same(seedQuery("const a = 1;"), "const a = 1;", "공백이 든 한 줄은 그대로(앞뒤 공백도 지우지 않는다)");
@@ -54,8 +52,6 @@ test("planFindInFiles: Find in Folder 는 include 를 채우고, 검색어가 �
   same(planFindInFiles({ inEditor: false, inSearchView: false, selection: null, include: "", query: "needle" }), { seed: null, include: "", run: true }, "루트 폴더는 include 를 비운다");
   return "ok";
 });
-
-// --- 뷰 전환 ---
 
 test("search 는 고정 탭이다: Chat 중심의 오른쪽 패널 탭이자 Editor 중심의 사이드바 뷰", () => {
   expect(PINNED_TAB_KEYS.includes("search") && isPinnedTab("search"), "고정 탭 목록");
@@ -102,8 +98,6 @@ test("⇧⌘F 키: 어디서나 findInFiles 이고 Electron 이 가로채는 집
   return "ok";
 });
 
-// --- 저장본 ---
-
 test("sanitizeSearchView: 모르는 값은 기본값으로, 맞는 값은 그대로", () => {
   same(sanitizeSearchView(undefined), DEFAULT_SEARCH_VIEW, "없음");
   same(sanitizeSearchView("x"), DEFAULT_SEARCH_VIEW, "문자열");
@@ -125,8 +119,6 @@ test("창 상태 저장본: searchView 가 JSON 을 오가며 살아남고, 결�
   return "ok";
 });
 
-// --- 결과 소속 ---
-
 const done = (workspaceId: string): SearchRun => ({ kind: "done", result: { files: [], matches: 0, truncated: false, engine: "git" }, query: "q", toggles: togglesOf(DEFAULT_SEARCH_VIEW), workspaceId });
 
 test("runIsCurrent, needsRunLink: 다른 폴더에서 돌린 결과는 이 폴더의 것이 아니다", () => {
@@ -140,8 +132,6 @@ test("runIsCurrent, needsRunLink: 다른 폴더에서 돌린 결과는 이 폴�
   return "ok";
 });
 
-// --- 요청 ---
-
 test("buildSearchRequest: Open Editors 만 찾는데 열린 파일이 없으면 요청 없음, 있으면 include 를 열린 경로로", () => {
   const options: SearchViewOptions = { ...DEFAULT_SEARCH_VIEW, query: "q", include: "./src", exclude: "dist" };
   same(buildSearchRequest("w1", options, ["a.ts"])?.include, "./src", "일반 검색은 include 입력");
@@ -151,8 +141,6 @@ test("buildSearchRequest: Open Editors 만 찾는데 열린 파일이 없으면 
   same([request?.matchCase, request?.regex, request?.wholeWord, request?.context, request?.exclude, request?.ignore], [true, true, false, 2, "dist", false], "옵션 전달");
   return "ok";
 });
-
-// --- 포커스 유지 ---
 
 test("editorFocusHold: 그 탭만, 정해진 시간 동안만, 포커스와 함께 다시 열면 바로 풀린다", () => {
   holdEditorFocus("w1:a.ts", 1000);

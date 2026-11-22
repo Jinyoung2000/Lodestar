@@ -17,7 +17,6 @@ const MAX_DIFF = 8;
 
 type SpacesDiff = { spacesDiff: number; looksLikeAlignment: boolean };
 
-// 앞 줄과 이 줄의 들여쓰기 차이를 공백 몇 칸(탭 차이가 있으면 탭 하나당 몇 칸)으로 볼지
 function spacesDiffBetween(previous: string, previousLength: number, current: string, currentLength: number, result: SpacesDiff) {
   result.spacesDiff = 0;
   result.looksLikeAlignment = false;
@@ -40,7 +39,6 @@ function spacesDiffBetween(previous: string, previousLength: number, current: st
   const spacesDiff = Math.abs(previousSpaces - currentSpaces);
   if (tabsDiff === 0) {
     result.spacesDiff = spacesDiff;
-    // 앞 줄이 쉼표로 끝나고 이 줄이 그 아래 정렬한 모양이면 들여쓰기 단위 증거로 쓰지 않는다
     if (spacesDiff > 0 && 0 <= currentSpaces - 1 && currentSpaces - 1 < previous.length && currentSpaces < current.length && current.charCodeAt(currentSpaces) !== 32 && previous.charCodeAt(currentSpaces - 1) === 32 && previous.charCodeAt(previous.length - 1) === 44) {
       result.looksLikeAlignment = true;
     }
@@ -93,13 +91,11 @@ export function guessIndentation(lines: readonly string[], defaultTabSize: numbe
         tabSize = size;
       }
     }
-    // 4 칸 단위 파일에 2 칸 증거가 4 칸의 2/3 이상이면 2 칸이다
     if (tabSize === 4 && histogram[4] > 0 && histogram[2] > 0 && histogram[2] >= (histogram[4] * 2) / 3) tabSize = 2;
   }
   return { insertSpaces, tabSize };
 }
 
-// 본문 앞쪽 줄만 잘라 낸다(큰 파일 전체를 쪼개지 않는다). 줄 끝의 \r 은 뺀다.
 export function leadingLines(text: string, max = MAX_GUESS_LINES): string[] {
   const lines: string[] = [];
   let start = 0;
@@ -115,7 +111,6 @@ export function leadingLines(text: string, max = MAX_GUESS_LINES): string[] {
   return lines;
 }
 
-// 설정(editor.tabSize, insertSpaces, detectIndentation)과 본문으로 정한 이 파일의 들여쓰기
 export function baseIndentation(options: IndentDefaults & { detectIndentation: boolean }, text: string): IndentInfo {
   if (!options.detectIndentation) return { useSpaces: options.insertSpaces, size: clampSize(options.tabSize), source: "config" };
   const guessed = guessIndentation(leadingLines(text), options.tabSize, options.insertSpaces);
@@ -126,13 +121,9 @@ export function clampSize(size: number): number {
   return Math.min(MAX_TAB_SIZE, Math.max(MIN_TAB_SIZE, Math.round(size)));
 }
 
-// --- 파일별 상태 ---
-
 const DEFAULT_INFO: IndentInfo = { useSpaces: true, size: 4, source: "config" };
 
-// 확장을 만들 때(파일을 열거나 설정이 바뀔 때) 정한 값
 const baseFacet = Facet.define<IndentInfo, IndentInfo>({ combine: (values) => values[0] ?? DEFAULT_INFO });
-// 사용자가 고르거나 명령(Detect Indentation from Content)이 정한 값. 모듈 하나뿐인 필드라서 Compartment 를 갈아 끼워도 값이 남는다.
 const overrideEffect = StateEffect.define<IndentInfo>();
 const overrideField = StateField.define<IndentInfo | null>({
   create: () => null,
@@ -152,7 +143,6 @@ export function indentEffect(next: { useSpaces: boolean; size: number }, source:
 
 export const indentUnitOf = (info: Pick<IndentInfo, "useSpaces" | "size">) => (info.useSpaces ? " ".repeat(info.size) : "\t");
 
-// indentUnit, EditorState.tabSize 를 이 파일의 들여쓰기 값에서 계산한다.
 export function indentState(base: IndentInfo): Extension {
   return [
     overrideField,
@@ -166,7 +156,6 @@ export function indentState(base: IndentInfo): Extension {
 const nextTabStop = (column: number, size: number) => column + size - (column % size);
 const prevTabStop = (column: number, size: number) => Math.max(0, column - 1 - ((column - 1) % size));
 
-// 선택이 여러 줄이거나 한 줄 전체이면 줄 단위 들여쓰기, 그 밖에는 다음 탭 칸까지 넣는다.
 function indentsLines(state: EditorState, from: number, to: number) {
   if (from === to) return false;
   const line = state.doc.lineAt(from);
@@ -180,7 +169,6 @@ export function tabCommand(target: IndentTarget): boolean {
   const info = indentInfoOf(state);
   const tr = state.changeByRange((range) => {
     const line = state.doc.lineAt(range.from);
-    // 빈 줄이나 공백뿐인 줄의 커서는 언어가 정하는 들여쓰기로 보낸다(없으면 한 단계)
     if (range.empty && /^\s*$/.test(line.text)) {
       const columns = getIndentation(state, line.from);
       const wanted = indentString(state, columns !== null && columns > 0 ? columns : info.size);
@@ -198,7 +186,6 @@ export function shiftTabCommand(target: IndentTarget): boolean {
   return shiftLines(target, -1);
 }
 
-// 선택에 걸친 줄의 앞 공백을 다음(이전) 탭 칸에 맞게 바꾼다. ShiftCommand 와 같은 규칙: 여러 줄 선택의 빈 줄과 내어쓰기의 들여쓰기 없는 줄은 건너뛴다.
 function shiftLines(target: IndentTarget, direction: 1 | -1): boolean {
   const { state } = target;
   if (state.readOnly) return false;
@@ -237,8 +224,6 @@ function shiftLines(target: IndentTarget, direction: 1 | -1): boolean {
   return true;
 }
 
-// --- 들여쓰기 변환 (editor.action.indentationToSpaces, indentationToTabs 의 l5o) ---
-
 export function convertIndentation(target: IndentTarget, toSpaces: boolean): boolean {
   const { state } = target;
   if (state.readOnly) return false;
@@ -248,7 +233,6 @@ export function convertIndentation(target: IndentTarget, toSpaces: boolean): boo
   const changes: ChangeSpec[] = [];
   for (let number = 1; number <= state.doc.lines; number++) {
     const line = state.doc.line(number);
-    // 공백뿐인 줄은 줄 전체가 들여쓰기로 취급된다
     const lead = /^[ \t]*/.exec(line.text)![0];
     if (!lead) continue;
     const converted = toSpaces ? lead.replace(/\t/g, spaces) : lead.replace(pattern, "\t");
@@ -257,8 +241,6 @@ export function convertIndentation(target: IndentTarget, toSpaces: boolean): boo
   target.dispatch(state.update({ changes, effects: indentEffect({ useSpaces: toSpaces, size }), annotations: isolateHistory.of("full"), userEvent: "input.indentation" }));
   return true;
 }
-
-// --- 내용에서 다시 감지 (editor.action.detectIndentation) ---
 
 export function detectIndentation(target: IndentTarget, defaults: IndentDefaults): boolean {
   const { state } = target;
@@ -270,9 +252,6 @@ export function detectIndentation(target: IndentTarget, defaults: IndentDefaults
   return true;
 }
 
-// --- 다시 들여쓰기 (editor.action.reindentlines, reindentselectedlines) ---
-
-// 언어의 들여쓰기 규칙(CodeMirror 의 syntax tree 규칙)으로 다시 계산한다. 규칙이 없는 언어는 아무것도 바꾸지 않는다.
 export function reindentLines(target: IndentTarget, selectionOnly: boolean): boolean {
   const { state } = target;
   if (state.readOnly) return false;

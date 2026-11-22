@@ -7,7 +7,6 @@ import { Button } from "./ui/button";
 import { Dialog, DialogContent } from "./ui/dialog";
 import { S } from "./strings";
 
-// HANDOFF: 보낸 첫 메시지 위에 붙는 인계 문서 칩. 누르면 문서 전문을 읽기 전용으로 본다(문서는 ~/.agent-nav/handoffs/<id>.md).
 export function HandoffBubbleChip({ label, id }: { label: string; id: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -21,7 +20,6 @@ export function HandoffBubbleChip({ label, id }: { label: string; id: string }) 
   );
 }
 
-// 인계 문서 보기와 고치기. text 가 있으면(입력창 칩) 그 글을 고쳐 onSave 로 돌려주고, null 이면(보낸 메시지의 칩) id 로 읽어 와 읽기 전용으로 보인다.
 export function HandoffDialog({ title, id, text, onSave, onClose }: { title: string; id: string | null; text: string | null; onSave?: (text: string) => void; onClose: () => void }) {
   const editable = text !== null && onSave !== undefined;
   const [value, setValue] = useState(text ?? "");
@@ -62,7 +60,6 @@ export function HandoffDialog({ title, id, text, onSave, onClose }: { title: str
   );
 }
 
-// 입력창 위 칩. 문서를 만드는 동안은 스피너를 달고(보내기도 막힌다), 다 되면 누르면 전문을 보고 고칠 수 있다.
 export function HandoffComposerChip({ paneId, attachment }: { paneId: string; attachment: Attachment }) {
   const [open, setOpen] = useState(false);
   const handoff = attachment.handoff!;

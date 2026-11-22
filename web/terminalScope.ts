@@ -9,7 +9,6 @@ export function terminalScopeOf(s: Pick<State, "panes" | "activePaneId" | "agent
   return terminalScopeFor(activeAgentOf(s.panes, s.activePaneId, s.agents), workspaceForTerminal(s));
 }
 
-// 세션이 없을 때의 폴더 후보: 새 세션 칸이 고른 워크스페이스, 없으면 활성 워크스페이스
 export function workspaceForTerminal(s: Pick<State, "panes" | "activePaneId" | "activeWorkspaceId" | "workspaces">): Workspace | undefined {
   const pane = s.panes.find((p) => p.id === s.activePaneId);
   const id = (pane?.kind === "draft" ? pane.workspaceId : null) ?? s.activeWorkspaceId;

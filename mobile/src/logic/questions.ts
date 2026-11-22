@@ -1,4 +1,3 @@
-// 질문 카드(AskUserQuestion)와 계획 카드(ExitPlanMode)의 입력 읽기. shared/interactive.ts 와 같은 규칙이고 test/questions.test.ts 가 같은 입력으로 대조한다.
 export const QUESTION_TOOL = "AskUserQuestion";
 export const PLAN_TOOL = "ExitPlanMode";
 

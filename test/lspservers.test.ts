@@ -1,5 +1,3 @@
-// web/lspServers.ts 시험: 에디터 상태 표시 요약("TS 7.0 + Relay")과 실패한 보조 서버 목록.
-// 실행: npm test
 import { failedServers, lspSummary, shortTypescriptLabel } from "../web/lspServers";
 import type { LspServerState } from "../web/store";
 

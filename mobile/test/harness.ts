@@ -1,4 +1,3 @@
-// 모바일 시험의 공통 뼈대(루트 test/ 의 시험과 같은 출력 모양)
 type Case = { name: string; run: () => Promise<string> | string };
 const cases: Case[] = [];
 

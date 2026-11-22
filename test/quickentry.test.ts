@@ -1,4 +1,3 @@
-// 전역 빠른 입력창의 순수 로직 단독 시험: 단축키 검증과 등록 실패 처리, 화면 위치 계산, 대상 선택에 따른 전송 분기, Enter 와 ⌘Enter 분기. 실행: npm test
 import { acceleratorFromKeyStroke, acceleratorLabel, clampQuickHeight, normalizeQuickEntryConfig, parseAccelerator, pickWorkArea, QUICK_ENTRY_DEFAULT_SHORTCUT, QuickShortcutController, quickEntryBounds, quickInputPolicy, quickShortcutBlocked, type Rect, type ShortcutRegistry } from "../shared/quickEntry";
 import { canQuickSend, defaultTarget, parseDraft, planQuickSend, quickDefaults, quickKeyAction, recentSessions, targetLabel, targetRows, validTarget, workspacesByRecency, type QuickKeyEvent } from "../web/quickEntryModel";
 import type { Agent, Workspace } from "../shared/protocol";
@@ -9,8 +8,6 @@ const expect = (condition: boolean, detail: string) => {
   if (!condition) throw new Error(detail);
   return detail;
 };
-
-// --- 단축키 문자열 ---
 
 test("parseAccelerator: 정리된 모양으로, 수정키 순서와 대소문자와 별칭", () => {
   expect(parseAccelerator("Alt+C") === "Alt+C", "기본값");
@@ -62,8 +59,6 @@ test("normalizeQuickEntryConfig: 없거나 깨진 값은 켬과 ⌥C", () => {
   expect(!off.enabled && off.accelerator === "Alt+Space", "끔과 정리된 단축키");
   return "ok";
 });
-
-// --- 등록 상태 기계 ---
 
 function fakeRegistry(options: { taken?: string[]; throws?: string[] } = {}) {
   const calls: string[] = [];
@@ -182,8 +177,6 @@ test("quickShortcutBlocked: INACTIVE, 창구, 전용 환경변수 중 하나면 
   return "ok";
 });
 
-// --- 화면 위치와 높이 ---
-
 const left: Rect = { x: 0, y: 25, width: 1440, height: 875 };
 const right: Rect = { x: 1440, y: 0, width: 1920, height: 1080 };
 
@@ -236,7 +229,6 @@ test("quickInputPolicy: 편집 키는 통과, 메뉴 가속키는 막고, ⌘W �
   expect(key("n", { meta: true }) === "block" && key("r", { meta: true }) === "block" && key("p", { meta: true }) === "block", "⌘N, R, P 는 메인 창으로 새지 않게 막는다");
   expect(key("h", { alt: true }) === "block" && key("r", { control: true, alt: true }) === "block", "⌥H, ⌃⌥R");
   expect(key("ArrowDown", { alt: true }) === "allow" && key("Backspace", { alt: true }) === "allow", "⌥↓ 와 ⌥⌫ 는 입력칸 동작");
-  // 실제 키보드: 한글 입력 중의 ⌘ 글자는 key 가 자모이고, ⌥H 는 key 가 ˙ 다. 글자는 code 로 읽는다.
   const real = (k: string, code: string, mods: Partial<{ meta: boolean; control: boolean; alt: boolean; shift: boolean }>) => quickInputPolicy({ key: k, code, meta: false, control: false, alt: false, shift: false, ...mods });
   expect(real("ㅊ", "KeyC", { meta: true }) === "allow" && real("ㅍ", "KeyV", { meta: true }) === "allow" && real("ㅋ", "KeyZ", { meta: true }) === "allow", "한글 입력의 ⌘C, ⌘V, ⌘Z");
   expect(real("ㅈ", "KeyW", { meta: true }) === "hide", "한글 입력의 ⌘W");
@@ -248,8 +240,6 @@ test("quickInputPolicy: 편집 키는 통과, 메뉴 가속키는 막고, ⌘W �
   expect(real("1", "Digit1", { meta: true }) === "allow" && real("¡", "Digit1", { meta: true, alt: true }) === "allow" && real("!", "Digit1", { meta: true, shift: true }) === "block", "⌘1, ⌥⌘1 은 모델 목록이 받는다");
   return "ok";
 });
-
-// --- 대상 선택과 전송 분기 ---
 
 const ws = (id: string, name: string, extra: Partial<Workspace> = {}): Workspace => ({ id, name, dir: `/Users/me/Repository/${name}`, parentId: null, ...extra });
 const agent = (id: string, workspaceId: string | null, updatedAt: string, extra: Partial<Agent> = {}): Agent => ({ id, workspaceId, title: `session ${id}`, updatedAt, createdAt: updatedAt, feedbackId: null, ...extra }) as Agent;
@@ -344,8 +334,6 @@ test("quickDefaults: 데몬이 해석한 값 > 고른 값 > 내장값", () => {
   expect(builtin.model === null && builtin.effort === null && builtin.permissionMode === "default", "내장값");
   return "ok";
 });
-
-// --- 키 분기 ---
 
 const key = (k: string, extra: Partial<QuickKeyEvent> = {}): QuickKeyEvent => ({ key: k, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, isComposing: false, ...extra });
 

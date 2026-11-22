@@ -40,19 +40,16 @@ import "./editorEditing.css";
 
 export function editingExtension(options: EditorOptions, context: { languageId: string | null } = { languageId: null }): Extension {
   return [
-    // 상태 필드는 설정을 바꿔 확장을 다시 만들어도 같은 객체라서 값이 이어진다.
     selectionAnchor,
     findSession,
     columnSelection,
     smartSelectStack,
-    // 제안 목록의 Enter(Prec.highest)는 이보다 먼저다.
     Prec.high(
       keymap.of([
         { key: "Enter", run: enterWithRules(context.languageId) },
         { key: "Mod-Shift-l", run: () => true },
         { key: "Ctrl-Shift-ArrowRight", run: () => true },
         { key: "Ctrl-Shift-ArrowLeft", run: () => true },
-        // 앵커가 없으면 false 라서 제안 목록 닫기, 앱의 Esc 가 그대로 이어진다.
         { key: "Escape", run: cancelSelectionAnchor },
       ]),
     ),
@@ -85,7 +82,6 @@ function pageSizeOf(view: EditorView): number {
   return Math.max(1, Math.floor(view.scrollDOM.clientHeight / view.defaultLineHeight) - 2);
 }
 
-// 찾기 입력칸에 포커스가 있을 때의 같은 글 전부 선택은 찾기 일치 전부를 고르는 일이라 이 명령이 아니다(찾기 위젯 쪽 키가 맡는다).
 function inFindInput(): boolean {
   return !!document.activeElement?.closest(".cm-find");
 }

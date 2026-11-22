@@ -10,7 +10,6 @@ import { readMessages, writeMessage } from "./lspStdio";
 export const RELAY_CONFIG_NAMES = ["relay.config.js", "relay.config.json", "relay.config.cjs", "relay.config.mjs", "relay.config.ts"];
 const SKIPPED_DIRS = new Set(["node_modules", "dist", "build", "out", "coverage", "__generated__", "Pods", "target", "release"]);
 
-// relay config 파일이나 package.json 의 relay 항목이 있는 폴더인가.
 export function hasRelayConfig(dir: string): boolean {
   if (RELAY_CONFIG_NAMES.some((name) => existsSync(join(dir, name)))) return true;
   try {
@@ -21,9 +20,6 @@ export function hasRelayConfig(dir: string): boolean {
   }
 }
 
-// 워크스페이스에서 Relay 서버를 하나씩 띄울 폴더들.
-// 1) 워크스페이스 폴더나 그 조상에 config 가 있으면 그 폴더 하나(relay 바이너리도 cwd 에서 위로 config 를 찾는다).
-// 2) 없으면 하위 폴더를 깊이 3까지 훑는다(node_modules, 숨김 폴더, 빌드 산출물 제외). config 를 찾은 폴더 안으로는 더 들어가지 않는다.
 export async function findRelayDirs(workspaceDir: string, maxDepth = 3, maxVisited = 2000): Promise<string[]> {
   let current = workspaceDir;
   for (let up = 0; up < 8; up++) {
@@ -88,7 +84,6 @@ export function platformBinaryPath(platform = process.platform, arch = process.a
 
 export type RelayCommand = { exe: string; args: string[]; cwd: string; version: string | null };
 
-// 실행할 명령. 못 만들면 이유(상태 줄에 보인다).
 export function planRelay(scopeDir: string, workspaceDir: string, platform = process.platform, arch = process.arch): RelayCommand | { problem: string } {
   const settings = readRelaySettings(scopeDir, workspaceDir);
   const args = ["lsp", `--output=${settings.lspOutputLevel ?? "quiet-with-errors"}`];
@@ -106,7 +101,6 @@ export function planRelay(scopeDir: string, workspaceDir: string, platform = pro
   try {
     version = (JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")) as { version?: string }).version ?? null;
   } catch {
-    // package.json 을 못 읽어도 바이너리가 있으면 시도한다.
   }
   const major = Number(/^(\d+)\./.exec(version ?? "")?.[1]);
   if (Number.isFinite(major) && major < 14 && !version?.includes("-")) return { problem: `Relay compiler ${version} is too old for the language server (needs 14 or newer).` };
@@ -134,8 +128,6 @@ function isExecutable(path: string) {
   }
 }
 
-// Relay 는 initialize 뒤에도 소스와 스키마를 읽는 동안 `window/showStatus` 요청으로 단계를 알리고, 끝나면 "The Relay extension is ready" 를 보낸다.
-// 그 전의 hover, definition, completion 은 "schema is missing (or not ready, yet)" 오류가 난다.
 export function isRelayReady(message: Msg): boolean {
   if (message.method !== "window/showStatus") return false;
   return /\bready\b/i.test(String(message.params?.message ?? "")) || /\bready\b/i.test(String(message.params?.shortMessage ?? ""));
@@ -169,7 +161,6 @@ export function startRelay(command: RelayCommand, callbacks: LinkCallbacks): Chi
   };
 }
 
-// watchman 이 없으면 Relay LSP 가 시작하지 못하고 죽는다(노트: Relay LSP watchman 필수).
 function exitReason(code: number | string | null, stderrTail: string) {
   if (/watchman/i.test(stderrTail)) return "Relay needs watchman (brew install watchman).";
   const tail = stderrTail.trim().split("\n").slice(-3).join(" ").slice(0, 300);

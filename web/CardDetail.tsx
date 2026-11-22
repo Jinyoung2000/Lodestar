@@ -16,7 +16,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { hint } from "./hint";
 import { showMessage } from "./toBoardState";
 
-// 카드 상세. 세션 오른쪽 패널의 "Card" 탭(selectedCardId)과 보드 화면의 상세 칸(cardId, onClose 를 넘김)이 같이 쓴다. 제목, 설명(마크다운), 라벨, 워크스페이스, 열, 연결된 세션, 링크를 편집하고 Start Session 을 누른다.
 const NONE = "none";
 
 export function CardDetail({ cardId: given, onClose }: { cardId?: string | null; onClose?: () => void }) {
@@ -24,7 +23,6 @@ export function CardDetail({ cardId: given, onClose }: { cardId?: string | null;
   const cardId = given === undefined ? panelCardId : given;
   const card = useStore((s) => s.board?.cards.find((c) => c.id === cardId));
   if (!card) return <div className="empty-hint">{S.noCardSelected}</div>;
-  // 카드가 바뀌면 입력 상태를 새로 시작한다.
   return <CardForm key={card.id} card={card} onClose={onClose ?? closeCard} />;
 }
 
@@ -32,7 +30,6 @@ function CardForm({ card, onClose }: { card: BoardCard; onClose: () => void }) {
   const board = useStore((s) => s.board);
   const workspaces = useStore((s) => s.workspaces);
   const agents = useStore((s) => s.agents);
-  // 이 카드를 만든 Slack 멘션 (cardId, 없으면 같은 링크). 있으면 출처와 Re-analyze 를 보인다.
   const source = useStore((s) => s.inbox?.items.find((i) => i.cardId === card.id || (!!i.permalink && card.links.some((l) => l.url === i.permalink))));
   const slackLink = card.links.find((l) => /\.slack\.com\/archives\//.test(l.url));
   const [title, setTitle] = useState(card.title);
@@ -41,7 +38,6 @@ function CardForm({ card, onClose }: { card: BoardCard; onClose: () => void }) {
   const [label, setLabel] = useState("");
   const [link, setLink] = useState("");
 
-  // 다른 창이나 자동 이동이 바꾼 제목은 편집 중이 아닐 때 따라간다.
   useEffect(() => setTitle(card.title), [card.title]);
   useEffect(() => {
     if (!editingBody) setBody(card.body);
@@ -237,7 +233,6 @@ function CardForm({ card, onClose }: { card: BoardCard; onClose: () => void }) {
           ) : card.body.trim() ? (
             <div
               onClick={(event) => {
-                // 대화에서 만든 카드의 "Go to message" 링크는 그 세션의 그 메시지로 간다.
                 const back = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href^='#lodestar-message=']");
                 const message = back && parseMessageLink(back.getAttribute("href") ?? "");
                 if (message) {
@@ -245,7 +240,6 @@ function CardForm({ card, onClose }: { card: BoardCard; onClose: () => void }) {
                   showMessage(message.agentId, message.itemId);
                   return;
                 }
-                // 설명 안의 파일 링크(관련 파일)는 카드의 워크스페이스에서 연다.
                 const anchor = (event.target as HTMLElement).closest<HTMLElement>("[data-file]");
                 if (!anchor || !card.workspaceId) return;
                 event.preventDefault();
@@ -330,7 +324,6 @@ function CardForm({ card, onClose }: { card: BoardCard; onClose: () => void }) {
   );
 }
 
-// 대화의 한 부분(Add to Board)에서 만든 카드가 그 세션과 메시지로 돌아가는 곳. 세션이 지워졌으면 비활성.
 function ConversationSource({ source }: { source: CardSource }) {
   const agent = useStore((s) => s.agents.find((a) => a.id === source.agentId));
   return (

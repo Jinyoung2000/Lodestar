@@ -86,7 +86,6 @@ test("planText 와 isInteractiveTool", () => {
   expect(isInteractiveTool("AskUserQuestion") && isInteractiveTool("ExitPlanMode") && !isInteractiveTool("Bash"), "두 도구만");
 });
 
-// 데몬: 가짜 프로세스 없이 askPermission 만 부르고 respond 계열을 눌러 본다.
 const store = new Store();
 const events: ServerEvent[] = [];
 const runner = new AgentRunner(store, (e) => events.push(e));
@@ -133,7 +132,6 @@ test("respondPermission: 질문과 계획은 허용 단추로 답할 수 없고,
     runner.respondPermission(agent.id, id, "allowAlways");
     expect(false, "allowAlways 도 거절");
   } catch {
-    // 기대한 거절
   }
   runner.respondPermission(agent.id, id, "deny");
   const result = (await promise) as Extract<PermissionResult, { behavior: "allow" }>;
@@ -214,7 +212,6 @@ test("isInternalStep: ToolSearch 와 계획 파일(~/.claude/plans)만 숨기고
   expect(!isInternalStep("Bash", { command: "ls ~/.claude/plans/x.md" }, "done"), "Bash 는 건드리지 않는다");
 });
 
-// --- 이미지 ---
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46]);
 const GIF = Buffer.from("GIF89a\x01\x00\x01\x00", "latin1");
@@ -273,7 +270,6 @@ test("userMessage: 이미지가 있으면 글 블록과 image 블록의 배열, 
   writeFileSync(join(home, "done"), "");
 });
 
-// --- 질문 카드의 선택 로직 ---
 const qs = readQuestions(input);
 
 test("질문 선택: 하나만 고르는 질문은 바꿔 고르면 이전 선택이 빠지고 Other 도 꺼진다", () => {
@@ -312,7 +308,6 @@ test("질문 선택: 모든 질문에 답이 있어야 보내진다", () => {
   expect(!isAnswered([], []), "질문이 없으면 보낼 것이 없다");
 });
 
-// --- 타임라인 ---
 const labels = { asked: "Asked", ask: "Ask", skipped: "Skipped", planApproved: "Approved plan", planKept: "Kept planning", planWaiting: "Plan ready", feedback: "Feedback", after: (mode: string) => `After: ${mode}` };
 type TimelineItem = import("../shared/protocol").TimelineItem;
 const permission = (status: "pending" | "allowed" | "denied", outcome?: import("../shared/protocol").PermissionOutcome, tool = "AskUserQuestion", toolInput: Record<string, unknown> = input) => ({ id: "p", kind: "permission" as const, toolName: tool, input: toolInput, status, ...(outcome ? { outcome } : {}) });
@@ -353,7 +348,6 @@ test("groupTurns: ToolSearch 와 계획 파일 단계는 단계 목록에서 빠
   expect(step?.permission?.id === "p3", "ExitPlanMode 호출과 승인이 한 줄로 짝지어진다");
 });
 
-// --- 승인 카드 입력 ---
 test("approvalInputView: Bash 명령, Fetch URL, Search 질의가 대상 줄에 오고 Input 에서는 빠진다", () => {
   const bash = approvalInputView("Bash", { command: "ls -la", description: "list" });
   expect(bash.target?.kind === "command" && bash.target.text === "ls -la" && !("command" in bash.rest) && "description" in bash.rest, "명령은 빠지고 설명은 남는다");
@@ -371,7 +365,6 @@ test("approvalInputView: Bash 명령, Fetch URL, Search 질의가 대상 줄에 
   expect(spacedJson({ a: 1, b: "x" }) === '{ "a": 1, "b": "x" }' && spacedJson({}) === "{}", "한 줄 JSON");
 });
 
-// --- 입력창: 멘션과 이미지 붙여넣기 ---
 test("applyMention: @검색어를 문장 안의 @경로 로 바꾸고 이중 공백이 생기지 않는다", () => {
   const typed = "look at @pri";
   const trigger = findTrigger(typed, typed.length)!;

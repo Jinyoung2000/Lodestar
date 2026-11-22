@@ -1,5 +1,3 @@
-// 피드백 열기, 요소 클릭으로 붙이기, Attach Element 토글, Esc 두 단계, 칩 지우기의 상태 전이와 이름표 자리 계산 단독 시험.
-// 실행: npm test
 import { FLOW_OFF, attachElement, labelPlacement, openFlow, pressEscape, removeElement, togglePicking } from "../web/feedbackFlow";
 
 const cases: { name: string; run: () => string }[] = [];
@@ -59,7 +57,7 @@ test("removing the chip leaves picking as it was when the user had re-enabled it
 });
 test("Esc on a closed flow stays closed", () => expect(pressEscape(FLOW_OFF) === FLOW_OFF, FLOW_OFF));
 
-const compose = { x: 419, y: 43, width: 602, height: 86 }; // bottom 129
+const compose = { x: 419, y: 43, width: 602, height: 86 };
 const box = (y: number, height = 40, x = 500) => ({ x, y, width: 200, height });
 test("label goes above the outline when there is room and no compose in the way", () => {
   const p = labelPlacement(box(300), compose, 18, 100);
@@ -70,12 +68,11 @@ test("label goes below when the outline touches the top edge", () => {
   return expect(p.top === 45 && p.below, p);
 });
 test("label that would sit on the compose box flips below the outline", () => {
-  // 윤곽 위쪽이 입력 창 바로 아래(y 135)면 위쪽 이름표 띠 [117,135] 가 입력 창(43..129)과 겹친다.
   const p = labelPlacement(box(135), compose, 18, 100);
   return expect(p.top === 175 && p.below, p);
 });
 test("when both sides hit the compose box the label sits right under it", () => {
-  const p = labelPlacement(box(60, 50), compose, 18, 100); // 위 띠 [42,60] 겹침, 아래 띠 [110,128] 겹침
+  const p = labelPlacement(box(60, 50), compose, 18, 100);
   return expect(p.top === 129 && p.below, p);
 });
 test("a label far to the left of the compose box stays above even in its vertical band", () => {

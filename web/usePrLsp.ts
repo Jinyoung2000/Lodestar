@@ -9,13 +9,9 @@ import { CENTER, usePrActions, usePrView, usePrViewId } from "./prStore";
 import { rpc } from "./rpc";
 import { getState, setState as setAppState, useStore } from "./store";
 
-// PR 파일 diff 하나가 쓸 언어 기능의 상태: 이 PR 의 새 쪽 글을 어느 로컬 폴더에서 얻을지(pr.local), 보이는 파일의 문서를 LSP 에 열고 닫기, 정의와 참조 결과를 PR diff 나 에디터 탭으로 보내기.
-// 문서는 파일 diff 가 화면에 보일 때만 열고(IntersectionObserver), 보이지 않거나 파일을 바꾸면 닫는다. PR 화면을 열기만 해서는 LSP 서버에 아무것도 보내지 않는다.
-
 export type PrOffReason = "no-workspace" | "fetch-needed" | "occupied" | "evicted" | "unreadable";
 
 export type PrLspStatus =
-  // 이 파일에는 해당 없음(LSP 가 없는 언어, 삭제된 파일, patch 없음) 또는 아직 화면에 안 보임
   | { kind: "none" }
   | { kind: "loading" }
   | { kind: "ready"; mode: PrDocMode; dir: string; exact: boolean; sha: string }
@@ -28,7 +24,6 @@ export type PrReferences = { title: string; groups: ReferenceGroup[] };
 export type PrLsp = {
   status: PrLspStatus;
   doc: PrDoc | null;
-  // 체크아웃한 폴더의 파일이 patch 와 다른 줄을 만나 기능을 붙이지 못했다
   mismatched: boolean;
   reportMismatch: () => void;
   definition: (doc: PrDoc, pos: number) => Promise<LspLocation[]>;
@@ -36,7 +31,6 @@ export type PrLsp = {
   navigate: (location: LspLocation, from: PrDoc) => void;
   refs: PrReferences | null;
   closeReferences: () => void;
-  // 화면(PrDiff)이 등록하는 도착 처리: 줄(1부터)과 열로 가서 보이게 하고 캐럿을 둔다
   revealHere: React.MutableRefObject<((line: number, character: number) => void) | null>;
 };
 
@@ -49,7 +43,6 @@ export function usePrLsp(file: PrFile | null, host: HTMLElement | null): PrLsp {
   const files = usePrView((v) => v.files);
   const actions = usePrActions();
   const viewId = usePrViewId();
-  // Checkout 으로 worktree 워크스페이스가 생기거나 사라지면 대상을 다시 고른다
   const workspaceKey = useStore((s) => s.workspaces.map((w) => w.id).join(","));
   const visible = useVisible(host);
   const [target, setTarget] = useState<PrLocalTarget | null>(null);
@@ -76,7 +69,6 @@ export function usePrLsp(file: PrFile | null, host: HTMLElement | null): PrLsp {
     return () => {
       cancelled = true;
     };
-    // ref 는 객체라 필드로 비교한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, refKey, headSha, headRef, workspaceKey]);
 
@@ -131,7 +123,6 @@ export function usePrLsp(file: PrFile | null, host: HTMLElement | null): PrLsp {
       }
       const doc = result.doc;
       release = result.release;
-      // commit 모드의 서버는 PR 의 다른 변경 파일을 디스크의 옛 글로 읽는다(hover 의 타입, 정의 줄이 틀어진다). 같은 PR 의 변경 파일도 head 글로 함께 연다(상한 있음).
       if (mode === "commit") await openSiblings(t.workspaceId, sha, path, filesRef.current ?? [], opened, () => cancelled);
       if (cancelled) {
         release();
@@ -165,7 +156,6 @@ export function usePrLsp(file: PrFile | null, host: HTMLElement | null): PrLsp {
       const rel = relPathIn(dirOf(from.workspaceId), uriToPath(location.uri));
       const place = resolveDefinitionTarget(filesRef.current ?? [], rel, location.range.start.line);
       if (place.kind === "local") {
-        // 가운데에 연 PR 화면은 오른쪽 패널과 에디터 영역이 가려져 있어서, 에디터 탭이 보이게 세션 화면으로 돌아간다(PR 은 사이드바에서 다시 연다). 옆 칸 탭의 PR 은 그대로 둔다.
         if (viewId === CENTER) setAppState({ centerView: "sessions" });
         revealLocation(from.workspaceId, location);
         return;
@@ -246,7 +236,6 @@ async function readDisk(workspaceId: string, path: string): Promise<string | nul
   }
 }
 
-// 참조 결과 한 파일의 줄들: 서버에 PR 글로 열어 둔 파일이면 그 글, 아니면 폴더의 실제 파일
 async function linesOf(doc: PrDoc, path: string): Promise<string[]> {
   const open = openPrDoc(doc.workspaceId, path);
   if (open) return open.view.state.doc.toString().split("\n");
@@ -256,14 +245,11 @@ async function linesOf(doc: PrDoc, path: string): Promise<string[]> {
 
 type RawLocation = { uri: string; range: LspLocation["range"] } | { targetUri: string; targetSelectionRange: LspLocation["range"]; targetRange?: LspLocation["range"] };
 
-// definition 과 references 응답(Location, Location[], LocationLink[])을 Location 목록으로
 function asLocations(result: unknown): LspLocation[] {
   if (!result) return [];
   const list = (Array.isArray(result) ? result : [result]) as RawLocation[];
   return list.map((item) => ("targetUri" in item ? { uri: item.targetUri, range: item.targetSelectionRange ?? item.targetRange! } : item));
 }
-
-// --- 다른 파일로 이동한 뒤 도착 처리 ---
 
 type PendingReveal = { key: string; path: string; line: number; character: number };
 let pending: PendingReveal | null = null;
@@ -272,15 +258,12 @@ export function setPendingReveal(next: PendingReveal) {
   pending = next;
 }
 
-// 이 PR 의 이 파일로 오던 도착 요청을 꺼낸다(한 번만)
 export function takePendingReveal(key: string, path: string): PendingReveal | null {
   if (!pending || pending.key !== key || pending.path !== path) return null;
   const taken = pending;
   pending = null;
   return taken;
 }
-
-// --- 화면에 보이는가 ---
 
 function useVisible(host: HTMLElement | null) {
   const [visible, setVisible] = useState(false);

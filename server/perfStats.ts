@@ -1,5 +1,3 @@
-// PERFDAEMON: 데몬이 하는 일의 개수와 바이트를 센다. 시험 인스턴스에서 perf.stats 로 읽고(perf.reset 으로 0부터), 항목마다 호출 수, 바이트, 걸린 시간을 모은다.
-// 항목은 종류와 이름으로 구분한다: event(브로드캐스트 type), rpc(method), git(하위 명령), save(state, timeline).
 export type PerfBucket = { count: number; bytes: number; ms: number };
 export type PerfSnapshot = {
   since: number;

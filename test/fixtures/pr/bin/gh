@@ -1,13 +1,10 @@
 #!/usr/bin/env node
-// 시험용 가짜 gh. 호출 인자와 stdin 을 $FAKE_GH_LOG 에 한 줄씩 남기고, GraphQL 연산 이름이나 REST 경로로 data.json 의 응답을 돌려준다.
-// 실제 GitHub 에는 아무것도 보내지 않는다.
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const args = process.argv.slice(2);
 const stdin = await new Promise((resolve) => {
-  // stdin 은 --input - 일 때만 읽는다(gh pr list 같은 호출은 stdin 을 닫지 않는다)
   if (process.stdin.isTTY || !args.includes("--input")) return resolve("");
   let text = "";
   process.stdin.on("data", (chunk) => (text += chunk));
@@ -15,13 +12,11 @@ const stdin = await new Promise((resolve) => {
 });
 const log = process.env.FAKE_GH_LOG;
 if (log) appendFileSync(log, JSON.stringify({ args, stdin: stdin || null }) + "\n");
-// FAKE_GH_DATA: 다른 시나리오 데이터(실제 커밋이 있는 임시 저장소에 맞춘 PR 등)를 쓸 때의 data.json 경로
 const data = JSON.parse(readFileSync(process.env.FAKE_GH_DATA ?? join(dirname(fileURLToPath(import.meta.url)), "..", "data.json"), "utf8"));
 const out = (value) => process.stdout.write(JSON.stringify(value));
 const delay = Number(process.env.FAKE_GH_DELAY_MS ?? 0);
 if (delay) await new Promise((r) => setTimeout(r, delay));
 
-// 상태를 파일($FAKE_GH_STATE)에 두면 쓰기 뒤의 읽기에 그 결과가 보인다(대기 리뷰, 새 스레드, resolve, viewed). 없으면 늘 같은 응답.
 const stateFile = process.env.FAKE_GH_STATE;
 const blank = () => ({ replies: {}, pending: null, threads: [], comments: {}, deleted: [], resolved: {}, viewed: {}, reviews: [], issue: [], seq: 100 });
 const state = stateFile && existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, "utf8")) : blank();
@@ -48,8 +43,6 @@ function detail() {
   return d;
 }
 
-// 머지 영역 시험용 상황. 상태 파일의 scenario(시험 중 바꿀 수 있다) 또는 $FAKE_GH_SCENARIO, 쉼표로 여럿.
-// draft, conflict, blocked, behind, unknown, nowrite, rebaseonly, closed, autodelete(저장소가 머지 뒤 head 브랜치를 지움)
 function applyScenario(repo, pr) {
   const names = String(state.scenario ?? process.env.FAKE_GH_SCENARIO ?? "").split(",").filter(Boolean);
   const has = (name) => names.includes(name);
@@ -108,7 +101,6 @@ function mutate(op, input) {
 }
 
 if (args[0] === "pr" && args[1] === "list") {
-  // git.prs(입력창 위 PR 칩과 Checks 구역)가 부르는 gh pr list
   out([{ number: 42, title: "Add loud option to greet", url: "https://github.com/acme/widgets/pull/42", state: "OPEN", statusCheckRollup: [{ conclusion: "SUCCESS" }, { conclusion: "FAILURE" }, { status: "IN_PROGRESS" }, { state: "SUCCESS" }] }]);
 } else if (args[0] === "api" && args[1] === "graphql") {
   const body = JSON.parse(stdin);

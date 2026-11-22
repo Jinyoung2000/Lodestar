@@ -6,22 +6,14 @@ import { cleanCreateArgs, cleanUpdateArgs, previewCreate, previewUpdate, type No
 import { gatedWrite, writeResultText, type GatedOutcome, type WriteApproval, type WriteTool } from "./notionWrite";
 import type { NotionWriteResult } from "./notion";
 
-// 에이전트 세션에 붙는 in-process MCP 서버 (이름 lodestar_notion). Notion 에 쓰는 일은 여기 제안 도구 두 개만 거친다.
-// 실제 Notion 쓰기 도구는 세션에서 막혀 있고(agents.ts 의 disallowedTools 와 PreToolUse 훅), 제안 도구의 핸들러가 승인을 받은 뒤에만 데몬의 쓰기 세션을 부른다.
-// 승인은 도구 실행 안에서 받으므로 권한 모드(Bypass Permissions 포함)와 상관없다.
-
 type CallToolResult = Awaited<ReturnType<Parameters<typeof tool>[3]>>;
 
 export type NotionToolHost = {
-  // Notion 에서 지금 페이지를 읽는다 (diff 의 기준). 못 읽으면 null.
   read: (idOrUrl: string) => Promise<NotionPageData | null>;
-  // 캐시에 있는 제목 (네트워크 없음)
   cachedTitle: (idOrUrl: string) => string | null;
   ask: (toolName: string, input: Record<string, unknown>, preview: NotionWritePreview, signal?: AbortSignal) => Promise<WriteApproval>;
   write: (tool: WriteTool, args: Record<string, unknown>) => Promise<NotionWriteResult>;
-  // 쓰기가 끝난 페이지 (화면이 다시 읽는다)
   changed: (idOrUrl: string) => void;
-  // 페이지 전용 대화에서만 있는 앱 기능
   page: { url: string; title: string } | null;
   addCards: ((cards: { title: string; body?: string }[]) => { id: string; title: string }[]) | null;
   startSession: ((prompt: string) => void) | null;

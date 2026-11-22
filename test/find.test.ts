@@ -1,5 +1,3 @@
-// 찾기 위젯의 순수 계산(web/findModel.ts): 일치 모으기, 범위, 현재 번호, 다음과 이전, 바꿀 글, 결과 수 문구, 큰 파일 속도.
-// 실행: npm test
 import { EditorState } from "@codemirror/state";
 import {
   buildQuery,

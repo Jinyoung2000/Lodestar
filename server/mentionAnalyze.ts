@@ -16,13 +16,6 @@ import {
 import { HOME } from "./store";
 import { spawnInGroup } from "./processGroups";
 
-// 요청으로 판단된 멘션을 읽기 전용으로 분석하는 CLI 세션 (한 번에 하나, 큐는 server/mentions.ts).
-// 스레드 전체와 Notion 링크를 읽고, 등록된 워크스페이스에서 관련 코드를 찾아, 구조화 출력으로 카드 내용을 낸다.
-// 막는 방법은 세 겹이다.
-//  1. tools 로 내장 도구를 Read, Grep, Glob 으로 한정하고 disallowedTools 에 쓰기 도구 이름을 적는다.
-//  2. PreToolUse 훅이 허용 목록에 없는 도구와 워크스페이스 밖 경로를 거절한다 (analysisToolDecision).
-//  3. init 의 도구 목록에 쓰기 이름이 보이면 세션을 중단한다.
-
 export { ANALYSIS_BUDGET_USD, analysisBudgetUsd } from "../shared/analysisBudget";
 export const ANALYSIS_MAX_TURNS = 12;
 export const ANALYSIS_TIMEOUT_MS = 5 * 60 * 1000;
@@ -30,8 +23,6 @@ export const ANALYSIS_TIMEOUT_MS = 5 * 60 * 1000;
 export type AnalysisWorkspace = { id: string; name: string; dir: string };
 export type AnalysisContext = { model: string; maxBudgetUsd: number; workspaces: AnalysisWorkspace[]; roots: string[] };
 export type AnalysisOutcome = { result: MentionAnalysisResult | null; error: string | null; costUsd: number | null; turns: number | null; tools: string[] };
-
-// --- 도구 호출 판정 (순수 함수, 시험 대상) ---
 
 const SENSITIVE_FILE = [/^\.env(\.|$)/, /\.(pem|key|p12|pfx)$/i, /^id_(rsa|dsa|ecdsa|ed25519)/];
 
@@ -55,11 +46,9 @@ const unsafePattern = (pattern: unknown) => typeof pattern !== "string" || isAbs
 
 export type ToolDecision = { allow: true } | { allow: false; reason: string };
 
-// 허용: Slack 읽기 3개, Notion fetch 와 search, 그리고 Read, Grep, Glob (절대 경로로 워크스페이스 안만).
 export function analysisToolDecision(name: string, input: Record<string, unknown>, roots: string[]): ToolDecision {
   const no = (reason: string): ToolDecision => ({ allow: false, reason });
   if (SLACK_WRITE_PATTERN.test(name) || NOTION_WRITE_PATTERN.test(name)) return no("write tool");
-  // 구조화 출력을 내는 SDK 내부 도구. 막으면 결과를 낼 수 없다.
   if (name === "StructuredOutput") return { allow: true };
   if (!ANALYSIS_ALLOWED_TOOLS.includes(name)) return no("not in the read-only list");
   if (name === "Read") return insideRoots(input.file_path, roots) ? { allow: true } : no("path outside the registered workspaces");
@@ -74,8 +63,6 @@ export function analysisToolDecision(name: string, input: Record<string, unknown
   }
   return { allow: true };
 }
-
-// --- 프롬프트와 출력 형식 ---
 
 export function analysisSystemPrompt(maxBudgetUsd: number) {
   return [
@@ -132,7 +119,6 @@ const clean = (value: unknown, max: number) => (typeof value === "string" ? valu
 
 const stringList = (value: unknown, max: number, each: number) => (Array.isArray(value) ? value.map((v) => clean(v, each)).filter(Boolean).slice(0, max) : []);
 
-// 구조화 출력을 검증한다. 필수 값이 비면 null (분석 실패로 본다). workspaceId 는 등록된 프로젝트만, 관련 파일은 그 워크스페이스에 실제로 있는 상대 경로만 남긴다.
 export function parseAnalysis(structured: unknown, workspaces: AnalysisWorkspace[], exists: (path: string) => boolean = existsSync): MentionAnalysisResult | null {
   const raw = structured as Record<string, unknown> | null;
   if (!raw || typeof raw !== "object") return null;
@@ -154,15 +140,12 @@ export function parseAnalysis(structured: unknown, workspaces: AnalysisWorkspace
         const url = new URL(link.url.trim());
         if ((url.protocol === "http:" || url.protocol === "https:") && !links.some((l) => l.url === url.href)) links.push({ url: url.href, title: clean(link.title, 200) || null });
       } catch {
-        // 주소가 아니면 버린다
       }
       if (links.length >= 10) break;
     }
   }
   return { title, workspaceId: workspace?.id ?? null, summary: clean(raw.summary, 800), steps, relatedFiles, links, openQuestions: stringList(raw.openQuestions, 6, 300) };
 }
-
-// --- 세션 실행 ---
 
 export async function runAnalysis(item: InboxItem, ctx: AnalysisContext): Promise<AnalysisOutcome> {
   const slack = mcpServerConfig("slack");

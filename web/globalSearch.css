@@ -1,6 +1,4 @@
-/* 통합 검색(⌘K). 입력, 유형 탭, 묶음 목록, 키 안내 줄. 토큰만 쓴다. */
 
-/* 제목줄에 붙지 않고 가운데 위쪽에 떠서 뒤를 어둡게 한다. 행에 흐린 둘째 글과 오른쪽 값이 있어 빠른 선택창(602px)보다 넓다. */
 .global-search {
   width: min(var(--size-search-width), calc(100% - var(--space-8)));
   max-height: min(var(--size-search-height), 80vh);
@@ -34,7 +32,6 @@
   color: var(--fg-muted);
 }
 
-/* 탭 줄: 폭이 모자라면 가로로 밀어 보고, 스크롤 막대는 숨긴다 */
 .gs-tabs {
   display: flex;
   flex-shrink: 0;
@@ -122,7 +119,6 @@
 .gs-row[data-active] .gs-icon {
   color: var(--fg);
 }
-/* 제목이 먼저 자리를 차지하고, 모자라면 흐린 둘째 글이 먼저 말줄임 된다 */
 .gs-title {
   flex: 0 1 auto;
   min-width: 0;
@@ -157,7 +153,6 @@
   color: var(--fg-muted);
 }
 
-/* 아래 키 안내: 왼쪽에 닫기, 유형 변경, 필터, 보조 동작, 오른쪽 끝에 Compose. 좁으면 줄이 바뀐다. */
 .gs-foot {
   display: flex;
   flex-shrink: 0;
@@ -185,7 +180,6 @@
   margin-left: auto;
 }
 
-/* 어두운 테마에서도 키캡 테두리가 보이게 한 단계 진한 테두리를 쓴다 */
 .gs-foot .keycap,
 .gs-aux .keycap {
   border-color: var(--border);

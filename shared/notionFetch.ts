@@ -1,11 +1,5 @@
 import { notionPageId, singleEmoji } from "./notionLink";
 
-// notion-fetch 의 결과(2026-10-16 실제 응답으로 확인)를 앱 화면용 값으로 바꾼다. DOM 을 건드리지 않아 데몬과 화면이 같이 쓰고 단위 시험이 그대로 부른다.
-//
-// 응답은 JSON 한 덩어리다: { metadata: { type }, title, url, text, icon, cover, path, verification, page_last_edited_at }.
-// text 는 "Here is the result of ..." 한 줄 뒤에 <page url icon> 안에 <ancestor-path>, <properties>(JSON), <content>(Notion enhanced markdown) 가 든 글이다.
-// enhanced markdown 은 탭으로 들여 쓴 <columns>, <callout>, <page url>제목</page>, <empty-block/> 같은 태그가 섞여 있어 표준 마크다운으로 먼저 풀어야 화면에 그린다.
-
 export type NotionPageKind = "page" | "database" | "other";
 
 export type NotionPageData = {
@@ -13,20 +7,13 @@ export type NotionPageData = {
   id: string | null;
   title: string;
   url: string;
-  // 이모지 하나. 이미지 아이콘은 서명 주소가 5분 뒤 만료돼 쓰지 않는다.
   icon: string | null;
-  // 상위 경로("사업 부문 / Local Jobs"). 없으면 null.
   path: string | null;
   lastEditedAt: string | null;
-  // 화면에 그리는 표준 마크다운
   markdown: string;
-  // 모델에 주고 diff 의 기준이 되는 enhanced markdown 원문 (<content> 안쪽)
   enhanced: string;
-  // 데이터베이스에 속한 페이지의 속성 (title 제외). 없으면 빈 객체.
   properties: Record<string, unknown>;
-  // 응답이 일부만 담았다고 알린 경우
   truncated: boolean;
-  // 이 화면이 마크다운으로 못 그리는 구성(표 보기, 보드, 데이터베이스 행)이 있다
   needsBrowser: boolean;
 };
 
@@ -39,7 +26,6 @@ export function parseFetchResult(raw: string): NotionParse {
     if (!parsed || typeof parsed !== "object") throw new Error("shape");
     json = parsed as Record<string, unknown>;
   } catch {
-    // JSON 이 아니면 오류 글이다 (권한 없음, 찾을 수 없음 등)
     return { ok: false, error: raw.trim().slice(0, 300) || "Empty result from Notion" };
   }
   const text = typeof json.text === "string" ? json.text : "";
@@ -75,7 +61,6 @@ export function parseFetchResult(raw: string): NotionParse {
   };
 }
 
-// 주소에서 ?pvs= 같은 보기 표시를 뗀다 (같은 페이지가 다른 주소로 두 번 저장되지 않게).
 function cleanUrl(value: string): string {
   try {
     const url = new URL(value);
@@ -115,9 +100,6 @@ function iconOf(json: Record<string, unknown>, text: string): string | null {
   return singleEmoji(attr) ?? null;
 }
 
-// ---- enhanced markdown -> 표준 마크다운 ----
-
-// 안쪽을 들여 쓰는 컨테이너 태그. 여는 태그마다 자식 줄이 탭 한 칸씩 더 들어간다.
 const CONTAINERS = new Set(["columns", "column", "callout", "details", "table", "tr", "td", "th", "synced_block", "toggle"]);
 const KEEP_HTML = new Set(["br", "details", "summary", "table", "thead", "tbody", "tr", "td", "th", "colgroup", "col", "sub", "sup", "u", "kbd", "mark", "strong", "em", "code", "del", "a", "img", "b", "i", "s"]);
 
@@ -125,7 +107,6 @@ export function enhancedToMarkdown(source: string): string {
   const out: string[] = [];
   let depth = 0;
   let fence: string | null = null;
-  // callout 안쪽 줄은 인용문(> )으로 보낸다. 열린 callout 마다 한 단계.
   const callouts: { icon: string; first: boolean }[] = [];
   const emit = (line: string) => {
     if (callouts.length === 0) {
@@ -141,7 +122,6 @@ export function enhancedToMarkdown(source: string): string {
   };
 
   for (const rawLine of source.split("\n")) {
-    // 코드 울타리 안은 손대지 않는다 (들여 쓰기만 걷는다)
     const stripped = stripTabs(rawLine, depth);
     const fenceMark = /^\s*(`{3,}|~{3,})/.exec(stripped)?.[1];
     if (fence) {
@@ -203,13 +183,10 @@ function calloutIcon(attrs: string): string {
 
 const attr = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? "";
 
-// 한 줄 안의 태그를 풀어 쓴다.
 function inline(line: string): string {
   let text = line;
-  // 헤딩 끝의 {toggle="true" color="..."} 같은 표지는 화면에 의미가 없다
   text = text.replace(/\s*\{(?:[a-z_]+="[^"]*"\s*)+\}\s*$/, "");
   if (/^\s*<empty-block\/>\s*$/.test(text)) return "";
-  // 페이지 안 링크는 워크스페이스 기준 경로(/<id>)로 올 때가 있다. 앱 주소 기준으로 읽히지 않게 Notion 주소로 바꾼다.
   text = text.replace(/\]\(\/(?!\/)/g, "](https://www.notion.so/");
   text = text.replace(/<page\s([^>]*?)>([\s\S]*?)<\/page>/g, (_m, tag: string, title: string) => link(`📄 ${title.trim() || "Untitled"}`, attr(tag, "url")));
   text = text.replace(/<database\s([^>]*?)>([\s\S]*?)<\/database>/g, (_m, tag: string, title: string) => link(`🗂 ${title.trim() || "Database"}`, attr(tag, "url")));
@@ -227,7 +204,6 @@ function inline(line: string): string {
   text = text.replace(/<(?:file|pdf|video|audio)\s([^>]*?)>([\s\S]*?)<\/(?:file|pdf|video|audio)>/g, (_m, _tag: string, caption: string) => `[File: ${caption.trim() || "attachment"}]`);
   text = text.replace(/<span\b[^>]*>([\s\S]*?)<\/span>/g, "$1");
   text = text.replace(/<\/?(?:summary)\b[^>]*>/g, (tag) => tag);
-  // 남은 알 수 없는 태그는 지운다 (안쪽 글은 남는다). 화면이 아는 HTML 태그는 그대로 둔다.
   text = text.replace(/<\/?([a-zA-Z][\w-]*)\b[^>]*?\/?>/g, (tag, name: string) => (KEEP_HTML.has(name.toLowerCase()) ? tag : ""));
   return text;
 }
@@ -236,9 +212,6 @@ function link(label: string, url: string): string {
   return url ? `[${label}](${url})` : label;
 }
 
-// ---- 속성 표시 ----
-
-// 데이터베이스 행 페이지의 속성을 화면용 (이름, 값) 쌍으로. 값은 문자열로 줄인다.
 export function propertyRows(properties: Record<string, unknown>): { name: string; value: string }[] {
   const rows: { name: string; value: string }[] = [];
   for (const [name, value] of Object.entries(properties)) {

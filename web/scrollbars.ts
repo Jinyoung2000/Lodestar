@@ -2,7 +2,6 @@ const HOLD_MS = 800;
 
 export function initScrollbars() {
   const timers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
-  // scroll 은 버블링하지 않아서 capture 로 받는다
   document.addEventListener(
     "scroll",
     (event) => {

@@ -1,4 +1,3 @@
-// 사이드바 세션 행을 칸에 끌어 놓는 규칙의 순수 로직(web/paneDrop.ts, web/gridLayout.ts)을 확인한다. 실행: npm test
 import { gridOf, paneOrder, placeBeside, withoutPane, type Grid } from "../web/gridLayout";
 import { allowedEdges, planSessionDrop, previewRect, zoneAt, type DropState } from "../web/paneDrop";
 import type { Pane } from "../web/store";
@@ -29,9 +28,7 @@ test("zoneAt: outside the rectangle is null, a corner goes to the nearer edge", 
   same(zoneAt(R, 99, 150, BOTH), null, "left of rect");
   same(zoneAt(R, 300, 251, BOTH), null, "below rect");
   same(zoneAt({ ...R, width: 0 }, 100, 100, BOTH), null, "empty rect");
-  // 왼쪽 위 모서리: 가로 10/400=0.025, 세로 40/200=0.2 이므로 left
   same(zoneAt(R, 110, 90, BOTH), "left", "corner nearer the left edge");
-  // 세로 5/200=0.025, 가로 80/400=0.2 이므로 top
   same(zoneAt(R, 180, 55, BOTH), "top", "corner nearer the top edge");
   return "null outside, nearer edge in corners";
 });

@@ -1,5 +1,3 @@
-// B1 사이드바 세션 목록: 묶음, 정렬, 접기, 상대 시간(web/sessionList.ts)과 읽음, 고정, 완료, 이름 서버 동작(server/agents.ts) 단독 시험.
-// 모델은 부르지 않는다. 실행: npm test
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -65,7 +63,6 @@ const input = (agents: Agent[], extra: Partial<GroupInput> = {}): GroupInput => 
   ...extra,
 });
 const ids = (rows: { agent: Agent }[]) => rows.map((r) => r.agent.id).join(",");
-// w1 폴더 묶음(고정한 세션은 맨 위 Pinned 묶음으로 올라가고, Chats 는 비어 있어도 머리가 있다)
 const w1 = (groups: ReturnType<typeof buildGroups>) => groups.find((g) => g.id === "ws:w1")!;
 
 test("relativeTime: VS Code 와 같은 반올림과 단위", () => {
@@ -85,7 +82,6 @@ test("relativeTime: VS Code 와 같은 반올림과 단위", () => {
   expect(relativeTime(at(60 * DAY), NOW) === "2 mos ago", "2 mos ago");
   expect(relativeTime(at(400 * DAY), NOW) === "1 yr ago", "1 yr ago");
   expect(relativeTime(sec(-20), NOW) === "now", "a clock a bit ahead of the daemon still says now");
-  // 분 틱 사이에 갱신된 세션: 틱이 든 now 보다 updatedAt 이 35초 앞서도 in N secs 가 아니라 now
   expect(relativeTime(sec(-35), NOW) === "now", "35 secs after the stale tick still says now");
   expect(relativeTime(at(-5), NOW) === "now", "a time well in the future is clamped to now");
   return expect(relativeTime("nope", NOW) === "", "bad timestamp is empty");
@@ -118,13 +114,11 @@ test("Ordering: created vs updated; pinned sessions move to a Pinned group above
   expect(ids(w1(byCreated).rows) === `${b.id},${a.id}`, `created: ${ids(w1(byCreated).rows)}`);
   const byUpdated = buildGroups(input([a, b, c], { view: { ...DEFAULT_VIEW, ordering: "updated" } }));
   expect(ids(w1(byUpdated).rows) === `${a.id},${b.id}`, `updated: ${ids(w1(byUpdated).rows)}`);
-  // 고정한 세션의 갈래는 부모와 함께 Pinned 로 가고, 고정한 갈래만 따로 올라가면 부모는 제자리에 남는다
   const kid = agent({ forkedFrom: c.id, createdAt: at(5) });
   const pinnedKid = agent({ forkedFrom: a.id, createdAt: at(4), pinned: true });
   const groups = buildGroups(input([a, b, c, kid, pinnedKid]));
   expect(groups[0].rows.map((r) => `${r.agent.id}:${r.depth}`).join() === `${pinnedKid.id}:0,${c.id}:0,${kid.id}:1`, `pinned family: ${groups[0].rows.map((r) => r.agent.id)}`);
   expect(ids(w1(groups).rows) === `${b.id},${a.id}`, "the unpinned parent stays in its folder without the pinned fork");
-  // Chats 는 세션이 없어도 머리가 있다
   return expect(groups.find((g) => g.id === "chats")!.rows.length === 0, "empty Chats keeps its head");
 });
 
@@ -226,7 +220,6 @@ test("Server: read, pin, done, rename emit the agent and keep updatedAt", () => 
   return expect(reloaded.agent("s1").pinned === true && reloaded.agent("s1").title === "new name", "persisted to state.json");
 });
 
-// ⌥⌘←/→ 가 따라가는 순서(sidebarLayout.order)는 사이드바가 그리는 행과 같은 값이어야 한다.
 test("sidebarLayout.order: Pinned, Chats, folders, forks under the parent, collapsed groups and Show more respected", () => {
   const feedback = agent({ feedbackId: "f1", updatedAt: at(1) });
   const chat = agent({ workspaceId: "" });
@@ -240,21 +233,16 @@ test("sidebarLayout.order: Pinned, Chats, folders, forks under the parent, colla
   const layout = sidebarLayout(open);
   expect(layout.order.join() === [pinned, chat, parent, fork, zeta].map((a) => a.id).join(), `order: ${layout.order.join()}`);
   expect(layout.groups.flatMap((g) => g.rows.map((r) => r.agent.id)).length === layout.order.length && !layout.order.includes(feedback.id), "the order holds exactly the drawn rows, never a feedback session");
-  // 접은 묶음의 행은 화면에 없어서 순서에도 없다
   const collapsed = sidebarLayout({ ...open, collapsedGroups: new Set(["chats", "ws:w1"]) });
   expect(collapsed.order.join() === [pinned, zeta].map((a) => a.id).join(), `collapsed: ${collapsed.order.join()}`);
-  // 부모의 자식 행을 접으면 자식은 순서에서 빠진다
   const parentsCollapsed = sidebarLayout({ ...open, collapsedParents: new Set([parent.id]) });
   expect(!parentsCollapsed.order.includes(fork.id), "collapsed parent hides its forks");
-  // 완료 보기를 켜면 맨 아래 Done 묶음이 순서 끝에 붙고, 기본으로 접혀 있으면(Sidebar 의 처음 상태) 빠진다
   const withDone = sidebarLayout({ ...open, view: { ...DEFAULT_VIEW, showDone: true } });
   expect(withDone.order.at(-1) === done.id, "Done is last");
   expect(!sidebarLayout({ ...open, view: { ...DEFAULT_VIEW, showDone: true }, collapsedGroups: new Set(["done"]) }).order.includes(done.id), "Done collapsed by default is skipped");
-  // Show more 로 접혀 있는 묶음은 처음 5개만 보이는 만큼만 순서에 든다
   const many = Array.from({ length: 7 }, (_, i) => agent({ workspaceId: "w1", createdAt: at(10 + i) }));
   expect(sidebarLayout({ ...input(many), collapsedGroups: new Set() }).order.length === 5, "Show more folded to 5");
   expect(sidebarLayout({ ...input(many, { expandedGroups: new Set(["ws:w1"]) }), collapsedGroups: new Set() }).order.length === 7, "expanded shows all 7");
-  // 정렬 기준을 updated 로 바꾸면 순서도 바뀐다
   const x = agent({ workspaceId: "w1", createdAt: at(30), updatedAt: at(1) });
   const y = agent({ workspaceId: "w1", createdAt: at(20), updatedAt: at(15) });
   const created = sidebarLayout({ ...input([x, y]), collapsedGroups: new Set() }).order.join();

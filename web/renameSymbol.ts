@@ -37,7 +37,6 @@ const renameField = StateField.define<RenameBox | null>({
   provide: (field) => showTooltip.from(field, (box) => (box ? boxTooltip(box) : null)),
 });
 
-// 이름 상자 상태. editorBase.ts 의 editorOptionExtensions 가 넣는다(F2 키는 web/intellisenseKeys.ts).
 export const renameExtension = renameField;
 
 export function renameSymbolAtCursor(view: EditorView) {
@@ -77,7 +76,6 @@ async function openRenameBox(view: EditorView, plugin: LSPPlugin, prepare: boole
     return;
   }
   const text = placeholder ?? view.state.sliceDoc(target.from, target.to);
-  // 선택이 낱말 안에 있으면 그 부분만 고른다(번들 _getSelection). 아니면 이름 전체.
   const selection = view.state.selection.main;
   const inside = !selection.empty && view.state.doc.lineAt(selection.from).number === view.state.doc.lineAt(selection.to).number && selection.from >= target.from && selection.to <= target.to;
   view.dispatch({
@@ -121,7 +119,6 @@ function boxTooltip(box: RenameBox): Tooltip {
       label.className = "cm-rename-label";
       label.textContent = RENAME_TEXT.label(ACCEPT_KEY, PREVIEW_KEY);
       dom.append(field, label);
-      // 상자 안쪽을 눌러도 입력칸 포커스가 빠지지 않게 한다
       dom.addEventListener("mousedown", (event) => {
         if (event.target !== input) event.preventDefault();
       });
@@ -147,7 +144,6 @@ function boxTooltip(box: RenameBox): Tooltip {
           finish("cancel");
         }
       });
-      // 에디터 밖을 눌러 포커스가 나가면 취소한다. 이미 닫힌 뒤(done)의 blur 는 무시한다.
       input.addEventListener("blur", () => {
         if (!done) finish("cancel");
       });

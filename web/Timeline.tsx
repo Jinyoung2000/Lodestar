@@ -12,7 +12,7 @@ import { isAgentTool } from "../shared/subagents";
 import { FeedbackRetryRow } from "./FeedbackRetry";
 import { withoutQuestionMarker } from "../shared/feedbackQuestion";
 import type { TimelineItem, TurnChangedFile, TurnChanges, UserAttachment } from "../shared/protocol";
-import { formatBytes } from "../shared/files"; // FILEATTACH
+import { formatBytes } from "../shared/files";
 import { CheckpointActions, RestoredMarker, TimelineContext } from "./Checkpoint";
 import { linkifyElement, type FileRef } from "./fileRefs";
 import { linkifySessionRefs, MARKDOWN_URI } from "./sessionLinks";
@@ -23,18 +23,20 @@ import { toTarget } from "./lsp";
 import { useStuckBubble } from "./stuckBubble";
 import { addCodeCopyButtons, heatmapTables, highlightCodeBlocks } from "./markdownCode";
 import { addSlackCopyButtons, slackPreviews } from "./slackPreview";
+import { addMermaidButtons, mermaidPreviews } from "./mermaidPreview";
+import { MermaidLightbox } from "./MermaidLightbox";
 import { useLanguagesVersion } from "./languages";
 import { BROWSER_TOOL_PREFIX } from "../server/browserToolNames";
 import { browserToolLabel } from "./browserToolLabels";
 import { rpc } from "./rpc";
-import { openNotionScreen } from "./notionScreen"; // NOTION2
-import { NotionWriteRow } from "./NotionWriteRow"; // NOTION3
-import { AsideStepRow } from "./AsideStepRow"; // ASIDEVIEW
-import { InlineMedia } from "./MediaPreview"; // INLINEMEDIA
-import { hideLocalImages } from "./mediaHtml"; // INLINEMEDIA
-import { mayContainMedia } from "../shared/media"; // INLINEMEDIA
-import { asideTitle } from "./asideStep"; // ASIDEVIEW
-import { isAsideTool } from "../shared/asideTool"; // ASIDEVIEW
+import { openNotionScreen } from "./notionScreen";
+import { NotionWriteRow } from "./NotionWriteRow";
+import { AsideStepRow } from "./AsideStepRow";
+import { InlineMedia } from "./MediaPreview";
+import { hideLocalImages } from "./mediaHtml";
+import { mayContainMedia } from "../shared/media";
+import { asideTitle } from "./asideStep";
+import { isAsideTool } from "../shared/asideTool";
 import { getState, openAgent, openChanges, openDiff, openFile, setChangesScope, useStore, type BrowserTab } from "./store";
 import { S } from "./strings";
 import { createdNewFile, currentStep, foldTaskSteps, formatClock, interactiveStep, modelLabel, queuedStepIds, stepsChanges, systemMessageView, toolChanges, turnFooter, type PermissionItem, type StepEntry, type Turn, type UserItem } from "./timelineModel";
@@ -43,13 +45,10 @@ import { isInteractiveTool } from "../shared/interactive";
 export { ApprovalCard } from "./Approval";
 export { groupTurns, reuseTurns, splitTurns } from "./timelineModel";
 
-// 사용자 메시지 하나와 그 응답들. 말풍선은 이 안에서만 머리 아래에 붙는다(sticky). 시스템이 시작한 턴(user 없음)은 말풍선이 없다.
-// memo: 항목이 안 바뀐 턴은 AgentView 가 이전 turn 객체를 그대로 넘겨(reuseTurns) 스트리밍 중에도 마지막 턴만 다시 그려진다.
 export const TurnView = memo(function TurnView({ turn, first, last, live }: { turn: Turn; first: boolean; last: boolean; live: boolean }) {
   const { agentId } = useContext(TimelineContext);
   const models = useStore((s) => s.meta?.models);
   const { assistant, result, text } = turnFooter(turn);
-  // 응답이 아직 오는 중이면 아래 줄을 달지 않는다.
   const showFooter = assistant && (!live || result);
   const changes = result?.changes;
   return (
@@ -57,8 +56,6 @@ export const TurnView = memo(function TurnView({ turn, first, last, live }: { tu
       {turn.user && <UserHead user={turn.user} first={first} />}
       {turn.blocks.map((block) => {
         if (block.kind === "item") return block.item.kind === "restored" ? null : <TimelineRow key={block.item.id} item={block.item} />;
-        // 단계가 하나면 묶음 없이 그 단계 한 줄만 보인다. 승인을 기다리는 단계는 입력창 위 카드와 "1 confirmation pending" 이 맡는다.
-        // 연속된 할 일 호출이 한 줄로 접혀 한 줄만 남는 경우도 같다.
         const folded = foldTaskSteps(block.items);
         if (folded.length === 1) {
           const [only] = folded;
@@ -104,8 +101,6 @@ export const TurnView = memo(function TurnView({ turn, first, last, live }: { tu
   );
 });
 
-// 응답 아래 `N files changed`: 눌러서 그 턴이 바꾼 파일을 그 자리에 펼치고, 파일 행을 누르면 그 파일의 diff 탭을 연다.
-// 파일 목록 없이 저장된 옛 턴은 Last Turn 범위로 변경 패널을 여는 버튼으로 남는다.
 function TurnChangesList({ agentId, changes, list }: { agentId: string; changes: TurnChanges; list: TurnChangedFile[] }) {
   const workspaceId = useContext(TimelineContext).workspaceId ?? null;
   return (
@@ -141,13 +136,10 @@ function TurnChangesList({ agentId, changes, list }: { agentId: string; changes:
   );
 }
 
-// 말풍선과 그 오른쪽 위 체크포인트 단추. 스크롤하면 말풍선이 머리 아래에 붙고, 붙어 있는 동안은 두 줄까지만 보인다.
 const UserHead = memo(function UserHead({ user, first }: { user: UserItem; first: boolean }) {
-  // CODEX: Codex 세션은 체크포인트 복원과 갈래가 없다(2단계)
   const { codex, locked } = useContext(TimelineContext);
   const sentinelRef = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
-  // 감시선이 스크롤 영역 위로 지나가면 말풍선이 붙은 상태다. 접힘이 스크롤 위치를 바꿔 판정을 뒤집지 않게 판정 경계를 물려 둔다(web/stuckBubble.ts).
   const stuck = useStuckBubble(sentinelRef, bubbleRef);
   return (
     <>
@@ -162,7 +154,6 @@ const UserHead = memo(function UserHead({ user, first }: { user: UserItem; first
           </div>
         ) : null}
         {user.attachments?.length ? <FeedbackBodies attachments={user.attachments} /> : null}
-        {/* DIFFFB: 피드백만 보낸 메시지는 글이 없다. 빈 말풍선 대신 칩만 둔다. */}
         {(user.shown !== "" || !user.attachments?.length) && (
           <div className="row-user">
             <Markdown className="row-user-text" text={user.shown ?? user.text} breaks linkify={false} />
@@ -173,7 +164,6 @@ const UserHead = memo(function UserHead({ user, first }: { user: UserItem; first
   );
 });
 
-// 보낸 메시지에 붙은 첨부(피드백에서 고른 화면 요소). 소스 위치가 있으면 누르면 그 세션 작업 폴더의 파일 줄로 열린다.
 function AttachmentChip({ attachment }: { attachment: UserAttachment }) {
   const { agentId, workspaceId = null } = useContext(TimelineContext);
   if (attachment.kind === "diffFeedback") return <FeedbackAttachmentChip agentId={agentId} attachment={attachment} />;
@@ -201,7 +191,6 @@ function attachmentKey(attachment: UserAttachment) {
   return attachment.id;
 }
 
-// FILEATTACH: 보낸 메시지에 붙은 파일 칩(아이콘, 이름, 크기). 파일 내용은 모델에 가지 않고 경로만 갔다. 마우스를 올리면 그 경로가 보인다.
 function FileBubbleChip({ attachment }: { attachment: Extract<UserAttachment, { kind: "file" }> }) {
   return (
     <span className="user-attachment user-attachment-file mono" title={attachment.path}>
@@ -212,7 +201,6 @@ function FileBubbleChip({ attachment }: { attachment: Extract<UserAttachment, { 
   );
 }
 
-// NOTION2: 페이지 전용 대화의 첫 메시지에 붙은 Notion 페이지 칩. 누르면 그 페이지의 Notion 화면으로 간다.
 function NotionBubbleChip({ label, url }: { label: string; url: string }) {
   return (
     <button type="button" className="user-attachment" title={url} onClick={() => openNotionScreen(url)}>
@@ -222,7 +210,6 @@ function NotionBubbleChip({ label, url }: { label: string; url: string }) {
   );
 }
 
-// 피드백에 붙은 창 스크린샷. 모델이 본 화면의 작은 썸네일이다.
 function ScreenshotChip({ attachment }: { attachment: Extract<UserAttachment, { kind: "screenshot" | "image" }> }) {
   return (
     <span className="user-attachment user-attachment-shot mono" title={attachment.label}>
@@ -242,7 +229,6 @@ function ResponseTime({ at, durationMs, tokens }: { at: string | undefined; dura
   );
 }
 
-// CODEX: Codex 턴은 비용 대신 토큰 수를 준다
 function formatTokens(count: number) {
   return count < 1000 ? String(count) : `${(count / 1000).toFixed(count < 10_000 ? 1 : 0)}k`;
 }
@@ -296,7 +282,6 @@ export function ThinkingIndicator() {
 
 const THINKING_WORD_MS = 4000;
 
-// 승인을 기다리는 호출은 입력창 위 카드가 맡고, 대화에는 이 한 줄만 남는다.
 export function PendingNotice({ count }: { count: number }) {
   return (
     <div className="thinking-indicator" role="status">
@@ -307,14 +292,10 @@ export function PendingNotice({ count }: { count: number }) {
 }
 
 export const StepsBlock = memo(function StepsBlock({ steps, finished, durationMs, live }: { steps: StepEntry[]; finished: boolean; durationMs: number | null; live: boolean }) {
-  // Settings 의 Expand tool steps 가 켜져 있으면 실행 중이든 끝났든 열어 둔다. 기본(꺼짐)은 접힌 채로 두고 사용자가 연 묶음만 열린다(사용자 10-20).
-  // 사용자가 손으로 접거나 편 묶음은 설정이 바뀌어도 그 값을 지킨다. 이 상태는 묶음이 화면에서 사라질 때(세션 화면을 떠날 때) 같이 사라진다.
   const expandSteps = useStore((s) => s.settings?.expandSteps === true);
   const { revealAll } = useContext(TimelineContext);
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
   const open = manualOpen ?? expandSteps;
-  // 접힌 묶음은 열기 전에는 안쪽 줄을 만들지 않는다(긴 대화의 DOM 노드 대부분이 여기 있다). 한 번 만든 줄은 다시 접어도 남긴다.
-  // 요약 줄을 누르면 클릭 처리 안에서 먼저 만들어, 열린 첫 프레임에 빈 상자가 보이지 않게 한다.
   const [built, setBuilt] = useState(false);
   const showBody = built || revealAll || manualOpen === true || (manualOpen === null && expandSteps);
   if (showBody && !built) setBuilt(true);
@@ -322,7 +303,6 @@ export const StepsBlock = memo(function StepsBlock({ steps, finished, durationMs
   const changes = stepsChanges(steps);
   const running = currentStep(steps);
   const queued = queuedStepIds(steps);
-  // 머리의 단계 수는 접은 뒤 펼쳤을 때 보이는 줄 수다(할 일 호출 여러 개가 한 줄이면 한 단계로 센다).
   const groups = foldTaskSteps(steps);
   return (
     <details className="steps" open={open} onToggle={(e) => (e.currentTarget.open !== open ? setManualOpen(e.currentTarget.open) : undefined)}>
@@ -357,7 +337,6 @@ export const StepsBlock = memo(function StepsBlock({ steps, finished, durationMs
 });
 
 export const TimelineRow = memo(function TimelineRow({ item }: { item: TimelineItem }) {
-  // 개선 세션이 질문 앞에 붙이는 [QUESTION] 표지는 보이지 않는다.
   const { agentId, improvement = false } = useContext(TimelineContext);
   switch (item.kind) {
     case "user":
@@ -375,7 +354,6 @@ export const TimelineRow = memo(function TimelineRow({ item }: { item: TimelineI
           ) : (
             <Markdown className="row-assistant" text={improvement ? withoutQuestionMarker(item.text) : item.text} itemId={item.id} breaks media />
           )}
-          {/* INLINEMEDIA: 글에 이미지나 영상 경로가 있을 때만 미리보기 줄을 만든다 */}
           {mayContainMedia(item.text) && <InlineMedia agentId={agentId} text={improvement ? withoutQuestionMarker(item.text) : item.text} streaming={item.streaming} />}
         </>
       );
@@ -391,7 +369,6 @@ export const TimelineRow = memo(function TimelineRow({ item }: { item: TimelineI
           </div>
         );
       }
-      // HANDOFF: "Handed off to ..." 줄은 누르면 넘겨받은 세션으로 간다
       if (item.openAgentId) {
         const target = item.openAgentId;
         return (
@@ -434,8 +411,6 @@ export const TimelineRow = memo(function TimelineRow({ item }: { item: TimelineI
   }
 });
 
-// fix5-2: 시스템이 넣은 사용자 턴(압축 요약, 백그라운드 작업 알림, 훅 피드백). 내용이 없으면 줄을 만들지 않고, 있으면 첫 줄 미리보기와 펼침 화살표를 보인다.
-// 서버가 긴 알림(백그라운드 작업 결과 등)을 한 줄로 줄이고 전체를 접기 전에 저장된 항목도 같은 모양으로 보인다
 const NOTICE_LINE_MAX = 120;
 function shortNotice(text: string, fold: { label: string; text: string } | undefined) {
   const head = text.split("\n").find((l) => l.trim())?.trim() ?? "";
@@ -462,31 +437,24 @@ function AutomatedMessageRow({ text }: { text: string }) {
   );
 }
 
-// itemId: 대화 항목 id. 카드에서 이 메시지로 스크롤하고(web/toBoardState.ts) 글을 드래그했을 때 어느 메시지인지 알아내는 데 쓴다.
-// breaks: 줄바꿈을 그대로 보인다(사용자 메시지와 응답 글. 응답 속 "• " 줄 목록이 한 문단으로 붙지 않게). linkify: 응답 속 파일 경로만 링크로 바꾼다(사용자 메시지는 안 바꾼다).
-// media: 응답 글이다. `![](로컬 경로)` 의 깨진 그림 대신 대체 글을 보인다(그림은 글 아래 InlineMedia 가 보인다).
-// workspaceId: 파일 링크가 가리키는 파일이 있는지 확인할 폴더. 없으면 타임라인의 세션 폴더, 둘 다 없으면 확인하지 않는다(null 은 폴더 없음).
-// chunk: 응답 중인 글의 한 조각(StreamingMarkdown 이 쓴다). 겉 div.markdown 안에 display: contents 로 들어가 레이아웃에는 끼지 않는다.
 export function Markdown({ text, className, breaks = false, linkify = true, workspaceId, itemId, media = false, chunk = false }: { text: string; className: string; breaks?: boolean; linkify?: boolean; workspaceId?: string | null; itemId?: string; media?: boolean; chunk?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [zoomed, setZoomed] = useState<SVGSVGElement | null>(null);
   const languagesVersion = useLanguagesVersion();
   const html = useMemo(() => {
     const sanitized = DOMPurify.sanitize(parseMarkdown(text, { breaks }), { ALLOWED_URI_REGEXP: MARKDOWN_URI });
-    return heatmapTables(highlightCodeBlocks(slackPreviews(media ? hideLocalImages(sanitized) : sanitized, S.slackPreview)));
+    return heatmapTables(highlightCodeBlocks(mermaidPreviews(slackPreviews(media ? hideLocalImages(sanitized) : sanitized, S.slackPreview), S.mermaidPreview)));
   }, [text, breaks, languagesVersion, media]);
   const { workspaceId: timelineWorkspaceId, agentId } = useContext(TimelineContext);
   const sessionWorkspaceId = timelineWorkspaceId ?? null;
   const checkIn = workspaceId === undefined ? sessionWorkspaceId : workspaceId;
-  // 파일 목록이 새로 오거나 존재 캐시가 버려지면(파일 생성, 바깥 변경) 링크를 다시 확인한다.
   const files = useStore((s) => (checkIn ? s.files[checkIn] : undefined));
   const refVersion = useFileRefVersion();
   const streaming = className.includes("streaming");
-  // 세션 참조는 사용자 메시지(linkify 꺼짐)에서도 누를 수 있어야 해서 파일 링크보다 먼저, 항상 바꾼다. href 가 지워진 앵커는 파일 링크 처리가 건드리지 않는다.
   useEffect(() => {
     if (ref.current) linkifySessionRefs(ref.current);
     if (linkify && ref.current) linkifyElement(ref.current);
     else if (ref.current) {
-      // 파일 링크로 바꾸지 않는 글(사용자 메시지, 대기 메시지)의 링크도 새 창으로 연다. target 이 없으면 누르는 순간 앱 창이 그 주소로 옮겨 간다.
       for (const anchor of ref.current.querySelectorAll<HTMLAnchorElement>("a[href]")) {
         anchor.target = "_blank";
         anchor.rel = "noreferrer";
@@ -496,8 +464,8 @@ export function Markdown({ text, className, breaks = false, linkify = true, work
   useEffect(() => {
     if (ref.current) addCodeCopyButtons(ref.current, S.copyResponse, S.copiedResponse);
     if (ref.current) addSlackCopyButtons(ref.current, S.slackCopy, S.copiedResponse);
+    if (ref.current) addMermaidButtons(ref.current, { expand: S.mermaidExpand, showCode: S.mermaidShowCode, hideCode: S.mermaidHideCode, copy: S.copyResponse, copied: S.copiedResponse }, setZoomed);
   }, [html]);
-  // 글이 아직 흘러나오는 중에는 확인하지 않는다(쓰다 만 경로가 없는 파일로 깜박이지 않게).
   useEffect(() => {
     const root = ref.current;
     if (!linkify || streaming || !checkIn || !root) return;
@@ -507,12 +475,14 @@ export function Markdown({ text, className, breaks = false, linkify = true, work
       stale = true;
     };
   }, [html, linkify, streaming, checkIn, files, refVersion, agentId]);
-  return <div className={chunk ? "markdown-chunk" : `markdown ${className}`} ref={ref} data-item-id={itemId} dangerouslySetInnerHTML={{ __html: html }} />;
+  return (
+    <>
+      <div className={chunk ? "markdown-chunk" : `markdown ${className}`} ref={ref} data-item-id={itemId} dangerouslySetInnerHTML={{ __html: html }} />
+      {zoomed && <MermaidLightbox svg={zoomed} onClose={() => setZoomed(null)} />}
+    </>
+  );
 }
 
-// 응답 중인 글. 빈 줄로 끝난 문단(코드 블록 안의 빈 줄은 빼고)은 조각으로 굳혀 두고 자라는 마지막 조각만 다시 파싱하고 그린다.
-// 응답 글은 토큰이 올 때마다 전체가 다시 와서, 통째로 그리면 긴 답일수록 갱신마다 파싱, 정리(DOMPurify), 코드 강조, innerHTML 교체가 답 전체 몫으로 든다(PERF2).
-// 문단을 나눠 그리면 목록 사이 빈 줄이나 뒤에서 정의되는 참조 링크가 잠깐 다르게 보일 수 있다. 응답이 끝나면(streaming 이 꺼지면) 행이 전체를 한 번에 그리는 Markdown 으로 돌아간다.
 function StreamingMarkdown({ text, itemId }: { text: string; itemId: string }) {
   const chunks = useMemo(() => streamingChunks(text), [text]);
   return (
@@ -524,13 +494,11 @@ function StreamingMarkdown({ text, itemId }: { text: string; itemId: string }) {
   );
 }
 
-// 굳은 조각은 글이 같으면 다시 그리지 않는다.
 const MarkdownChunk = memo(function MarkdownChunk({ text }: { text: string }) {
   return <Markdown className="" text={text} breaks media chunk />;
 });
 
 
-// INLINEMEDIA: 서브에이전트가 돌려준 결과 글. 응답 글과 같이 이미지와 영상 경로의 미리보기를 붙인다.
 function AgentResultText({ text }: { text: string }) {
   const { agentId } = useContext(TimelineContext);
   return (
@@ -541,7 +509,6 @@ function AgentResultText({ text }: { text: string }) {
   );
 }
 
-// 단계 한 줄 요약: 아이콘, 동사, 대상(파일 칩이나 명령 칩), 변경량. 명령은 회색 코드 칩으로 자른다.
 const StepRow = memo(function StepRow({ item, permission, queued = false }: { item: TimelineItem; permission: PermissionItem | null; queued?: boolean }) {
   if (item.kind === "thinking") {
     return (
@@ -558,20 +525,16 @@ const StepRow = memo(function StepRow({ item, permission, queued = false }: { it
   if (item.kind === "permission") return <PermissionRow item={item} />;
   if (item.kind !== "tool") return null;
   if (isInteractiveTool(item.name)) return <InteractiveStepRow item={item} permission={permission} />;
-  if (permission?.notion && permission.status !== "pending") return <NotionWriteRow tool={item} permission={permission} />; // NOTION3
+  if (permission?.notion && permission.status !== "pending") return <NotionWriteRow tool={item} permission={permission} />;
   if (isTaskTool(item.name) && !permission) return <TaskStepRow item={item} />;
-  // SUB: 서브에이전트를 띄운 호출은 그 서브에이전트의 단계 목록을 품은 줄로 보인다
   if (isAgentTool(item.name) && item.task) return <AgentStepRow item={item} permission={permission} renderStep={(step) => <StepRow key={step.id} item={step} permission={null} />} renderText={(text) => <AgentResultText text={text} />} />;
   const verb = item.status === "done" && createdNewFile(item.name, item.output) ? S.verbCreated : describeTool(item.name).verb;
-  // 승인 대기와 거절은 아직 일어나지 않았거나 일어나지 않을 일이라 과거형("Edited") 대신 원형 동사를 쓴다.
   const gate = permission?.status === "pending" ? "pending" : permission?.status === "denied" ? "denied" : null;
   const isBash = item.name === "Bash";
-  // fix5-2: 앞의 승인이 끝나야 시작하는 호출은 돌고 있는 것이 아니라 줄 서 있는 것이다
   const running = item.status === "running" && !gate && !queued;
   const shownVerb = gate === "denied" ? S.stepSkipped : gate === "pending" || queued ? (S.verbsBase[item.name as keyof typeof S.verbsBase] ?? verb) : running && isBash ? S.stepRunning : verb;
   const changes = gate === "denied" || item.status === "error" ? null : toolChanges(item.name, item.input);
   const state = gate === "denied" ? "denied" : gate === "pending" ? "running" : queued ? "queued" : item.status;
-  // ASIDEVIEW: Aside 호출은 제목, 주소, 결과 미리보기, 코드, 이미지를 보이는 전용 행이다
   if (isAsideTool(item.name)) return <AsideStepRow item={item} state={state} gate={gate} queued={queued} />;
   const command = typeof item.input.command === "string" ? item.input.command : "";
   const readFailed = item.name === "Read" && item.status === "error" && !item.cancelled && gate === null;
@@ -624,7 +587,6 @@ const StepRow = memo(function StepRow({ item, permission, queued = false }: { it
   );
 });
 
-// 명령 상자 안의 출력. 최대 높이를 넘으면 상자 안에서 스크롤하고, 끝부분(결과와 오류)이 보이게 맨 아래에서 시작한다.
 function TerminalOutput({ text }: { text: string }) {
   const ref = useTailScroll(text);
   return (
@@ -634,7 +596,6 @@ function TerminalOutput({ text }: { text: string }) {
   );
 }
 
-// 상자 하나로 보이는 긴 출력(검사 로그 등). 명령 줄 없이 출력만.
 function OutputBox({ text, className }: { text: string; className: string }) {
   return (
     <div className={`step-terminal mono ${className}`}>
@@ -687,7 +648,6 @@ function ShotThumb({ path }: { path: string }) {
   );
 }
 
-// fixB: 질문과 계획 승인 단계. 답하기 전에는 대기 한 줄, 답한 뒤에는 질문과 고른 답(또는 계획과 결정)이 펼침 안에 남는다.
 function InteractiveStepRow({ item, permission }: { item: Extract<TimelineItem, { kind: "tool" }>; permission: PermissionItem | null }) {
   const step = interactiveStep(item.name, item.input, permission, item.status !== "running", {
     asked: S.verbs.AskUserQuestion,
@@ -751,12 +711,10 @@ function ToolGlyph({ name, input }: { name: string; input?: Record<string, unkno
   return <Tools size={14} />;
 }
 
-// 단계 아이콘: 도구 아이콘이 기본, 진행 중과 실패는 색으로, 중단과 건너뜀은 ⊗ 로.
 function StepIcon({ icon, status }: { icon: ReactNode; status: "running" | "done" | "error" | "thinking" | "cancelled" }) {
   return <span className="step-icon">{status === "cancelled" || status === "error" ? <Codicon name="error" size={14} /> : icon}</span>;
 }
 
-// 도구 호출의 대상: 파일이면 칩(언어 배지와 이름), 아니면 명령이나 요약. base 는 라벨용으로 동사 없이 대상만 그린다.
 function StepTarget({ name, input, base, changes = null }: { name: string; input: Record<string, unknown>; base?: boolean; changes?: { additions: number; deletions: number } | null }) {
   const filePath = typeof input.file_path === "string" ? input.file_path : typeof input.notebook_path === "string" ? input.notebook_path : null;
   if (filePath) {
@@ -786,10 +744,9 @@ function FileChip({ path, data, changes = null }: { path: string; data: FileRef;
   );
 }
 
-// 도구 호출과 짝이 없는 승인 요청(이전 버전이 남긴 타임라인 등). 대기 중인 것은 입력창 위 카드와 "N confirmation pending" 이 맡는다.
 function PermissionRow({ item }: { item: PermissionItem }) {
   if (item.status === "pending") return null;
-  if (item.notion) return <NotionWriteRow tool={null} permission={item} />; // NOTION3
+  if (item.notion) return <NotionWriteRow tool={null} permission={item} />;
   const { detail } = describeTool(item.toolName, item.input);
   const filePath = typeof item.input.file_path === "string" ? item.input.file_path : null;
   return (
@@ -829,15 +786,13 @@ function describeTool(name: string, input: Record<string, unknown> = {}): { verb
       return { verb: S.verbs.WebSearch, detail: str("query") };
     case "Skill":
       return { verb: S.verbs.Skill, detail: str("skill") };
-    // ASIDEVIEW: 묶음 머리 "Working: Browser <제목>" 에 보이는 대상
     case "mcp__aside__repl":
       return { verb: S.verbs.mcp__aside__repl, detail: asideTitle(input) || S.asideFallbackTitle };
     default:
-      return { verb: name, detail: str("description") ?? str("query") ?? JSON.stringify(input).slice(0, 100) };
+      return { verb: name, detail: str("description") ?? str("query") ?? (Object.keys(input).length ? JSON.stringify(input).slice(0, 100) : null) };
   }
 }
 
-// 에이전트의 Browser 도구 입력이 가리키는 탭의 제목. pageId 가 없으면 공유된 탭이 하나일 때 그것이다.
 function browserPageTitle(pageId: string | null): string | null {
   const tabs = getState().tabs.filter((t): t is BrowserTab => t.kind === "browser");
   const tab = pageId ? tabs.find((t) => t.key === pageId) : tabs.filter((t) => t.sharedWith).length === 1 ? tabs.find((t) => t.sharedWith) : undefined;

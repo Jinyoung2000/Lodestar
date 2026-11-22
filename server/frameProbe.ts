@@ -1,5 +1,3 @@
-// 웹(브라우저 접속) 모드의 Browser 탭은 iframe 으로 주소를 연다. 브라우저는 X-Frame-Options 로 거절당한 iframe 을 load 이벤트만 띄워서 화면이 빈 이유를 알 수 없다.
-// 그래서 데몬이 같은 주소를 한 번 받아 응답 머리만 읽고 iframe 으로 열 수 있는지 알려 준다.
 export type FrameProbe = { ok: boolean; status: number | null; reason: string | null };
 
 const TIMEOUT_MS = 4000;
@@ -13,11 +11,9 @@ export function parseHttpUrl(value: string): URL | null {
   }
 }
 
-// 응답 머리가 다른 출처의 iframe 을 막으면 그 이유. 막지 않으면 null.
 export function frameBlockReason(headers: Headers): string | null {
   const xfo = headers.get("x-frame-options")?.trim().toLowerCase();
   if (xfo === "deny" || xfo === "sameorigin") return `X-Frame-Options: ${xfo.toUpperCase()}`;
-  // frame-ancestors 가 모든 출처(*, http:, https:)를 허용하지 않으면 우리 주소는 허용 목록에 없다고 본다.
   const csp = headers.get("content-security-policy") ?? "";
   for (const directive of csp.split(";")) {
     const [name, ...sources] = directive.trim().split(/\s+/);

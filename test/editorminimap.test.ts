@@ -1,5 +1,3 @@
-// 미니맵의 순수 계산(web/editorMinimapModel.ts): 폭, 보이는 줄 범위와 슬라이더, 글자 그리기, 장식 위치, 구문 색 구간.
-// 실행: npm test
 import { MINIMAP_GLYPHS } from "../web/editorMinimapGlyphs";
 import { backgroundIsLight, glyphIndex, isFullWidthCode, lineAtOffset, lineOffsets, lineRuns, minimapLayout, minimapUsable, renderBlock, renderGlyph, renderLayout, renderMinimapLine, scrollTopFromSliderDelta, xForColumn, yForLine, type ImageLike, type RenderLayoutInput } from "../web/editorMinimapModel";
 
@@ -9,7 +7,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 
-// 폭: min(120, floor((남은 폭 - 스크롤바 - 2) * U / (글자폭 + U)) + 8). dpr 1 과 2 모두 U = 1.
 const wide = minimapLayout({ outerWidth: 800, outerHeight: 600, pixelRatio: 2, remainingWidth: 730, charWidth: 7.8, verticalScrollbarWidth: 14, renderCharacters: true });
 check("minimap width at 800px wide, dpr 2", wide.minimapWidth === 89 && wide.minimapLeft === 697 && wide.canvasInnerWidth === 178, JSON.stringify(wide));
 check("dpr 2 draws at scale 2: 4 device pixels per line, 2 per column", wide.minimapScale === 2 && wide.minimapLineHeight === 4 && wide.canvasInnerHeight === 1200 && wide.canvasOuterHeight === 600);
@@ -17,7 +14,6 @@ const wide1 = minimapLayout({ outerWidth: 800, outerHeight: 600, pixelRatio: 1, 
 check("dpr 1 draws at scale 1: 2 pixels per line", wide1.minimapScale === 1 && wide1.minimapLineHeight === 2 && wide1.minimapWidth === 89 && wide1.canvasInnerWidth === 89);
 check("color blocks are 3 pixels per line", minimapLayout({ outerWidth: 800, outerHeight: 600, pixelRatio: 1, remainingWidth: 730, charWidth: 7.8, verticalScrollbarWidth: 14, renderCharacters: false }).minimapLineHeight === 3);
 check("a very wide editor is capped at 120", minimapLayout({ outerWidth: 3000, outerHeight: 600, pixelRatio: 1, remainingWidth: 2930, charWidth: 7.8, verticalScrollbarWidth: 14, renderCharacters: true }).minimapWidth === 120);
-// 폭 480, 400, 320 에서 글자 영역이 얼마나 남는가 (거터 70px, 영문 한 칸 7.8px)
 const left = (width: number) => {
   const layout = minimapLayout({ outerWidth: width, outerHeight: 600, pixelRatio: 2, remainingWidth: width - 70, charWidth: 7.8, verticalScrollbarWidth: 14, renderCharacters: true });
   return { minimap: layout.minimapWidth, text: width - 70 - layout.minimapWidth - 14 };
@@ -25,7 +21,6 @@ const left = (width: number) => {
 check("text keeps about 89 percent of the room at 480, 400, 320", left(480).minimap === 52 && left(480).text === 344 && left(400).minimap === 43 && left(320).minimap === 34, JSON.stringify([left(480), left(400), left(320)]));
 check("hidden only when nothing but the 8px pad would be left", minimapUsable(wide) && !minimapUsable(minimapLayout({ outerWidth: 100, outerHeight: 600, pixelRatio: 1, remainingWidth: 20, charWidth: 7.8, verticalScrollbarWidth: 14, renderCharacters: true })));
 
-// 보이는 줄 범위
 const base: RenderLayoutInput = { pixelRatio: 1, minimapLineHeight: 2, canvasInnerHeight: 600, lineHeight: 20, editorHeight: 600, scrollBeyondLastLine: true, viewportStartLine: 1, viewportEndLine: 30, viewportStartLineTop: 0, lineCount: 50, scrollTop: 0, scrollHeight: 1580 };
 const shortTop = renderLayout(base, null);
 check("a short file shows every line", shortTop.startLineNumber === 1 && shortTop.endLineNumber === 50 && shortTop.topPaddingLineCount === 0);
@@ -42,7 +37,6 @@ check("scrolling down keeps the window from moving up", (() => {
 check("dragging the slider by its own height range moves the scroll by delta / ratio", scrollTopFromSliderDelta(longFile, 10) === Math.round(40_000 + 10 / longFile.sliderRatio));
 check("clicking the minimap maps the y to a line", lineAtOffset(longFile, { canvasInnerHeight: 600, canvasOuterHeight: 600, minimapLineHeight: 2, lineCount: 5000 }, 218) === 2001 && lineAtOffset(longFile, { canvasInnerHeight: 600, canvasOuterHeight: 600, minimapLineHeight: 2, lineCount: 5000 }, 10_000) === 5000);
 
-// 글자 그리기
 const black = { r: 0, g: 0, b: 0 };
 const white = { r: 255, g: 255, b: 255 };
 const blank = (width: number, height: number): ImageLike => {
@@ -87,11 +81,9 @@ check("full width characters take two cells", isFullWidthCode(0xac00) && !isFull
   return wideLine.data[(0 * 40 + 8) * 4]! > 0 && wideLine.data[(0 * 40 + 9) * 4]! > 0 && wideLine.data[(0 * 40 + 10) * 4]! > 0;
 })());
 
-// 장식의 가로 위치
 check("offsets: tab is tabSize cells, wide char two", JSON.stringify(lineOffsets("ab\tc", 4, 1, 100)) === JSON.stringify([8, 9, 10, 14, 15]) && JSON.stringify(lineOffsets("가a", 4, 1, 100)) === JSON.stringify([8, 10, 11]));
 check("offsets stop at the canvas width", JSON.stringify(lineOffsets("abcd", 4, 1, 10)) === JSON.stringify([8, 9, 10]) && xForColumn(lineOffsets("abcd", 4, 1, 10), 5, 1, 10) === 10 && xForColumn([], 1, 1, 10) === 8);
 
-// 구문 색 구간
 const spans = [{ from: 0, to: 3, cls: "kw" }, { from: 4, to: 7, cls: "str" }];
 const cursor = { index: 0 };
 check("runs cover the whole line with gaps as default", JSON.stringify(lineRuns(spans, cursor, 0, 7)) === JSON.stringify([{ end: 3, cls: "kw" }, { end: 4, cls: "" }, { end: 7, cls: "str" }]));

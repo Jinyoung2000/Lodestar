@@ -1,6 +1,3 @@
-// tsserver quickinfo-full 의 displayParts 에서 만든 Copy Type, Copy Signature 문자열(web/typeParts.ts)을 확인한다.
-// 조각은 typescript-language-server 6.0.2 로 /tmp 임시 저장소의 실제 TS 파일에서 받은 것이다(test/fixtures/quickinfo-parts.json).
-// 실행: npm test
 import { readFileSync } from "node:fs";
 import { signatureFromParts, typeFromParts, isFunctionType, type DisplayPart } from "../web/typeParts";
 

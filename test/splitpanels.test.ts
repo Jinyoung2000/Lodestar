@@ -1,4 +1,3 @@
-// 보드와 멘션 화면이 세션 오른쪽 패널을 쓰지 않는 규칙의 순수 로직(web/centerPanels.ts, web/floatLayout.ts)을 확인한다. 실행: npm test
 import { cardOpensInSessionPanel, detailWidthLimits, isRetiredTabKey, sanitizeRestoredTabs, sessionPanelShown, sessionPanelToggleable, type CenterViewName } from "../web/centerPanels";
 import { isPinnedTab, sideKeyOf } from "../web/floatLayout";
 import { inboxKindCounts, inboxRows, matchesShow, neighborRowId } from "../web/inboxRows";

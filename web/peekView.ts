@@ -16,7 +16,6 @@ import { S } from "./strings";
 
 export type PeekOptions = {
   workspaceId: string;
-  // 미리보기 에디터에 얹을 테마와 언어. 에디터 본체(web/Editor.tsx)가 쓰는 것과 같은 것을 받는다.
   previewExtensions: (path: string) => Extension[];
 };
 
@@ -24,7 +23,6 @@ export const peekOptions = Facet.define<PeekOptions, PeekOptions | null>({ combi
 
 export type PeekSession = {
   kind: PeekKind;
-  // true 면 Enter 와 더블클릭이 띠를 닫지 않고 그 위치로 옮겨 띠를 다시 연다(Peek 명령). false 면 띠를 닫고 파일을 연다(Go to 명령).
   keepOpen: boolean;
   workspaceId: string;
   groups: PeekGroup[];
@@ -33,7 +31,6 @@ export type PeekSession = {
   texts: Map<string, string>;
 };
 
-// 이 확장은 에디터마다 한 번 얹는다. 미리보기에 쓸 확장은 얹는 쪽이 준다.
 export function peekExtension(options: PeekOptions): Extension {
   return [
     zoneExtension(),
@@ -66,22 +63,17 @@ function saveLayout() {
   try {
     localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
   } catch {
-    // 저장소를 못 쓰면 이번 실행에서만 유지한다
   }
 }
 
 const MIN_PREVIEW_WIDTH = 200;
 const MIN_RESULTS_WIDTH = 160;
-// 띠가 이보다 좁으면 목록을 미리보기 오른쪽에 두지 않고 아래에 둔다(옆에 두면 목록이 글자 몇 개 폭으로 찌그러진다).
 const STACK_BELOW_WIDTH = MIN_PREVIEW_WIDTH + MIN_RESULTS_WIDTH + 120;
 const STACKED_PREVIEW_SHARE = 0.6;
-
-// --- 열기와 이동 ---
 
 let zoneCounter = 0;
 const handles = new WeakMap<EditorView, { step: (delta: 1 | -1) => void }>();
 
-// 미리보기 에디터에 포커스가 있을 때 ⌘S(전역 단축키)가 그 파일을 저장하게 한다. 처리했으면 true.
 const previewSaves = new WeakMap<Element, () => void>();
 
 export function savePeekPreview() {
@@ -95,7 +87,6 @@ export function isPeekOpen(view: EditorView) {
   return handles.has(view) && currentZone(view) !== null;
 }
 
-// F4, ⇧F4 와 띠가 열려 있을 때의 F12, ⇧F12: 다음, 이전 결과로 가서 그 위치로 에디터도 옮긴다.
 export function stepPeek(view: EditorView, delta: 1 | -1) {
   const handle = handles.get(view);
   if (!handle || !currentZone(view)) return false;
@@ -133,7 +124,6 @@ export function nearestOf(groups: PeekGroup[], host: EditorView) {
   return nearestIndex(groups, plugin.uri, pos.line, pos.character);
 }
 
-// 커서 줄 아래에 띠를 연다. 이미 열려 있으면 새로 바꾼다. 띠는 결과 목록에 포커스를 두고 시작한다(editor.peekWidgetDefaultFocus 기본값).
 export function openPeek(host: EditorView, session: PeekSession, options: { focus?: "list" | "host" } = {}) {
   const head = host.state.selection.main.head;
   showZone(host, {
@@ -150,7 +140,6 @@ export function openPeek(host: EditorView, session: PeekSession, options: { focu
   });
 }
 
-// 결과 하나를 열어 보인다. trigger 가 enter 이고 keepOpen 이 아니면 띠를 닫고 그 파일을 연다.
 async function activateRef(host: EditorView, session: PeekSession, ref: PeekRef, trigger: "enter" | "step", focus: "list" | "host") {
   pushHistory();
   if (!session.keepOpen && trigger === "enter") {
@@ -174,7 +163,6 @@ async function activateRef(host: EditorView, session: PeekSession, ref: PeekRef,
   openPeek(next, session, { focus });
 }
 
-// 탭이 열려 에디터가 만들어지고 이동(pendingReveal)이 끝날 때까지 기다린다.
 function waitForReveal(key: string) {
   return new Promise<EditorView | null>((resolve) => {
     const started = performance.now();
@@ -193,8 +181,6 @@ function waitForReveal(key: string) {
     check();
   });
 }
-
-// --- 띠 안쪽 ---
 
 type Item = { type: "file"; group: PeekGroup } | { type: "ref"; ref: PeekRef };
 
@@ -261,7 +247,6 @@ function mountPeek(parts: ZoneParts, session: PeekSession, focus: "list" | "host
   const render = () => {
     const items = visible();
     resultsEl.replaceChildren();
-    // 결과 목록 맨 위 줄이 파일 줄이면 그 파일의 첫 결과가 선택된 것으로 보이게 하지 않는다. 선택은 결과 줄에만 둔다(접힌 파일만 파일 줄이 선택된다).
     items.forEach((item, position) => {
       const row = el("div", item.type === "file" ? "cm-peek-row cm-peek-row-file" : "cm-peek-row cm-peek-row-ref");
       row.setAttribute("role", "treeitem");
@@ -288,7 +273,6 @@ function mountPeek(parts: ZoneParts, session: PeekSession, focus: "list" | "host
     resultsEl.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
   };
 
-  // 선택 표시만 바꾼다. 줄을 다시 만들면 더블클릭이 오는 동안 줄 요소가 바뀌어 dblclick 이 떨어져 나간다.
   const updateSelection = () => {
     const items = visible();
     resultsEl.querySelectorAll<HTMLElement>(".cm-peek-row").forEach((row) => {
@@ -305,7 +289,6 @@ function mountPeek(parts: ZoneParts, session: PeekSession, focus: "list" | "host
     void showRef(ref);
   };
 
-  // 목록에서 위아래로 움직인다. 파일 줄에 닿으면 그 파일의 첫 결과를 미리보기로 보이되 목록의 선택 표시는 결과 줄을 따라간다.
   const move = (delta: 1 | -1) => {
     const refs = visible().filter((item): item is Extract<Item, { type: "ref" }> => item.type === "ref");
     if (refs.length === 0) return;
@@ -363,7 +346,6 @@ function mountPeek(parts: ZoneParts, session: PeekSession, focus: "list" | "host
     }
   });
 
-  // F4 계열: 다음, 이전 결과를 고르고 에디터도 그 위치로 옮긴다.
   const step = (delta: 1 | -1) => {
     const next = session.flat[stepIndex(session.index, delta, session.flat.length)];
     if (!next) return;
@@ -372,7 +354,6 @@ function mountPeek(parts: ZoneParts, session: PeekSession, focus: "list" | "host
   };
   handles.set(host, { step });
 
-  // 가운데 경계를 끌어 미리보기와 결과 목록의 비율을 바꾼다.
   let totalWidth = 0;
   const applyWidths = (width: number) => {
     totalWidth = width;
@@ -412,7 +393,6 @@ function mountPeek(parts: ZoneParts, session: PeekSession, focus: "list" | "host
     split.addEventListener("pointerup", up);
   });
 
-  // 미리보기 에디터: 고른 결과의 파일을 보이고 그 위치로 스크롤한다. 고치면 그 파일의 탭에 같이 반영된다.
   async function showRef(ref: PeekRef) {
     const mine = ++token;
     const { name, dir } = fileLabel(session, ref.uri);
@@ -515,8 +495,6 @@ function refText(session: PeekSession, ref: PeekRef) {
   return previewLine(lineText, ref.range.start.character, end);
 }
 
-// --- 미리보기의 일치 범위 칠하기 ---
-
 const setMatches = StateEffect.define<{ from: number; to: number }[]>();
 const matchMark = Decoration.mark({ class: "cm-peek-match" });
 
@@ -531,10 +509,6 @@ const matchField = StateField.define<DecorationSet>({
   },
   provide: (field) => EditorView.decorations.from(field),
 });
-
-// --- 미리보기 편집을 그 파일의 탭에 반영 ---
-// 같은 파일을 가리키는 에디터가 둘이면(탭과 미리보기) 문서가 따로 놀아 저장 때 충돌한다. 그래서 변경을 양쪽으로 그대로 전달한다.
-// 탭이 없는 파일을 처음 고치는 순간 그 탭을 활성화하지 않고 열고, 에디터가 만들어지면 미리보기의 글을 그 탭에 맞춘다. 저장은 그 탭의 저장(web/editorDocs.ts)이다.
 
 const mirrored = Annotation.define<boolean>();
 const watchers = new WeakMap<EditorView, Set<(update: ViewUpdate) => void>>();
@@ -581,13 +555,11 @@ function createMirror(workspaceId: string, path: string, previewOf: () => Editor
     setState((s) => (s.tabs.some((t) => t.key === key) ? {} : { tabs: [...s.tabs, s.activeGroupId === MAIN_GROUP ? { key, kind: "file" as const, workspaceId, path } : { key, kind: "file" as const, workspaceId, path, group: s.activeGroupId }] }));
     void waitForTabView(key).then((view) => {
       const preview = previewOf();
-      // 탭 에디터가 제때 안 생겼으면 다음 편집 때 다시 잇는다(그대로 두면 미리보기에서 고친 글이 탭에 가지 않아 저장에서 빠진다)
       if (!view || !preview) {
         requested = false;
         return;
       }
       const text = preview.state.doc.toString();
-      // 늦게 생긴 탭에서 이미 따로 고친 글이 있으면 미리보기 글로 덮지 않는다
       if (view.state.doc.toString() !== text && getState().dirtyTabs[key]) return;
       if (view.state.doc.toString() !== text) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text }, annotations: mirrored.of(true) });
       attach(view);
@@ -598,7 +570,6 @@ function createMirror(workspaceId: string, path: string, previewOf: () => Editor
     start(preview: EditorView) {
       const existing = viewFor(key);
       if (existing) {
-        // 길이만 보면 같은 길이로 고친 저장 안 한 편집(글자 하나 바꾸기)을 놓쳐 미리보기가 디스크 글을 보인다
         if (!existing.state.doc.eq(preview.state.doc)) preview.dispatch({ changes: { from: 0, to: preview.state.doc.length, insert: existing.state.doc.toString() }, annotations: mirrored.of(true) });
         attach(existing);
       }

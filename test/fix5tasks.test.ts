@@ -1,4 +1,3 @@
-// fix5-2: 할 일 도구 접기(shared/tasks.ts), 서브에이전트 결과 틀 걷기(shared/subagents.ts), 승인 뒤 대기 단계와 시스템 메시지(web/timelineModel.ts). 모델은 부르지 않는다.
 import { cleanSubagentOutput } from "../shared/subagents";
 import { taskRunView, taskState, taskStep } from "../shared/tasks";
 import { foldTaskSteps, groupTurns, queuedStepIds, systemMessageView, currentStep, type StepEntry } from "../web/timelineModel";
@@ -13,7 +12,6 @@ const expect = (condition: boolean, detail: string) => {
 };
 const tool = (id: string, name: string, input: Record<string, unknown>, output: string | null = null, status: ToolItem["status"] = "done"): ToolItem => ({ id, kind: "tool", name, input, status, output });
 
-// r5 실제 기록(TaskCreate 결과 문구, TaskUpdate 입력 모양)
 const created = [
   tool("c1", "TaskCreate", { subject: "Read price.js", description: "Read src/price.js file" }, "Task #1 created successfully: Read price.js"),
   tool("c2", "TaskCreate", { subject: "Read cart.js", description: "Read src/cart.js file" }, "Task #2 created successfully: Read cart.js"),
@@ -88,7 +86,6 @@ test("시스템 메시지: 빈 내용은 숨기고 미리보기는 요약 태그
   return expect(a === null && b?.preview === "Agent finished" && c?.preview.startsWith("This session is being continued") === true && c.body.includes("Summary:"), JSON.stringify([a, b?.preview, c?.preview]));
 });
 
-// 실제 haiku 실행(r5 와 fix5-2)의 순서: 만들기 셋과 시작, 읽기, 완료와 시작, 읽기, 완료 시작 완료, 하위 에이전트
 const upd = (id: string, taskId: string, status: string) => tool(id, "TaskUpdate", { taskId, status }, `Updated task #${taskId} status`);
 const realRun: TimelineItem[] = [{ id: "u", kind: "user", text: "go" }, ...created, upd("a1", "1", "in_progress"), tool("r1", "Read", { file_path: "/a" }, "x"), upd("a2", "1", "completed"), upd("a3", "2", "in_progress"), tool("r2", "Read", { file_path: "/b" }, "x"), upd("a4", "2", "completed"), upd("a5", "3", "in_progress"), upd("a6", "3", "completed"), tool("ag", "Agent", { description: "d" }, "ok")];
 const realSteps = () => {

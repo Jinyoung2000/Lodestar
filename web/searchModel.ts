@@ -8,18 +8,14 @@ import { relativeTime } from "./sessionList";
 import { folderName, sessionOptions } from "./sessionSearch";
 import { G } from "./searchStrings";
 
-// 통합 검색(⌘K)의 목록 계산. 화면과 store 에 의존하지 않아서 test/globalsearch.test.ts 가 그대로 부른다.
-
 export type SearchScope = "all" | "sessions" | "files" | "workspaces" | "prs" | "board" | "mentions";
 export type SearchKind = "session" | "file" | "workspace" | "pr" | "card" | "mention" | "action";
 
 export const SEARCH_TABS: readonly SearchScope[] = ["all", "sessions", "files", "workspaces", "prs", "board", "mentions"];
 
 const KIND_OF_TAB: Record<Exclude<SearchScope, "all">, SearchKind> = { sessions: "session", files: "file", workspaces: "workspace", prs: "pr", board: "card", mentions: "mention" };
-// 입력이 있을 때 All 탭이 묶음을 보이는 순서
 const KIND_ORDER: readonly SearchKind[] = ["session", "file", "workspace", "pr", "card", "mention", "action"];
 
-// All 탭에서 묶음 하나가 보이는 행 수, 특정 탭에서 보이는 행 수, 입력이 비었을 때 Recent 의 행 수
 export const ALL_GROUP_CAP = 5;
 export const TAB_LIMIT = 100;
 export const RECENT_LIMIT = 8;
@@ -42,9 +38,7 @@ export type SearchGroup = { id: "recent" | SearchKind; label: string; rows: Sear
 export type SearchData = {
   agents: Agent[];
   workspaces: Workspace[];
-  // 최근에 연 세션 id, 최근 것이 앞
   recentAgentIds: string[];
-  // Files 탭이 보는 폴더(열린 세션의 폴더, 없으면 활성 폴더)와 그 파일 목록(아직 못 읽었으면 undefined)
   fileWorkspaceId: string | null;
   files: string[] | undefined;
   recentFiles: { workspaceId: string; path: string }[];
@@ -52,14 +46,10 @@ export type SearchData = {
   cards: BoardCard[];
   columns: BoardColumn[];
   mentions: InboxItem[];
-  // 숨긴 화면(설정 Show Board, Show Slack)의 Actions 항목 id("board", "mentions"). 카드와 멘션 행은 호출하는 쪽이 data.cards, data.mentions 를 비워서 뺀다.
   hiddenActions?: readonly string[];
-  // 항목 key 에서 마지막으로 연 시각(ms). Recent 의 최근순이 이 값으로 정해진다.
   stamps: Record<string, number>;
   now: number;
 };
-
-// --- 탭 ---
 
 export function visibleTabs(data: SearchData): SearchScope[] {
   const tops = data.workspaces.filter(isTop);
@@ -74,8 +64,6 @@ export function visibleTabs(data: SearchData): SearchScope[] {
   });
 }
 
-// ←→ 로 탭을 바꿀지 판정한다. 입력의 커서가 글자 사이에 있으면 커서가 움직여야 하므로 null.
-// 왼쪽 끝(또는 빈 입력)에서 ← 는 이전 탭, 오른쪽 끝(또는 빈 입력)에서 → 는 다음 탭. 양 끝 탭에서는 돌지 않고 그대로 둔다.
 export type TabKeyEvent = { key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean; isComposing?: boolean };
 export type CaretInput = { value: string; selectionStart: number | null; selectionEnd: number | null };
 
@@ -91,8 +79,6 @@ export function tabKeyStep(event: TabKeyEvent, input: CaretInput, tabs: readonly
   return start === input.value.length ? (tabs[index + 1] ?? null) : null;
 }
 
-// --- / 유형 필터 ---
-
 const SLUGS: Record<SearchScope, readonly string[]> = {
   all: ["all"],
   sessions: ["sessions", "session"],
@@ -107,8 +93,6 @@ export const slugOf = (tab: SearchScope) => SLUGS[tab][0];
 
 export type Slash = { kind: "suggest"; tabs: SearchScope[] } | { kind: "scope"; tab: SearchScope; rest: string };
 
-// "/" 로 시작하는 입력. 낱말 뒤에 공백이 없으면 맞는 유형 목록(suggest), 알려진 낱말 뒤에 공백이 오면 그 유형으로 좁힌다(scope, 나머지가 검색어).
-// 알려지지 않은 낱말 뒤에 공백이 오면 그냥 글자로 본다(null).
 export function parseSlash(query: string, available: readonly SearchScope[]): Slash | null {
   const match = /^\/(\S*)(?:\s([\s\S]*))?$/.exec(query);
   if (!match) return null;
@@ -120,8 +104,6 @@ export function parseSlash(query: string, available: readonly SearchScope[]): Sl
   return { kind: "suggest", tabs: available.filter((t) => SLUGS[t].some((slug) => slug.startsWith(word))) };
 }
 
-// --- 묶음과 행 ---
-
 export function searchGroups(data: SearchData, tab: SearchScope, query: string): SearchGroup[] {
   const q = query.trim();
   if (tab === "all") {
@@ -129,7 +111,6 @@ export function searchGroups(data: SearchData, tab: SearchScope, query: string):
     return compact(KIND_ORDER.map((kind) => group(kind, rowsOf(data, kind, q, ALL_GROUP_CAP))));
   }
   const kind = KIND_OF_TAB[tab];
-  // Files 탭은 입력이 없을 때 최근에 연 파일만 보이므로 묶음 이름도 Recent 다.
   const single = group(kind === "file" && !q ? "recent" : kind, rowsOf(data, kind, q, TAB_LIMIT));
   return compact([single]);
 }
@@ -183,7 +164,6 @@ const fileRow = (workspaceId: string, path: string, aux: string | null): SearchR
   return { kind: "file", key: `file:${workspaceId}:${path}`, title: name, muted: dir || null, aux, workspaceId, path };
 };
 
-// 입력이 없으면 최근에 연 파일(이 폴더의 것), 있으면 폴더 전체에서 이름과 경로로 찾는다(⌘P 와 같은 rankFiles).
 function fileRows(data: SearchData, query: string, limit: number): SearchRow[] {
   const workspaceId = data.fileWorkspaceId;
   if (!workspaceId || !data.files) return [];
@@ -224,7 +204,6 @@ function cardRows(data: SearchData, query: string): SearchRow[] {
   return data.cards.filter((card) => hasAll(`${card.title} ${card.labels.join(" ")} ${data.columns.find((c) => c.id === card.columnId)?.name ?? ""}`, terms)).map((card) => cardRow(card, data.columns));
 }
 
-// 슬랙 서식(<@U1>, <https://x|label>)을 사람이 읽는 글로 줄인다.
 export function plainSlack(text: string): string {
   return text
     .replace(/<@([A-Z0-9]+)(?:\|([^>]+))?>/g, (_all, _id: string, name: string | undefined) => `@${name ?? "user"}`)
@@ -244,11 +223,8 @@ function mentionRows(data: SearchData, query: string): SearchRow[] {
   return data.mentions.filter((item) => hasAll(`${plainSlack(item.text)} ${item.judgment?.title ?? ""} ${item.from.name} ${item.channelName}`, terms)).map((item) => mentionRow(item, data.now));
 }
 
-// --- Actions ---
-
 type SearchAction = { id: string; title: string; command: string; keyCommand: string | null; keywords: string };
 
-// 명령 이름은 runCommand 와 shortcuts 의 searchAction 이 받는다. openBoard, openMentions, settings 는 검색창이 직접 처리한다.
 export const SEARCH_ACTIONS: readonly SearchAction[] = [
   { id: "newSession", title: G.actions.newSession, command: "newSession", keyCommand: "newSession", keywords: "create start" },
   { id: "quickChat", title: G.actions.quickChat, command: "quickChat", keyCommand: "quickChat", keywords: "create chat" },
@@ -263,7 +239,6 @@ export const SEARCH_ACTIONS: readonly SearchAction[] = [
   { id: "quickOpen", title: G.actions.quickOpen, command: "quickOpen", keyCommand: "quickOpen", keywords: "file open" },
 ];
 
-// 입력이 비었을 때 Actions 에 보이는 것
 export const DEFAULT_ACTIONS: readonly string[] = ["newSession", "quickChat", "board", "mentions", "settings"];
 
 const keycapsFor = (command: string | null) => {
@@ -278,9 +253,6 @@ function actionRows(query: string, data: Pick<SearchData, "hiddenActions">): Sea
   return list.map((a) => ({ kind: "action" as const, key: `action:${a.id}`, title: a.title, muted: null, aux: null, command: a.command, keycaps: keycapsFor(a.keyCommand) }));
 }
 
-// --- Recent ---
-
-// 최근에 연 세션, 파일, PR, 보드 카드, 멘션을 연 시각 순으로 섞는다. 시각은 stamps 에서 읽고, 시각을 모르는 세션은 updatedAt, 파일은 목록 순서로 맨 아래에 둔다.
 export function recentRows(data: SearchData, limit = RECENT_LIMIT): SearchRow[] {
   const candidates: { row: SearchRow; at: number }[] = [];
   for (const id of data.recentAgentIds) {
@@ -303,14 +275,12 @@ export function recentRows(data: SearchData, limit = RECENT_LIMIT): SearchRow[] 
   data.prs.map(prRow).forEach(stamped);
   data.cards.map((c) => cardRow(c, data.columns)).forEach(stamped);
   data.mentions.map((m) => mentionRow(m, data.now)).forEach(stamped);
-  // 정렬은 안정적이라 같은 시각이면 위에서 넣은 순서(세션, 파일, ...)가 남는다.
   return candidates
     .sort((a, b) => b.at - a.at)
     .slice(0, limit)
     .map((c) => c.row);
 }
 
-// 시각 기록에 key 를 더한다. STAMP_LIMIT 개를 넘으면 가장 오래된 것부터 버린다.
 export function noteStamp(stamps: Record<string, number>, key: string, at: number): Record<string, number> {
   const next = { ...stamps, [key]: at };
   const keys = Object.keys(next);
@@ -320,9 +290,6 @@ export function noteStamp(stamps: Record<string, number>, key: string, at: numbe
   return next;
 }
 
-// --- 보조 동작(⌥↵) ---
-
-// 고른 행의 ⌥↵ 가 하는 일의 이름. 보조 동작이 없는 행은 null.
 export function altLabel(row: SearchRow): string | null {
   if (row.kind === "session") return G.alt.session;
   if (row.kind === "file") return G.alt.file;
@@ -333,7 +300,6 @@ export function altLabel(row: SearchRow): string | null {
   return null;
 }
 
-// PR 목록(저장소별 쿼리 묶음)을 저장소와 번호로 겹치지 않게 펴고 갱신이 최근인 순으로 둔다.
 export function uniquePrs(lists: Record<string, { data: PrListResult | null }>): PrSummary[] {
   const seen = new Map<string, PrSummary>();
   for (const list of Object.values(lists)) {
@@ -347,7 +313,6 @@ export function uniquePrs(lists: Record<string, { data: PrListResult | null }>):
   return [...seen.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-// 보관하지 않은 멘션 항목, 최근 것이 앞
 export function mentionItems(items: InboxItem[] | undefined): InboxItem[] {
   return (items ?? []).filter((i) => !i.archived).sort((a, b) => b.time.localeCompare(a.time));
 }

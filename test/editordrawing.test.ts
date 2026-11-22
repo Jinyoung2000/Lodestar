@@ -15,8 +15,6 @@ const check = (name: string, ok: boolean, detail = "") => {
 };
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-// --- 들여쓰기 안내선 ---
-
 const sourceOf = (text: string, tabSize = 4): IndentSource => {
   const lines = text.split("\n");
   return { lineCount: lines.length, indentOf: (i) => indentColumns(lines[i]!, tabSize) };
@@ -35,7 +33,6 @@ check("indent columns: a blank or whitespace-only line is -1", indentColumns("",
 }
 
 {
-  // 0: function f() {   1:   if (a) {   2:     b();   3:   }   4: }
   const source = sourceOf("function f() {\n  if (a) {\n    b();\n  }\n}", 2);
   const inner = activeGuide(source, 3, 1, 6, 2, false);
   check("active guide: the cursor inside the inner block lights its level and lines", inner.indent === 2 && inner.startLine === 3 && inner.endLine === 3, JSON.stringify(inner));
@@ -51,8 +48,6 @@ check("indent columns: a blank or whitespace-only line is -1", indentColumns("",
 
 check("offSide languages", isOffSideLanguage("python") && isOffSideLanguage("yaml") && !isOffSideLanguage("typescript") && !isOffSideLanguage(null));
 
-// --- 공백 표시 ---
-
 check("whitespace none draws nothing", same(whitespaceOffsets("a b\t", "none", null), []));
 check("whitespace all draws every space and tab", same(whitespaceOffsets(" a  b\t", "all", null), [0, 2, 3, 5]));
 check("boundary skips a single space between words", same(whitespaceOffsets("a b", "boundary", null), []));
@@ -65,10 +60,7 @@ check("selection draws only inside the selected range", same(whitespaceOffsets("
 check("selection with two ranges on a line", same(whitespaceOffsets("a b c d", "selection", [{ from: 0, to: 2 }, { from: 4, to: 7 }]), [1, 5]));
 check("runs merge adjacent spaces but not tabs", same(whitespaceRuns("a  \t\tb", [1, 2, 3, 4]), [{ from: 1, to: 3, tab: false }, { from: 3, to: 4, tab: true }, { from: 4, to: 5, tab: true }]));
 
-// --- 접기 구간(순수) ---
-
 {
-  // 1: a  2:   b  3:   c  4: (blank)  5: d  6:   e
   const lines = ["a", "  b", "  c", "", "d", "  e"];
   const indentOf = (i: number) => indentColumns(lines[i]!, 2);
   const plain = computeIndentRegions({ lineCount: lines.length, indentOf, offSide: false });
@@ -85,7 +77,6 @@ check("runs merge adjacent spaces but not tabs", same(whitespaceRuns("a  \t\tb",
 }
 
 {
-  // 1:a 2: b 3:  c 4: d 5:e 6: f
   const tree = buildRegionTree([{ start: 1, end: 4 }, { start: 2, end: 3 }, { start: 5, end: 6 }, { start: 3, end: 8 }]);
   check("region tree drops regions that cross another", tree.regions.length === 3 && same(tree.regions.map((r) => r.start), [1, 2, 5]));
   check("region tree finds the innermost region at a line", regionIndexAt(tree, 3) === 1 && regionIndexAt(tree, 4) === 0 && regionIndexAt(tree, 7) === -1);
@@ -111,8 +102,6 @@ check("runs merge adjacent spaces but not tabs", same(whitespaceRuns("a  \t\tb",
   check("icon click with shift on a folded region unfolds it and the folded children", same(planIconClick({ tree, collapsed: () => true }, 0, "recursive"), [1, 0]));
   check("icon click with alt acts on unrelated regions", same(planIconClick(none, 0, "others"), [2]));
 }
-
-// --- 접기 구간(CodeMirror 상태) ---
 
 const JS = ["function f() {", "  if (a) {", "    b();", "  }", "  return 1;", "}", "const x = 1;", "/**", " * doc", " */", "const y = 2;"].join("\n");
 
@@ -173,8 +162,6 @@ function foldState(text: string, setup: Partial<FoldSetup> = {}, withJs = true) 
   check("region markers pair up with nesting, the end marker is included", same(regionAtLine(marked, 1), { start: 1, end: 6 }) && same(regionAtLine(marked, 3), { start: 3, end: 5 }));
 }
 
-// --- 커서 ---
-
 check("screen aware size rounds down to device pixels but never below one", screenAwareSize(2, 2) === 2 && screenAwareSize(2, 1.5) === 1.5 && screenAwareSize(2, 0.1) === 0.5 && screenAwareSize(1, 1.5) === 1);
 check("line cursor: width 0 means 2px", linePiece({ style: "line", widthSetting: 0, charWidth: 7.2, pixelRatio: 2, left: 100 }).width === 2);
 check("line cursor: width is capped at the character width", linePiece({ style: "line", widthSetting: 8, charWidth: 7, pixelRatio: 1, left: 100 }).width === 7);
@@ -184,12 +171,9 @@ check("thin line cursor is 1px and is not shifted", linePiece({ style: "line-thi
 check("block width: tab and line end use the average character width", blockWidth("\t", 20, 7) === 7 && blockWidth("", null, 7) === 7 && blockWidth("a", 0.5, 7) === 7 && blockWidth("한", 14, 7) === 14);
 check("read only editors never blink", effectiveBlinking("smooth", true) === "solid" && effectiveBlinking("smooth", false) === "smooth");
 
-// --- 선택 모서리 ---
-
 {
   const one = pieceCorners([{ left: 10, right: 50 }], 8);
   check("single line selection is rounded on all corners", same(one, [{ startTop: 0, startBottom: 0, endTop: 0, endBottom: 0 }]) && radiusClasses(one[0]!).length === 4);
-  // 첫 줄은 20..80, 둘째 줄은 5..40: 둘째 줄이 첫 줄보다 왼쪽으로 나와 있다
   const two = pieceCorners([{ left: 20, right: 80 }, { left: 5, right: 40 }], 8);
   check("second line sticking out to the left: the first line's bottom-left is concave, the second line's top-left round", two[0]!.startBottom === 1 && two[1]!.startTop === 0 && two[0]!.endBottom === 0, JSON.stringify(two));
   const aligned = pieceCorners([{ left: 10, right: 60 }, { left: 11, right: 40 }], 8);

@@ -36,7 +36,7 @@ For UI changes, look at the result in the running app at desktop width and in a 
 - Types and pure logic used by more than one side (daemon, web, phone, extension) go in `shared/`. Keep side effects out of `shared/` so they can be tested directly.
 - User-visible strings live in `web/strings.ts` (and `server/strings.ts` for daemon messages) and are in English.
 - Styling goes through design tokens. `design-system/tokens.json` is the source; `npm run tokens` generates `web/tokens.css`. `npm run lint:tokens` fails on raw `px` values (other than 1px borders), hex or rgb colors, and Tailwind spacing steps outside the system in `web/`. A real exception needs a `lint-tokens: allow <reason>` comment on that line or the line above.
-- Many existing comments are in Korean and often start with a feature tag (`PR:`, `MOBILE:`, `IDLEUPDATE:`). New comments may be in English. Explain why, not what.
+- Keep code comments for external API contracts, tool directives, and license notices.
 - No formatter is enforced; match the style of the file you edit.
 - No emojis in code, comments, UI copy or commit messages.
 

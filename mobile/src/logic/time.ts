@@ -1,4 +1,3 @@
-// 목록 행의 상대 시간: now, 5m, 2h, 3d, 그다음은 날짜
 export function relativeTime(iso: string, now = Date.now()): string {
   const diff = Math.max(0, now - new Date(iso).getTime());
   const minutes = Math.floor(diff / 60_000);

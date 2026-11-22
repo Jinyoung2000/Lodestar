@@ -37,7 +37,6 @@ export function PrMerge({ detail }: { detail: PrDetail }) {
   );
 }
 
-// GitHub 는 머지 가능 여부를 늦게 계산한다(UNKNOWN). 확장처럼 3초마다 다시 읽되, 읽기만 하고 열 번에서 멈춘다.
 function useMergeabilityPoll(unknown: boolean) {
   const actions = usePrActions();
   const tries = useRef(0);
@@ -74,7 +73,6 @@ function RequiredReviewIcon({ state }: { state: PrRequiredReviews["state"] }) {
   return <CheckIcon kind={state === "failure" ? "failure" : "success"} size={16} />;
 }
 
-// 확장처럼 실패한 체크가 있으면 펼친 채로 시작한다.
 function StatusChecks({ detail }: { detail: PrDetail }) {
   const failing = detail.checkList.some((c) => c.state === "failure");
   const [open, setOpen] = useState(failing);
@@ -101,7 +99,6 @@ function StatusChecks({ detail }: { detail: PrDetail }) {
   );
 }
 
-// 확장처럼 목록에서 계산한다(실패가 하나라도 있으면 실패, 다음 진행 중). 목록이 없을 때만 GitHub 의 rollup 을 쓴다.
 function overallCheckKind(detail: PrDetail): CheckKind {
   if (detail.checkList.some((c) => c.state === "failure")) return "failure";
   if (detail.checkList.some((c) => c.state === "pending")) return "pending";
@@ -126,7 +123,6 @@ function MergeCheckRow({ check }: { check: PrCheck }) {
   );
 }
 
-// 확장의 MergeStatus 줄: 충돌, 보호 규칙, 뒤처짐은 빨강 엑스, 머지 가능은 초록 체크, 계산 중은 진행 표시.
 function MergeStatus({ readiness }: { readiness: MergeReadiness }) {
   const kind: CheckKind = readiness === "mergeable" ? "success" : readiness === "unknown" ? "pending" : "failure";
   return (
@@ -156,8 +152,6 @@ function ReadyForReview() {
   );
 }
 
-// 확장의 Merge: "Merge Pull Request using method [방식]" 에서 버튼을 누르면 확인 단계(ConfirmMerge)로 바뀐다.
-// 방식 목록은 셋 다 보이고 저장소가 허용하지 않는 것은 "(not enabled)" 로 꺼져 있다.
 function MergeActions({ detail }: { detail: PrDetail }) {
   const initial = defaultMergeMethod(detail.merge.methods);
   const [method, setMethod] = useState<PrMergeMethod | null>(initial);
@@ -187,14 +181,12 @@ function MergeActions({ detail }: { detail: PrDetail }) {
   );
 }
 
-// 확인 단계: merge 와 squash 는 커밋 제목과 본문(저장소 설정의 기본 문구)을 고칠 수 있고, rebase 는 입력칸 없이 버튼만 있다.
 function ConfirmMerge({ detail, method, cancel }: { detail: PrDetail; method: PrMergeMethod; cancel: () => void }) {
   const busy = usePrView((v) => v.busy);
   const actions = usePrActions();
   const preset = method === "rebase" ? { title: "", body: "" } : detail.merge.commitText[method];
   const [title, setTitle] = useState(preset.title);
   const [body, setBody] = useState(preset.body);
-  // 확인 단계를 연 때의 head. 그 뒤 자동 새로 읽기로 새 커밋이 들어와도 본 적 없는 커밋까지 머지하지 않게, 이 head 가 아니면 GitHub 가 거절한다.
   const [seenHead] = useState(detail.headSha);
   return (
     <form
@@ -219,7 +211,6 @@ function ConfirmMerge({ detail, method, cancel }: { detail: PrDetail; method: Pr
   );
 }
 
-// 확장의 Delete Branch... 는 지울 것을 고르는 확인 창을 띄운다. 여기서는 원격 head 브랜치 하나만 고를 수 있다(로컬 브랜치와 worktree 는 다루지 않는다).
 function DeleteBranch({ detail }: { detail: PrDetail }) {
   const busy = usePrView((v) => v.busy);
   const actions = usePrActions();

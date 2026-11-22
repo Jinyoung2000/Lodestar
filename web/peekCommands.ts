@@ -25,7 +25,6 @@ function toRefs(result: LspResult): PeekRef[] {
   return list.map((item) => ("targetUri" in item ? { uri: item.targetUri, range: item.targetSelectionRange ?? item.targetRange } : { uri: item.uri, range: item.range }));
 }
 
-// side 가 true 면 결과가 하나일 때 활성 그룹의 옆 그룹에 연다(Open Definition to the Side).
 async function navigate(view: EditorView, workspaceId: string, kind: PeekKind, openInPeek: boolean, side = false) {
   const plugin = LSPPlugin.get(view);
   if (!plugin) return;
@@ -65,7 +64,6 @@ export async function goToDefinition(view: EditorView, workspaceId: string, side
   await navigate(view, workspaceId, "definition", false, side);
 }
 
-// ⌘K F12, ⌥⌘클릭: 정의를 옆 그룹에 연다
 export async function revealDefinitionAside(view: EditorView, workspaceId: string) {
   await navigate(view, workspaceId, "definition", false, true);
 }

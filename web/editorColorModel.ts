@@ -1,9 +1,6 @@
-// CSS 색 문자열을 숫자로 읽고 다시 캔버스용 문자열로 만든다. 토큰은 #rgb, #rrggbb, #rrggbbaa, rgb(), rgba() 로만 적힌다.
-// 개요 눈금자와 미니맵이 같이 쓴다(둘 다 캔버스에 직접 칠해서 CSS 변수를 그대로 못 넘긴다).
 
 export type Rgba = { r: number; g: number; b: number; a: number };
 
-// a 는 0 에서 1
 export function parseColor(input: string): Rgba | null {
   const text = input.trim().toLowerCase();
   const hex = /^#([0-9a-f]{3,8})$/.exec(text);
@@ -36,12 +33,10 @@ export function transparent(color: Rgba, factor: number): Rgba {
   return { ...color, a: color.a * factor };
 }
 
-// 캔버스 fillStyle 용 문자열
 export function toCanvasColor(color: Rgba): string {
   return `rgb(${Math.round(color.r)} ${Math.round(color.g)} ${Math.round(color.b)} / ${Math.round(color.a * 1000) / 1000})`; // lint-tokens: allow 캔버스 fillStyle 은 CSS 변수를 못 받아 숫자에서 문자열을 만든다
 }
 
-// bg 위에 color 를 얹은 불투명 색
 export function blendOver(color: Rgba, bg: Rgba): Rgba {
   const a = color.a;
   return { r: bg.r + (color.r - bg.r) * a, g: bg.g + (color.g - bg.g) * a, b: bg.b + (color.b - bg.b) * a, a: 1 };

@@ -1,5 +1,3 @@
-// B6 세션 검색 목록(web/sessionSearch.ts), 긴 상대 시간(web/sessionList.ts), 명령 팔레트 목록(web/commands.ts)을 DOM 없이 확인한다.
-// 실행: npm test
 import type { Agent, Workspace } from "../shared/protocol";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

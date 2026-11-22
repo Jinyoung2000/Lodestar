@@ -6,12 +6,6 @@ import { HOME } from "./store";
 import { spawnInGroup } from "./processGroups";
 import { toolResultText } from "./notionResult";
 
-// 데몬이 Notion MCP 를 부르는 일회성 CLI 세션 (server/inbox.ts 의 runSlackSession 과 같은 방식).
-//  - Notion 서버 하나만 연결하고(strictMcpConfig), 내장 도구는 없다(tools: []). 사용자 설정과 훅은 읽지 않는다(settingSources: []).
-//  - 허용 도구는 호출자가 지정한 하나뿐이다. PreToolUse 훅이 그 외 도구를 거절하고, 허용한 도구의 입력은 모델이 만든 값이 아니라 호출자가 넘긴 값으로 통째로 바꾼다(updatedInput).
-//    그래서 쓰기 도구도 "승인한 내용 그대로" 한 번만 나간다. 모델은 도구를 부르기만 한다.
-//  - persistSession: false. 페이지 내용이 ~/.claude/projects 에 남지 않게 한다.
-
 export const NOTION_SESSION_MODEL = "haiku";
 
 export type NotionToolName = "notion-fetch" | "notion-update-page" | "notion-create-pages";
@@ -19,7 +13,6 @@ export type NotionToolName = "notion-fetch" | "notion-update-page" | "notion-cre
 export type NotionCallResult = { name: string; input: Record<string, unknown>; text: string; isError: boolean };
 export type NotionSessionOutcome = { call: NotionCallResult | null; calls: number; costUsd: number | null; turns: number | null };
 
-// 시험 인스턴스는 AGENT_NAV_NOTION_MCP 에 가짜 서버 설정(JSON 파일)을 가리키면 실제 Notion 대신 그것을 쓴다.
 export function notionServerConfig(env: NodeJS.ProcessEnv = process.env): Record<string, unknown> | null {
   const override = env.AGENT_NAV_NOTION_MCP;
   if (override) {
@@ -48,7 +41,6 @@ export async function runNotionSession(tool: NotionToolName, input: Record<strin
       maxTurns: 4,
       tools: [],
       allowedTools: [full],
-      // 다른 Notion 도구의 정의가 모델 입력에 실리면 호출 한 번이 몇 배로 비싸진다(fetch 한 번 $0.021). 알려진 나머지를 도구 목록에서 뺀다.
       disallowedTools: allToolsExcept(NOTION_SERVER, tool),
       permissionMode: "dontAsk",
       settingSources: [],

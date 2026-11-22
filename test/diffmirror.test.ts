@@ -1,7 +1,3 @@
-// 같은 URI 를 여러 보기가 열 때의 문서 관리: 파일 탭과 diff 의 수정본 쪽이 한 문서처럼 서버(LSP)에 보이는지.
-// 확인: didOpen 은 URI 당 한 번, 서버에 보낼 변경은 먼저 연 보기 하나에 쌓인 것, 먼저 연 보기가 닫혀도 서버 문서는 유지되고 다음 보기가 이어받음, 마지막 보기가 닫혀야 didClose,
-//       진단을 그릴 보기 목록, 다른 보기에서 흘러온 변경은 diff 가 디스크에 쓰지 않음, diff 안의 변경(덩어리 Undo)은 탭으로 흘러가 서버 쪽에 한 번만 쌓임.
-// 실행: npm test
 import { ChangeSet, EditorState, Transaction, type TransactionSpec } from "@codemirror/state";
 import type { LSPClient } from "@codemirror/lsp-client";
 import type { EditorView } from "@codemirror/view";
@@ -15,7 +11,6 @@ const check = (name: string, ok: boolean, detail = "") => {
 };
 const same = (name: string, got: unknown, want: unknown) => check(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
 
-// LSPPlugin 대신 보기마다 아직 서버에 안 보낸 변경만 들고 있는 가짜. LSPPlugin.get(view) 는 view.plugin(...) 을 부른다.
 class FakeView implements MirrorHost {
   state: EditorState;
   unsynced: ChangeSet;
@@ -75,7 +70,6 @@ const URI = "file:///repo/src/app.ts";
   same("an unknown uri has no views", workspace.viewsOf("file:///none.ts"), []);
   same("the version starts at 0", workspace.getFile(URI)?.version, 0);
 
-  // 탭에서 친 글은 diff 에도 흘러가고, 서버에 보낼 변경은 먼저 연 보기(탭)에만 쌓인다
   tab.dispatch({ changes: { from: 11, insert: "2" }, userEvent: "input.type" });
   same("typing in the tab reaches the diff", [tab.text, diff.text], ["const a = 12;\n", "const a = 12;\n"]);
   const first = workspace.syncFiles();
@@ -85,7 +79,6 @@ const URI = "file:///repo/src/app.ts";
   same("a second sync has nothing to send", workspace.syncFiles().length, 0);
   same("the other view's pending changes were cleared too", diff.plugin().unsyncedChanges.empty, true);
 
-  // diff 안의 변경(덩어리 Undo)도 탭으로 흘러가므로 서버 문서와 세 곳이 같은 글이다
   diff.dispatch({ changes: { from: 0, to: 5 }, userEvent: "revert" });
   same("an undo inside the diff reaches the tab", [tab.text, diff.text], [" a = 12;\n", " a = 12;\n"]);
   same("the server sees the undo once, through the first view", workspace.syncFiles().length, 1);
@@ -97,7 +90,6 @@ const URI = "file:///repo/src/app.ts";
 }
 
 {
-  // 먼저 연 보기가 닫히면 diff 가 이어받아 서버에는 열린 채로 남고, 이후 변경은 이어받은 보기를 통해 간다
   const { calls, workspace } = setup();
   const group: FakeView[] = [];
   const tab = new FakeView("x", group);
@@ -112,7 +104,6 @@ const URI = "file:///repo/src/app.ts";
   diff.dispatch({ changes: { from: 1, insert: "y" } });
   const updates = workspace.syncFiles();
   same("a change in the heir is sent", updates.map((u) => u.file.doc.toString()), ["xy"]);
-  // 같은 파일을 다시 열면(diff 를 다시 만들 때) 서버에는 새로 열린다
   workspace.closeFile(URI, asView(diff));
   const again = new FakeView("xy", []);
   workspace.openFile(URI, "typescript", asView(again));
@@ -121,7 +112,6 @@ const URI = "file:///repo/src/app.ts";
 }
 
 {
-  // 같은 보기를 두 번 등록해도 목록에 한 번만 든다
   const { workspace } = setup();
   const tab = new FakeView("x", []);
   workspace.openFile(URI, "typescript", asView(tab));
@@ -134,7 +124,6 @@ const URI = "file:///repo/src/app.ts";
 }
 
 {
-  // 다른 보기에서 흘러온 변경은 diff 가 디스크에 쓰지 않고, diff 자신의 변경만 쓴다
   const written: string[] = [];
   const group: FakeView[] = [];
   const tab = new FakeView("hello", group);
@@ -148,7 +137,6 @@ const URI = "file:///repo/src/app.ts";
   diff.dispatch({ changes: { from: 0, to: 5, insert: "HELLO" }, userEvent: "revert" });
   same("the diff's own undo is written", written, ["HELLO (unsaved)"]);
   same("and it reaches the tab", tab.text, "HELLO (unsaved)");
-  // 글이 어긋나 있으면(변경을 놓친 경우) 통째로 맞추고, 그 교체도 흘러온 것으로 본다
   const lone = new FakeView("old text", []);
   const wrote: string[] = [];
   const drifted = new FakeView("stale", [lone], (update) => {

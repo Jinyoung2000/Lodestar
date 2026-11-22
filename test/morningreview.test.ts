@@ -1,4 +1,3 @@
-// 아침 할 일 리뷰: 스케줄 판정, 모델 입력(상한, 격리), 답 파싱과 잘못된 참조 거르기, 이동 적용, 하루 한 번 보장. 모델은 부르지 않는다(실제 haiku 리뷰는 .verify 에서 확인). 실행: npm test
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,7 +22,6 @@ const expect = (condition: boolean, detail: string) => {
   return detail;
 };
 
-// 2026-10-19 월, 20 화, 24 토, 25 일 (로컬 시각)
 const at = (day: number, hour: number, minute = 0, second = 0) => new Date(2026, 9, day, hour, minute, second);
 const iso = (date: Date) => date.toISOString();
 const NOW = at(20, 9, 31);
@@ -55,8 +53,6 @@ const source = (cards: BoardCard[], agents: Agent[], timelines: Record<string, T
 });
 const refOfTitle = (prompt: string, title: string) => new RegExp(`<card ref="(C\\d+)"[^>]*>\\nTitle: ${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n`).exec(prompt)?.[1] ?? null;
 
-// --- 스케줄 ---
-
 const ENABLED = { enabled: true, time: "09:30" };
 const LEDGER = shared.emptyLedger;
 
@@ -72,7 +68,6 @@ test("스케줄: 평일 설정 시각 전에는 안 돌고, 시각부터 돈다"
 test("스케줄: 앱이 꺼져 있었다가 그날 늦게 뜨거나 깨어나면 한 번 따라잡는다", () => {
   expect(shared.reviewDue(at(20, 11, 0), ENABLED, LEDGER()) === "catchup", "11:00");
   expect(shared.reviewDue(at(20, 23, 59), ENABLED, LEDGER()) === "catchup", "23:59 same day");
-  // 전날 리뷰는 오늘을 막지 않는다
   expect(shared.reviewDue(at(20, 10, 0), ENABLED, { ...LEDGER(), lastDate: "2026-10-19" }) === "catchup", "yesterday's review");
   return "catch-up";
 });
@@ -106,7 +101,6 @@ test("스케줄: 실패하면 30분 뒤에 다시, 하루 3번까지만", () => 
   expect(shared.reviewDue(at(20, 10, 0), ENABLED, failed(1, 10)) === null, "10 minutes after a failure");
   expect(shared.reviewDue(at(20, 10, 0), ENABLED, failed(1, 31)) === "catchup", "31 minutes after a failure");
   expect(shared.reviewDue(at(20, 10, 0), ENABLED, failed(3, 300)) === null, "three attempts used");
-  // 어제 시도한 기록은 오늘의 횟수에 세지 않는다
   expect(shared.reviewDue(at(20, 10, 0), ENABLED, { ...LEDGER(), attemptDate: "2026-10-19", attempts: 3, lastAttemptAt: at(20, 9, 59).getTime() }) === "catchup", "yesterday's attempts");
   return "retry";
 });
@@ -116,8 +110,6 @@ test("날짜 키는 로컬 날짜다 (UTC 가 아니다)", () => {
   expect(shared.reviewDateKey(at(20, 23, 50)) === "2026-10-20", "23:50 local");
   return "local date";
 });
-
-// --- 입력 ---
 
 test("입력: Done 카드는 빠지고, 이름표(C, S, L)로만 가리키며, 이동 목적지는 review와 done 열", () => {
   const cards = [card("Fix login", "inProgress"), card("Old thing", "done"), card("Write docs", "todo")];
@@ -151,7 +143,6 @@ test("입력 상한: 카드 40개, 본문 200자, 마지막 답 300자, 전체 �
   expect(!input.prompt.includes("가".repeat(shared.REVIEW_LIMITS.cardBody + 1)) || input.prompt.includes("…"), "body clipped");
   expect(!input.prompt.includes("가".repeat(shared.REVIEW_LIMITS.lastReply + 1)), "last reply clipped");
   expect(/\d+ more open cards are not shown/.test(input.prompt), "omitted cards are told");
-  // 담기지 않은 카드와 그 세션의 이름은 새지 않는다
   const kept = new Set(input.prompt.match(/ref="(S\d+)"|^\s*- (S\d+) /gm)?.map((m) => /S\d+/.exec(m)![0]));
   expect(Object.keys(input.refs.sessions).every((ref) => kept.has(ref)), "session refs match the prompt");
   return `${shown} cards, ${input.prompt.length} chars`;
@@ -222,8 +213,6 @@ test("입력: 카드가 없으면 noCards, 열린 카드가 없으면 allDone, �
   expect(shared.buildReviewInput(source([card("x", "todo")], [])).empty === null, "open card");
   return "empty states";
 });
-
-// --- 답 읽기 ---
 
 function parseSetup() {
   const live = agent("live", { status: "waiting" });
@@ -307,7 +296,6 @@ test("답 읽기: 같은 카드나 세션은 한 섹션에만 남는다 (답 대
   const L = (name: string) => Object.entries(input.refs.columns).find(([, id]) => id === name)![0];
   const liveRef = Object.entries(input.refs.sessions).find(([, id]) => id === "live")![0];
   const looseRef = input.unboarded[0];
-  // Fix login 은 연결 세션(live)이 답을 기다리는 카드, Ship it 은 끝난 것 같은 카드, Old 는 오래 멈춘 카드다. 모델이 모든 섹션에 올렸다.
   const answer = {
     summary: "",
     focus: [{ ref: ref("Fix login"), note: "먼저" }, { ref: ref("Ship it"), note: "먼저" }, { ref: ref("Old"), note: "먼저" }, { ref: ref("Fresh"), note: "먼저" }],
@@ -323,10 +311,8 @@ test("답 읽기: 같은 카드나 세션은 한 섹션에만 남는다 (답 대
   expect(titles("focus") === "Old,Fresh", `focus: ${titles("focus")}`);
   expect(titles("stale") === "", `stale: ${titles("stale")}`);
   expect(titles("unboarded") === "", `unboarded: ${titles("unboarded")}`);
-  // 모델이 내놓은 섹션 순서와 상관없이 같은 결과다
   const reordered = shared.parseReview({ unboarded: answer.unboarded, stale: answer.stale, focus: answer.focus, finished: answer.finished, waiting: answer.waiting, summary: "" }, input, board, agents);
   expect(JSON.stringify(reordered.items) === JSON.stringify(parsed.items), "key order");
-  // 우선 섹션에서 걸러진 항목(이동이 잘못된 finished)은 자리를 차지하지 않아서 아래 섹션에 남는다
   const fallback = shared.parseReview({ summary: "", waiting: [], unboarded: [], finished: [{ ref: ref("Old"), note: "열이 틀려요", moveTo: "L99" }], focus: [{ ref: ref("Old"), note: "그래도 먼저" }], stale: [] }, input, board, agents);
   expect(fallback.items.focus.map((i) => i.title).join() === "Old", `fallback: ${JSON.stringify(fallback.items.focus)}`);
   return "dedup";
@@ -355,8 +341,6 @@ test("답 읽기: 글 속에 쓴 이름표(C1, S1, L1)는 제목으로 바꾼다
   return "refs in text";
 });
 
-// --- 마크다운 ---
-
 const sample = (patch: Partial<MorningReview> = {}): MorningReview => ({
   date: "2026-10-20", generatedAt: iso(NOW), trigger: "scheduled", model: "haiku", empty: null, summary: "로그인 수정이 먼저예요.", cardCount: 5, sessionCount: 2, costUsd: 0.01,
   items: { focus: [{ cardId: "c1", agentId: null, title: "Fix login", column: "In Progress", note: "진행 중이에요" }], waiting: [{ cardId: null, agentId: "a1", title: "Session A", note: "승인을 기다려요" }], finished: [{ cardId: "c2", agentId: null, title: "Ship it", column: "Review", note: "완료 보고가 있어요", move: { fromColumnId: "review", toColumnId: "done", toColumnName: "Done", applied: true } }], stale: [{ cardId: "c3", agentId: null, title: "Old", column: "Todo", note: "그대로예요", idleDays: 6 }], unboarded: [] },
@@ -373,8 +357,6 @@ test("마크다운: 섹션, 이동 제안과 적용 표시, 빈 섹션 생략, �
   expect(shared.reviewMarkdown(sample({ empty: "noCards" })).includes("카드가 없어서"), "empty board");
   return "markdown";
 });
-
-// --- 서비스 ---
 
 function setup(options: { cards?: BoardCard[]; agents?: Agent[]; answer?: (prompt: string) => unknown; fail?: string; now?: { value: Date }; auto?: boolean; dir?: string } = {}) {
   const dir = options.dir ?? join(home, `reviews-${Math.random().toString(36).slice(2)}`);
@@ -481,13 +463,11 @@ test("서비스: 자동 실행은 하루 한 번, 데몬을 다시 띄워도 두
   await settle(first.service);
   expect(first.calls.length === 1 && first.service.state().reviews[0].trigger === "scheduled", `calls ${first.calls.length}`);
   expect(first.service.state().unreadDate === "2026-10-20", "auto review is unread");
-  // 데몬 재시작: 같은 폴더를 새 서비스가 읽는다
   const second = setup({ cards: cards(), now: { value: at(20, 14, 0) }, dir });
   second.service.tick();
   await settle(second.service);
   expect(second.calls.length === 0, "same day after restart: nothing new");
   expect(second.service.state().reviews.length === 1 && second.service.state().unreadDate === "2026-10-20", "review and unread survive restart");
-  // 다음 날 따라잡기
   const third = setup({ cards: cards(), now: { value: at(21, 13, 0) }, dir });
   third.service.tick();
   await settle(third.service);
@@ -517,7 +497,6 @@ test("서비스: 자동 실행이 실패하면 30분 안에는 다시 시도하�
   s.service.tick();
   await settle(s.service);
   expect(s.calls.length === 3, `three tries at most, got ${s.calls.length}`);
-  // 데몬이 다시 떠도 횟수는 파일에 남아 있다
   const again = setup({ cards: [card("A", "todo")], fail: "boom", now: { value: at(20, 15, 0) }, dir });
   again.service.tick();
   await settle(again.service);
@@ -574,8 +553,6 @@ test("서비스: 최근 7일만 목록에 둔다 (파일은 지우지 않는다)
   expect(readdirSync(dir).filter((f) => f.endsWith(".json")).length >= 10, "files kept");
   return dates.join();
 });
-
-// --- 이동 적용 ---
 
 async function withMoves() {
   const cards = [card("Fix login", "inProgress"), card("Ship it", "review"), card("Polish", "inProgress"), card("Other", "todo")];
@@ -637,8 +614,6 @@ test("이동 적용: 사용자가 이미 목적지로 옮겨 둔 카드는 건�
   expect(threw, "unknown date refused");
   return "already there";
 });
-
-// --- 설정 ---
 
 test("설정: 켜고 끄기와 HH:MM 시각만 받는다", () => {
   const store = new Store();

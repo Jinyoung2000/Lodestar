@@ -18,11 +18,8 @@ import { S } from "./strings";
 
 type View = "root" | "files" | "changes" | "sessions" | "notion" | "notes";
 
-// 첨부 선택창(B3-10): `+` 또는 ⌘/. 맨 위에서 Sessions..., Changes, Files, Note... 를 고르고, 글자를 입력하면 바로 파일을 찾는다.
-// Issue 와 Pull Request 항목은 만들지 않는다(명세 기본안).
 export function AttachMenu({ paneId, workspaceId, agent, anchor, onClose, onPickImage }: { paneId: string; workspaceId: string | null; agent: Agent | null; anchor: HTMLElement | null; onClose: () => void; onPickImage: () => void }) {
   const [pickedView, setView] = useState<View>("root");
-  // 폴더가 없는 세션(퀵 챗)에는 변경과 파일이 없어 다른 세션 요약, Notion 페이지, 메모만 붙일 수 있다.
   const view: View = pickedView;
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
@@ -131,13 +128,10 @@ export function AttachMenu({ paneId, workspaceId, agent, anchor, onClose, onPick
 
 type Row =
   | { key: string; kind: "category"; title: string; icon: ReactNode; go: View }
-  // fixB: 파일 선택창을 열어 이미지를 붙인다
   | { key: string; kind: "image"; title: string; icon: ReactNode }
   | { key: string; kind: "file"; title: string; detail: string; name: string; choose: { workspaceId: string; path: string } }
   | { key: string; kind: "session"; title: string; session: Agent }
-  // NOTES: 메모장의 메모. 본문 전체가 프롬프트에 글로 들어간다.
   | { key: string; kind: "note"; title: string; detail: string; note: Note }
-  // NOTION: 고정한 페이지나 열린 Notion 탭. tabKey 가 있으면 그 탭에서 바로 읽는다.
   | { key: string; kind: "notion"; title: string; url: string; detail: string; tabKey?: string };
 
 function RowContent({ row }: { row: Row }) {
@@ -184,7 +178,6 @@ function RowContent({ row }: { row: Row }) {
   );
 }
 
-// 고정한 Notion 페이지와 열려 있는 Notion 탭을 한 목록으로(같은 페이지는 하나, 열린 탭이 있으면 그 탭에서 읽는다). 열린 탭을 앞에 둔다.
 function notionRows(tabs: Tab[], query: string): Row[] {
   const rows = new Map<string, Extract<Row, { kind: "notion" }>>();
   for (const tab of tabs) {
@@ -201,7 +194,6 @@ function notionRows(tabs: Tab[], query: string): Row[] {
   return [...rows.values()].filter((r) => !q || r.title.toLowerCase().includes(q) || r.url.toLowerCase().includes(q));
 }
 
-// 메모장의 메모를 최근 수정 순으로(제목과 미리보기에서 찾는다). 본문 전체 검색은 메모장 화면의 검색 칸이 한다.
 function noteRows(notes: Note[], query: string): Row[] {
   const q = query.toLowerCase();
   return notes

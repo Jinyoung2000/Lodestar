@@ -1,4 +1,3 @@
-// Notion 주소 판정, notion:// 변환, 열 곳 결정, 본문 마크다운 변환을 확인한다. 실제 Notion 에는 접속하지 않는다. 실행: npm test
 import { isNotionHost, isNotionLoginUrl, isNotionUrl, notionAppUrl, notionOpenPlan, notionPageId, notionPageKey, notionTitleFromUrl, sameNotionPage, singleEmoji } from "../shared/notionLink";
 import { MAX_NOTION_CHARS, notionPageText, type NotionBlock } from "../shared/notionMarkdown";
 import { browserAttachmentLabel, formatBrowserAttachment, type BrowserAttachment } from "../web/browserAttach";

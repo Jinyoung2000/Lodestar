@@ -1,4 +1,3 @@
-// 탭을 닫으면 그 그룹에서 직전에 활성이던 탭으로 돌아가는 규칙(web/tabMru.ts)을 본다. 실행: npm test
 import { noteActive, pickAfterClose, recentAfterClose, touchTab, type TabMru } from "../web/tabMru";
 
 const cases: { name: string; run: () => string }[] = [];
@@ -8,15 +7,12 @@ const expect = (condition: boolean, detail: string) => {
   return detail;
 };
 
-// store.ts 의 setState 훅과 closeTab 이 하는 일을 순수 함수로 되풀이하는 작은 모의 그룹이다.
 class Group {
   mru: TabMru = {};
   tabs: string[] = [];
   active: string | null = "changes";
-  // sideKey: main 그룹의 마지막 탭을 닫았을 때 돌아가는, 고정 칸이 보이던 탭
   constructor(private readonly id = "main", public sideKey: string = "changes") {}
   activate(key: string) {
-    // normalizeTabs: 고정 탭을 고르면 고정 칸이 그 탭을 보인다(에디터 탭이 열려 있으면 활성 탭은 그대로)
     if (key === "changes" || key === "files") {
       this.sideKey = key;
       if (this.tabs.length > 0) return;

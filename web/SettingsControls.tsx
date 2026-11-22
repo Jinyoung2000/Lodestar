@@ -3,10 +3,10 @@ import type { FormatLanguage, FormatterId, RuntimeInfo } from "../shared/protoco
 import { missingFirstFamily } from "./editorFont";
 import { ImportSettings } from "./ImportSettings";
 import { McpSection } from "./McpPanel";
-import { LinearSettings } from "./LinearSettings"; // LINEAR
-import { MobileAccess } from "./MobileAccess"; // MOBILE
+import { LinearSettings } from "./LinearSettings";
+import { MobileAccess } from "./MobileAccess";
 import { Refresh } from "./icons";
-import { QuickEntryShortcut } from "./QuickEntryShortcut"; // QUICKENTRY
+import { QuickEntryShortcut } from "./QuickEntryShortcut";
 import { rpc } from "./rpc";
 import { decideNumberInput, NUMBER_SAVE_DELAY_MS, parseSettingNumber } from "./settingsSchema";
 import type { SettingDef, SettingsCtx } from "./settingsItems";
@@ -17,7 +17,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Switch } from "./ui/switch";
 import { hint } from "./hint";
 
-// Settings 행의 오른쪽(또는 아래) 컨트롤. 행 정의(settingsItems.ts)의 kind 에 따라 하나를 고른다.
 const DEBOUNCE_MS = 250;
 
 export function SettingControl({ def, ctx }: { def: SettingDef; ctx: SettingsCtx }) {
@@ -55,8 +54,6 @@ function EnumControl({ def, ctx }: { def: Extract<SettingDef, { kind: "enum" }>;
   );
 }
 
-// 숫자는 범위 안이고 단위(step)에 맞을 때만 저장한다. 키마다 저장하지 않고 입력을 멈추고 잠깐 뒤, 또는 Enter 와 입력칸을 떠날 때 저장한다.
-// 유효하지 않은 값이면 이유를 아래에 보이고 저장하지 않으며, 입력칸을 떠나면 저장된 값으로 되돌린다.
 function NumberControl({ def, ctx }: { def: Extract<SettingDef, { kind: "number" }>; ctx: SettingsCtx }) {
   const value = def.value(ctx);
   const [text, setText] = useState(String(value));
@@ -69,11 +66,9 @@ function NumberControl({ def, ctx }: { def: Extract<SettingDef, { kind: "number"
   useEffect(() => {
     if (parseSettingNumber(text, def.min, def.max, def.step) !== value) setText(String(value));
     setProblem(null);
-    // 저장된 값이 바뀔 때(Reset 포함)만 입력칸을 맞춘다. 타이핑 중인 text 로는 다시 돌리지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   useEffect(() => clearTimer, []);
-  // 지금 입력을 판정하고 유효하면 저장한다(Enter, blur 가 부른다). 저장 뒤의 text 는 useEffect([value]) 가 맞춘다.
   const commit = (next: string) => {
     clearTimer();
     const decision = decideNumberInput(next, def.min, def.max, def.step, value);
@@ -100,8 +95,6 @@ function NumberControl({ def, ctx }: { def: Extract<SettingDef, { kind: "number"
     const decision = commit(text);
     if (decision.action === "problem") revert();
   };
-  // 창이 OS 포커스를 못 받은 상태(다른 앱을 쓰는 중, 포커스 없는 시험 창)에서는 입력칸을 떠나도 blur 가 오지 않는다.
-  // 범위 밖 값이 남아 있는 동안은 바깥을 누르거나 Tab 을 눌러 떠나는 것을 직접 보고 같은 되돌림을 한다.
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (problem === null) return;
@@ -118,7 +111,6 @@ function NumberControl({ def, ctx }: { def: Extract<SettingDef, { kind: "number"
       document.removeEventListener("pointerdown", leave, true);
       document.removeEventListener("keydown", tab, true);
     };
-    // revert 는 렌더마다 새로 만들어지지만 value 와 timer 만 쓴다. problem 이 바뀔 때만 다시 건다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem, value]);
   return (
@@ -149,7 +141,6 @@ function NumberControl({ def, ctx }: { def: Extract<SettingDef, { kind: "number"
   );
 }
 
-// change 는 입력하는 동안 잠깐 모았다가 저장하고(글꼴 이름), blur 는 입력칸을 떠날 때 저장한다(ID, 모델 이름).
 function TextControl({ def, ctx }: { def: Extract<SettingDef, { kind: "text" }>; ctx: SettingsCtx }) {
   const value = def.value(ctx);
   const [text, setText] = useState(value);
@@ -157,7 +148,6 @@ function TextControl({ def, ctx }: { def: Extract<SettingDef, { kind: "text" }>;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => setText(value), [value]);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  // 글꼴 목록의 첫 이름이 설치돼 있는지는 입력하는 즉시(저장 전에) 보여준다. 글꼴 로드가 늦을 수 있어 로드가 끝나면 다시 본다.
   useEffect(() => {
     if (!def.checkFont) return;
     const check = () => setMissing(text.trim() ? missingFirstFamily(text) : null);
@@ -243,7 +233,6 @@ function followLabel(language: FormatLanguage) {
   return S.formatterFollowVscode(label ?? raw);
 }
 
-// 못 쓰는 포맷터가 잡혀 있으면 출처 대신 그 사정을 보인다
 function sourceNote(language: FormatLanguage) {
   const { scope, raw, label, supported } = language.vscode;
   if (!scope) return S.formatSourceNote.builtin;
@@ -257,13 +246,11 @@ function isProblem(language: FormatLanguage) {
   return !!raw && (!label || !supported);
 }
 
-// 데몬 연결, Claude Code 버전, 계정, 어디서 실행 중인지. 예전 Settings 맨 위 줄들이다.
 function DaemonStatus() {
   const meta = useStore((s) => s.meta);
   const connected = useStore((s) => s.connected);
   const refreshing = useStore((s) => s.metaRefreshing);
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
-  // 재시작 뒤 다시 열 때 값이 바뀌어 있을 수 있어 연결이 바뀔 때마다 읽는다.
   useEffect(() => {
     void rpc.call("runtime.info", {}).then(setRuntime).catch(() => setRuntime(null));
   }, [connected]);
@@ -285,7 +272,6 @@ function DaemonStatus() {
   );
 }
 
-// 홈 폴더는 ~ 로 줄여 보인다. 홈 경로를 모르면 그대로 둔다.
 function tildePath(path: string) {
   return path.replace(/^\/Users\/[^/]+(?=\/|$)/, "~");
 }

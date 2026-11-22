@@ -1,4 +1,3 @@
-// 곁다리 대화의 세션별 보관(web/sideChats.ts). 실행: npm test
 import { applySideRun, dropSide, swapSide } from "../web/sideChats";
 
 const cases: { name: string; run: () => string }[] = [];

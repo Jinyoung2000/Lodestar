@@ -1,5 +1,3 @@
-// 로그 폴더 선택 단독 시험: 기본 홈의 앱만 ~/Library/Logs/agent-nav 를 쓴다.
-// 실행: npm test
 import { logDirFor } from "../electron/logDir";
 
 let failed = 0;

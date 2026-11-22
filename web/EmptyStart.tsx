@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus } from "./icons";
+import { Codicon, Plus } from "./icons";
 import { runCommand } from "./shortcuts";
 import { boardShown } from "./screenVisibility";
 import { isTopWorkspace, useStore } from "./store";
@@ -7,8 +7,8 @@ import { S } from "./strings";
 import { Button } from "./ui/button";
 import { useCommandKeycaps } from "./commandKeys";
 import { WorkspacePathInput } from "./WorkspacePathInput";
+import { canPickFolder, newProjectInNewSession, openFolderInNewSession } from "./folderOpen";
 
-// 폴더가 하나도 없는 첫 실행 화면(dogfood 16). 무엇을 해야 하는지와 주요 단축키를 알려 주고, 경로를 넣어 첫 폴더를 바로 추가하게 한다.
 export function EmptyStart() {
   const hasWorkspace = useStore((s) => s.workspaces.some(isTopWorkspace));
   const showBoard = useStore((s) => boardShown(s.settings));
@@ -23,9 +23,14 @@ export function EmptyStart() {
           {adding ? (
             <WorkspacePathInput className="empty-start-input" onCancel={() => setAdding(false)} />
           ) : (
-            <Button variant={hasWorkspace ? "secondary" : "primary"} size="default" onClick={() => setAdding(true)}>
-              <Plus /> {S.addWorkspace}
-            </Button>
+            <>
+              <Button variant={hasWorkspace ? "secondary" : "primary"} size="default" onClick={() => (canPickFolder() ? void openFolderInNewSession() : setAdding(true))}>
+                <Plus /> {S.addWorkspace}
+              </Button>
+              <Button variant="secondary" size="default" onClick={() => void newProjectInNewSession()}>
+                <Codicon name="new-folder" /> {S.newProjectSide}
+              </Button>
+            </>
           )}
           {hasWorkspace && (
             <Button variant="primary" size="default" onClick={() => runCommand("newSession")}>

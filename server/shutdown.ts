@@ -1,13 +1,8 @@
 import type { TerminateReport } from "./processGroups";
 
-// 데몬이 끝나기 전에 해야 할 일의 순서. SIGTERM, 부모의 shutdown 메시지, 부모 연결 끊김이 모두 같은 함수를 부른다.
-// 6회차 발견 1: SIGTERM 은 Node 기본 처리로 즉사해서 미뤄 둔 타임라인 저장(500ms 디바운스)과 CLI 정리를 건너뛰었다.
 export type ShutdownDeps = {
-  // 미뤄 둔 저장을 동기로 쓴다
   flush: () => void;
-  // 부모(Electron 메인)에게 flush 가 끝났다고 알린다
   notifyFlushed: () => void;
-  // CLI 에 정상 종료를 요청한다: 입력을 닫는다
   closeRuns: () => void;
   closeMeta: () => void;
   groupLeaders: () => number[];
@@ -16,9 +11,7 @@ export type ShutdownDeps = {
   exit: (code: number) => void;
   log: (message: string) => void;
   now: () => number;
-  // 입력을 닫은 뒤 CLI 가 스스로 끝나기를 기다리는 시간
   politeWaitMs?: number;
-  // 이 시간 안에 못 끝나면 남은 단계를 건너뛰고 나간다
   hardLimitMs?: number;
   setTimer?: (fn: () => void, ms: number) => unknown;
 };
@@ -51,7 +44,6 @@ export function createDaemonShutdown(deps: ShutdownDeps) {
       deps.closeMeta();
       deps.closeRuns();
     });
-    // 닫는 도중 타임라인이 더 바뀐다(진행 중이던 도구 호출을 멈춤으로 표시 등). 한 번 더 쓴다.
     safely(deps, "flush-2", () => deps.flush());
     deps.log(`[shutdown] runs closed, second flush done ${since()}`);
 

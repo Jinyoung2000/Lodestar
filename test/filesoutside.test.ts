@@ -1,10 +1,8 @@
-// 워크스페이스 밖 파일을 읽기 전용으로 여는 규칙(server/files.ts outsideReadable) 시험. 실행: npm test
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { readWorkspaceFileWithStat, writeWorkspaceFile } from "../server/files";
 
-// os.tmpdir() 는 /var/folders 라 허용 범위(홈, /tmp) 밖이다. /tmp 에 만든다.
 const base = mkdtempSync("/tmp/agent-nav-outside-");
 const fail: string[] = [];
 const expect = (cond: boolean, msg: string) => cond || fail.push(msg);

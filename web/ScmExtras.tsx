@@ -8,11 +8,8 @@ import { M } from "./scmStrings";
 import { relativeTime } from "./sessionList";
 import { flash, getState, startDraft, useStore } from "./store";
 
-// SCM: Source Control 보기 아래의 Worktrees 와 Graph 구역.
-
 export function ScmWorktrees({ currentRoot, refreshKey }: { currentRoot: string; refreshKey: string }) {
   const collapsed = useScmView((v) => !!v.collapsed.worktrees);
-  // 작업 폴더를 더하거나 빼도 목록이 달라진다
   const workspaceCount = useStore((s) => s.workspaces.length);
   const repos = useLoaded(false, `${refreshKey}|${workspaceCount}`, () => rpc.call("scm.worktrees", {}));
   const count = repos?.reduce((n, r) => n + r.worktrees.length, 0) ?? null;
@@ -89,8 +86,6 @@ function ScmCounts({ ahead, behind }: { ahead: number; behind: number }) {
     </span>
   );
 }
-
-// --- Graph ---
 
 const GRAPH_LIMIT = 50;
 
@@ -201,7 +196,6 @@ function CommitDiff({ target, hash, file }: { target: ScmTarget; hash: string; f
 
 type DiffLine = { kind: "add" | "del" | "hunk" | "ctx" | "note"; text: string };
 
-// unified diff 의 파일 머리(diff --git, index, ---, +++)는 빼고 @@ 부터 보인다
 function diffLines(text: string): DiffLine[] {
   const lines: DiffLine[] = [];
   let started = false;
@@ -220,8 +214,6 @@ function diffLines(text: string): DiffLine[] {
   return lines;
 }
 
-// --- 공통 ---
-
 function SectionHead({ section, title, count }: { section: ScmSection; title: string; count: number | null }) {
   const collapsed = useScmView((v) => !!v.collapsed[section]);
   return (
@@ -237,7 +229,6 @@ function SectionHead({ section, title, count }: { section: ScmSection; title: st
   );
 }
 
-// 펼쳐져 있는 동안 key 가 바뀔 때마다 다시 읽는다. 접혀 있으면 읽지 않는다. 읽는 중에도 이전 값을 보여 준다(깜빡임 없이).
 function useLoaded<T>(skip: boolean, key: string, load: () => Promise<T>): T | null {
   const [value, setValue] = useState<{ key: string; data: T } | null>(null);
   useEffect(() => {
@@ -249,7 +240,6 @@ function useLoaded<T>(skip: boolean, key: string, load: () => Promise<T>): T | n
     return () => {
       live = false;
     };
-    // load 는 key 로 식별되는 같은 호출이다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skip, key]);
   return value?.data ?? null;

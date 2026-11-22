@@ -1,5 +1,3 @@
-// 개선 세션이 파일을 바꾸지 않고 질문으로 턴을 끝내면 답 대기(needsInput)가 되고, 답한 뒤 후속 턴이 검사와 반영까지 가는 흐름 단독 시험(임시 git 저장소와 임시 홈, 모델 호출 없음).
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -56,7 +54,6 @@ function harness(src: string) {
     checks: [{ name: "verify", command: "node", args: ["verify.mjs"], timeoutMs: 30_000 }],
     autoFixes: 0,
   });
-  // 한 턴: 사용자 말과 개선 세션의 마지막 답을 타임라인에 쌓는다.
   const turn = (user: string, reply: string) => timeline.push({ kind: "user", text: user }, { kind: "assistant", text: reply });
   return { runner, notices, statuses, turn };
 }
@@ -72,7 +69,6 @@ async function until(runner: Runner, id: string, done: (status: string) => boole
 const create = (runner: Runner) => runner.create({ text: "파일 탭을 고정해 줘", element: null, screenshot: null, screenshotNote: null });
 const NOTHING = "The session finished without changing any file. Nothing to apply";
 
-// 1. 표지가 붙은 질문으로 끝난 첫 턴 → 답 대기. 답한 뒤 후속 턴에서 파일을 바꾸면 검사와 반영까지 간다.
 {
   const src = sourceRepo("src1");
   const { runner, notices, statuses, turn } = harness(src.dir);
@@ -89,16 +85,13 @@ const NOTHING = "The session finished without changing any file. Nothing to appl
   const saved = JSON.parse(readFileSync(join(root, "home", "feedback", feedback.id, "state.json"), "utf8")) as { status: string; question: string };
   check("state.json keeps the status and the question", saved.status === "needsInput" && saved.question === waiting.question);
 
-  // 데몬이 재시작돼도 답을 기다리는 것은 실패로 바뀌지 않는다.
   const reloaded = new FeedbackRunner({ store: { agent: () => ({ status: "idle" }) } as never, agents: {} as never, emit: () => undefined, srcRoot: src.dir, port: 0, restart: () => undefined, busyCount: () => 0 });
   check("a daemon restart leaves needsInput alone", reloaded.get(feedback.id).status === "needsInput");
 
-  // 사용자가 답해서 후속 턴이 시작됐다.
   runner.turnStarted(feedback.agentId);
   const running = runner.get(feedback.id);
   check("the follow-up turn start puts it back to running and clears the question", running.status === "running" && running.question === null);
 
-  // 후속 턴이 파일을 바꾸고 끝났다.
   writeFileSync(join(running.worktree, "web/ui.txt"), "after\n");
   turn("고정으로", "파일 탭을 고정 패널로 바꿨습니다.");
   runner.afterTurn(feedback.agentId);
@@ -113,7 +106,6 @@ const NOTHING = "The session finished without changing any file. Nothing to appl
   check("turnStarted does not reopen an applied feedback", runner.get(feedback.id).status === "applied");
 }
 
-// 2. 표지 없는 옛 세션: 마지막 문장이 물음표로 끝나면 같은 상태. 이번 턴의 답만 본다.
 {
   const src = sourceRepo("src2");
   const { runner, notices, turn } = harness(src.dir);
@@ -123,14 +115,12 @@ const NOTHING = "The session finished without changing any file. Nothing to appl
   await until(runner, feedback.id, (s) => s === "needsInput");
   check("an old session whose last sentence ends with ? becomes needsInput", runner.get(feedback.id).question?.endsWith("다른 뜻인가요?") === true);
 
-  // 4. 후속 턴에서도 파일을 안 바꾸고 이번엔 질문이 아니면 noChanges. 이전 턴의 질문은 보지 않는다.
   runner.turnStarted(feedback.agentId);
   turn("고정으로", "알겠습니다. 지금 구조에서는 바꿀 곳이 없습니다.");
   runner.afterTurn(feedback.agentId);
   await until(runner, feedback.id, (s) => s === "noChanges");
   check("a follow-up turn with no change and no question ends as noChanges, the old question is ignored", runner.get(feedback.id).question === null && notices.includes(NOTHING));
 
-  // 후속 턴이 또 물으면 다시 답 대기로 돌아온다(처음 턴이 아니어도 같은 처리).
   runner.turnStarted(feedback.agentId);
   check("a follow-up on noChanges also starts running", runner.get(feedback.id).status === "running");
   turn("그럼 위쪽에 둬 줘", "[QUESTION] 위쪽이면 헤더 안인가요, 헤더 아래인가요?");
@@ -139,7 +129,6 @@ const NOTHING = "The session finished without changing any file. Nothing to appl
   check("a question in a follow-up turn is needsInput too", runner.get(feedback.id).question === "위쪽이면 헤더 안인가요, 헤더 아래인가요?");
 }
 
-// 3. 질문이 아닌 변경 없음, 파일을 바꾼 턴에서 표지를 잘못 붙인 경우.
 {
   const src = sourceRepo("src3");
   const { runner, notices, turn } = harness(src.dir);

@@ -12,13 +12,11 @@ import { Button } from "./ui/button";
 import { modelName } from "./timelineModel";
 import { S } from "./strings";
 
-// 창을 끌어 옮길 때 제목줄 아래로만 움직이게 하는 한계값은 디자인 토큰(CSS 변수)에서 읽는다.
 function cssNumber(name: string, fallback: number) {
   const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
   return Number.isFinite(value) ? value : fallback;
 }
 
-// /btw 곁다리 대화. 메인 세션의 대화를 알고 답하지만 메인 기록은 바꾸지 않는다.
 export function SideChat({ side }: { side: SideState }) {
   const agent = useStore((s) => s.agents.find((a) => a.id === side.agentId));
   const meta = useStore((s) => s.meta);
@@ -32,13 +30,11 @@ export function SideChat({ side }: { side: SideState }) {
   const run = side.run;
   const busy = run?.status === "running";
   const asideRef = useRef<HTMLElement>(null);
-  // 기본은 오른쪽 아래. 에디터나 떠 있는 대화 창을 가리면 머리를 끌어 옮기고 가장자리를 끌어 크기를 바꾼다(저장하지 않고, 머리를 두 번 누르면 제자리와 기본 크기로).
   const [moved, setMoved] = useState<FloatRect | null>(null);
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, [side.id]);
-  // B2: 대화에서 고른 글을 질문으로 채워 연다. 보내지는 않는다.
   const draftNonce = side.draft?.nonce;
   useEffect(() => {
     if (draftNonce === undefined) return;
@@ -66,7 +62,6 @@ export function SideChat({ side }: { side: SideState }) {
     openAgent(created.id, "new");
   };
 
-  // 머리를 끌면 옮기고, 가장자리와 모서리를 끌면 크기를 바꾼다(떠 있는 대화 창과 같은 손잡이).
   const startGesture = (event: ReactPointerEvent<HTMLElement>, mode: "move" | FloatEdge) => {
     const el = asideRef.current;
     if (event.button !== 0 || !el || (event.target as HTMLElement).closest("button")) return;

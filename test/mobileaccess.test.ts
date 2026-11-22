@@ -1,8 +1,3 @@
-// MOBILE: iOS 앱용 LAN 접속(server/mobileAccess.ts)의 보안 경계를 시험한다.
-// 1. 순수 부분: 페어링 코드(만료, 일회용, 실패 잠금), 장치 토큰(해시만 저장), 허용 RPC 와 인자 검사, 이벤트 거르기와 줄이기, LAN 주소 고르기.
-// 2. 메모리 안 서버: 실제 소켓으로 페어링, 인증, 거절(Origin, 메인 토큰, 허용 밖 메서드), 이미지 크기 상한, 해제, 이벤트 묶기.
-// 3. 시험 데몬: 꺼져 있으면 포트가 없다, 켜면 열리고 다시 끄면 닫힌다, 데몬의 실제 핸들러와 이미지 저장.
-// 모든 서버는 127.0.0.1 에만 묶는다(macOS 방화벽 창을 띄우지 않으려고). 실행: npm test
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { createConnection } from "node:net";
@@ -31,8 +26,6 @@ const rejects = (run: () => unknown, pattern: RegExp, label: string) => {
   }
   throw new Error(`${label}: did not throw`);
 };
-
-// --- 1. 순수 부분 ---
 
 test("PairingCodes: 맞는 코드는 한 번만 쓰이고, 소문자와 하이픈도 받는다", () => {
   const codes = new PairingCodes();
@@ -135,12 +128,10 @@ test("guardMobileCall: 인자를 검사하고 새 객체로 만든다", () => {
 });
 
 test("guardMobileCall: 워크스페이스와 세션 관리 호출의 인자를 검사한다", () => {
-  // worktree: 기준 브랜치가 git 옵션으로 읽히거나 공백, 제어 문자가 들어 있으면 막고, 폴더 없는 대화에는 worktree 를 못 만든다
   const base = { workspaceId: "w", prompt: "go" };
   for (const bad of ["--upload-pack=x", "-b", "a b", "a\nb", "", "x".repeat(201)]) rejects(() => guardMobileCall("agents.create", { ...base, worktree: { branch: "ok", base: bad } }), /Invalid base/, `base ${JSON.stringify(bad)}`);
   for (const bad of ["-x", "a b", "", "x".repeat(201)]) rejects(() => guardMobileCall("agents.create", { ...base, worktree: { branch: bad, base: "main" } }), /Invalid branch/, `branch ${JSON.stringify(bad)}`);
   rejects(() => guardMobileCall("agents.create", { workspaceId: null, prompt: "chat", worktree: { branch: "x", base: "main" } }), /Invalid worktree/, "chat with worktree");
-  // 세션 이름과 고정과 보관: 모양이 틀리면 거절, 이름은 제어 문자를 공백으로 바꾸고 200자로 자른다
   expect(JSON.stringify(guardMobileCall("agents.rename", { agentId: "a", title: "  Fix\nthe   bug  ", extra: 1 })) === '{"agentId":"a","title":"Fix the   bug"}', "rename trims and flattens control characters");
   expect((guardMobileCall("agents.rename", { agentId: "a", title: "가".repeat(500) }).title as string).length === 200, "rename is cut at 200");
   rejects(() => guardMobileCall("agents.rename", { agentId: "a", title: "x".repeat(2001) }), /Invalid title/, "huge title");
@@ -155,7 +146,6 @@ test("guardMobileCall: 워크스페이스와 세션 관리 호출의 인자를 �
   return "ok";
 });
 
-// 홈으로 쓸 임시 폴더: 일반 폴더, git 저장소(.git 폴더), worktree(.git 파일), 숨김 폴더, 시스템 폴더, node_modules, 밖을 가리키는 링크, 파일
 function browseFixture() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "mobile-browse-")));
   const outside = realpathSync(mkdtempSync(join(tmpdir(), "mobile-outside-")));
@@ -208,14 +198,12 @@ test("폴더 경로: 홈 밖, 숨김, 시스템 폴더, 링크 우회, 파일은
       rejects(() => resolveFolder(path, f.root), denied, `browse ${path}`);
       rejects(() => resolveAddable(path, f.root), denied, `add ${path}`);
     }
-    // 홈 밖은 있는 폴더든 없는 폴더든 같은 거절이라 존재 여부가 새지 않는다
     rejects(() => resolveFolder("/definitely/not/there", f.root), denied, "missing outside");
     rejects(() => resolveFolder(join(f.outside, "nope"), f.root), denied, "missing next to outside");
     rejects(() => resolveFolder("~/Repos/missing", f.root), /does not exist/, "missing inside");
     rejects(() => resolveFolder("~/Repos/notes.txt", f.root), denied, "a file is not a folder");
     rejects(() => resolveFolder({}, f.root), /Invalid path/, "object");
     rejects(() => resolveFolder("a\0b", f.root), /Invalid path/, "nul byte");
-    // Library 는 홈 바로 아래에서만 뺀다
     expect(resolveFolder("~/Repos/Library", f.root).display === "~/Repos/Library", "nested Library is an ordinary folder");
     return "ok";
   } finally {
@@ -234,7 +222,6 @@ test("폴더 경로: 홈 아래 폴더는 여러 표기(~, 절대, 상대, 끝 �
     expect(resolveFolder("", f.root).display === "~" && resolveFolder("~", f.root).dir === f.root && resolveFolder(undefined, f.root).dir === f.root, "home itself can be browsed");
     rejects(() => resolveAddable("~", f.root), /not the home folder itself/, "add home");
     rejects(() => resolveAddable("", f.root), /not the home folder itself/, "add empty");
-    // guardMobileCall 이 같은 규칙을 쓰고, 풀어 낸 절대 경로를 핸들러에 넘긴다
     expect(guardMobileCall("workspaces.add", { dir: "~/Repos/plain", force: true }, f.root).dir === want, "guard resolves to the absolute path");
     expect(JSON.stringify(Object.keys(guardMobileCall("workspaces.add", { dir: "~/Repos/plain" }, f.root))) === '["dir"]', "only dir is passed on");
     rejects(() => guardMobileCall("workspaces.add", { dir: "/etc" }, f.root), /visible folders/, "guard add /etc");
@@ -321,8 +308,6 @@ test("makeOffer: QR 주소와 수동 입력 문자열에 코드와 모든 호스
   return offer.manual;
 });
 
-// --- 2. 메모리 안 서버 ---
-
 type Client = { ws: WebSocket; messages: unknown[]; next: (predicate?: (m: Record<string, unknown>) => boolean, ms?: number) => Promise<Record<string, unknown>>; closed: Promise<number> };
 
 function connect(port: number, headers: Record<string, string> = {}): Promise<Client> {
@@ -363,7 +348,6 @@ function http(port: number, method: string, path: string, body?: Buffer | string
         try {
           json = JSON.parse(Buffer.concat(chunks).toString("utf8"));
         } catch {
-          // 본문이 JSON 이 아니면 빈 객체
         }
         resolve({ status: res.statusCode ?? 0, json });
       });
@@ -504,12 +488,10 @@ test("서버: Origin 이 있는 요청(브라우저)은 HTTP 와 WebSocket 모�
       (e: Error & { status?: number }) => e,
     );
     expect(error?.status === 403, `ws origin ${error?.message}`);
-    // React Native 는 연결한 주소를 그대로 Origin 으로 보낸다: 통과. DNS rebinding(호스트와 Origin 이 같은 일반 도메인)은 거절.
     const native = await http(m.server.port, "GET", "/mobile/health", undefined, { origin: `http://127.0.0.1:${m.server.port}` });
     expect(native.status === 200, `native-style origin ${native.status}`);
     const nativeWs = await connect(m.server.port, { origin: `http://127.0.0.1:${m.server.port}` });
     nativeWs.ws.close();
-    // 안드로이드 React Native(OkHttp)도 같은 모양이다: ws://<주소>:<포트> 에 대해 Origin 을 http://<주소>:<포트> 로 보낸다(WebSocketModule.getDefaultOrigin). 에뮬레이터는 호스트 Mac 을 10.0.2.2 로 본다.
     for (const name of ["10.0.2.2", "192.168.0.5", "100.101.102.103", "mac.local"]) {
       const androidShaped = await http(m.server.port, "GET", "/mobile/health", undefined, { host: `${name}:${m.server.port}`, origin: `http://${name}:${m.server.port}` });
       expect(androidShaped.status === 200, `android-style origin for ${name}: ${androidShaped.status}`);
@@ -553,7 +535,6 @@ test("서버: 이미지 업로드는 장치 토큰이 필요하고 5MB 를 넘�
     expect(ok.status === 200 && typeof ok.json.id === "string", JSON.stringify(ok.json));
     expect(m.saved.length === 1 && m.saved[0].name === "사진 1.png" && m.saved[0].size === PNG.length && m.saved[0].type === "image/png", JSON.stringify(m.saved));
     const big = Buffer.alloc(MAX_IMAGE_BYTES + 1, 1);
-    // 5MB 를 다 보내는 중에 서버가 먼저 응답하고 닫으면 클라이언트는 응답 대신 연결 끊김을 볼 수도 있다(둘 다 거절이다).
     const tooLarge = await http(m.server.port, "POST", "/mobile/images", big, headers()).catch(() => ({ status: 413 }));
     expect(tooLarge.status === 413, `declared length over the limit -> ${tooLarge.status}`);
     expect(m.saved.length === 1, "nothing saved for the big one");
@@ -679,8 +660,6 @@ test("서버: 끄면 포트가 닫히고 열려 있던 연결도 끊긴다", asy
   return "ok";
 });
 
-// --- 3. 시험 데몬 ---
-
 const loopback = (port: number) => new Promise<"open" | "refused">((resolve) => {
   const socket = createConnection({ host: "127.0.0.1", port }, () => {
     socket.destroy();
@@ -734,7 +713,6 @@ test("데몬: 켜면 열리고, 페어링한 폰은 세션을 읽고 보내되 �
     const token = paired.json.deviceToken as string;
     expect(token !== daemon.token, "the phone never gets the desktop token");
 
-    // 데스크톱 메인 토큰은 모바일 포트에서 통하지 않는다
     const mainToken = await connect(mobilePort);
     mainToken.ws.send(JSON.stringify({ auth: daemon.token }));
     expect((await mainToken.closed) === 4401, "main token rejected on the mobile port");
@@ -759,7 +737,6 @@ test("데몬: 켜면 열리고, 페어링한 폰은 세션을 읽고 보내되 �
     const unknownAgent = await call(11, "agents.timelinePage", { agentId: "nope", limit: 5 });
     expect(/Unknown agent/.test(String(unknownAgent.error)), JSON.stringify(unknownAgent));
 
-    // 이미지는 HTTP 로 올리고, 같은 저장 경로(HOME/images)에 파일이 생긴다
     const upload = await http(mobilePort, "POST", "/mobile/images", PNG, { authorization: `Bearer ${token}`, "content-type": "image/png", "x-image-name": "a.png" });
     expect(upload.status === 200, JSON.stringify(upload.json));
     const stored = readdirSync(join(daemon.home, "images"));
@@ -767,7 +744,6 @@ test("데몬: 켜면 열리고, 페어링한 폰은 세션을 읽고 보내되 �
     const notAnImage = await http(mobilePort, "POST", "/mobile/images", Buffer.from("not an image"), { authorization: `Bearer ${token}`, "content-type": "image/png" });
     expect(notAnImage.status === 400, `non-image ${notAnImage.status}`);
 
-    // 장치 목록과 해제
     const status = (await desktopRpc(daemon, "mobile.status", {})).result as { listening: boolean; devices: { id: string; name: string; online: boolean }[] };
     expect(status.listening && status.devices.length === 1 && status.devices[0].name === "시험 iPhone" && status.devices[0].online, JSON.stringify(status));
     expect(!existsSync(join(daemon.home, "mobile-devices.json")) === false, "devices persisted");
@@ -785,7 +761,6 @@ test("데몬: 켜면 열리고, 페어링한 폰은 세션을 읽고 보내되 �
   }
 });
 
-// 데스크톱 화면처럼 /ws/rpc 에 붙어 서버 이벤트를 모은다(폰에서 바꾼 것이 데스크톱에도 방송되는지 본다)
 async function desktopEvents(daemon: { port: number; token: string }) {
   const ws = new WebSocket(`ws://127.0.0.1:${daemon.port}/ws/rpc?token=${daemon.token}`, { headers: { origin: `http://127.0.0.1:${daemon.port}` } });
   const events: { type: string; [key: string]: unknown }[] = [];
@@ -824,7 +799,6 @@ test("데몬: 폰이 폴더를 둘러보고 워크스페이스를 더하고 빼�
     };
     type Browse = { path: string; parent: string | null; git: boolean; workspaceId: string | null; entries: { name: string; git: boolean; workspaceId: string | null }[] };
 
-    // 둘러보기: 홈의 하위 폴더 이름만 나오고, 홈 밖과 숨김 폴더는 거절된다
     const home = (await call("mobile.browse", {})).result as Browse;
     expect(home.path === "~" && home.parent === null && JSON.stringify(home.entries.map((e) => e.name)) === '["Repos"]', JSON.stringify(home));
     const repos = (await call("mobile.browse", { path: "~/Repos" })).result as Browse;
@@ -835,7 +809,6 @@ test("데몬: 폰이 폴더를 둘러보고 워크스페이스를 더하고 빼�
     expect(/does not exist/.test(String((await call("workspaces.add", { dir: "~/Repos/missing" })).error)), "cannot add a folder that does not exist");
     expect(/visible folders inside your home/.test(String((await call("workspaces.add", { dir: "~/Repos/notes.txt" })).error)), "cannot add a file");
 
-    // 워크스페이스 추가: 데스크톱에 workspaces 이벤트가 가고, 둘러보기에서는 이미 추가됐다고 표시된다
     const before = (await call("workspaces.list", {})).result as { id: string; dir: string; name: string }[];
     const added = (await call("workspaces.add", { dir: "~/Repos/plain" })).result as { id: string; dir: string; name: string };
     expect(added.dir === join(f.root, "Repos", "plain") && added.name === "plain", JSON.stringify(added));
@@ -844,10 +817,8 @@ test("데몬: 폰이 폴더를 둘러보고 워크스페이스를 더하고 빼�
     const after = (await call("mobile.browse", { path: "~/Repos" })).result as Browse;
     expect(after.entries.find((e) => e.name === "plain")?.workspaceId === added.id, "browse marks the added folder");
     expect(((await call("workspaces.list", {})).result as unknown[]).length === before.length + 1, "workspace list grew by one");
-    // 같은 폴더를 다시 추가해도 하나다
     expect(((await call("workspaces.add", { dir: "~/Repos/plain/" })).result as { id: string }).id === added.id, "adding twice returns the same workspace");
 
-    // git 브랜치: 저장소가 아닌 폴더는 repoRoot 가 null, 저장소는 브랜치 목록이 온다. 모르는 워크스페이스는 거절
     const plainGit = (await call("git.branches", { workspaceId: added.id })).result as { repoRoot: string | null; branches: string[] };
     expect(plainGit.repoRoot === null && plainGit.branches.length === 0, JSON.stringify(plainGit));
     const seededWs = before[0];
@@ -858,12 +829,10 @@ test("데몬: 폰이 폴더를 둘러보고 워크스페이스를 더하고 빼�
     expect(((await call("git.checkBranchName", { workspaceId: seededWs.id, branch: "main" })).result as { problem: string | null }).problem !== null, "existing branch name is a problem");
     expect(((await call("git.checkBranchName", { workspaceId: seededWs.id, branch: "bad name" })).result as { problem: string | null }).problem !== null, "space in the name is a problem");
 
-    // worktree 로 시작하는 요청은 모델을 부르기 전에 걸러진다: 없는 기준 브랜치, git 이 아닌 폴더
     expect(/Invalid base/.test(String((await call("agents.create", { workspaceId: seededWs.id, prompt: "x", worktree: { branch: "wt-a", base: "no-such-branch" } })).error)), "unknown base branch");
     expect(/Not a git repo/.test(String((await call("agents.create", { workspaceId: added.id, prompt: "x", worktree: { branch: "wt-a", base: "main" } })).error)), "non-git folder cannot get a worktree");
     expect(/Invalid base/.test(String((await call("agents.create", { workspaceId: seededWs.id, prompt: "x", worktree: { branch: "wt-a", base: "--detach" } })).error)), "option-like base");
 
-    // 세션 이름, 고정, 보관: 데스크톱에 agent 이벤트가 가고 목록에 반영된다
     const agent = ((await call("agents.list", {})).result as { id: string; title: string; pinned?: boolean; done?: boolean }[])[0];
     expect(!!agent && !agent.pinned && !agent.done, JSON.stringify(agent));
     expect((await call("agents.rename", { agentId: agent.id, title: "  새   이름 " })).error === undefined, "rename ok");
@@ -877,10 +846,8 @@ test("데몬: 폰이 폴더를 둘러보고 워크스페이스를 더하고 빼�
     expect(listed.title === "새 이름" && listed.pinned === true && listed.done === true, JSON.stringify(listed));
     expect(/Unknown agent/.test(String((await call("agents.rename", { agentId: "nope", title: "x" })).error)), "unknown agent");
 
-    // 세션 삭제와 worktree 정리는 폰에서 못 한다
     for (const [method, params] of [["agents.remove", { agentId: agent.id, removeWorktree: true }], ["workspaces.relocate", { id: added.id, dir: "~/Repos/app" }], ["scm.openWorktree", { path: "/tmp" }]] as const) expect(/cannot call/.test(String((await call(method, params)).error)), `${method} blocked`);
 
-    // 목록에서 빼기: 파일은 그대로 남고, 세션이 없어 hidden 은 0. 데스크톱에 workspaces 이벤트가 간다
     desktop.events.length = 0;
     const removed = (await call("workspaces.remove", { id: added.id })).result as { hidden: number };
     expect(removed.hidden === 0, JSON.stringify(removed));
@@ -889,7 +856,6 @@ test("데몬: 폰이 폴더를 둘러보고 워크스페이스를 더하고 빼�
     expect(!((await call("workspaces.list", {})).result as { id: string }[]).some((w) => w.id === added.id), "gone from the list");
     expect(/Unknown workspace/.test(String((await call("workspaces.remove", { id: added.id })).error)), "removing twice fails");
 
-    // 세션이 있는 폴더를 빼면 세션은 숨겨지고, 같은 폴더를 다시 추가하면 돌아온다
     const gone = (await call("workspaces.remove", { id: seededWs.id })).result as { hidden: number };
     expect(gone.hidden === 1, `hidden ${gone.hidden}`);
     expect(((await call("agents.list", {})).result as unknown[]).length === 0, "the session is hidden with its folder");

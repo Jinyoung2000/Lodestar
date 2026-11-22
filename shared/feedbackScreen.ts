@@ -1,4 +1,3 @@
-// 피드백을 보낼 때의 화면 상태를 모으고 프롬프트 줄로 바꾼다. 스토어를 직접 읽지 않고 필요한 값만 받아서 시험할 수 있다.
 import type { ScreenContext } from "./protocol";
 
 export type ScreenInput = {

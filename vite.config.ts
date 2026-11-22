@@ -6,7 +6,6 @@ import react from "@vitejs/plugin-react";
 import ts from "typescript";
 import { defineConfig, type Plugin } from "vite";
 
-// dev 서버에서도 데몬과 같은 토큰을 페이지에 넣는다.
 const injectToken = (): Plugin => ({
   name: "agent-nav-token",
   apply: "serve",
@@ -16,9 +15,6 @@ const injectToken = (): Plugin => ({
   },
 });
 
-// 피드백 요소 선택용: web/ 의 모든 TSX 에서 HTML 요소(소문자 태그)에 data-source="web/App.tsx:142" 와 data-component="TitleBar" 를 붙인다.
-// 개발 빌드뿐 아니라 설치해서 쓰는 프로덕션 빌드에서도 요소의 출처를 알아야 해서 항상 켠다. 끄려면 AGENT_NAV_NO_SOURCE_ATTRS=1.
-// 속성은 태그 이름 바로 뒤에 한 줄로 끼워 넣으므로 줄 번호와 소스맵 줄은 그대로다.
 const sourceAttrs = (): Plugin => ({
   name: "agent-nav-source-attrs",
   enforce: "pre",
@@ -60,7 +56,6 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 5173,
-    // /attachments: 입력창 파일 업로드 폴백(POST). 데몬의 Host 검사를 통과하도록 Host 를 데몬 주소로 바꿔 보낸다.
     proxy: { "/ws": { target: "ws://127.0.0.1:7788", ws: true }, "/attachments": { target: "http://127.0.0.1:7788", changeOrigin: true } },
   },
 });

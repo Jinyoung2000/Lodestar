@@ -1,6 +1,3 @@
-// FBBLOCK: 코드 탓이 아니라 환경(npm 을 못 찾음)이나 인증(Claude 로그인 만료) 탓에 멈춘 피드백 단독 시험(임시 git 저장소와 임시 홈, 모델 호출 없음).
-// 실패 분류, 자동 재시도 일정, blocked 에서 자동 수정 턴을 보내지 않는 것, 환경 오류 재시도 뒤 통과, 인증 복구 뒤 세션 재시작, 횟수를 다 쓰면 failed 와 단추.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,7 +21,6 @@ const { feedbackBadge } = await import("../web/feedbackBadge");
 const { matchesImprovement, notAppliedCount } = await import("../web/improvementRows");
 type Runner = InstanceType<typeof FeedbackRunner>;
 
-// 1. 실패 분류
 {
   const spawn = { code: "ENOENT", syscall: "spawn npm", text: "spawn npm ENOENT" };
   check("spawn npm ENOENT is an environment error", classifyFailure(spawn) === "environment");
@@ -42,7 +38,6 @@ type Runner = InstanceType<typeof FeedbackRunner>;
   check("session errors: auth flag wins, connection text is network, anything else is other", classifySessionError({ text: "x", auth: true }) === "auth" && classifySessionError({ text: "Unable to connect to API (ENOTFOUND)", auth: false }) === "network" && classifySessionError({ text: "Process ended unexpectedly", auth: false }) === "other" && classifySessionError(null) === "other");
 }
 
-// 2. 자동 재시도 일정과 단추 판단
 {
   check("environment retries wait 1, 5 and 15 minutes", ENV_RETRY_DELAYS_MS.join(",") === "60000,300000,900000");
   check("after the third retry there is no delay left", envRetryDelay(0) === 60_000 && envRetryDelay(1) === 300_000 && envRetryDelay(2) === 900_000 && envRetryDelay(3) === null);
@@ -57,7 +52,6 @@ type Runner = InstanceType<typeof FeedbackRunner>;
   check("interrupted feedback keep working as before", canRunAgain({ status: "failed", interrupted: true }) && !canRunAgain({ status: "applied", interrupted: true }));
 }
 
-// 3. 화면: 대기 표시는 실패와 갈라지고 Not applied 개수에 안 든다
 {
   const env = { status: "blocked" as const, retrying: false, restartPending: false, failure: "x", blocked: { reason: "environment" as const, stage: "checks" as const, nextRetryAt: null } };
   const auth = { ...env, blocked: { reason: "auth" as const, stage: "session" as const, nextRetryAt: null } };
@@ -67,7 +61,6 @@ type Runner = InstanceType<typeof FeedbackRunner>;
   check("the sidebar count of not applied ignores blocked", notAppliedCount({ b: { ...env, id: "b", agentId: "a", checks: [], createdAt: "x", updatedAt: "y" } }, [{ id: "a", feedbackId: "b", status: "idle" }]) === 0);
 }
 
-// 4. FeedbackRunner: 환경 오류와 인증 오류
 const VERIFY = `import { mkdirSync, writeFileSync } from "node:fs";
 mkdirSync("dist", { recursive: true });
 writeFileSync("dist/index.html", "built");
@@ -86,13 +79,11 @@ type Setup = {
   checks: { name: string; command: string; args: string[]; timeoutMs: number; kind?: "tsc" | "tests" | "build" }[];
   binDir?: string;
   retryDelaysMs?: number[];
-  // 개선 세션의 마지막 오류. 있으면 세션이 오류로 끝난 것으로 본다.
   sessionError?: { text: string; auth: boolean };
   authProbe?: () => Promise<boolean>;
   authProbeMs?: number;
 };
 
-// 가짜 개선 세션: send 로 시작된 턴은 곧 끝난 것처럼 afterTurn 을 부른다. 새 세션도 같은 방식이라 Run Again 이 만든 세션이 바로 다음 결과를 낸다.
 function daemon(src: string, setup: Setup) {
   const notices: string[] = [];
   const sent: { agentId: string; prompt: string }[] = [];
@@ -104,7 +95,6 @@ function daemon(src: string, setup: Setup) {
     adopt: () => undefined,
     send: async (agentId: string, prompt: string) => {
       sent.push({ agentId, prompt });
-      // start() 가 만든 첫 세션의 턴은 시험이 직접 끝낸다(afterTurn 을 두 번 부르지 않는다)
       if (holder.holdNext) {
         holder.holdNext = false;
         return { queued: false };
@@ -136,7 +126,6 @@ function daemon(src: string, setup: Setup) {
     restart: () => undefined,
     busyCount: () => 0,
     checks: setup.checks,
-    // 로그인 셸 대신 PATH 를 직접 준다. binDir 는 처음부터 PATH 에 있지만 안에 파일은 나중에 생긴다(설치되거나 PATH 가 고쳐진 것처럼).
     readEnv: async (force) => {
       forced.push(force);
       return { ...process.env, PATH: [setup.binDir, process.env.PATH].filter(Boolean).join(delimiter) };
@@ -179,7 +168,6 @@ function installTool(binDir: string, name: string) {
 
 const CHECK = (command: string, kind?: "tsc" | "tests" | "build") => ({ name: "verify", command, args: ["verify.mjs"], timeoutMs: 30_000, kind });
 
-// 4a. npm 같은 도구를 못 찾으면: 검사를 돌리지 않고 기다린다, 모델 턴 없음, 설치되면 자동 재시도로 통과
 {
   const src = sourceRepo("env-retry");
   const binDir = join(root, "env-retry-bin");
@@ -204,7 +192,6 @@ const CHECK = (command: string, kind?: "tsc" | "tests" | "build") => ({ name: "v
   check("still no model turn, and the retry counters are cleared by the apply", d.sent.length === 0 && done.blocked === null && done.blockTries === 0);
 }
 
-// 4b. 끝내 못 찾으면: 1, 5, 15분 대신 시험용 간격 세 번 뒤 failed, 단추가 보인다
 {
   const src = sourceRepo("env-exhaust");
   const d = daemon(src, { checks: [CHECK("fakenpm2")], binDir: join(root, "env-exhaust-bin") });
@@ -222,7 +209,6 @@ const CHECK = (command: string, kind?: "tsc" | "tests" | "build") => ({ name: "v
   check("Retry Checks by hand resets the count and passes once the tool exists", d.runner.get(id).status === "applied" && d.runner.get(id).blockTries === 0);
 }
 
-// 4c. 검사 실행 중 "command not found"(종료 코드 127)도 기준선과 비교하거나 수정 턴을 보내지 않고 기다린다
 {
   const src = sourceRepo("env-127");
   const d = daemon(src, { checks: [{ name: "build step", command: "sh", args: ["-c", "definitely-not-a-command-xyz"], timeoutMs: 30_000, kind: "build" }], retryDelaysMs: [60_000] });
@@ -234,7 +220,6 @@ const CHECK = (command: string, kind?: "tsc" | "tests" | "build") => ({ name: "v
   check("the failing check is recorded as not ok", f.checks.length === 1 && f.checks[0].ok === false);
 }
 
-// 4d. 개선 세션이 인증 만료로 끝났다: 기다리고, 인증이 돌아오면 새 세션으로 다시 시작, 횟수를 다 쓰면 failed 와 Run Again
 {
   const src = sourceRepo("auth-loop");
   const d = daemon(src, {
@@ -244,7 +229,6 @@ const CHECK = (command: string, kind?: "tsc" | "tests" | "build") => ({ name: "v
   });
   const since = new Date().toISOString();
   const id = await start(d);
-  // 같은 홈을 쓰는 앞 시험의 항목이 목록에 섞이므로 이 시험이 시작한 뒤에 만든 것만 본다.
   const mine = () => d.runner.list().filter((f) => f.createdAt >= since);
   await waitFor(() => mine().some((f) => f.status === "failed"));
   const all = mine();
@@ -259,7 +243,6 @@ const CHECK = (command: string, kind?: "tsc" | "tests" | "build") => ({ name: "v
   check("no fix turns were sent to a session that never started", d.sent.every((s) => !s.prompt.includes("failed after your changes")));
 }
 
-// 4e. 다른 세션이 성공했다고 알리면(authRestored) 확인 주기를 기다리지 않고 바로 다시 시작한다
 {
   const src = sourceRepo("auth-restored");
   let probes = 0;
@@ -283,7 +266,6 @@ const CHECK = (command: string, kind?: "tsc" | "tests" | "build") => ({ name: "v
   check("the chat says sign-in is back", d.notices.includes(T.fbAuthResumed));
 }
 
-// 4f. 데몬이 재시작돼도 기다리던 환경 오류 항목은 다시 타이머를 걸고 끝까지 간다
 {
   const src = sourceRepo("env-restart");
   const binDir = join(root, "env-restart-bin");
@@ -292,7 +274,6 @@ const CHECK = (command: string, kind?: "tsc" | "tests" | "build") => ({ name: "v
   await until(first.runner, id, (f) => f.status === "blocked");
   const state = JSON.parse(readFileSync(join(root, "home", "feedback", id, "state.json"), "utf8"));
   check("the wait is saved in state.json", state.status === "blocked" && state.blocked.reason === "environment" && !!state.blocked.nextRetryAt);
-  // 같은 홈을 읽는 두 번째 데몬(= 재시작). 첫 데몬의 타이머는 시험이 끝날 때 프로세스가 끝나며 사라진다.
   installTool(binDir, "fakenpm3");
   const second = daemon(src, { checks: [CHECK("fakenpm3")], binDir, retryDelaysMs: [600_000] });
   const loaded = second.runner.get(id);
@@ -303,7 +284,6 @@ const CHECK = (command: string, kind?: "tsc" | "tests" | "build") => ({ name: "v
   check("after the restart the retry runs and applies", second.runner.get(id).status === "applied", `${second.runner.get(id).status} ${second.runner.get(id).failure ?? ""}`);
 }
 
-// 4g. 코드 오류는 그대로 자동 수정 대상이다(분류가 너무 넓지 않다): 일반 실패는 blocked 가 되지 않는다
 {
   const src = sourceRepo("code-failure");
   const d = daemon(src, { checks: [{ name: "verify", command: "node", args: ["-e", "console.error('data is broken'); process.exit(1)"], timeoutMs: 30_000 }] });

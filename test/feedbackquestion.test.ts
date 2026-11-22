@@ -1,4 +1,3 @@
-// 개선 세션의 마지막 답이 사용자에게 묻는 말인지 가르는 함수 단독 시험. 실행: npm test
 import { parseFeedbackReply, withoutQuestionMarker } from "../shared/feedbackQuestion";
 
 const cases: { name: string; run: () => string }[] = [];

@@ -6,7 +6,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 
-// setTimeout 을 가로채 걸린 시간과 취소만 기록한다(실제로 기다리지 않는다).
 const real = { set: globalThis.setTimeout, clear: globalThis.clearTimeout };
 let nextTimer = 1;
 const timers = new Map<number, { ms: number; run: () => void }>();

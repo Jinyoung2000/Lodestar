@@ -1,5 +1,3 @@
-// 스크롤 중 JS 스레드가 프레임을 얼마나 제때 그리는지 잰다(requestAnimationFrame 간격). 스크롤 자체는 네이티브라 부드러워도 행을 그리는 JS 가 밀리면 빈 칸이 보인다.
-// 개발 모드(Expo Go)의 값이라 릴리스보다 느리다. 결과는 Settings 의 Diagnostics 에 쌓인다.
 import { record } from "./perf";
 
 export function createFrameMeter(label: string) {

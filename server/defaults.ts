@@ -11,16 +11,13 @@ const VSCODE_MODEL_KEY = "chat.currentLanguageModel.panel.agent-host-claude";
 const VSCODE_SORT_KEY = "agentSessions.sorting";
 const VSCODE_MODEL_CONFIG_KEY = "chat.modelConfiguration.panel.agent-host-claude";
 const SQLITE = "/usr/bin/sqlite3";
-// 파일 읽기와 sqlite 호출은 동기라 데몬이 잠깐 선다. 같은 값을 자주 다시 읽지 않게 하는 시간.
 const CACHE_MS = 5000;
 
 export type DefaultsPaths = {
   vscodeUserDir: string;
-  // ~/.claude/settings.json
   claudeSettings: string;
 };
 
-// 시험에서만 환경변수로 바꾼다. 실제 값은 읽기만 한다.
 export function defaultPaths(env: NodeJS.ProcessEnv = process.env): DefaultsPaths {
   return {
     vscodeUserDir: env.AGENT_NAV_VSCODE_USER_DIR ?? join(homedir(), "Library", "Application Support", "Code", "User"),
@@ -28,10 +25,8 @@ export function defaultPaths(env: NodeJS.ProcessEnv = process.env): DefaultsPath
   };
 }
 
-// 바깥 세계를 읽는 두 함수. 단위 시험은 이 둘을 가짜로 바꾼다.
 export type DefaultsIo = {
   readText: (file: string) => string | null;
-  // state.vscdb 의 ItemTable 에서 key 의 value. 읽을 수 없으면 null.
   vscodeState: (key: string) => string | null;
 };
 
@@ -78,7 +73,6 @@ export function parseJsonc(text: string): unknown {
       i++;
     }
   }
-  // 문자열 밖의 끝 쉼표 제거. 위에서 문자열을 건너뛰며 만든 out 에서 다시 문자열을 건너뛰며 본다.
   let clean = "";
   for (let k = 0; k < out.length; k++) {
     const c = out[k];
@@ -128,7 +122,6 @@ export type SourceValues = {
 
 const EMPTY: SourceValues = { model: null, effort: null, permissionMode: null, diffInlineWhenNarrow: null, sessionSort: null, requestQueuing: null, previewEditors: null, editorOptions: {} };
 
-// "agent-host-claude:@provider=anthropic:opus%5B1m%5D" 에서 모델 이름(opus[1m])만.
 export function vscodeModelName(key: string): string | null {
   const m = /^agent-host-claude:@provider=[^:]*:(.+)$/.exec(key.trim());
   if (!m) return null;
@@ -164,11 +157,9 @@ export function readVscode(io: DefaultsIo, paths: DefaultsPaths): SourceValues {
     if (raw && values.model) {
       try {
         const config = JSON.parse(raw) as Record<string, { thinkingLevel?: unknown } | null>;
-        // 키는 모델 키 그대로(인코딩 포함)지만, 인코딩만 다른 경우도 같은 모델로 본다.
         const entry = config[currentKey.trim()] ?? Object.entries(config).find(([k]) => vscodeModelName(k) === values.model)?.[1];
         values.effort = asEffort(entry?.thinkingLevel);
       } catch {
-        // 깨진 값은 지정 없음으로 본다
       }
     }
   }
@@ -182,7 +173,6 @@ export function readClaude(io: DefaultsIo, paths: DefaultsPaths): SourceValues {
     ...EMPTY,
     model: asModel(settings.model),
     effort: asEffort(settings.effortLevel),
-    // dontAsk 처럼 agent-nav 에 없는 모드는 여기서 걸러져 다음 순위로 간다
     permissionMode: asPermission(permissions.defaultMode),
   };
 }
@@ -228,11 +218,9 @@ export class DefaultsReader {
   }
 }
 
-// 데몬 로그용 한 줄
 export function describeDefaults(d: ResolvedDefaults) {
   const one = <T>(r: Resolved<T>) => `${r.value ?? "(cli)"}[${r.source}]`;
   return `model=${one(d.model)} effort=${one(d.effort)} permission=${one(d.permissionMode)} diffInline=${one(d.diffInlineWhenNarrow)} sort=${one(d.sessionSort)} queuing=${one(d.requestQueuing)} preview=${one(d.previewEditors)}`;
 }
 
-// 데몬이 하나만 쓰는 읽기 객체. 경로는 시작할 때 환경변수에서 정한다.
 export const defaultsReader = new DefaultsReader();

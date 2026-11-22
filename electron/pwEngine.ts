@@ -1,6 +1,3 @@
-// 에이전트의 Browser 도구와 run_playwright_code 가 공유 페이지 안에서 요소를 찾는 엔진. 메인 프로세스가 guest 의 격리된 JS 세계(executeJavaScriptInIsolatedWorld)에서 실행한다.
-// Playwright 의 선택자 일부(css, text=, role=, xpath=, aria-ref=, id=, data-testid=, `>>` 연쇄, :has-text(), :text())를 같은 뜻으로 읽는다.
-// 함수들은 문자열로 바뀌어 페이지에 들어가므로 자기 안의 것만 쓴다.
 
 export type ChainStep =
   | { k: "css"; v: string }
@@ -14,7 +11,6 @@ export type ChainStep =
 
 export type LocateRequest = { chain: ChainStep[]; mode: string; arg?: unknown; timeout: number; strict: boolean };
 
-// 요소를 찾는 도구 모음을 돌려준다. 격리된 세계의 window.__anRefs(read_page 가 붙인 ref)를 읽는다.
 export function engineMain() {
   const clean = (text: string | null | undefined, max = 4000) => (text ?? "").replace(/\s+/g, " ").trim().slice(0, max);
   const refsOf = () => (window as unknown as { __anRefs?: Element[] }).__anRefs ?? [];
@@ -76,7 +72,6 @@ export function engineMain() {
     }
   };
 
-  // css 조각: :has-text("…"), :text("…"), :text-is("…"), :visible 를 읽어 걸러 낸다. 이 확장 앞뒤는 평범한 css 다.
   const PSEUDO = /:(has-text|text-is|text|visible)(?:\((?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')(i?)\))?/;
   const cssFind = (scope: ParentNode, selector: string): Element[] => {
     const m = PSEUDO.exec(selector);
@@ -148,7 +143,6 @@ export function engineMain() {
     }
   };
 
-  // 연쇄를 따라 요소를 찾는다. nth 와 filter 는 지금까지 찾은 목록에 적용되고, 나머지는 각 요소 안에서 더 찾는다.
   const resolve = (chain: ChainStep[]): Element[] => {
     let els: Element[] | null = null;
     for (const step of chain) {
@@ -181,7 +175,6 @@ export function engineMain() {
   return { clean, shown, visible, nameOf, roleOf, textOf, resolve, LANDMARKS };
 }
 
-// 선택 하나(ref 나 선택자)를 연쇄로. 선택자 글은 `>>` 로 이어지고, 앞에 text=, role=, xpath=, aria-ref=, id=, data-testid= 를 쓸 수 있다. 그 밖은 css 다.
 export function parseSelector(input: string): ChainStep[] {
   const parts: string[] = [];
   let depth = 0;
@@ -237,7 +230,6 @@ export function parseSelector(input: string): ChainStep[] {
   });
 }
 
-// 연쇄를 사람이 읽을 글로(오류 문구용)
 export function describeChain(chain: ChainStep[]): string {
   const one = (s: ChainStep): string => {
     switch (s.k) {
@@ -262,8 +254,6 @@ export function describeChain(chain: ChainStep[]): string {
   return chain.map(one).join(".");
 }
 
-// 찾고, 기다리고, 한 가지를 하거나 읽는다. mode 는 아래 switch 를 본다. 결과는 {ok, value|error} JSON 글이다.
-// 좌표 입력이 필요한 동작(click, hover, drag)은 요소를 화면 가운데로 스크롤하고 가운데 좌표를 돌려주며, 입력 자체는 메인 프로세스가 한다.
 export async function locateMain(engineFactory: () => ReturnType<typeof engineMain>, describe: string, req: LocateRequest): Promise<string> {
   const E = engineFactory();
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -390,7 +380,6 @@ export async function locateMain(engineFactory: () => ReturnType<typeof engineMa
 }
 
 export const locateScript = (describe: string, req: LocateRequest) => `(${locateMain.toString()})(${engineMain.toString()}, ${JSON.stringify(describe)}, ${JSON.stringify(req)})`;
-// 선택자 글 하나로 요소를 하나 찾아 화면 가운데로 스크롤하고 위치를 알려 준다(기존 도구용). 찾은 요소는 window.__anTarget 에 둔다.
 export const resolveByChainScript = (chain: ChainStep[]) => `(${resolveFirstMain.toString()})(${engineMain.toString()}, ${JSON.stringify(chain)})`;
 
 function resolveFirstMain(engineFactory: () => ReturnType<typeof engineMain>, chain: ChainStep[]): string {

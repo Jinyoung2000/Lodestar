@@ -14,7 +14,6 @@ const AUTO_DELAY_MS = 250;
 
 registerEditorCommands([{ id: "autoFix", title: "Auto Fix...", run: (view) => (void autoFixAtCursor(view), true) }]);
 
-// doc 은 제안을 요청한 때의 문서다. 제안의 편집 위치가 이 문서 기준이다.
 type Bulb = { actions: CodeAction[]; placement: LightbulbPlacement; icon: "light-bulb" | "lightbulb-autofix"; title: string; cursorLine: number; doc: Text };
 
 const setBulb = StateEffect.define<Bulb | null>();
@@ -23,7 +22,6 @@ const bulbField = StateField.define<Bulb | null>({
   create: () => null,
   update(value, tr) {
     for (const effect of tr.effects) if (effect.is(setBulb)) return effect.value;
-    // 줄이 지워져 전구 자리가 문서 밖이면 바로 숨긴다(번들 onDidChangeModelContent)
     if (value && tr.docChanged && value.placement.kind !== "none" && value.placement.line > tr.state.doc.lines) return null;
     return value;
   },
@@ -81,7 +79,6 @@ export function lightbulbExtension(options: Pick<EditorOptions, "lightbulb">, co
       } catch {
         actions = [];
       }
-      // 기다리는 동안 글이 바뀌었으면 이미 다음 요청이 예약되어 있다(update 의 docChanged). 낡은 제안으로 전구를 띄우지 않는다.
       if (token.cancelled || !view.dom.isConnected || view.state.doc !== doc) return;
       const current = view.state.selection.main;
       if (!view.hasFocus || view.state.doc.lineAt(current.from).number !== line.number || !actions.length) {
@@ -105,7 +102,6 @@ export function lightbulbExtension(options: Pick<EditorOptions, "lightbulb">, co
       if (this.view.state.field(bulbField)) this.view.dispatch({ effects: setBulb.of(null) });
     }
 
-    // 들여쓰기 자리 전구는 스크롤 영역 안에 놓아 글자와 함께 움직인다. 위치는 줄 블록 위와 글자 시작 x 로 잰다.
     private layout() {
       const view = this.view;
       const bulb = view.state.field(bulbField);
@@ -161,9 +157,7 @@ function isFolded(view: EditorView, lineNumber: number) {
   return view.lineBlockAt(line.from).from !== line.from;
 }
 
-// 번들 클릭 처리: 기준점은 마우스 x, 전구 아래 줄 높이의 3분의 1. 전구가 커서 줄보다 위에 있으면 한 줄 더 내려 커서 줄 아래에 둔다.
 function openFromBulb(view: EditorView, bulb: Bulb, rect: DOMRect, x: number) {
-  // 전구를 띄운 뒤 글이 바뀌었으면(다시 요청하기 전 250ms 사이) 그 제안의 위치는 낡았다. ⌘. 처럼 지금 글로 다시 받아 띄운다.
   if (bulb.doc !== view.state.doc) {
     void openQuickFix(view);
     return;
@@ -191,7 +185,6 @@ class GlyphMarker extends GutterMarker {
 
 function glyphGutter(reserve: boolean): Extension {
   if (!reserve) return [];
-  // 줄 번호와 접기 거터보다 앞(왼쪽)에 놓이도록 우선순위를 높인다
   return Prec.high(gutter({
     class: "cm-glyph-margin",
     lineMarker(view, line) {

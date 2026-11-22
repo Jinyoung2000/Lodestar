@@ -1,5 +1,3 @@
-// DIFFFB: diff 줄 피드백의 순수 계산(shared/diffFeedback.ts, server/diffFeedback.ts, web/diffFeedbackEditor.ts 의 덩어리 변환) 단독 시험.
-// 실행: npm test
 import { Chunk } from "@codemirror/merge";
 import { Text } from "@codemirror/state";
 import type { DiffFeedback } from "../shared/protocol";

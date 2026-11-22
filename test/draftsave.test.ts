@@ -1,5 +1,3 @@
-// 입력창 초안 저장 단독 시험(web/composerState.ts): 글자를 칠 때 바로 저장소에 쓰는지, 긴 글은 묶어 쓰고 떠나기 전에 남김없이 쓰는지, 옛 저장본과 칸 정리.
-// 실행: npm test
 import { DRAFT_DEBOUNCE_MS, DRAFT_STORAGE_PREFIX, DRAFT_SYNC_LIMIT, dropDraftsOfMissing, dropStoredDraftsOfMissingPanes, flushDrafts, getDraft, loadStoredDrafts, restoreDrafts, setDraft, setDraftStorage } from "../web/composerState";
 
 let failed = 0;
@@ -8,7 +6,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 
-// 쓰기 횟수를 세는 가짜 저장소
 function fakeStorage(options: { throws?: boolean } = {}) {
   const data = new Map<string, string>();
   const writes: string[] = [];
@@ -31,7 +28,6 @@ function fakeStorage(options: { throws?: boolean } = {}) {
 
 const K = (key: string) => DRAFT_STORAGE_PREFIX + key;
 
-// 가짜 타이머(긴 글 묶어 쓰기)
 const realSetTimeout = globalThis.setTimeout;
 const realClearTimeout = globalThis.clearTimeout;
 const timers = new Map<number, () => void>();
@@ -49,7 +45,6 @@ const fireTimers = () => {
   }
 };
 
-// 1. 짧은 글은 입력과 같은 호출 안에서 저장소에 있다
 {
   const s = fakeStorage();
   setDraftStorage(s);
@@ -65,7 +60,6 @@ const fireTimers = () => {
   check("emptying the draft removes its key", !s.data.has(K("agent-1")) && getDraft("agent-1") === "");
 }
 
-// 2. 긴 글은 묶어서 쓰고, 떠나기 전(flushDrafts)에 남김없이 쓴다
 {
   const s = fakeStorage();
   setDraftStorage(s);
@@ -84,7 +78,6 @@ const fireTimers = () => {
   check("a draft that shrank below the limit is written at once", !s.data.has(K("agent-big")));
 }
 
-// 3. 저장소가 막혀도 입력은 그대로 된다
 {
   setDraftStorage(fakeStorage({ throws: true }));
   let threw = false;
@@ -99,7 +92,6 @@ const fireTimers = () => {
   check("no storage (embedded window) keeps the draft in memory only", getDraft("agent-2") === "no storage at all");
 }
 
-// 4. 다시 켜면 돌아온다: 저장소 목록, 옛 창 상태 저장본의 초안을 저장소로 옮김
 {
   const s = fakeStorage();
   s.data.set(K("agent-a"), "from storage");
@@ -114,7 +106,6 @@ const fireTimers = () => {
   check("restored drafts are readable", getDraft("agent-a") === "from storage");
 }
 
-// 5. 정리: 지워진 세션의 초안, 칸이 사라진 새 세션 초안
 {
   const s = fakeStorage();
   setDraftStorage(s);

@@ -1,5 +1,3 @@
-// UI 글자 설정(uiLetterSpacing, uiFontFamily, chatFontSize, chatLineHeight)의 서버 저장과 검증(server/store.ts), 웹의 CSS 변수 변환(web/uiType.ts) 단독 시험.
-// 실제 HOME 은 읽지 않고 임시 AGENT_NAV_HOME 만 쓴다. 실행: npm test
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

@@ -116,4 +116,4 @@ SOFTWARE.
 
 ## Trademarks
 
-Visual Studio Code and VS Code are trademarks of Microsoft Corporation. Claude and Claude Code are trademarks of Anthropic, PBC. Codex is a trademark of OpenAI. WebStorm is a trademark of JetBrains s.r.o. The file icons include logos of other products, which belong to their owners. These names and logos are used only to refer to those products. Lodestar is not affiliated with, sponsored by or endorsed by any of these companies.
+Visual Studio Code and VS Code are trademarks of Microsoft Corporation. Claude and Claude Code are trademarks of Anthropic, PBC. Codex is a trademark of OpenAI. Antigravity and Gemini are trademarks of Google LLC. WebStorm is a trademark of JetBrains s.r.o. The file icons include logos of other products, which belong to their owners. These names and logos are used only to refer to those products. Lodestar is not affiliated with, sponsored by or endorsed by any of these companies.

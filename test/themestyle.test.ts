@@ -1,5 +1,3 @@
-// 색 스타일(settings.themeStyle, <html data-style>)의 서버 검증, tokens.json 의 WebStorm 값, 생성된 tokens.css 의 블록을 단독 시험한다.
-// 실제 HOME 은 읽지 않고 임시 AGENT_NAV_HOME 만 쓴다. 실행: npm test
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,7 +21,6 @@ const tokens = JSON.parse(readFileSync(new URL("../design-system/tokens.json", i
 const css = readFileSync(new URL("../web/tokens.css", import.meta.url), "utf8");
 const HEX = /^#(?:[0-9a-f]{6}|[0-9a-f]{8})$/;
 
-// CSS 선택자의 (속성, 클래스, 의사 클래스) 개수. 이 파일의 선택자는 :root, 속성 선택자, :not(속성 선택자)뿐이라 그 셋만 센다.
 const specificity = (selector: string) => {
   const attributes = (selector.match(/\[[^\]]+\]/g) ?? []).length;
   return { ids: 0, classes: attributes + (selector.startsWith(":root") ? 1 : 0) };
@@ -100,7 +97,6 @@ test("tokens.css: 라이트 WebStorm 블록이 기본 라이트 블록을 이기
   expect(specificity(lightSelector).classes > specificity(`[data-theme="light"]`).classes, "라이트 WebStorm 은 기본 라이트보다 구체적");
   expect(specificity(lightSelector).classes > specificity(`:root`).classes, "라이트 WebStorm 은 :root 보다 구체적");
   expect(darkSelector.includes(`:not([data-theme="light"])`), "다크 블록은 라이트를 제외");
-  // 같은 이름의 변수를 두 블록이 다른 값으로 내보내므로 선택자가 서로 배타적이어야 한다
   const dark = blockOf(darkSelector)!;
   const light = blockOf(lightSelector)!;
   expect(dark.start < light.start, "순서와 상관없지만 다크 블록이 먼저");

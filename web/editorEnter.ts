@@ -12,7 +12,6 @@ type EnterRule = {
   action: { indent: "none" | "indentOutdent"; append?: string; remove?: number };
 };
 
-// `/** ... */` 를 여는 줄
 const DOC_OPEN = /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/;
 const DOC_PREVIOUS = /(?=^(\s*(\/\*\*|\*)).*)(?=(?!(\s*\*\/)))/;
 const LINE_COMMENT_RULE: EnterRule = { before: /^\s*\/\/\s*\S|\s\/\/\s+\S/, after: /^(?!\s*$)/, action: { indent: "none", append: "// " } };
@@ -46,7 +45,6 @@ const RULES_BY_LANGUAGE: Record<string, EnterRule[]> = {
   json: [LINE_COMMENT_RULE],
 };
 
-// onEnterRules 로 Enter 를 처리하는 명령. 규칙에 맞지 않는 커서가 하나라도 있으면 false 를 돌려줘 CodeMirror 의 기본 Enter 가 하게 한다.
 export function enterWithRules(languageId: string | null): Command {
   const rules = enterRulesFor(languageId);
   return (view) => {
@@ -96,7 +94,6 @@ export function matchEnterRule(rules: EnterRule[], previousLine: string, before:
   return null;
 }
 
-// `/**` 를 치면 ` */` 를 닫는다(자동 닫기 쌍 {open: "/**", close: " */", notIn: ["string"]}). 쌍이 있는 언어만이다.
 const DOC_CLOSE_LANGUAGES = new Set(["typescript", "typescriptreact", "javascript", "javascriptreact", "java"]);
 const CLOSE_BEFORE_DEFAULT = ";:.,=}])> \n\t";
 const CLOSE_BEFORE_JS = ";:.,=}])>` \n\t";
@@ -134,7 +131,6 @@ export const autoWhitespaceLines = StateField.define<readonly number[]>({
   },
 });
 
-// Enter 가 새로 만든 줄 중 공백만 있는 줄의 시작 위치(바뀐 문서 기준)
 function newAutoLines(tr: Transaction): number[] {
   const found = new Set<number>();
   tr.changes.iterChanges((fromA, _toA, fromB, toB, inserted) => {
@@ -163,7 +159,6 @@ const trimFilter = EditorState.transactionFilter.of((tr): TransactionSpec | read
   tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
     edits.push({ fromA, toA, insertedStartsWithBreak: inserted.lines > 1 && inserted.line(1).length === 0, insertedEndsWithBreak: inserted.lines > 1 && inserted.line(inserted.lines).length === 0 });
   });
-  // 모든 커서가 이번 편집이 닿는 줄에 있어야 한다(커서에서 먼 곳의 편집은 자동 서식이 낸 것으로 보고 건드리지 않는다)
   for (const range of tr.startState.selection.ranges) {
     const cursorStart = doc.lineAt(range.from).number;
     const cursorEnd = doc.lineAt(range.to).number;

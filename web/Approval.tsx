@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { PLAN_TOOL, QUESTION_TOOL } from "../shared/interactive";
-import { NotionWriteCard } from "./NotionWriteCard"; // NOTION2
+import { NotionWriteCard } from "./NotionWriteCard";
 import { approvalInputView, spacedJson } from "./approvalInput";
 import { ApprovalHints } from "./ApprovalHints";
 import { ApprovalDiff } from "./ApprovalDiff";
@@ -18,8 +18,6 @@ import { PlanCard } from "./PlanCard";
 import { QuestionCard } from "./QuestionCard";
 import { useAriaKeyShortcut, useCommandKey } from "./commandKeys";
 
-// 입력창 바로 위에 뜨는 승인 카드(B2-16). 대화 안에는 "1 confirmation pending" 한 줄만 남는다.
-// fixB: 질문(AskUserQuestion)과 계획 승인(ExitPlanMode)은 허용 단추가 아니라 전용 카드로 답한다.
 export function ApprovalCard({ agentId, item }: { agentId: string; item: PermissionItem }) {
   if (item.toolName === QUESTION_TOOL) return <QuestionCard agentId={agentId} item={item} />;
   if (item.toolName === PLAN_TOOL) return <PlanCard agentId={agentId} item={item} />;
@@ -27,7 +25,6 @@ export function ApprovalCard({ agentId, item }: { agentId: string; item: Permiss
   return <ToolApprovalCard agentId={agentId} item={item} />;
 }
 
-// 버튼: Allow Once = allow(주 단추, 사이드바와 알림의 Allow 와 같은 범위), 분할 항목 Allow in this Session = allowAlways, Skip = deny.
 function ToolApprovalCard({ agentId, item }: { agentId: string; item: PermissionItem }) {
   const [expanded, setExpanded] = useState(false);
   const acceptKey = useCommandKey("acceptTool");
@@ -42,7 +39,6 @@ function ToolApprovalCard({ agentId, item }: { agentId: string; item: Permission
   const title = browser?.title ?? (preview?.isNew ? S.approvalCreateTitle : S.approvalTitle(item.toolName));
   const filePath = typeof item.input.file_path === "string" ? item.input.file_path : typeof item.input.notebook_path === "string" ? item.input.notebook_path : null;
   const { target, rest } = approvalInputView(item.toolName, item.input);
-  // 대상 줄에 이미 보이는 값(명령, URL, 질의)은 Input 에서 뺀다. 입력이 남지 않으면 Input 구역이 없다.
   const hasInput = Object.keys(rest).length > 0;
   return (
     <div className="approval-card" role="group" aria-label={title}>
@@ -111,7 +107,6 @@ function ToolApprovalCard({ agentId, item }: { agentId: string; item: Permission
   );
 }
 
-// 대상 줄과 겹치지 않는 나머지 입력. 한 줄에 다 들어가면 그대로 두고, 잘릴 때만 See more 로 펼친다(보여 줄 것이 더 없는 단추는 만들지 않는다).
 function ApprovalInput({ input }: { input: Record<string, unknown> }) {
   const [expanded, setExpanded] = useState(false);
   const [clipped, setClipped] = useState(false);
@@ -143,7 +138,6 @@ function ApprovalInput({ input }: { input: Record<string, unknown> }) {
   );
 }
 
-// JSON 글자에 키와 문자열, 숫자 색을 입힌다.
 const JSON_TOKEN = /("(?:\\.|[^"\\])*")(\s*:)?|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|(true|false|null)/g;
 
 function JsonText({ value }: { value: string }) {

@@ -1,5 +1,3 @@
-// 대화의 한 부분을 Board 카드로 만드는 순수 계산: 제목 뽑기, 설명 조립, 돌아가기 링크, 중복 판정, 열 고르기.
-// 실행: npm test
 import { defaultBoard } from "../shared/board";
 import type { Board, BoardCard } from "../shared/protocol";
 import { cardBodyFrom, cardTitleFrom, findSourceCard, messageLink, parseMessageLink, pickColumn, plainExcerpt, sourcePart, TITLE_MAX } from "../shared/toBoard";
@@ -11,7 +9,6 @@ const check = (name: string, ok: boolean, detail = "") => {
 };
 const title = (text: string, max?: number) => cardTitleFrom(text, max);
 
-// 제목
 check("takes the first sentence", title("Fix the login redirect. Then update the tests.") === "Fix the login redirect");
 check("keeps ? and ! on the sentence", title("Why does the board reset on restart? Look at sanitizeBoard.") === "Why does the board reset on restart?");
 check("does not split inside version numbers or file names", title("Upgrade to v1.2.3 before the release goes out") === "Upgrade to v1.2.3 before the release goes out");
@@ -40,12 +37,10 @@ check("a short first line that is not a heading stands alone", title("Plan\n\nBo
 check("a lone short heading stays as it is", title("## Plan") === "Plan");
 check("excerpt is plain text on one line", plainExcerpt("## Plan\n\n- one `two`\n- three") === "Plan one two three");
 
-// 지문
 check("part collapses whitespace and is stable", sourcePart("a\n  b   c") === "a b c" && sourcePart("a b c") === "a b c");
 check("part is null for the whole item and for blank text", sourcePart(null) === null && sourcePart("  \n") === null);
 check("part keeps only the first 200 characters", sourcePart("x".repeat(500))?.length === 200);
 
-// 돌아가기 링크
 check("message link round trips ids with colons", (() => {
   const link = messageLink("agent-1", "3f2a:text");
   const parsed = parseMessageLink(link);
@@ -53,7 +48,6 @@ check("message link round trips ids with colons", (() => {
 })());
 check("other hrefs are not message links", parseMessageLink("https://example.com") === null && parseMessageLink("#other") === null && parseMessageLink("#lodestar-message=%E0%A4%A/x") === null);
 
-// 설명
 const body = cardBodyFrom({ text: "First line\n\nThird [x] line", sessionTitle: "Fix [login] bug", agentId: "a1", itemId: "i1" });
 check("body quotes every line and keeps the blank one", body.startsWith("> First line\n>\n> Third [x] line\n\n"));
 check("body names the session without brackets", body.includes("From session: Fix login bug"));
@@ -65,7 +59,6 @@ check("a huge quote is cut under the card body limit and marked", (() => {
   return huge.length <= 20_000 && huge.includes("\n> …\n\nFrom session: s");
 })());
 
-// 중복 판정
 const card = (id: string, source: BoardCard["source"]): BoardCard => ({ id, columnId: "backlog", title: id, body: "", labels: [], priority: 0, number: 1, workspaceId: null, agentIds: [], links: [], source, createdAt: "", updatedAt: "" });
 const board: Board = { ...defaultBoard(), cards: [card("whole", { agentId: "a", itemId: "i", part: null }), card("part", { agentId: "a", itemId: "i", part: "some words" }), card("none", null), { ...card("old", undefined) }] };
 check("finds the card for the whole item", findSourceCard(board, { agentId: "a", itemId: "i", part: null })?.id === "whole");
@@ -75,7 +68,6 @@ check("another item or session is not a duplicate", findSourceCard(board, { agen
 check("a missing board has no duplicate", findSourceCard(null, { agentId: "a", itemId: "i", part: null }) === null);
 check("an undefined part counts as null", findSourceCard(board, { agentId: "a", itemId: "i", part: undefined as unknown as null })?.id === "whole");
 
-// 열 고르기
 const custom: Board = { ...defaultBoard(), columns: [{ id: "x", name: "Inbox", role: null }, { id: "backlog", name: "Backlog", role: "backlog" }, { id: "todo", name: "Todo", role: "todo" }], cards: [] };
 check("remembered column wins when it still exists", pickColumn(custom, "todo") === "todo");
 check("falls back to Backlog by role", pickColumn(custom, null) === "backlog" && pickColumn(custom, "gone") === "backlog");

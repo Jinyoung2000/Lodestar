@@ -8,7 +8,6 @@ export type PickItem = { id: string; label: string; description?: string; group?
 type Pending = { placeholder: string; items: PickItem[]; activeId?: string; resolve: (id: string | null) => void };
 const pending = new Map<string, Pending>();
 
-// 목록을 열고 고른 항목 id(취소는 null)를 기다린다.
 export function openEditorPick(options: { placeholder: string; items: PickItem[]; activeId?: string }): Promise<string | null> {
   const id = `pick-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   return new Promise((resolve) => {
@@ -27,7 +26,6 @@ export function EditorPickOverlay({ id }: { id: string }) {
     entry?.resolve(value);
     setState((s) => (s.overlay?.kind === "editorPick" && s.overlay.id === id ? { overlay: null } : {}));
   };
-  // 창이 다른 것으로 바뀌어 사라질 때도 답을 남긴다
   useEffect(() => () => answer(null), []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!entry) return null;
   return <PickList placeholder={entry.placeholder} items={entry.items} activeId={entry.activeId} onChoose={answer} />;

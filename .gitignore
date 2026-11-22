@@ -1,22 +1,17 @@
-# Dependencies
 node_modules/
 
-# Build output (web, Electron bundles, packaged app, VS Code extension package)
 dist/
 dist-electron/
 release/
 *.vsix
 *.tsbuildinfo
 
-# Local verification output and private working notes
 .verify/
 .work/
 
-# Logs
 *.log
 npm-debug.log*
 
-# Local environment and signing material
 .env
 .env.*
 .signing/
@@ -28,6 +23,5 @@ npm-debug.log*
 *.key
 *.mobileprovision
 
-# Editor and OS files
 .DS_Store
 .claude/settings.local.json

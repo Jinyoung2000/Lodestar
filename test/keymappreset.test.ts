@@ -1,5 +1,3 @@
-// 단축키 프리셋(web/keymap.ts 의 bindingsFor, WEBSTORM_BINDINGS)과 프리셋별 가로채기 집합을 DOM 없이 확인한다.
-// 실행: npm test
 import { readdirSync, readFileSync } from "node:fs";
 import { KEYMAP_PRESETS } from "../shared/protocol";
 import {
@@ -87,7 +85,6 @@ test("webstorm 표: 모든 키가 정규 표기(Ctrl, Alt, Shift, Meta 순서)�
   return "ok";
 });
 
-// 등록된 에디터 명령 id: registerEditorCommands 를 부르는 모듈의 `id: "..."` 와 접기 명령 표. 모듈을 불러오면 CSS 와 DOM 이 딸려와서 소스에서 읽는다.
 function registeredEditorIds(): Set<string> {
   const ids = new Set<string>(FOLD_COMMANDS.map((c) => c.id));
   for (const name of readdirSync("web").filter((f) => f.endsWith(".ts"))) {
@@ -119,7 +116,7 @@ test("webstorm 표: 뺀 VS Code 줄은 사라지고 나머지는 그대로 남�
     expect(!webstorm.some((b) => b.command === drop.command && b.keys.join(" ") === drop.keys.join(" ")), `남아 있음 ${drop.command} ${drop.keys}`);
     expect(BINDINGS.some((b) => b.command === drop.command && b.keys.join(" ") === drop.keys.join(" ")), `VS Code 표에 없는 drop ${drop.command}`);
   }
-  expect(WEBSTORM_DROPS.length === 6, `drop ${WEBSTORM_DROPS.length}개`);
+  expect(WEBSTORM_DROPS.length === 7, `drop ${WEBSTORM_DROPS.length}개`);
   const kept = BINDINGS.filter((b) => !WEBSTORM_DROPS.some((d) => d.command === b.command && d.keys.join(" ") === b.keys.join(" ")));
   same(webstorm.slice(WEBSTORM_BINDINGS.length), kept, "VS Code 줄 순서");
   return `${kept.length} 줄 유지`;
@@ -233,7 +230,6 @@ test("에디터가 표에 넘기는 키: vscode 는 없고 webstorm 은 에디�
   const taken = editorTakenStrokes("webstorm");
   for (const stroke of ["Meta+KeyD", "Alt+ArrowUp", "Alt+Shift+ArrowUp", "Meta+Backspace", "Meta+KeyE", "Alt+F12", "Meta+F12", "F2", "Meta+BracketLeft", "Shift+Enter", "Alt+Enter"]) expect(taken.has(stroke), `먹음 ${stroke}`);
   for (const stroke of ["Escape", "Enter", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Meta+KeyS", "Meta+KeyK"]) expect(!taken.has(stroke), `먹지 않음 ${stroke}`);
-  // 에디터 안에서 거짓인 조건(notEditor 등)의 줄은 없다
   for (const b of WEBSTORM_BINDINGS) expect(b.when !== "notEditor" && b.when !== "notEditorOrComposer", `에디터 밖 조건 ${b.command}`);
   return `${taken.size}개`;
 });

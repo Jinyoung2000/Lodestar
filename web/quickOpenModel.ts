@@ -1,17 +1,13 @@
 import { displayPath } from "./displayPath";
 import { compareScored, mightMatch, prepareQuery, scoreFileItem, type PreparedQuery, type Range, type Scored, type ScoreItem } from "./quickOpenScore";
 
-// 빠른 열기(⌘P)의 목록 계산. 화면 없이 입력(파일 목록, 최근 연 파일, 질의)만으로 행을 만든다.
-
 const EXCLUDED_SEGMENTS = new Set(["node_modules", "bower_components", ".git", ".svn", ".hg", "CVS", ".DS_Store", "Thumbs.db"]);
 const EXCLUDED_SUFFIXES = [".code-search"];
 
 export type QuickOpenPick = {
   key: string;
-  // 워크스페이스 기준 경로. 워크스페이스 밖이면 ../ 로 시작하거나 절대 경로다(열 때 그대로 넘긴다).
   path: string;
   label: string;
-  // 폴더 경로. 워크스페이스 안이면 상대, 밖이면 ~/ 로 줄인 절대 경로. 워크스페이스 바로 아래 파일이면 빈 문자열.
   description: string;
   labelMatch?: Range[];
   descriptionMatch?: Range[];
@@ -22,9 +18,7 @@ export type QuickOpenPicks = { history: QuickOpenPick[]; results: QuickOpenPick[
 
 export type QuickOpenInput = {
   files: string[];
-  // 최근 연 파일, 가장 최근이 앞
   recent: string[];
-  // 줄 이동 접미사를 뗀 질의
   filter: string;
   workspaceDir: string | null;
   includeExcluded: boolean;
@@ -48,7 +42,6 @@ export function isExcludedPath(path: string) {
   return EXCLUDED_SUFFIXES.some((suffix) => name.endsWith(suffix));
 }
 
-// 파일 목록마다 한 번만 만드는 값. 입력할 때마다 5 만 개를 다시 소문자로 바꾸지 않는다.
 type FileIndex = { lower: string[]; excluded: boolean[]; set: Set<string> };
 const indexes = new WeakMap<string[], FileIndex>();
 
@@ -91,7 +84,6 @@ export function buildPicks(input: QuickOpenInput): QuickOpenPicks {
 
   if (!query.normalized) return { history: recent.map((path) => make(path, true).pick), results: [], matched: 0 };
 
-  // 최근 연 파일: 이름만으로(경로를 친 질의면 경로까지) 이어서 맞는 것만. 고른 질의와 같은 규칙으로 정렬한다.
   const historyScored: Scored<ScoreItem & { pick: QuickOpenPick }>[] = [];
   for (const path of recent) {
     const { pick, item } = make(path, true);
@@ -116,7 +108,6 @@ export function buildPicks(input: QuickOpenInput): QuickOpenPicks {
   return { history, results, matched: scored.length };
 }
 
-// 점수만으로 한도 밖이 확실한 것은 비교 없이 버리고(후보가 수만 개일 때 정렬이 병목), 남은 것만 전체 규칙으로 정렬한다.
 function topScored<T extends ScoreItem>(scored: Scored<T>[], limit: number, query: PreparedQuery) {
   let kept = scored;
   if (scored.length > limit * 4) {
@@ -127,20 +118,17 @@ function topScored<T extends ScoreItem>(scored: Scored<T>[], limit: number, quer
   return kept.sort((a, b) => compareScored(a, b, query)).slice(0, limit);
 }
 
-// 최근 연 파일 중 지금도 열 수 있는 것: 이 폴더 안 파일은 목록에 있어야 하고(지워졌거나 무시된 파일은 뺀다), 밖의 파일은 확인할 수 없어 그대로 둔다.
 export function usableRecent(recent: { workspaceId: string; path: string }[], workspaceId: string | null, files: string[] | undefined) {
   const known = files ? indexOf(files).set : null;
   return recent.filter((f) => f.workspaceId === workspaceId && (!known || known.has(f.path) || f.path.startsWith("../") || f.path.startsWith("/"))).map((f) => f.path);
 }
 
-// 질의 앞머리로 가는 곳: ">" 는 명령 팔레트, "@" 는 심볼 검색
 export function routeOf(value: string): { kind: "commands" } | { kind: "symbols"; query: string } | null {
   if (value.startsWith(">")) return { kind: "commands" };
   if (value.startsWith("@")) return { kind: "symbols", query: value.slice(1) };
   return null;
 }
 
-// 칸 안에 그릴 조각: 일치한 구간과 아닌 구간으로 자른다.
 export function splitByRanges(text: string, ranges: Range[] | undefined): { text: string; hit: boolean }[] {
   if (!ranges?.length) return [{ text, hit: false }];
   const parts: { text: string; hit: boolean }[] = [];

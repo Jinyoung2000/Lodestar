@@ -1,4 +1,3 @@
-// HANDOFF: 핸드오프 인계 문서 파일, 세션 만들기, 사이드바 트리. 모델은 부르지 않는다(문서 생성은 .verify 의 실제 시험에서 haiku 로 확인). 실행: npm test
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -71,7 +70,6 @@ test("create: 핸드오프 세션은 원 세션의 자식이고, 원 세션 끝�
     sent.push({ prompt, options });
     return { queued: false };
   };
-  // 문서를 만든 것으로 하고 파일을 둔다
   const id = "mq1abc-0a1b2c";
   mkdirSync(handoff.HANDOFF_DIR, { recursive: true });
   (await import("node:fs")).writeFileSync(handoff.handoffPath(id), "# doc\n");
@@ -85,10 +83,8 @@ test("create: 핸드오프 세션은 원 세션의 자식이고, 원 세션 끝�
   expect(first.options.display === "keep going" && JSON.stringify(first.options.attachments) === JSON.stringify([{ kind: "handoff", label: "Handoff from Fix the login", id }]), JSON.stringify(first.options));
   const notice = store.timeline("src").find((i) => i.kind === "notice");
   expect(notice?.kind === "notice" && notice.text === `Handed off to keep going` && notice.openAgentId === child.id, JSON.stringify(notice));
-  // 글 없이 보내면 제목은 원 세션 제목에서
   const bare = await runner.create({ workspaceId: null, prompt: "doc", permissionMode: "default", model: null, effort: null, worktree: null, handoffFrom: "src", handoffId: id, shown: "" });
   expect(bare.title === "Handoff: Fix the login", bare.title);
-  // 잘못된 id 와 없는 원 세션은 만들기 전에 거절
   let refused = 0;
   for (const params of [{ handoffFrom: "src", handoffId: "../x" }, { handoffFrom: "nope", handoffId: id }]) {
     try {

@@ -1,8 +1,6 @@
-// 멀티플렉서(server/lspMux.ts)가 서버 여러 개의 응답을 하나로 합치는 데 쓰는 순수 함수들.
 
 export type SyncInfo = { kind: 0 | 1 | 2; openClose: boolean; save: boolean };
 
-// initialize 결과의 textDocumentSync(숫자 또는 객체)를 푼다. @codemirror/lsp-client 도 같은 규칙으로 change 종류를 읽는다.
 export function textDocumentSyncOf(value: unknown): SyncInfo {
   if (typeof value === "number") return { kind: value === 1 || value === 2 ? value : 0, openClose: true, save: false };
   const object = (value ?? {}) as { openClose?: boolean; change?: number; save?: unknown };
@@ -10,13 +8,11 @@ export function textDocumentSyncOf(value: unknown): SyncInfo {
   return { kind, openClose: object.openClose !== false, save: !!object.save };
 }
 
-// 요청 params 의 문서 uri. textDocument.uri 가 보통이고, 일부 요청은 최상위 uri 나 항목 안에 둔다.
 export function uriOf(params: any): string | null {
   const uri = params?.textDocument?.uri ?? params?.uri ?? params?.item?.uri;
   return typeof uri === "string" ? uri : null;
 }
 
-// 결과에 내용이 없는가. null, 빈 배열, 항목 없는 완성 목록, 빈 hover.
 export function isEmptyResult(result: unknown): boolean {
   if (result === null || result === undefined) return true;
   if (Array.isArray(result)) return result.length === 0;
@@ -24,9 +20,6 @@ export function isEmptyResult(result: unknown): boolean {
   return false;
 }
 
-// 주 서버의 기능에, 주 서버에 없고 다른 서버만 가진 `...Provider` 를 더한다. triggerCharacters 같은 세부는 주 서버 것을 그대로 둔다
-// (다른 서버의 "(" 나 "," 를 합치면 TypeScript 파일에서 그 글자마다 완성 요청이 나간다).
-// 항목 resolve 를 하는 서버가 하나라도 있으면 합친 기능에도 resolveProvider 를 켠다(브라우저는 이 값을 보고 completionItem/resolve 를 부른다).
 export function mergeCapabilities(primary: Record<string, any>, extras: Record<string, any>[]): Record<string, any> {
   const merged = { ...primary };
   for (const extra of extras) {
@@ -79,7 +72,6 @@ function nextLineStart(text: string, from: number): number | null {
   return null;
 }
 
-// 서버별 진단을 한 목록으로. 서버 순서(우선순위)대로 잇고, 버전은 가장 새것을 쓴다(브라우저는 자기 문서 버전과 다른 진단을 버린다).
 export function mergeDiagnostics(entries: { version: number | null; items: unknown[] }[]): { version: number | null; items: unknown[] } {
   const versions = entries.map((entry) => entry.version).filter((version): version is number => version !== null);
   return { version: versions.length ? Math.max(...versions) : null, items: entries.flatMap((entry) => entry.items) };
@@ -89,7 +81,6 @@ type MarkedString = string | { language: string; value: string };
 type HoverContents = MarkedString | MarkedString[] | { kind: "plaintext" | "markdown"; value: string };
 type Hover = { contents: HoverContents; range?: unknown };
 
-// hover 여러 개를 마크다운 한 덩어리로 잇는다. 하나뿐이면 서버가 준 모양 그대로 둔다. range 는 첫 것.
 export function mergeHover(results: Hover[]): Hover {
   if (results.length === 1) return results[0]!;
   const pieces = results.map((hover) => hoverMarkdown(hover.contents)).filter((piece) => piece.trim() !== "");
@@ -104,7 +95,6 @@ export function hoverMarkdown(contents: HoverContents): string {
   return contents.value;
 }
 
-// definition, references 등의 위치 결과(Location, Location[], LocationLink[])를 배열 하나로 잇고 같은 위치는 한 번만 둔다. 하나뿐이면 그대로.
 export function mergeLocations(results: unknown[]): unknown {
   if (results.length === 1) return results[0];
   const seen = new Set<string>();
@@ -128,7 +118,6 @@ function locationKey(location: any): string {
 type Range = { start: Pos; end: Pos };
 type ItemDefaults = { commitCharacters?: string[]; editRange?: Range | { insert: Range; replace: Range }; insertTextFormat?: number; insertTextMode?: number; data?: unknown };
 
-// CompletionList.itemDefaults 를 항목에 적는다. data 는 항상 적는다(멀티플렉서가 data 를 서버 키로 감싸므로). 목록이 여럿 합쳐질 때(all)는 나머지 기본값도 항목으로 펼친다.
 export function expandItemDefaults<T extends Record<string, any>>(item: T, defaults: ItemDefaults | undefined, all: boolean): T {
   if (!defaults) return item;
   const next: Record<string, any> = { ...item };

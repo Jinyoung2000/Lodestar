@@ -2,8 +2,6 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join } from "node:path";
 import { HOME } from "./store";
 
-// Notion 페이지마다 붙은 전용 대화(일반 Lodestar 세션)의 목록. 키는 notionPageKey(url), 값은 세션 id 와 페이지 주소, 제목이다(보드 카드가 페이지로 되돌아가는 링크에 쓴다).
-// 파일은 임시 파일에 쓴 뒤 rename 으로 바꾸고, 읽을 수 없는 파일은 비어 있는 것으로 시작한다.
 export type NotionChat = { agentId: string; url: string; title: string };
 
 export class NotionChatStore {
@@ -28,7 +26,6 @@ export class NotionChatStore {
     }
   }
 
-  // 화면에 보내는 모양: 페이지 키 -> 세션 id
   wire(): Record<string, string> {
     return Object.fromEntries(Object.entries(this.chats).map(([key, chat]) => [key, chat.agentId]));
   }
@@ -52,7 +49,6 @@ export class NotionChatStore {
     this.save();
   }
 
-  // 지워진 세션을 가리키는 항목을 정리한다. 바뀌었으면 true.
   prune(liveAgentIds: Set<string>): boolean {
     const dead = Object.keys(this.chats).filter((key) => !liveAgentIds.has(this.chats[key].agentId));
     for (const key of dead) delete this.chats[key];

@@ -3,18 +3,12 @@ import { LSPClient, LSPPlugin, type serverCompletionSource } from "@codemirror/l
 import { StateEffect, StateField, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
-// 제안 항목의 상세(문서, 시그니처)와 자동 import 편집은 completionItem/resolve 를 불러야 서버가 채워 준다.
-// @codemirror/lsp-client 6.3.0 의 serverCompletionSource 는 resolve 를 부르지 않아서, 항목을 골라도 오른쪽 문서가 비고 import 가 추가되지 않았다.
-// 이 파일은 그 소스를 감싸 (1) 선택된 항목의 문서를 resolve 로 채우고 (2) 수락하면 resolve 가 준 additionalTextEdits(import 줄)를 같이 적용한다.
-
 type TextEdit = { range: { start: { line: number; character: number }; end: { line: number; character: number } }; newText: string };
 type Documentation = string | { kind: "plaintext" | "markdown"; value: string };
 type Item = { label: string; kind?: number; detail?: string; documentation?: Documentation; additionalTextEdits?: TextEdit[]; data?: unknown };
 type Capture = { items: Item[] | null };
 type Resolved = { value: Item | null; promise: Promise<Item> };
 
-// serverCompletionSource 는 응답 항목을 옵션으로 바꾸면서 resolve 에 필요한 원본(data 필드)을 버린다.
-// 소스가 request 를 부르는 순간(같은 틱)에 들어온 호출만 응답을 받아 가도록 모듈 변수에 잠깐 걸어 둔다.
 let capture: Capture | null = null;
 
 export class ResolvingClient extends LSPClient {
@@ -53,7 +47,6 @@ export function resolvingSource(source: typeof serverCompletionSource): Completi
 }
 
 const resolved = new WeakMap<Item, Resolved>();
-// 제안 옵션과 그 원본 응답 항목. 행 오른쪽의 상세와 Read More 가 옵션에서 원본을 찾는다.
 const itemOf = new WeakMap<Completion, { plugin: LSPPlugin; item: Item }>();
 
 function resolveItem(plugin: LSPPlugin, item: Item): Resolved {
@@ -72,11 +65,9 @@ function resolveItem(plugin: LSPPlugin, item: Item): Resolved {
 
 function withResolve(plugin: LSPPlugin, option: Completion, item: Item): Completion {
   const insert = option.apply;
-  // 목록 응답에 additionalTextEdits 가 이미 있으면 lsp-client 가 apply 에서 적용한다. 같은 편집을 두 번 넣지 않는다.
   const resolvesEdits = !item.additionalTextEdits;
   const resolved: Completion = {
     ...option,
-    // 서버가 준 CompletionItemKind 를 그대로(lsp-client 는 몇 종류로 뭉갠다): 아이콘과 색이 종류마다 갈린다
     ...(item.kind ? { type: lspTypeOf(item.kind) } : {}),
     info: () => infoNode(plugin, item),
     apply: (view, completion, from, to) => {
@@ -88,12 +79,10 @@ function withResolve(plugin: LSPPlugin, option: Completion, item: Item): Complet
       const delta = inserted.length - before.length;
       const entry = resolveItem(plugin, item);
       const finish = (full: Item) => {
-        // 그새 사용자가 더 입력했으면 위치를 믿을 수 없어 import 는 넣지 않는다.
         if (!full.additionalTextEdits?.length || view.state.doc !== inserted) return;
         const changes = full.additionalTextEdits.flatMap((edit) => {
           const start = plugin.fromPosition(edit.range.start, before);
           const end = plugin.fromPosition(edit.range.end, before);
-          // 삽입한 글자 범위 안에 걸친 편집은 건너뛴다. 범위 뒤의 편집은 삽입한 길이만큼 밀린다.
           if (end <= from) return [{ from: start, to: end, insert: edit.newText }];
           if (start >= to) return [{ from: start + delta, to: end + delta, insert: edit.newText }];
           return [];
@@ -141,7 +130,6 @@ export function suggestDetails(): Extension {
   return [detailsOpen, inlineDetailListener];
 }
 
-// 제안 목록이 열려 있을 때만 토글한다(안 열려 있으면 false 를 돌려 키가 다른 곳으로 간다).
 export function toggleSuggestionDetails(view: EditorView) {
   if (completionStatus(view.state) !== "active") return false;
   const next = !view.state.field(detailsOpen, false);
@@ -150,7 +138,6 @@ export function toggleSuggestionDetails(view: EditorView) {
   return true;
 }
 
-// 앱의 키 처리(web/shortcuts.ts)가 부른다. 포커스가 있는 에디터의 제안 목록이 열려 있으면 상세를 토글하고 true 를 돌려준다.
 export function toggleDetailsFromKey(focused: Element | null) {
   const dom = focused?.closest<HTMLElement>(".cm-editor");
   const view = dom ? EditorView.findFromDOM(dom) : null;
@@ -169,7 +156,6 @@ function writeStored(open: boolean) {
   try {
     localStorage.setItem(STORAGE_KEY, String(open));
   } catch {
-    // 저장소를 못 쓰면 이번 세션에서만 유지된다.
   }
 }
 
@@ -215,23 +201,19 @@ export const completionRowExtras = [
 function fillExtras(completion: Completion, full: Item) {
   const spans = inlineSpans.get(completion);
   if (!spans) return;
-  // 상세는 첫 줄만 한 줄로 보인다(서버는 `(alias) function greet(...)` 뒤에 `import greet` 같은 줄을 더 준다). 목록 응답에 이미 detail 이 있으면 CodeMirror 가 그린다. 같은 글을 두 번 그리지 않는다.
   const first = full.detail?.split("\n")[0];
   if (first && !completion.detail) spans.detail.textContent = first;
   if (full.detail || full.documentation) spans.more.dataset.hasInfo = "";
-  // 서버는 import 한 이름과 전역 이름의 종류를 변수로만 준다. 상세의 첫 단어(function, class, interface ...)가 실제 종류라 고른 행의 아이콘을 그에 맞게 바꾼다.
   const refined = first ? kindFromDetail(first) : null;
   const icon = spans.detail.closest("li")?.querySelector<HTMLElement>(".cm-completionIcon");
   if (refined && icon) icon.className = `cm-completionIcon cm-completionIcon-${refined}`;
 }
 
-// TypeScript 서버 상세의 첫 줄에서 종류를 읽는다: `(alias) function greet(...)`, `class Greeter`, `(local var) x`, `interface User`
 const DETAIL_KINDS: Record<string, string> = { function: "function", class: "class", interface: "interface", enum: "enum", type: "class", namespace: "module", module: "module", const: "variable", let: "variable", var: "variable", method: "method", property: "property" };
 
 export function kindFromDetail(detail: string): string | null {
   const prefix = /^\(([^)]*)\)\s+/.exec(detail);
   const label = prefix?.[1] ?? "";
-  // `(method) Greeter.say(...)`, `(property) name: string`, `(local var) x`, `(parameter) y` 은 괄호 안이 종류다. `(alias)` 와 `(loading...)` 은 뒤의 키워드를 본다.
   if (/^(method)$/.test(label)) return "method";
   if (/^(property)$/.test(label)) return "property";
   if (/^(local var|local const|var|let|const|parameter)$/.test(label)) return "variable";

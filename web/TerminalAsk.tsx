@@ -24,7 +24,6 @@ export function TerminalAsk({ term, ptyId, selection, onClose }: { term: Termina
   const [run, setRun] = useState<TermAskRun | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [again, setAgain] = useState(false);
-  // 열린 순간의 화면으로 칩 숫자와 기본 제안을 정한다. 질문을 보낼 때는 그 시점의 화면을 다시 읽는다.
   const [opening] = useState(() => {
     const lines = bufferLines(term);
     const output = recentOutput(lines);
@@ -49,7 +48,6 @@ export function TerminalAsk({ term, ptyId, selection, onClose }: { term: Termina
     const off = rpc.onEvent((event) => {
       if (event.type === "termask" && event.run.id === runIdRef.current) setRun(event.run);
     });
-    // 열려 있는 동안 아래 패널을 키운다(.bottom[data-termask]). 패널 높이 설정은 건드리지 않는다.
     const bottom = boxRef.current?.closest<HTMLElement>(".bottom");
     if (bottom) bottom.dataset.termask = "";
     return () => {
@@ -57,7 +55,6 @@ export function TerminalAsk({ term, ptyId, selection, onClose }: { term: Termina
       if (bottom) delete bottom.dataset.termask;
     };
   }, []);
-  // 쓰는 동안은 끝을 따라가고, 다 쓰면 맨 위(명령 코드 블록)로 돌아간다.
   useEffect(() => {
     const el = answerRef.current;
     if (el) el.scrollTop = run?.status === "running" ? el.scrollHeight : 0;
@@ -65,13 +62,11 @@ export function TerminalAsk({ term, ptyId, selection, onClose }: { term: Termina
   useEffect(() => {
     setConfirming(false);
   }, [run?.id, run?.status]);
-  // 입력 글이 늘면 높이가 따라 커진다(상한은 CSS).
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-    // Ask Again 이 채운 이전 질문은 바로 덮어쓸 수 있게 선택해 둔다.
     if (selectNext.current) {
       selectNext.current = false;
       el.select();
@@ -106,12 +101,10 @@ export function TerminalAsk({ term, ptyId, selection, onClose }: { term: Termina
   };
   const runCommand = () => {
     if (!extracted) return;
-    // 위험하거나 여러 줄이면 한 번 더 누르게 한다.
     if (reasons.length > 0 && !confirming) {
       setConfirming(true);
       return;
     }
-    // 줄에 치다 만 글이 있으면 명령에 붙어 실행되므로 줄부터 비운다(^U).
     term.input("\x15", true);
     term.paste(extracted.command);
     term.input("\r", true);
@@ -278,7 +271,6 @@ async function readInfo(ptyId: string): Promise<Info | null> {
   }
 }
 
-// 화면 버퍼(스크롤백 포함)를 논리 줄로 읽는다. 줄바꿈으로 이어진 화면 줄(isWrapped)은 앞 줄에 붙인다.
 export function bufferLines(term: Terminal): string[] {
   const buffer = term.buffer.active;
   const lines: string[] = [];
@@ -292,7 +284,6 @@ export function bufferLines(term: Terminal): string[] {
   return lines;
 }
 
-// 집 폴더는 ~ 로 줄이고 긴 경로는 끝 두 칸만 보인다.
 function shortPath(path: string) {
   const home = path.match(/^\/Users\/[^/]+/)?.[0];
   const tilde = home ? `~${path.slice(home.length)}` : path;

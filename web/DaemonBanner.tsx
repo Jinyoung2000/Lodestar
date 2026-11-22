@@ -6,8 +6,6 @@ import { Button } from "./ui/button";
 
 type NativeDaemonState = { state: "running" | "restarting" | "stopped"; attempt: number; maxAttempts: number };
 
-// 처음 연결된 뒤 데몬과 끊긴 동안 창 맨 위에 뜨는 띠. 끊겼다 이어지면 store 가 상태를 다시 읽어 오므로(initStore) 띠만 사라지면 된다.
-// 앱이 데몬을 다시 띄우는 중이면 그 횟수를, 포기했으면 Restart Daemon 단추를 보인다. 브라우저로 붙은 창은 다시 연결하는 중이라는 말만 보인다.
 const SHOW_AFTER_MS = 600;
 
 export function DaemonBanner() {
@@ -22,7 +20,6 @@ export function DaemonBanner() {
     if (connected) setEverConnected(true);
   }, [connected]);
 
-  // 끊긴 지 잠깐은 띄우지 않는다(이어졌다 끊기는 짧은 순간에 번쩍이지 않게).
   useEffect(() => {
     if (!down) {
       setLate(false);
@@ -72,7 +69,6 @@ function StoppedBar({ busy, onRestart }: { busy: boolean; onRestart: () => void 
   );
 }
 
-// 데몬이 없으니 진행 중인 세션을 묻는 확인은 건너뛴다. 메인이 데몬을 띄우고 창을 다시 읽는다.
 function restart(setBusy: (busy: boolean) => void) {
   setBusy(true);
   void window.agentNavNative

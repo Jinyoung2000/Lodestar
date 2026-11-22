@@ -1,5 +1,3 @@
-// daemon.log 줄 앞 ISO 시각 단독 시험(electron/logStamp.ts)
-// 실행: npm test
 import { LineStamper, stampLine } from "../electron/logStamp";
 
 let failed = 0;

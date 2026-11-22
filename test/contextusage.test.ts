@@ -1,4 +1,3 @@
-// CTX: 컨텍스트 사용량 계산(shared/contextUsage.ts)과 AgentRunner 의 갱신 순서. 모델은 부르지 않는다. 실행: npm test
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -64,8 +63,6 @@ test("압축: post_tokens 로 바로 내려간다", () => {
   return expect(c.contextAfterCompact(before, undefined, null, NOW) === null, "no post_tokens -> null");
 });
 
-// --- AgentRunner ---
-
 let seq = 0;
 const agentRecord = (id: string): Agent => ({ id, workspaceId: null, cwd: home, worktree: null, forkedFrom: null, resumeFrom: null, startCommit: null, feedbackId: null, title: "t", sessionId: "s", status: "idle", permissionMode: "default", model: null, effort: null, activeModel: "claude-haiku-5-5", activeEffort: null, backgroundTasks: 0, createdAt: NOW, updatedAt: NOW });
 function harness(api: () => Promise<{ totalTokens: number; maxTokens: number; rawMaxTokens: number }>) {
@@ -110,7 +107,6 @@ test("압축이 일어나면 사용률이 내려간다", async () => {
   expect(c.contextLevel(h.context()!) === "warning" && c.contextPercent(h.context()!) === 95 || c.contextLevel(h.context()!) === "error", `before ${JSON.stringify(h.context())}`);
   total = 14_000;
   await h.feed({ type: "system", subtype: "compact_boundary", uuid: "cb", compact_metadata: { trigger: "auto", pre_tokens: 190_000, post_tokens: 13_000 } });
-  // 경계 직후(SDK 답이 오기 전)에 낸 값: 압축 뒤 토큰 수
   const seen = h.events.flatMap((e) => (e.type === "agent" && e.agent.contextUsage ? [e.agent.contextUsage] : []));
   const dropped = seen.find((u) => u.used === 13_000);
   expect(!!dropped && c.contextPercent(dropped) === 7 && c.contextLevel(dropped) === "ok", `right after boundary ${JSON.stringify(seen.map((u) => u.used))}`);
@@ -121,8 +117,8 @@ test("압축이 일어나면 사용률이 내려간다", async () => {
 test("SDK 의 늦은 답은 더 새 값을 덮지 않는다", async () => {
   let release: (v: { totalTokens: number; maxTokens: number; rawMaxTokens: number }) => void = () => {};
   const h = harness(() => new Promise((r) => (release = r)));
-  await h.feed(result); // 질문을 보내 둔다
-  await h.feed(assistant(70_000)); // 그 사이 더 새 어림값
+  await h.feed(result);
+  await h.feed(assistant(70_000));
   release({ totalTokens: 5, maxTokens: 100, rawMaxTokens: 100 });
   await settle();
   return expect(h.context()?.used === 70_000, JSON.stringify(h.context()));

@@ -10,8 +10,6 @@ import { showActionMenu } from "./actionMenu";
 import { Icon } from "./Icon";
 import { Text } from "./Text";
 
-// 입력창: 여러 줄 입력(최대 6줄까지 늘어난다), 이미지 첨부, 보내기와 중단.
-// 응답 중에 보내면 큐(턴이 끝나면 전송)나 끼어들기(steer, 진행 중인 턴에 바로)를 고른다. 첨부는 백그라운드로 줄이고 올리며, 올리는 동안에도 글을 쓸 수 있다.
 type Props = {
   agent: Agent | undefined;
   disabled?: boolean;
@@ -21,11 +19,8 @@ type Props = {
   onDequeue?: (queueId: string) => Promise<string | null>;
   onSendQueuedNow?: (queueId: string) => void;
   onCancelSteering?: (steeringId: string) => Promise<string | null>;
-  // 새 세션 화면은 첨부 상태를 직접 들고 있어야 해서 밖에서 넘길 수 있다
   autoFocus?: boolean;
-  // 처음에 채워 둘 글(링크의 draft 파라미터. 시험과 공유 시트용)
   initialText?: string;
-  // 쓰다 만 글을 이 이름으로 폰에 남긴다(화면을 떠나거나 앱이 꺼져도 돌아오면 다시 채운다)
   draftKey?: string;
 };
 
@@ -45,19 +40,15 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const hasContent = text.trim().length > 0 || attachments.items.some((a) => a.status === "done");
   const textRef = useRef(text);
   textRef.current = text;
-  // 보내는 중인지(상태값은 다시 그려진 뒤에야 바뀌어서, 빠르게 두 번 누르면 두 번 보낸다)
   const inFlight = useRef(false);
-  // 저장된 초안을 읽기 전에는 저장하지 않는다(빈 입력창이 저장된 초안을 덮지 않게)
   const draftReady = useRef(!draftKey || !!initialText);
 
   useEffect(() => {
     void loadPref("steer", false).then(setSteer);
   }, []);
-  // 링크로 받은 글이 바뀌면 입력창에 채운다
   useEffect(() => {
     if (initialText) setText(initialText);
   }, [initialText]);
-  // 초안: 열 때 채우고(이미 쓰기 시작했으면 두고), 쓰는 동안 잠깐 멈출 때와 화면을 떠날 때 저장한다
   useEffect(() => {
     if (!draftKey || draftReady.current) return;
     let live = true;
@@ -77,7 +68,6 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   }, [draftKey, text]);
   useEffect(
     () => () => {
-      // 보내는 중이면 보내기가 끝난 쪽이 정한다(성공하면 비우고, 실패하면 저장된 초안이 남는다)
       if (draftKey && draftReady.current && !inFlight.current) savePref(`draft:${draftKey}`, textRef.current);
     },
     [draftKey],
@@ -95,12 +85,10 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
     setError(null);
     try {
       await onSend(prompt, images, running && steer);
-      // 보내는 동안 이어 쓴 글과 새로 붙인 사진은 남기고, 보낸 것만 비운다
       const current = textRef.current;
       const rest = current.startsWith(sentText) ? current.slice(sentText.length).replace(/^\s+/, "") : current;
       textRef.current = rest;
       setText(rest);
-      // 보낸 글이 초안으로 남아 다음에 다시 채워지지 않게 바로 지운다(이 화면이 이미 닫혔어도)
       if (draftKey) savePref(`draft:${draftKey}`, rest);
       if (!rest) setHeight(MIN_HEIGHT);
       for (const key of sentKeys) attachments.remove(key);
@@ -115,7 +103,6 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
     }
   }, [attachments, draftKey, onSend, running, steer, text]);
 
-  // 올리는 중에 보내기를 눌렀으면 올리기가 끝나는 순간 보낸다
   useEffect(() => {
     if (pendingSend && attachments.ready && !sending) void submit();
   }, [pendingSend, attachments.ready, sending, submit]);

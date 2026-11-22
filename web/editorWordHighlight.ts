@@ -8,7 +8,6 @@ import "./editorWordHighlight.css";
 
 
 const RUN_DELAY_MS = 50;
-// 아주 큰 문서에서는 텍스트 대체 검색을 하지 않는다
 const TEXTUAL_LIMIT = 2_000_000;
 
 const setHighlights = StateEffect.define<Highlight[]>();
@@ -32,7 +31,6 @@ const highlightField = StateField.define<Field>({
   provide: (field) => EditorView.decorations.from(field, (value) => value.deco),
 });
 
-// 개요 눈금자와 미니맵(web/editorMarks.ts)이 읽는 지금 강조 범위
 export function wordHighlightRangesOf(state: EditorState): readonly Highlight[] {
   return state.field(highlightField, false)?.ranges ?? [];
 }
@@ -87,7 +85,6 @@ class WordHighlighter {
     this.timer = setTimeout(() => void this.run(), RUN_DELAY_MS);
   }
 
-  // 포커스를 잃으면 지운다. update 안에서는 dispatch 를 못 하므로 한 틱 뒤에 한다.
   private stop() {
     this.cancel();
     setTimeout(() => this.clear(), 0);
@@ -106,7 +103,6 @@ class WordHighlighter {
     const line = view.state.doc.lineAt(selection.head);
     const word = wordRangeAt(line.text, selection.head - line.from);
     if (!word) return this.clear();
-    // 이미 강조된 낱말 안으로 커서가 옮겨 갔으면 그대로 둔다(번들: 새 요청을 안 한다)
     if (view.state.field(highlightField).ranges.some((r) => r.from <= selection.head && selection.head <= r.to)) return;
     this.clear();
     const doc = view.state.doc;
@@ -127,7 +123,6 @@ async function highlightsFor(view: EditorView, head: number, wordFrom: number, w
       });
       if (result) return result.map((item) => ({ from: plugin.fromPosition(item.range.start), to: plugin.fromPosition(item.range.end), kind: highlightKind(item.kind) }));
     } catch {
-      // 서버 오류는 텍스트 일치로 대신한다
     }
   }
   if (view.state.doc.length > TEXTUAL_LIMIT) return [];
@@ -147,7 +142,6 @@ export function moveHighlight(view: EditorView, delta: 1 | -1) {
   return true;
 }
 
-// 화면 밖에 있을 때만 가운데로 가져온다(revealRangeInCenterIfOutsideViewport)
 function scrollIfHidden(view: EditorView, pos: number) {
   const box = view.coordsAtPos(pos);
   const area = view.scrollDOM.getBoundingClientRect();

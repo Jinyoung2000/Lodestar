@@ -8,7 +8,6 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Text } from "../ui/Text";
 
-// 연결: Mac 의 Settings > Mobile 에서 만든 QR 을 스캔하거나, 주소와 코드를 입력한다. 코드는 5분짜리 일회용이다.
 export default function Connect() {
   const colors = useColors();
   const router = useRouter();
@@ -30,7 +29,6 @@ export default function Connect() {
     router.replace("/");
   };
 
-  // QR 스캔 화면이나 pair 링크가 넘긴 주소를 한 번만 처리한다
   useEffect(() => {
     const raw = params.scanned ?? params.uri;
     if (!raw || handled.current === raw) return;
@@ -46,7 +44,6 @@ export default function Connect() {
     void pair(info);
   };
 
-  // 데스크톱에서 해제된 연결(unauthorized)은 저장돼 있어도 다시 페어링하러 온 것이라 홈으로 돌려보내지 않는다
   if (connection && conn !== "unauthorized" && !busy && !params.scanned && !params.uri) return <Redirect href="/" />;
 
   return (
@@ -103,7 +100,6 @@ export default function Connect() {
   );
 }
 
-// 데스크톱의 장치 목록에 보이는 이름
 function deviceName() {
   return Platform.OS === "android" ? "Android phone" : "iPhone";
 }

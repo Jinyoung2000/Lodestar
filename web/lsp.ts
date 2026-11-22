@@ -1,3 +1,4 @@
+import { folderOf } from "../shared/sessionFolders";
 import { autocompletion } from "@codemirror/autocomplete";
 import { LSPPlugin, serverCompletionSource, serverDiagnostics, signatureHelp, type LSPClient, type Transport } from "@codemirror/lsp-client";
 import type { Language } from "@codemirror/language";
@@ -23,11 +24,9 @@ type Location = { uri: string; range: { start: { line: number; character: number
 type LocationLink = { targetUri: string; targetSelectionRange: Location["range"] };
 export type SymbolInfo = { name: string; kind: number; containerName?: string; location: Location };
 
-// 열린 에디터 등록부. displayFile 이 다른 파일의 EditorView 를 돌려줘야 해서 탭 키로 찾는다.
 const views = new Map<string, EditorView>();
 const viewWaiters = new Map<string, ((view: EditorView) => void)[]>();
 
-// 같은 파일이 여러 그룹에 열려 있으면 탭 키가 `기본키`, `기본키#2` ... 로 갈린다(web/editorTabs.ts). 기본 키로 찾으면 활성 탭의 보기를 먼저, 없으면 먼저 열린 보기를 돌려준다.
 export function registerView(key: string, view: EditorView) {
   views.set(key, view);
   for (const name of new Set([key, baseKeyOf(key)])) {
@@ -49,13 +48,11 @@ export function viewFor(key: string) {
   return null;
 }
 
-// 지금 키보드 포커스가 있는 에디터의 탭 키. 활성 그룹과 포커스가 어긋나도 사용자가 선택한 쪽을 찾는다.
 export function focusedViewKey() {
   for (const [key, view] of views) if (view.hasFocus) return key;
   return null;
 }
 
-// diff 의 수정본 쪽 보기(web/diffLsp.ts). 파일 탭이 아니라서 탭 키가 없다. 등록하면 포커스를 받은 이 보기가 명령(팔레트, 단축키)의 대상이 된다.
 const diffViews = new Map<EditorView, string>();
 let diffViewCount = 0;
 
@@ -69,7 +66,6 @@ export function registerDiffView(workspaceId: string, view: EditorView) {
   };
 }
 
-// 이 보기가 diff 의 수정본 쪽이면 그 워크스페이스, 아니면 null
 export const diffWorkspaceOf = (view: EditorView) => diffViews.get(view) ?? null;
 
 function waitForView(key: string) {
@@ -77,8 +73,6 @@ function waitForView(key: string) {
   if (view) return Promise.resolve(view);
   return new Promise<EditorView>((resolve) => viewWaiters.set(key, [...(viewWaiters.get(key) ?? []), resolve]));
 }
-
-// --- 경로와 URI ---
 
 export function fileUri(absolute: string) {
   return `file://${absolute.split("/").map(encodeURIComponent).join("/")}`;
@@ -100,11 +94,13 @@ export function absolutePath(workspaceId: string, path: string) {
   return parts.join("/");
 }
 
-// 절대 경로를 가장 깊은 워크스페이스 기준 상대 경로로 바꾼다. 워크스페이스 밖이면 현재 워크스페이스 기준 ../ 경로.
 export function toTarget(absolute: string, fallbackWorkspaceId: string): FileTarget {
-  const match = [...getState().workspaces]
-    .filter((w) => absolute.startsWith(`${w.dir}/`))
-    .sort((a, b) => b.dir.length - a.dir.length)[0];
+  const workspaces = getState().workspaces;
+  const root = folderOf(
+    workspaces.map((w) => w.dir).filter((dir) => dir !== absolute),
+    absolute,
+  );
+  const match = root ? workspaces.find((w) => w.dir === root) : undefined;
   if (match) return { workspaceId: match.id, path: absolute.slice(match.dir.length + 1) };
   const base = getState().workspaces.find((w) => w.id === fallbackWorkspaceId)!.dir.split("/");
   const target = absolute.split("/");
@@ -116,15 +112,12 @@ export function toTarget(absolute: string, fallbackWorkspaceId: string): FileTar
   };
 }
 
-// LSP 서버에 문서를 열 때 쓰는 languageId. graphql 은 Relay LSP 가 맡는다(담당 서버는 데몬의 레지스트리가 정한다).
 export function languageIdFor(path: string) {
   const ext = path.slice(path.lastIndexOf(".") + 1);
   return (
     { ts: "typescript", mts: "typescript", cts: "typescript", tsx: "typescriptreact", js: "javascript", mjs: "javascript", cjs: "javascript", jsx: "javascriptreact", graphql: "graphql", gql: "graphql" } as Record<string, string>
   )[ext] ?? null;
 }
-
-// --- LSP 세션 (워크스페이스당 하나) ---
 
 const sessions = new Map<string, LSPClient>();
 
@@ -142,10 +135,8 @@ export function lspClient(workspaceId: string) {
       }),
     timeout: 60_000,
     sanitizeHTML: (html) => DOMPurify.sanitize(html),
-    // hover 와 시그니처 도움말의 ```typescript 같은 코드 블록을 에디터와 같은 구문 색으로 칠한다(색은 cm-syn-* 클래스가 준다).
     highlightLanguage: highlightLanguageFor,
     notificationHandlers: {
-      // 코드와 source 가 든 원본을 남기고(web/diagnosticsStore.ts) 같은 파일의 모든 보기에 밑줄을 그린다. 보기를 못 찾으면 false 로 돌려 serverDiagnostics 가 먼저 연 보기에 그리게 둔다.
       "textDocument/publishDiagnostics": (client, params: { uri: string; version?: number | null; diagnostics: Parameters<typeof recordDiagnostics>[1] & Parameters<typeof toViewDiagnostics>[0] }) => {
         recordDiagnostics(params.uri, params.diagnostics);
         return paintDiagnostics(client, params);
@@ -154,18 +145,15 @@ export function lspClient(workspaceId: string) {
         setState((s) => ({ lspInfo: { ...s.lspInfo, [workspaceId]: `TypeScript ${params.version} (${params.source})` } }));
         return true;
       },
-      // 서버가 typescript-language-server 인지 네이티브(typescript-go)인지 알리는 server/lsp.ts 의 알림. 네이티브는 $/typescriptVersion 을 보내지 않는다.
       "$/lodestar/serverInfo": (_client, params: ServerInfo) => {
         applyServerInfo(workspaceId, params);
         return true;
       },
-      // 데몬의 멀티플렉서가 알리는 서버별 상태(TypeScript 외에 Relay 등)
       "$/lodestar/servers": (_client, params: { servers: LspServerState[] }) => {
         setState((s) => ({ lspServers: { ...s.lspServers, [workspaceId]: params.servers } }));
         return true;
       },
     },
-    // 편집을 하므로 변경 동기화(500ms 뒤 didChange)와 진단, 자동완성, 시그니처 도움말도 붙인다.
     extensions: [semanticTokensCapability, definitionLinkSupport, codeActionSupport, relatedInformationSupport, resolveSupport, suggestDetails(), ...serverCompletionWithMatches(), signatureHelp({ keymap: false }), serverDiagnostics()],
   });
   sessions.set(workspaceId, client);
@@ -173,8 +161,6 @@ export function lspClient(workspaceId: string) {
   return client;
 }
 
-// 진단을 같은 파일을 보여 주는 모든 보기에 그린다(파일 탭 여럿, diff 의 수정본 쪽). serverDiagnostics() 는 file.getView() 하나(먼저 연 보기)에만 그려서, 같은 파일을 두 곳에 열면 둘째 보기에는 밑줄이 없었다.
-// 위치는 보기마다 자기 LSPPlugin 으로 옮긴다(보기마다 아직 서버에 안 보낸 편집이 같지만 syncedDoc 은 각자 들고 있다).
 function paintDiagnostics(client: LSPClient, params: { uri: string; version?: number | null; diagnostics: Parameters<typeof toViewDiagnostics>[0] }) {
   const file = client.workspace.getFile(params.uri);
   if (!file || (params.version != null && params.version !== file.version)) return false;
@@ -198,11 +184,8 @@ function applyServerInfo(workspaceId: string, info: ServerInfo) {
   });
 }
 
-// definition 응답을 LocationLink 로 받는다: originSelectionRange 는 ⌘ hover 밑줄 범위(예: import 경로 문자열 전체), targetRange 는 정의 미리보기 범위(선언 전체)다.
 const definitionLinkSupport = { clientCapabilities: { textDocument: { definition: { linkSupport: true } } } };
 
-// textDocument/codeAction 에 편집이 든 제안(CodeAction)으로 답하게 한다. 이 선언이 없으면 서버가 명령(Command)만 준다.
-// 진단의 relatedInformation("'dup' was also declared here")도 받는다(hover 의 관련 위치 블록).
 const relatedInformationSupport = { clientCapabilities: { textDocument: { publishDiagnostics: { relatedInformation: true } } } };
 
 const codeActionSupport = {
@@ -220,7 +203,6 @@ const codeActionSupport = {
   },
 };
 
-// LSP 의 hover 코드 블록에 쓰는 언어. 이름 결정과 파서 읽기는 web/languages.ts 가 한다.
 export function highlightLanguageFor(name: string): Language | null {
   return languageByName(name);
 }
@@ -253,8 +235,6 @@ function connect(workspaceId: string, client: LSPClient) {
 function setLspStatus(workspaceId: string, status: "connecting" | "indexing" | "ready" | "error") {
   setState((s) => ({ lspStatus: { ...s.lspStatus, [workspaceId]: status } }));
 }
-
-// --- 이동 기록 (뒤로/앞으로) ---
 
 type HistoryEntry = { workspaceId: string; path: string; line: number; column: number; group: string };
 const back: HistoryEntry[] = [];
@@ -299,8 +279,6 @@ function openHistoryEntry(entry: HistoryEntry) {
   if (hasGroup(getState().editorLayout, group)) focusGroup(group);
   openFile(target);
 }
-
-// --- 탐색 명령 ---
 
 function positionParams(view: EditorView) {
   const plugin = LSPPlugin.get(view);
@@ -366,9 +344,6 @@ export async function findReferences(view: EditorView, workspaceId: string) {
   setState({ references: { title: S.referencesTitle(symbol, locations.length), groups } });
 }
 
-// typescript-language-server 는 workspace/symbol 범위를 "가장 최근에 요청을 받은 열린 파일"의 프로젝트로 잡는다
-// (tsClient.lastFileOrDummy). node_modules 파일이 마지막이면 tsconfig 밖 임시 프로젝트가 범위가 되어 결과가 빈다.
-// 그래서 검색 직전에 프로젝트 파일 하나로 가벼운 요청을 보내 기준 파일을 바꾼다.
 export async function searchWorkspaceSymbols(workspaceId: string, query: string) {
   const client = lspClient(workspaceId);
   await client.initializing;
@@ -389,11 +364,8 @@ function projectAnchorUri(client: LSPClient) {
   return candidates[0] ?? null;
 }
 
-// --- 편집 ---
-
 type TextEdit = { range: { start: { line: number; character: number }; end: { line: number; character: number } }; newText: string };
 
-// typescript-language-server 의 formatting 으로 포맷한 전체 글. LSP 를 쓰지 않는 파일이면 null(포맷할 곳이 없다).
 export async function lspFormat(view: EditorView, range?: { from: number; to: number }): Promise<string | null> {
   const plugin = LSPPlugin.get(view);
   if (!plugin) return null;
@@ -410,7 +382,6 @@ export async function lspFormat(view: EditorView, range?: { from: number; to: nu
   return text;
 }
 
-// 저장했다고 서버에 알린다(변경은 먼저 보내서 서버가 저장된 내용을 알고 있게 한다). 서버가 아직 안 떴거나 이 파일을 열지 않았으면 아무것도 안 한다.
 export function notifySaved(workspaceId: string, path: string, text: string) {
   const client = sessions.get(workspaceId);
   if (!client?.connected) return;

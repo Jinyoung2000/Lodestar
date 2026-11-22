@@ -3,8 +3,6 @@ import { syntaxHighlighters } from "./editorSyntax";
 import { languageIdFor } from "./languageId";
 import { languageById } from "./languages";
 
-// PR diff 의 구문 색. 에디터와 같은 언어 결정(languageIdFor)과 같은 하이라이터(syntaxHighlighters)를 쓰고, 클래스 이름(cm-syn-*)도 같다. 색은 web/pr.css 가 토큰 변수로 준다.
-// 아직 읽지 않은 언어는 읽기를 시작하고 색 없이 돌려준다. 호출한 화면은 useLanguagesVersion 으로 다시 그린다.
 export type Seg = { text: string; cls: string | null };
 
 const MAX_CHARS = 200_000;

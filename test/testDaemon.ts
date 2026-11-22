@@ -1,5 +1,3 @@
-// 시험이 쓰는 데몬. 기본은 시험이 자기 데몬을 임시 홈과 빈 포트로 띄우고 끝나면 끈다.
-// AGENT_NAV_PORT 를 주면 그 데몬을 대상으로 한다. 그때는 AGENT_NAV_HOME 도 함께 줘야 하고, 사용자의 앱(7788, ~/.agent-nav)은 어떤 경우에도 대상이 될 수 없다.
 import { execFileSync, spawn } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, request } from "node:http";
@@ -12,7 +10,6 @@ export type TestDaemon = { port: number; home: string; token: string; stop: () =
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const USER_PORT = 7788;
 
-// settings 는 데몬이 뜰 때 읽는 settings.json 의 값, env 는 데몬에 더 줄 환경 변수(AGENT_NAV_MOBILE_PORT 같은 것)다. 둘 다 자기 데몬을 띄울 때만 쓰인다.
 export type TestDaemonOptions = { settings?: Record<string, unknown>; env?: Record<string, string> };
 
 export async function useTestDaemon(options: TestDaemonOptions = {}): Promise<TestDaemon> {
@@ -20,7 +17,6 @@ export async function useTestDaemon(options: TestDaemonOptions = {}): Promise<Te
   return given === undefined ? startOwn(options) : attach(Number(given), process.env.AGENT_NAV_HOME);
 }
 
-// 빈 포트 하나(시험이 자기 포트를 골라 데몬에 알릴 때)
 export const freeTestPort = () => freePort();
 
 function attach(port: number, home: string | undefined): TestDaemon {
@@ -31,7 +27,6 @@ function attach(port: number, home: string | undefined): TestDaemon {
   return { port, home, token: readFileSync(join(home, "token"), "utf8").trim(), stop: () => {} };
 }
 
-// freePort 가 포트를 돌려준 뒤 데몬이 묶기 전에 다른 프로세스가 가로챌 수 있어(동시에 도는 검사들), 데몬이 못 뜨면 새 포트로 한 번 더 시도한다.
 async function startOwn(options: TestDaemonOptions): Promise<TestDaemon> {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -48,7 +43,6 @@ async function startOnce(options: TestDaemonOptions): Promise<TestDaemon> {
   seedState(home, repo);
   if (options.settings) writeFileSync(join(home, "settings.json"), JSON.stringify(options.settings));
   const port = await freePort();
-  // 파이프로 받으면 읽는 쪽이 없을 때 데몬이 멈추므로 로그는 파일로 보낸다.
   const logFile = join(home, "daemon.log");
   const log = openSync(logFile, "a");
   const child = spawn(join(ROOT, "node_modules/.bin/tsx"), ["server/index.ts"], {
@@ -75,14 +69,12 @@ async function startOnce(options: TestDaemonOptions): Promise<TestDaemon> {
   return { port, home, token: readFileSync(join(home, "token"), "utf8").trim(), stop };
 }
 
-// 상위(사용자의 앱이나 피드백 검사)가 넘긴 AGENT_NAV_*, ELECTRON_* 를 물려받지 않는다. 홈, 포트, 소스 폴더는 이 시험이 정한 값만 쓴다.
 function ownEnv() {
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const key of Object.keys(env)) if (key.startsWith("AGENT_NAV_") || key.startsWith("ELECTRON_")) delete env[key];
   return env;
 }
 
-// 접근 검사와 경로 탈출 시험이 쓸 폴더 하나와 세션 하나. 세션은 모델을 부르지 않는 기록뿐이다.
 function seedRepo() {
   const repo = realpathSync(mkdtempSync(join(tmpdir(), "agent-nav-test-repo-")));
   const git = (...args: string[]) => execFileSync("git", ["-c", "user.email=t@example.com", "-c", "user.name=t", ...args], { cwd: repo, stdio: "pipe" });

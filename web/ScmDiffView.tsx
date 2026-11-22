@@ -21,13 +21,12 @@ import { flash, openFile, useStore, type ScmDiffTab } from "./store";
 import { reloadWorkspaceChanges } from "./workspaceChanges";
 import { onWorkspaceChanged } from "./workspaceEvents";
 
-// Source Control 의 Open Changes 가 여는 diff 탭. 세션과 무관하게 저장소의 인덱스를 기준으로 보이고, hunk 마다 Stage Block 또는 Unstage Block 이 있다.
-// staged 는 HEAD 대 인덱스(단추는 Unstage Block), changes 는 인덱스 대 작업 트리(단추는 Stage Block 과 Discard Block)다.
 export function ScmDiffView({ tab, active }: { tab: ScmDiffTab; active: boolean }) {
   const target = { agentId: tab.agentId, workspaceId: tab.workspaceId };
   const { diff, error, reload } = useScmFileDiff(tab);
   const [busy, setBusy] = useState(false);
   const staged = tab.section === "staged";
+  const uncommitted = tab.section === "uncommitted";
   const handle = useRef<MountedDiff | null>(null);
   const workspaceDir = useStore((s) => s.workspaces.find((w) => w.id === tab.workspaceId)?.dir ?? "");
   const relative = workspaceDir && tab.path.startsWith(`${workspaceDir}/`) ? tab.path.slice(workspaceDir.length + 1) : tab.path;
@@ -44,8 +43,7 @@ export function ScmDiffView({ tab, active }: { tab: ScmDiffTab; active: boolean 
       void reloadWorkspaceChanges(tab.workspaceId);
     }
   };
-  // 서버가 다시 읽은 hunk 지문과 함께 한 hunk 를 올리거나 내린다. 파일이 그 사이 바뀌었으면 서버가 거절하고, 어느 쪽이든 diff 를 새로 읽는다.
-  const stageHunk = (hunk: ScmHunkInfo) => settle(() => rpc.call("scm.stageHunk", { ...target, rel: tab.rel, section: tab.section, index: hunk.index, hash: hunk.hash }), M.hunkFailed);
+  const stageHunk = (hunk: ScmHunkInfo) => settle(() => rpc.call("scm.stageHunk", { ...target, rel: tab.rel, section: staged ? "staged" : "changes", index: hunk.index, hash: hunk.hash }), M.hunkFailed);
   const discardHunk = async (hunk: ScmHunkInfo) => {
     const name = tab.rel.slice(tab.rel.lastIndexOf("/") + 1);
     const fresh = diff?.original === null;
@@ -57,6 +55,7 @@ export function ScmDiffView({ tab, active }: { tab: ScmDiffTab; active: boolean 
   const latest = useRef({ stageHunk, discardHunk, wholeFile, busy });
   latest.current = { stageHunk, discardHunk, wholeFile, busy };
   const buttons = useMemo<HunkButton[]>(() => {
+    if (uncommitted) return [];
     const guard = (act: (hunk: ScmHunkInfo) => unknown) => (hunk: ScmHunkInfo) => !latest.current.busy && void act(hunk);
     const stage = guard((hunk) => latest.current.stageHunk(hunk));
     if (staged) return [{ label: M.unstageBlock, icon: "remove", act: stage }];
@@ -64,9 +63,9 @@ export function ScmDiffView({ tab, active }: { tab: ScmDiffTab; active: boolean 
       { label: M.stageBlock, icon: "add", act: stage },
       { label: M.discardBlock, icon: "discard", act: guard((hunk) => latest.current.discardHunk(hunk)) },
     ];
-  }, [staged]);
+  }, [staged, uncommitted]);
 
-  const canStageFile = !!diff && (diff.hunks.length > 0 || diff.binary || diff.tooLarge);
+  const canStageFile = !uncommitted && !!diff && (diff.hunks.length > 0 || diff.binary || diff.tooLarge);
   useEffect(
     () =>
       registerDiffNav(tab.key, {
@@ -119,7 +118,7 @@ function HunkEditor({ tab, diff, buttons, handleRef }: { tab: ScmDiffTab; diff: 
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host || !measured) return;
-    const lsp = tab.section === "changes" && diff.modified !== null ? diffLspTarget(tab.workspaceId, tab.path, true) : null;
+    const lsp = tab.section !== "staged" && diff.modified !== null ? diffLspTarget(tab.workspaceId, tab.path, true) : null;
     const mounted = mode === "split" ? mountSplit(host, { tab, diff, buttons, lsp }) : mountInline(host, { tab, diff, buttons, lsp });
     handleRef.current = mounted;
     lspViewRef.current = mounted.lspView;
@@ -218,7 +217,7 @@ function mountSplit(host: HTMLElement, { tab, diff, buttons, lsp }: MountOptions
     parent: host,
     a: { doc: diff.original ?? "", extensions: [diffCodeExtensions(tab.path, false)] },
     b: { doc: initialModifiedText(lsp, diff.modified ?? ""), extensions: [diffCodeExtensions(tab.path, false, undefined, lsp), EditorView.contentAttributes.of({ "aria-label": tab.rel })] },
-    revertControls: "a-to-b",
+    revertControls: buttons.length ? "a-to-b" : undefined,
     renderRevertControl: renderControl,
     collapseUnchanged: COLLAPSE_UNCHANGED,
     diffConfig: DIFF_CONFIG,
@@ -244,7 +243,6 @@ function mountSplit(host: HTMLElement, { tab, diff, buttons, lsp }: MountOptions
   };
 }
 
-// 서버에서 파일 diff 를 읽는다. 바깥 변화(workspaceChanged)와 이 탭이 다시 보일 때 새로 읽고, 내용이 같으면 상태를 바꾸지 않아 편집기가 다시 만들어지지 않는다.
 function useScmFileDiff(tab: ScmDiffTab) {
   const [state, setState] = useState<{ diff: ScmFileDiff | null; error: string | null }>({ diff: null, error: null });
   const sequence = useRef(0);

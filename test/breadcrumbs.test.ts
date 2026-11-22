@@ -1,5 +1,3 @@
-// 경로 줄과 형제 목록의 순수 규칙(web/breadcrumbModel.ts): 조각 목록, 같은 폴더의 항목 정렬, 펼침과 거르기, 글자 일치와 굵게 칠할 위치, 방향키 이동, 목록이 놓일 자리, 문서가 바뀔 때 심볼 위치.
-// 실행: npm test
 import { ChangeSet } from "@codemirror/state";
 import { crumbsFor, fileItems, highlightParts, listable, mapSymbols, matchLabel, matchRowIndex, navigatePicker, pickerBodyHeight, pickerPlacement, symbolItems, symbolTone, visibleRows } from "../web/breadcrumbModel";
 import type { SymbolNode } from "../web/documentSymbols";
@@ -13,7 +11,6 @@ const same = (name: string, got: unknown, want: unknown) => check(name, JSON.str
 
 const node = (name: string, kind: number, from: number, to: number, children: SymbolNode[] = []): SymbolNode => ({ name, detail: "", kind, from, to, nameFrom: from + 1, nameTo: from + 1 + name.length, children });
 
-// --- 조각 ---
 {
   const method = node("render", 6, 30, 60);
   const klass = node("Widget", 5, 10, 80, [method, node("update", 6, 62, 78)]);
@@ -29,7 +26,6 @@ const node = (name: string, kind: number, from: number, to: number, children: Sy
   same("a path outside the workspace has no sibling list", [listable("src/a.ts"), listable("../x/a.ts"), listable("a/../b.ts"), listable("/Users/me/a.ts")], [true, false, false, false]);
 }
 
-// --- 같은 폴더의 항목 ---
 {
   const files = ["src/b.ts", "src/a10.ts", "src/a2.ts", "src/web/Editor.tsx", "src/web/util/x.ts", "README.md", "package.json", "Zed.md"];
   const names = (items: { label: string }[]) => items.map((i) => i.label);
@@ -44,7 +40,6 @@ const node = (name: string, kind: number, from: number, to: number, children: Sy
   check("the same list gives the same index (cached)", fileItems(files, [], "src")[0]!.id === fileItems(files, [], "src")[0]!.id);
 }
 
-// --- 펼침, 거르기, 글자 일치 ---
 {
   const files = ["a/one.ts", "a/two.ts", "a/deep/three.ts", "b.ts", "c/alpha.ts"];
   const items = fileItems(files, [], "");
@@ -74,7 +69,6 @@ const node = (name: string, kind: number, from: number, to: number, children: Sy
   same("no rows means no match", matchRowIndex([], 0, 1), -1);
 }
 
-// --- 방향키 ---
 {
   const items = fileItems(["a/one.ts", "a/two.ts", "b.ts"], [], "");
   const closed = new Set<string>();
@@ -95,7 +89,6 @@ const node = (name: string, kind: number, from: number, to: number, children: Sy
   same("nothing to move in an empty list", navigatePicker([], null, "down", closed).focusId, null);
 }
 
-// --- 놓을 자리 ---
 {
   const view = { width: 1440, height: 900 };
   const at = pickerPlacement({ left: 100, top: 40, width: 80, height: 22 }, view, null);
@@ -124,16 +117,12 @@ const node = (name: string, kind: number, from: number, to: number, children: Sy
   same("rows are 22px and the list stops 16px short of the maximum", [pickerBodyHeight(3, 300), pickerBodyHeight(100, 300)], [66, 284]);
 }
 
-// --- 심볼 ---
 {
   const klass = node("Widget", 5, 10, 80, [node("render", 6, 30, 60)]);
-  // 앞에 5자 삽입: 모두 5 밀린다
   const before = mapSymbols([klass], ChangeSet.of({ from: 0, insert: "12345" }, 100));
   same("an insertion before shifts every position", [before[0]!.from, before[0]!.to, before[0]!.nameFrom, before[0]!.children[0]!.from], [15, 85, 16, 35]);
-  // 클래스 안(40)에 3자 삽입: 시작은 그대로, 끝과 뒤 메서드의 끝은 3 밀린다
   const inside = mapSymbols([klass], ChangeSet.of({ from: 40, insert: "abc" }, 100));
   same("an insertion inside grows the range", [inside[0]!.from, inside[0]!.to, inside[0]!.children[0]!.to], [10, 83, 63]);
-  // 클래스 첫 글자 위치(10)에 삽입: 삽입은 심볼 앞에 들어간다
   const atStart = mapSymbols([klass], ChangeSet.of({ from: 10, insert: "zz" }, 100));
   same("an insertion at the very start stays outside the symbol", atStart[0]!.from, 12);
   const atEnd = mapSymbols([klass], ChangeSet.of({ from: 80, insert: "zz" }, 100));

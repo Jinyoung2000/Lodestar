@@ -1,4 +1,3 @@
-// Chat 중심에서 에디터 옆에 붙는 고정 칸(Changes, Files)의 폭 계산(web/pinnedLayout.ts)을 확인한다. 실행: npm test
 import type { EditorLayout } from "../web/editorGroups";
 import { PINNED_DEFAULT, PINNED_EDITOR_MIN, PINNED_FIT, PINNED_MIN, edgeGroupOf, fitsBoth, isPinnedSide, nextPinnedState, parsePinnedWidth, pinnedRange, pinnedShown, pinnedWidth, presentationOf, snapDrawerWidth, DRAWER_SLIVER } from "../web/pinnedLayout";
 

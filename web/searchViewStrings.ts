@@ -41,10 +41,8 @@ export const SV = {
   openSettings: "Open Settings",
   canceled: "Search was canceled before any results could be found - ",
   limitHit: "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.",
-  // Replace All 확인 대화상자
   replaceAllTitle: "Replace All",
   replaceButton: "Replace",
-  // 컨텍스트 메뉴와 hover 단추
   replace: "Replace",
   dismiss: "Dismiss",
   restrictToFolder: "Restrict Search to Folder",
@@ -64,12 +62,10 @@ export const SV = {
   conflict: "Some files changed after the search and were not replaced. Run the search again.",
 } as const;
 
-// "N results in M files" 의 단수 복수 4가지
 export function resultCount(matches: number, files: number): string {
   return `${matches} ${matches === 1 ? "result" : "results"} in ${files} ${files === 1 ? "file" : "files"}`;
 }
 
-// Replace All 확인 문구. 바꿀 글은 10줄을 넘으면 앞 10줄 뒤에 "..." 로 줄인다.
 export function confirmReplaceAll(matches: number, files: number, replaceText: string): string {
   const lines = replaceText.split("\n");
   const shown = lines.length > 10 ? `${lines.slice(0, 10).join("\n")}\n...` : replaceText;
@@ -77,7 +73,6 @@ export function confirmReplaceAll(matches: number, files: number, replaceText: s
   return replaceText ? `${head} with '${shown}'?` : `${head}?`;
 }
 
-// Replace All 이 끝난 뒤 요약 줄 자리에 나오는 문구
 export function replacedAll(matches: number, files: number, replaceText: string): string {
   const head = `Replaced ${matches} ${matches === 1 ? "occurrence" : "occurrences"} across ${files} ${files === 1 ? "file" : "files"}`;
   return replaceText ? `${head} with '${replaceText}'.` : `${head}.`;
@@ -85,7 +80,6 @@ export function replacedAll(matches: number, files: number, replaceText: string)
 
 export type EmptyKind = "all" | "openEditors";
 
-// 결과가 없을 때의 문구(끝에 " - " 가 붙고 뒤에 링크 하나가 이어진다). include 와 exclude 가 있으면 링크는 "Search again in all files", 없으면 "Open Settings".
 export function noResults(kind: EmptyKind, include: string, exclude: string): string {
   if (kind === "openEditors") {
     if (include && exclude) return `No results found in open editors matching '${include}' excluding '${exclude}' - `;

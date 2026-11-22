@@ -36,7 +36,6 @@ type FormatterInfo = { extensionId: string; name: string; label: string; languag
 const ALL_LANGUAGES = ["typescript", "typescriptreact", "javascript", "javascriptreact", "json", "css", "scss", "markdown"];
 const SCRIPT_LANGUAGES = ["typescript", "typescriptreact", "javascript", "javascriptreact"];
 
-// name 은 설치된 확장의 displayName 을 못 읽을 때 쓰는 이름, label 은 버튼과 토스트에 쓰는 짧은 이름이다.
 // ESLint 는 JS 와 TS 만 본다(마크다운이나 JSON 을 줘 봐야 파싱 오류뿐). oxfmt 와 eslint 는 범위 포맷을 못 한다.
 const FORMATTERS: Record<FormatterId, FormatterInfo> = {
   oxc: { extensionId: "oxc.oxc-vscode", name: "Oxc", label: "oxfmt", languages: ALL_LANGUAGES, range: false },
@@ -59,7 +58,6 @@ export function languageNameOf(path: string) {
 }
 
 
-// settings.json 한 파일에서 포맷에 쓰는 값만. flat 은 `[언어]` 블록이 아닌 모든 키(oxc.*, prettier.*, eslint.* 를 여기서 읽는다).
 export type FormatLayer = { defaultFormatter: string | null; byLanguage: Record<string, string>; flat: Record<string, unknown>; formatOnSave: boolean | null };
 export type FormatSettings = { user: FormatLayer; workspace: FormatLayer };
 
@@ -78,7 +76,6 @@ function readLayer(file: string): FormatLayer {
     const value = parseJsonc(readFileSync(file, "utf8"));
     if (value && typeof value === "object" && !Array.isArray(value)) raw = value as Record<string, unknown>;
   } catch {
-    // 파일이 없거나 깨졌으면 설정 없음으로 본다
   }
   return parseFormatSettings(raw);
 }
@@ -94,7 +91,6 @@ export function parseFormatSettings(raw: Record<string, unknown>): FormatLayer {
       continue;
     }
     if (!value || typeof value !== "object") continue;
-    // "[typescript][javascript]" 처럼 이어 쓴 키는 쉼표로 나눠 읽는다
     for (const language of match[1].split(/\]\s*\[|,/)) {
       const formatter = str((value as Record<string, unknown>)["editor.defaultFormatter"]);
       if (formatter) byLanguage[language.trim()] = formatter;
@@ -123,8 +119,6 @@ export function formatOnSaveOf(settings: FormatSettings): boolean | null {
   return settings.workspace.formatOnSave ?? settings.user.formatOnSave;
 }
 
-// --- 어떤 포맷터를 쓸지 ---
-
 type Prepared = { ok: true; run: () => Promise<string | null> } | { ok: false; reason: "language" | "selection" | "missing"; detail: string | null };
 
 export type FormatRequest = {
@@ -134,10 +128,8 @@ export type FormatRequest = {
   range?: { from: number; to: number };
   settings: FormatSettings;
   chosen?: Record<string, FormatterId>;
-  // 이번 한 번만 이 포맷터로 (알림의 "Format with ...")
   formatter?: FormatterId;
   env?: ResolveEnv;
-  // 사용자가 추가하지 않은 폴더(server/folderTrust.ts): 그 폴더의 포맷터와 그 설정 파일(prettier.config.js, eslint.config.js 같은 코드)을 돌리지 않는다. TypeScript 포맷(앱의 언어 서버)만 남는다.
   bundledOnly?: boolean;
 };
 
@@ -181,7 +173,6 @@ export async function runFormat(request: FormatRequest): Promise<FormatResult> {
     if (prepared.ok) providers.push(id);
   }
   if (providers.length === 0) return none();
-  // 후보가 여럿이어도 이 저장소가 설정 파일을 둔 Oxc 나 Prettier 가 하나뿐이면 그것이 저장소가 고른 것이다. 묻지 않고 쓴다.
   const configuredHere = providers.length > 1 ? providers.filter((id) => (id === "oxc" || id === "prettier") && hasRepoConfig(id, absolute)) : [];
   if (providers.length > 1 && configuredHere.length !== 1) return failed({ kind: "ambiguous" }, null);
   const only = configuredHere[0] ?? providers[0];
@@ -264,7 +255,6 @@ async function prepareFormatter(id: FormatterId, languageId: string, ctx: ToolCo
       try {
         parsed = JSON.parse(result.stdout);
       } catch {
-        // 설정을 못 읽는 등 JSON 이 나오기 전에 죽은 경우
         throw new Error(T.errFormatFailed("ESLint", firstLine(result.stderr || result.stdout)));
       }
       const file = parsed[0];
@@ -279,22 +269,18 @@ function missing(found: Resolution): Prepared {
   return { ok: false, reason: "missing", detail: found.why };
 }
 
-// problem 일 때 대신 쓸 수 있는 포맷터. 이 파일의 저장소에 설정 파일이 있는 것이 앞선다.
 async function alternativesFor(languageId: string, ctx: ToolContext, request: FormatRequest, exclude: FormatterId | null): Promise<FormatChoice[]> {
   const withConfig = (id: FormatterId) => (id === "tsserver" ? false : hasRepoConfig(id, ctx.file));
   const ordered = [...FORMATTER_ORDER.filter(withConfig), ...FORMATTER_ORDER.filter((id) => !withConfig(id))];
   const out: FormatChoice[] = [];
   for (const id of ordered) {
     if (id === exclude) continue;
-    // 설정 파일이 없는 저장소에서 ESLint 를 권하면 "설정을 못 찾음" 오류만 나온다
     if (id === "eslint" && !withConfig(id)) continue;
     const prepared = await prepareFormatter(id, languageId, ctx, request, true);
     if (prepared.ok) out.push({ formatter: id, label: FORMATTERS[id].label });
   }
   return out;
 }
-
-// --- Settings 의 언어별 포맷터 목록 ---
 
 export function formatLanguages(settings: FormatSettings, chosen: Record<string, FormatterId>): FormatLanguage[] {
   return ALL_LANGUAGES.map((id) => {
@@ -310,9 +296,6 @@ export function formatLanguages(settings: FormatSettings, chosen: Record<string,
   });
 }
 
-// --- 실행 ---
-
-// node 스크립트는 ELECTRON_RUN_AS_NODE 로 직접 돌린다. 앱이 GUI 로 떠서 PATH 에 node 가 없어도 된다.
 function execTool(tool: ToolLocation, args: string[], cwd: string, input: string) {
   const [command, argv, env] = tool.loader === "node" ? [process.execPath, [tool.path, ...tool.args, ...args], { ...process.env, ELECTRON_RUN_AS_NODE: "1" }] : [tool.path, [...tool.args, ...args], process.env];
   return new Promise<{ code: number; stdout: string; stderr: string }>((resolve, reject) => {

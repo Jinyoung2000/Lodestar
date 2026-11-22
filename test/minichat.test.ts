@@ -1,4 +1,3 @@
-// 미니 채팅 패널의 순수 규칙 단독 시험: 런처와 대화 전환, 핀과 blur, 저장한 자리 보정, 알림 대상, 저장 파일. 실행: npm test
 import { afterNew, afterSend, barFromChat, blurAction, fitChatBounds, growFromBar, MINI_INITIAL, miniUrl, modeFor, notificationTarget, parseMiniSaved, pinnedFromSetting, sameRect, serializeMiniSaved, stateFor, type Rect } from "../shared/miniChat";
 
 const cases: { name: string; run: () => string }[] = [];
@@ -12,8 +11,6 @@ const eq = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const MIN = { width: 344, height: 264 };
 const SCREEN_A: Rect = { x: 0, y: 25, width: 1440, height: 875 };
 const SCREEN_B: Rect = { x: 1440, y: 0, width: 1920, height: 1080 };
-
-// --- 런처와 대화 ---
 
 test("modeFor / stateFor: 묶인 세션이 있으면 대화, 없으면 입력 막대", () => {
   expect(modeFor(null) === "launcher" && modeFor("a1") === "chat", "모드");
@@ -41,8 +38,6 @@ test("miniUrl: 런처는 ?view=quick, 대화는 단일 세션 화면에 mini=1",
   return "ok";
 });
 
-// --- blur ---
-
 test("blurAction: 입력 막대는 늘 blur 로 숨는다", () => {
   const base = { mode: "launcher" as const, pinned: true, inactive: false, sinceShownMs: 1000, guardMs: 250 };
   expect(blurAction(base) === "hide", "핀이어도 입력 막대는 숨김");
@@ -69,8 +64,6 @@ test("pinnedFromSetting: Hide on outside click 이 꺼져 있으면(기본) 고�
   return "ok";
 });
 
-// --- 알림 ---
-
 test("notificationTarget: 미니 대화의 세션만 갈라진다", () => {
   expect(notificationTarget({ agentId: "a1", miniAgentId: null, miniVisible: false }) === "default", "묶인 대화 없음");
   expect(notificationTarget({ agentId: "a2", miniAgentId: "a1", miniVisible: false }) === "default", "다른 세션");
@@ -78,8 +71,6 @@ test("notificationTarget: 미니 대화의 세션만 갈라진다", () => {
   expect(notificationTarget({ agentId: "a1", miniAgentId: "a1", miniVisible: false }) === "mini", "숨겨져 있으면 알리고 미니 패널로");
   return "ok";
 });
-
-// --- 저장 파일 ---
 
 test("parseMiniSaved: 깨진 파일은 빈 값, 자리는 정수로", () => {
   expect(eq(parseMiniSaved(null), { bounds: null, agentId: null }), "없음");
@@ -93,8 +84,6 @@ test("parseMiniSaved: 깨진 파일은 빈 값, 자리는 정수로", () => {
   expect(eq(round, { bounds: { x: 1, y: 2, width: 3, height: 4 }, agentId: "z" }), "왕복");
   return "ok";
 });
-
-// --- 자리 보정 ---
 
 test("fitChatBounds: 보이는 자리는 그대로", () => {
   const saved = { x: 500, y: 100, width: 484, height: 624 };

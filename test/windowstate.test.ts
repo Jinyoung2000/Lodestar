@@ -1,4 +1,3 @@
-// 창 상태 복원(web/windowState.ts)의 순수 로직. 실행: npm test
 import { clampEditorPos, collectExtras, forLaunch, noteWindowChanged, parseWindowState, pruneExtras, pruneTabState, registerChatReader, registerEditorReader, sanitizeExtras, setPendingRestore, setWindowSaver, takeChatRestore, takeEditorRestore, SAVE_DELAY_MS, type TabLike, type TabState } from "../web/windowState";
 
 const cases: { name: string; run: () => string | Promise<string> }[] = [];

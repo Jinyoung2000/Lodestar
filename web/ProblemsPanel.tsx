@@ -8,8 +8,6 @@ import { baseKeyOf } from "./editorTabs";
 import { fileTabKey, getState, openFile, useStore } from "./store";
 import { S } from "./strings";
 
-// FIX6C: 아래 패널의 Problems 탭. 열려 있는 파일의 진단(LSP)을 파일별로 모아 보이고, 누르면 그 줄로 간다.
-// 언어 서버는 열린 문서만 진단하므로 목록도 열린 파일 탭의 것만이다.
 export function ProblemsPanel() {
   const files = useProblemFiles();
   if (files.length === 0) return <div className="empty-hint">{S.noProblemsOpen}</div>;
@@ -22,7 +20,6 @@ export function ProblemsPanel() {
   );
 }
 
-// 탭 머리의 개수와 패널이 같은 값을 쓴다.
 export function useProblemFiles(): ProblemFile[] {
   useSyncExternalStore(subscribeDiagnostics, diagnosticsVersion);
   const tabs = useStore((s) => s.tabs);

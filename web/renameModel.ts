@@ -5,7 +5,6 @@ export type TextEdit = { range: LspRange; newText: string };
 export type DocumentChange = { textDocument: { uri: string }; edits: TextEdit[] } | { kind: string };
 export type WorkspaceEdit = { changes?: Record<string, TextEdit[]>; documentChanges?: DocumentChange[] };
 
-// 편집 전체를 문서별 목록으로 모은다. documentChanges 에 파일 만들기, 이름 바꾸기, 지우기가 있으면 fileOps 가 참이다(이 앱은 그 편집을 적용하지 못한다).
 export function collectEdits(edit: WorkspaceEdit) {
   const perUri = new Map<string, TextEdit[]>();
   for (const [uri, edits] of Object.entries(edit.changes ?? {})) perUri.set(uri, [...(perUri.get(uri) ?? []), ...edits]);
@@ -32,7 +31,6 @@ export const PREVIEW_SUFFIX = 50;
 
 const NEWLINE = /\r\n|\n|\r/;
 
-// texts 는 문서 내용을 돌려주는 함수다. 읽지 못한 문서(null)는 문맥 없이 편집만 보인다.
 export function buildPreview(edit: WorkspaceEdit, texts: (uri: string) => string | null): { files: PreviewFile[]; fileOps: boolean } {
   const { perUri, fileOps } = collectEdits(edit);
   const files: PreviewFile[] = [];
@@ -63,7 +61,6 @@ export function buildPreview(edit: WorkspaceEdit, texts: (uri: string) => string
   return { files, fileOps };
 }
 
-// 체크를 푼 항목(id)을 뺀 편집. 파일의 모든 항목을 빼면 그 파일도 뺀다.
 export function selectedEdit(files: readonly PreviewFile[], unchecked: ReadonlySet<string>): WorkspaceEdit {
   const changes: Record<string, TextEdit[]> = {};
   for (const file of files) {
@@ -73,7 +70,6 @@ export function selectedEdit(files: readonly PreviewFile[], unchecked: ReadonlyS
   return { changes };
 }
 
-// 한 줄에 보일 때 줄바꿈은 눈에 띄는 기호로 바꾼다
 export const visibleBreaks = (text: string) => text.replace(/\r\n|\n|\r/g, "↵");
 
 export function fileState(file: PreviewFile, unchecked: ReadonlySet<string>): "all" | "none" | "some" {

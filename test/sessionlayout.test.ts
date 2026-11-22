@@ -1,4 +1,3 @@
-// 세션별 화면 배치 기억(web/sessionLayout.ts)의 순수 로직을 확인한다. 실행: npm test
 import { dropSessionLayout, layoutKeyOf, layoutPatch, planSwitch, pruneSessionLayouts, sameLayout, sanitizeSessionLayouts, sliceOf, type SessionLayout, type SessionLayouts } from "../web/sessionLayout";
 import type { Pane } from "../web/store";
 
@@ -20,8 +19,6 @@ const editorShut: SessionLayout = { layoutMode: "editor", floatCollapsed: true, 
 
 const agentPane = (id: string, agentId: string): Pane => ({ id, kind: "agent", agentId }) as Pane;
 const draftPane = (id: string): Pane => ({ id, kind: "draft", workspaceId: "w" }) as Pane;
-
-// --- 어느 세션의 배치인가 ---
 
 test("the key is the agent of the active pane", () => {
   const panes = [agentPane("p1", "A"), agentPane("p2", "B")];
@@ -45,8 +42,6 @@ test("draft panes and non-session screens have no key", () => {
   return "null";
 });
 
-// --- 전환 계획 ---
-
 test("a session seen for the first time inherits the screen and is remembered", () => {
   const out = planSwitch({ enabled: true, prevKey: null, prev: chatOpen, key: "A", current: editorShut, layouts: {} });
   expect(out.apply === null, "nothing to apply");
@@ -67,7 +62,6 @@ test("A to B to A round trip restores each layout", () => {
   let screen = editorShut;
   let key: string | null = "A";
   layouts = planSwitch({ enabled: true, prevKey: null, prev: screen, key, current: screen, layouts }).layouts;
-  // B 는 처음: A 배치를 이어받은 뒤 사용자가 Chat 배치로 바꾼다
   let r = planSwitch({ enabled: true, prevKey: "A", prev: screen, key: "B", current: screen, layouts });
   layouts = r.layouts;
   key = "B";
@@ -112,8 +106,6 @@ test("turning the feature off forgets everything", () => {
   return "cleared";
 });
 
-// --- 되살리는 패치 ---
-
 test("a stored layout becomes a patch; the side tab follows activeTabKey when no editor tab splits the panel", () => {
   const patch = layoutPatch({ ...chatOpen, rightOpen: true, sideTabKey: "files" }, { activeTabKey: "changes", tabKeys: [], hasCard: false });
   same(patch, { ...chatOpen, rightOpen: true, sideTabKey: "files", activeTabKey: "files" }, "activeTabKey follows");
@@ -133,8 +125,6 @@ test("a stored card tab falls back to changes when no card is selected", () => {
   expect(patch.sideTabKey === "changes", String(patch.sideTabKey));
   return "changes";
 });
-
-// --- 정리와 읽기 ---
 
 test("deleted sessions are pruned", () => {
   const layouts: SessionLayouts = { A: chatOpen, B: editorShut };
@@ -159,8 +149,6 @@ test("saved values are sanitized", () => {
   same(sanitizeSessionLayouts([1, 2]), {}, "array");
   return "ok";
 });
-
-// --- 포커스 모드 값: 왼쪽 사이드바 열림, 대화 패널 열림과 폭 ---
 
 test("focus layout values are remembered per session and compared", () => {
   const a = { ...editorShut, focusSideOpen: true, chatDockOpen: true, chatDockWidth: 520 };

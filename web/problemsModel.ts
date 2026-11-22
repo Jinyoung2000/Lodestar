@@ -1,13 +1,10 @@
 import { diagnosticLabel, type LspDiagnostic } from "./diagnosticsStore";
 
-// FIX6C: 문제 목록 패널의 순수 모델. 진단(LSP)을 파일별로 묶고, 파일은 경로순, 문제는 줄순으로 놓는다. DOM 과 store 를 모른다.
-
 export type ProblemSeverity = "error" | "warning" | "info" | "hint";
 export type ProblemRow = { id: string; severity: ProblemSeverity; message: string; label: string | null; line: number; column: number };
 export type ProblemFile = { key: string; workspaceId: string; path: string; rows: ProblemRow[]; errors: number; warnings: number };
 export type ProblemSource = { workspaceId: string; path: string; diagnostics: LspDiagnostic[] };
 
-// LSP 의 DiagnosticSeverity: 1 Error, 2 Warning, 3 Information, 4 Hint. 값이 없으면 서버가 정하는 기본인 Error 로 본다.
 export function severityOf(value: number | undefined): ProblemSeverity {
   return value === 2 ? "warning" : value === 3 ? "info" : value === 4 ? "hint" : "error";
 }

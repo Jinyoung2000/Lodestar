@@ -13,8 +13,6 @@ import type { PermissionItem } from "./timelineModel";
 type AfterMode = "acceptEdits" | "default";
 const AFTER_MODES: AfterMode[] = ["acceptEdits", "default"];
 
-// ExitPlanMode 로 올라온 계획 승인 카드. 계획은 마크다운으로 보이고, 승인하면 고른 권한 모드(자동 편집 또는 편집 전 확인)로 이어서 진행한다.
-// Keep planning 은 입력창 아래 글(없어도 된다)과 함께 거절로 돌아가 모델이 계획을 고친다.
 export function PlanCard({ agentId, item }: { agentId: string; item: PermissionItem }) {
   const plan = planText(item.input);
   const [mode, setMode] = useState<AfterMode>("acceptEdits");

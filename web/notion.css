@@ -3,7 +3,6 @@
   line-height: 1;
 }
 
-/* NOTION2: 앱 안 Notion 화면. 앱 화면이라 에디터가 아닌 둥근 톤(둥근 칸, 카드)을 쓰고, 값은 전부 토큰이다. */
 .notion-split > .notion-view {
   container-type: inline-size;
 }
@@ -108,7 +107,6 @@
   font-size: var(--text-title);
   line-height: var(--leading-title);
 }
-/* 노션처럼 링크는 파랗게 칠하지 않고 글자색에 옅은 밑줄만 둔다 */
 .notion-doc-body a {
   color: inherit;
   text-decoration-color: var(--fg-subtle);
@@ -205,7 +203,6 @@
   margin-top: var(--space-2);
 }
 
-/* 페이지 전용 대화 칸 */
 .notion-chat-pane {
   flex: 1 1 0;
   min-height: 0;
@@ -243,7 +240,6 @@
   gap: var(--space-1);
 }
 
-/* Notion 쓰기 승인 카드 */
 .notion-write-target {
   display: inline-flex;
   align-items: center;
@@ -303,16 +299,13 @@
 .notion-write-hint {
   margin: 0 var(--space-3) var(--space-2);
 }
-/* 페이지가 주인공이라 대화 칸의 기본 폭은 반이 아니라 40% 로 하고, 끌어서 바꾼 폭(인라인 width)은 그대로 따른다 */
 .notion-split > .split-detail {
   width: clamp(var(--size-panel-narrow), 40%, var(--size-panel-wide));
 }
-/* 좁은 대화 칸에서는 단추가 줄을 바꿔 넘치지 않게 한다 */
 .notion-write-card .approval-actions {
   flex-wrap: wrap;
 }
 
-/* 처리된 Notion 쓰기의 대화 기록 줄. 펼치면 승인 카드와 같은 내용이 대화 본문 들여쓰기에 맞춰 보인다 */
 .notion-write-row-body {
   margin: var(--space-1) 0 var(--space-1) var(--space-6);
 }

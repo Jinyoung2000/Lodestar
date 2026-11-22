@@ -7,8 +7,6 @@ import { N } from "./notionStrings";
 import { rpc } from "./rpc";
 import { flash, rememberPick, setState, useStore } from "./store";
 
-// 페이지에 아직 대화가 없을 때의 새 대화 입력창. 첫 메시지를 보내면 데몬이 페이지 내용을 컨텍스트로 가진 세션을 만들고(notion.chat.start),
-// 화면은 그 세션의 대화로 바뀐다. 모델, effort, 권한은 새 세션 화면과 같은 기본값에서 시작한다.
 export function NotionChatStart({ url }: { url: string }) {
   const paneId = `notion:${notionPageKey(url)}`;
   const draft = useDraftDefaults();

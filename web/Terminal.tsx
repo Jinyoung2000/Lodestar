@@ -13,11 +13,9 @@ import { TerminalAsk } from "./TerminalAsk";
 import { TerminalFind } from "./TerminalFind";
 import { FOCUS_EVENT, isTerminalFocusWanted, markAskHandleFocused, registerAskHandle, takeTerminalFocusWanted, type AskHandle } from "./terminalHandles";
 
-// xterm 은 색을 CSS 변수로 못 받으므로, 토큰의 계산값을 읽어 넘긴다. 테마(data-theme)나 색 스타일(data-style)이 바뀌면 다시 읽는다.
 function tokenValue(name: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
-// 색 토큰을 브라우저가 계산한 rgb 로 읽는다. Black 테마(web/styles.css)의 바탕은 color-mix() 라 변수 문자열 그대로는 xterm 이 못 읽는다.
 function tokenColor(name: string) {
   const probe = document.createElement("span");
   probe.style.color = `var(${name})`;
@@ -62,20 +60,16 @@ function terminalTheme(): ITheme {
     scrollbarSliderBackground: tokenValue("--scrollbar-slider"),
     scrollbarSliderHoverBackground: tokenValue("--scrollbar-slider-hover"),
     scrollbarSliderActiveBackground: tokenValue("--scrollbar-slider-active"),
-    // overviewRuler 폭을 주면 xterm 이 스크롤바 왼쪽에 경계선을 그린다. 배경색과 같게 두어 선이 보이지 않게 한다.
     overviewRulerBorder: tokenColor("--pane-bg"),
   };
 }
 
-// "Apply to terminal" 이 켜져 있으면 코드 글꼴 설정을, 아니면 디자인 시스템 토큰(code-sm)을 쓴다.
-// xterm 의 lineHeight 는 px 가 아니라 글자 칸 높이의 배수라서, 설정의 줄 높이(px)는 applyTerminalFont 가 실제 행 높이를 재서 맞춘다.
 function terminalFont() {
   const settings = getState().settings;
   if (settings?.editorFontTerminal) return { fontFamily: settings.editorFontFamily, fontSize: settings.editorFontSize, lineHeightPx: settings.editorLineHeight };
   return { fontFamily: tokenValue("--font-mono"), fontSize: parseFloat(tokenValue("--text-code-sm")), lineHeightPx: null };
 }
 
-// 글꼴 옵션을 넣고 칸 수를 다시 맞춘다. 줄 높이는 배수 1 로 한 번 그려 행 높이(자연 높이)를 잰 뒤 목표 px 에 맞는 배수로 바꾼다.
 function applyTerminalFont(term: Terminal, host: HTMLElement, fit: FitAddon) {
   const { fontFamily, fontSize, lineHeightPx } = terminalFont();
   term.options.fontFamily = fontFamily;
@@ -93,9 +87,6 @@ function applyTerminalFont(term: Terminal, host: HTMLElement, fit: FitAddon) {
   });
 }
 
-// Ligatures 와 Apply to terminal 이 둘 다 켜졌을 때만 합자 애드온을 단다. 끄면 애드온을 떼서 즉시 낱글자로 돌아간다.
-// 애드온은 character joiner 로 합자 구간을 한 칸 묶음으로 그리게 하고(DOM 렌더러에서도 동작), 글꼴 파일은 queryLocalFonts(로컬 글꼴 접근) 로 읽는다.
-// 접근이 거부되거나 지원되지 않으면 애드온이 내장 합자 목록으로 떨어지고, 애드온 자체를 못 쓰면 경고 한 줄만 남기고 기존 동작을 유지한다.
 let ligatureWarned = false;
 function syncLigatures(term: Terminal, current: LigaturesAddon | null) {
   const settings = getState().settings;
@@ -119,8 +110,6 @@ function syncLigatures(term: Terminal, current: LigaturesAddon | null) {
   return current;
 }
 
-// 세션이나 워크스페이스 cwd 에서 뜨는 셸. 탭이 마운트될 때(사용자가 터미널을 열었을 때)만 데몬에 pty 를 요청한다.
-// params 는 데몬이 cwd 를 고르는 값이다(agentId, workspaceId, 없으면 홈). scopeKey 는 마운트 단위를 가른다.
 export function TerminalView({ scopeKey, params, active, onExit }: { scopeKey: string; params: Record<string, string>; active: boolean; onExit: () => void }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
@@ -142,7 +131,6 @@ export function TerminalView({ scopeKey, params, active, onExit }: { scopeKey: s
     const term = new Terminal({
       cursorBlink: true,
       theme: terminalTheme(),
-      // xterm 6 의 스크롤바 폭 옵션(기본 14px). 다른 곳과 같은 --size-scrollbar 로 맞춘다.
       overviewRuler: { width: parseFloat(tokenValue("--size-scrollbar")) },
       allowProposedApi: true,
     });
@@ -165,7 +153,6 @@ export function TerminalView({ scopeKey, params, active, onExit }: { scopeKey: s
       else term.write(`\r\n${S.terminalClosed(event.reason || null)}\r\n`);
     };
     term.attachCustomKeyEventHandler((event) => {
-      // CTRLTAB: ⌃Tab 은 세션 전환 창(web/sessionSwitcher.ts)의 키라 셸에 탭 문자로 보내지 않는다. 이벤트는 그대로 위로 올라가 단축키 표가 받는다.
       if (event.ctrlKey && event.key === "Tab") return false;
       const data = event.type === "keydown" ? terminalKeySequence(event, term.hasSelection()) : null;
       if (data === null) return true;
@@ -188,20 +175,16 @@ export function TerminalView({ scopeKey, params, active, onExit }: { scopeKey: s
     });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-style", "data-black"] });
 
-    // 글꼴 설정이 바뀌면 옵션을 갱신하고 칸 수를 다시 맞춘다(보이지 않는 탭은 다시 보일 때 맞춘다).
     const offFont = subscribeEditorFont(() => {
       applyTerminalFont(term, host, fit);
       ligatures = syncLigatures(term, ligatures);
     });
 
-    // 보이는 터미널만 포커스를 받는다.
     const takeFocus = () => {
       if (!isTerminalFocusWanted() || !activeRef.current || host.clientWidth === 0) return;
       takeTerminalFocusWanted();
       term.focus();
     };
-    // 창 확대와 축소(⌘=, ⌘-)는 devicePixelRatio 를 바꿔 글자 칸 크기가 달라진다. 창 크기 이벤트가 오면 글꼴과 칸 수를 다시 맞춘다.
-    // 배율이 화면에 반영되는 데 프레임이 걸려, 첫 측정이 전환 도중 값이면 줄 높이가 틀어진다. 한 번 더 맞춘다.
     let zoomTimers: ReturnType<typeof setTimeout>[] = [];
     const onWindowResize = () => {
       zoomTimers.forEach(clearTimeout);

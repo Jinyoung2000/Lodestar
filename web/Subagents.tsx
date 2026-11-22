@@ -11,8 +11,6 @@ import type { PermissionItem } from "./timelineModel";
 import { revealAllSteps } from "./timelineReveal";
 import { sameArray, useStoreDerived } from "./useStoreDerived";
 
-// SUB: Agent(Task) 도구 호출 한 줄. 접힌 줄에는 이름, 상태, 도구 수와 토큰과 시간이 보이고, 펼치면 그 서브에이전트가 부른 도구가 실시간으로 쌓이는 단계 목록과 끝난 뒤 결과의 첫 줄이 보인다.
-// renderStep 은 단계 한 줄을 그리는 Timeline 의 StepRow, renderText 는 결과 본문을 대화 본문과 같은 마크다운 경로로 그리는 Timeline 의 Markdown 이다(서로를 가져오지 않으려고 넘겨 받는다).
 export function AgentStepRow({ item, permission, renderStep, renderText }: { item: ToolItem; permission: PermissionItem | null; renderStep: (step: ToolItem) => ReactNode; renderText: (text: string) => ReactNode }) {
   const { agentId, revealAll } = useContext(TimelineContext);
   const steps = useStoreDerived((s) => s.timelines[agentId], (items) => subagentSteps(items, item.id), sameArray, [item.id]);
@@ -23,13 +21,10 @@ export function AgentStepRow({ item, permission, renderStep, renderText }: { ite
   const elapsed = useElapsed(task, running);
   const verb = denied ? S.stepSkipped : waiting ? S.verbsBase.Agent : task.status === "running" ? S.subagentRunning : task.status === "completed" ? S.subagentRan : task.status === "failed" ? S.subagentFailed : S.subagentStopped;
   const tools = Math.max(task.toolUses, steps.length);
-  // 하네스가 붙인 안내 틀과 usage 태그는 걷고 결과 본문만 보인다. 요약 줄과 같은 글이면 한 번만 보인다.
   const result = useMemo(() => (item.output && !ASYNC_LAUNCH_PATTERN.test(item.output) ? cleanSubagentOutput(item.output) : null), [item.output]);
   const summary = summaryOf(task);
-  // 요약은 결과의 첫 줄이라, 본문에서는 그 줄을 빼고 나머지만 보인다.
   const body = summary && result?.text.split("\n")[0].trim().slice(0, 300) === summary ? result.text.split("\n").slice(1).join("\n").trim() : (result?.text ?? "");
   const showOutput = !!body;
-  // 접힌 줄은 열기 전에는 안쪽(서브에이전트가 부른 도구 수십~수백 줄)을 만들지 않는다. 한 번 만든 뒤에는 다시 접어도 남긴다. 어떤 길로 열려도(클릭, 찾기, 이동) 만든다.
   const [built, setBuilt] = useState(false);
   const showBody = built || revealAll;
   return (
@@ -63,12 +58,10 @@ export function AgentStepRow({ item, permission, renderStep, renderText }: { ite
   );
 }
 
-// 옛 기록의 요약은 안내 틀의 첫 줄일 수 있어 걷어 낸다. 남는 것이 없으면 null.
 function summaryOf(task: SubagentTask) {
   return (task.summary ? cleanSubagentOutput(task.summary).text : "") || null;
 }
 
-// 도는 동안은 1초마다 경과 시간을 다시 센다. 끝난 서브에이전트는 SDK 가 알려 준 시간을 쓴다.
 function useElapsed(task: SubagentTask, running: boolean) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -85,7 +78,6 @@ export function formatDuration(ms: number) {
   return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
-// 입력창 위 칩 줄의 `N agents running`. 백그라운드로 도는 서브에이전트가 있을 때만 보이고, 누르면 이 세션의 서브에이전트 목록이 뜬다.
 export function SubagentsChip({ agentId, paneId }: { agentId: string; paneId: string }) {
   const running = useStoreDerived((s) => s.timelines[agentId], runningBackgroundFrom, sameArray);
   const [open, setOpen] = useState(false);
@@ -104,7 +96,6 @@ export function SubagentsChip({ agentId, paneId }: { agentId: string; paneId: st
 
 function SubagentsList({ anchor, agentId, paneId, onClose }: { anchor: HTMLElement | null; agentId: string; paneId: string; onClose: () => void }) {
   const items = useStore((s) => s.timelines[agentId]) ?? NO_ITEMS;
-  // 도는 것이 먼저, 그다음은 최근 순. 한 세션에 여러 개가 쌓여도 목록이 길어지지 않게 20개까지.
   const rows = useMemo(() => {
     const all = items.filter((i): i is ToolItem => i.kind === "tool" && !!i.task && !i.parentToolUseId);
     const order = (t: ToolItem) => (t.task!.status === "running" ? 0 : 1);
@@ -147,8 +138,6 @@ function AgentListRow({ item, onPick }: { item: ToolItem; onPick: () => void }) 
   );
 }
 
-// 목록의 행을 누르면 대화에서 그 서브에이전트의 줄로 간다: 접힌 단계 묶음을 열고, 줄을 펼치고, 가운데로 스크롤한 뒤 잠깐 강조한다.
-// scrollIntoView 는 smooth 면 스크롤 컨테이너에서 조용히 취소되는 일이 있어 instant 로 한다.
 export function scrollToSubagent(paneId: string, toolId: string) {
   const find = () => {
     const pane = document.getElementById(`composer-${paneId}`)?.closest(".pane") ?? document;
@@ -161,7 +150,6 @@ export function scrollToSubagent(paneId: string, toolId: string) {
     row.dataset.flash = "";
     window.setTimeout(() => delete row.dataset.flash, 1200);
   };
-  // 줄과 안쪽 줄이 모두 만들어진 뒤에 스크롤해야 접히지 않은 높이로 가운데에 맞는다. 접힌 단계 묶음이나 접힌 서브에이전트 줄은 안쪽이 아직 없으므로 칸의 묶음을 모두 만들게 하고 두 프레임 뒤에 찾는다.
   if (!revealAllSteps(paneId)) {
     const row = find();
     if (row) show(row);

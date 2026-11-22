@@ -7,7 +7,6 @@ import { HOME } from "./store";
 
 const PINS_FILE = join(HOME, "notion-pins.json");
 
-// 사이드바 Notion 묶음의 고정 목록(~/.agent-nav/notion-pins.json). 값은 전부 여기서 검사하고, 파일은 임시 파일에 쓴 뒤 rename 으로 바꿔서 도중에 끊겨도 반쪽 파일이 남지 않는다.
 export class NotionPinStore {
   private pins: NotionPin[];
 
@@ -25,7 +24,6 @@ export class NotionPinStore {
     try {
       return sanitizePins(JSON.parse(readFileSync(this.file, "utf8")));
     } catch {
-      // 읽을 수 없는 파일은 덮어쓰지 않고 옆으로 치운다.
       const aside = `${this.file}.corrupt-${Date.now()}`;
       renameSync(this.file, aside);
       console.error(`[notion] pins file is unreadable, moved to ${aside}`);
@@ -40,7 +38,6 @@ export class NotionPinStore {
     renameSync(tmp, this.file);
   }
 
-  // 같은 페이지가 이미 고정돼 있으면 새로 만들지 않고 그 항목을 돌려준다(added 가 false).
   add(input: NotionPinInput): { pin: NotionPin; added: boolean } {
     if (!input || typeof input.url !== "string" || !isNotionUrl(input.url)) throw new Error("Only Notion page links can be pinned.");
     const existing = this.pins.find((p) => pinMatches(p, input.url));
@@ -80,7 +77,6 @@ export class NotionPinStore {
     this.commit(this.pins.filter((p) => p.id !== id));
   }
 
-  // index 는 옮기는 항목을 뺀 목록 안에서의 위치(0 ~ 항목 수)
   move(id: string, index: number): NotionPin[] {
     const pin = this.require(id);
     const rest = this.pins.filter((p) => p.id !== id);

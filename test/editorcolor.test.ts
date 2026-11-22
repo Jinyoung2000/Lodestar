@@ -1,5 +1,3 @@
-// 색 문자열 읽기와 알파 계산(web/editorColorModel.ts). 개요 눈금자와 미니맵이 같이 쓴다.
-// 실행: npm test
 import { blendOver, parseColor, toCanvasColor, transparent } from "../web/editorColorModel";
 
 let failed = 0;

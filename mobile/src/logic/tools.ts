@@ -1,4 +1,3 @@
-// 도구 호출 한 줄 설명. web/Timeline.tsx 의 describeTool 과 같은 동사를 쓰되, 폰에서는 한 줄에 맞게 짧게 만든다.
 export type ToolLine = { verb: string; detail: string | null };
 
 const VERBS: Record<string, string> = {
@@ -18,7 +17,6 @@ const VERBS: Record<string, string> = {
   AskUserQuestion: "Asked",
 };
 
-// 승인 전(아직 일어나지 않은 일)에 쓰는 동사
 const BASE_VERBS: Record<string, string> = {
   Bash: "Run",
   Read: "Read",
@@ -78,7 +76,6 @@ export function describeTool(name: string, input: Record<string, unknown> = {}, 
   }
 }
 
-// 승인 카드가 보여 줄 명령, 경로, 주소 한 줄(web/approvalInput.ts 와 같은 선택)
 export function approvalTarget(name: string, input: Record<string, unknown>): { kind: "command" | "path" | "url" | "query"; text: string } | null {
   const command = str(input, "command");
   if (command) return { kind: "command", text: command };

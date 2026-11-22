@@ -10,6 +10,7 @@ import { currentModel, getSearchUi, setSearchUi, useSearchUi, viewModeOf } from 
 import { SV } from "./searchViewStrings";
 import { collapsibleKeys, hitsUnder, lineLabel, previewOf, visibleRows, hitTooltip, type FileResult, type SearchHit, type FileNode, type FolderNode, type HitNode, type TreeNode, type VisibleRow } from "./searchTree";
 import { flash, getState, searchWorkspaceOf, setState, updateSearchView, useStore } from "./store";
+import { searchTargetOf } from "./searchRoots";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 
@@ -34,7 +35,6 @@ export function SearchResults({ listRef, inputRef }: { listRef: RefObject<HTMLDi
   const { top, height } = useScrollWindow(listRef);
   const cursorIndex = rows.findIndex((row) => row.node.key === cursor);
 
-  // 포커스한 행이 화면에 들어오게 스크롤한다
   const reveal = useCursorRevealRequest();
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -44,7 +44,6 @@ export function SearchResults({ listRef, inputRef }: { listRef: RefObject<HTMLDi
     else if (rowTop + rowHeight > list.scrollTop + list.clientHeight) list.scrollTop = rowTop + rowHeight - list.clientHeight;
   }, [cursorIndex, rowHeight, reveal, listRef]);
 
-  // 접힌 곳 안의 일치가 포커스를 받으면(F4 등) 그 조상을 펼친다. 포커스가 그대로인데 접힌 경우(Collapse All)에는 펼치지 않는다.
   const lastCursor = useRef<string | null>(null);
   useEffect(() => {
     const moved = lastCursor.current !== cursor;
@@ -70,8 +69,6 @@ export function SearchResults({ listRef, inputRef }: { listRef: RefObject<HTMLDi
     </div>
   );
 }
-
-// --- 행 ---
 
 function Row({ row, index, selected, replace, tree, onMenu }: { row: VisibleRow; index: number; selected: boolean; replace: boolean; tree: boolean; onMenu: (x: number, y: number) => void }) {
   const { node, depth, expanded } = row;
@@ -171,7 +168,6 @@ function HitRowBody({ node, replace }: { node: HitNode; replace: boolean }) {
   const smartCase = useSearchUi((s) => s.settings.smartCase);
   const preview = previewOf(node.hit);
   const replacement = replace ? replacementOf(node.hit, view, smartCase) : null;
-  // 한 번 누르면 미리보기 탭으로 열고 포커스는 목록에 남는다(75ms 안의 연속 이벤트는 하나로 본다). 두 번 누르면 고정 탭이고 포커스가 에디터로 간다.
   const onClick = (event: MouseEvent) => {
     setSearchUi({ cursor: node.key });
     if (event.detail > 1) return;
@@ -194,7 +190,6 @@ function HitRowBody({ node, replace }: { node: HitNode; replace: boolean }) {
   );
 }
 
-// hover 하면 나오는 단추들: 바꾸기가 펼쳐져 있으면 Replace(파일, 폴더는 Replace All)와 Dismiss, 아니면 Dismiss 하나
 function RowActions({ node, replace }: { node: TreeNode; replace: boolean }) {
   const kind: RowKind = node.kind;
   const actions = hoverActions(kind, replace);
@@ -211,8 +206,6 @@ function RowActions({ node, replace }: { node: TreeNode; replace: boolean }) {
     </span>
   );
 }
-
-// --- 지우기, 이동 ---
 
 function dismissNode(node: TreeNode) {
   const rows = visibleRows(currentModel().nodes, getSearchUi().collapsed);
@@ -232,8 +225,6 @@ function ancestorKeys(nodes: readonly TreeNode[], key: string, path: string[] = 
   return [];
 }
 
-// --- 키보드 ---
-
 function listKey(event: KeyboardEvent<HTMLDivElement>, rows: VisibleRow[], at: number, inputRef: RefObject<HTMLTextAreaElement | null>) {
   const mod = event.metaKey && !event.ctrlKey;
   const move = (index: number) => {
@@ -241,14 +232,12 @@ function listKey(event: KeyboardEvent<HTMLDivElement>, rows: VisibleRow[], at: n
     if (!row) return;
     event.preventDefault();
     setSearchUi({ cursor: row.node.key });
-    // 화살표 이동은 일치 행이면 미리보기로 열되 포커스는 목록에 둔다
     if (row.node.kind === "hit") openHit(row.node.hit, { pinned: false, preserveFocus: true });
   };
   const current = at === -1 ? null : rows[at];
   if (event.key === "ArrowDown" && !mod) return move(at === -1 ? 0 : at + 1);
   if (event.key === "ArrowUp" && !mod) return move(at === -1 ? rows.length - 1 : at - 1);
   if (event.key === "ArrowUp" && mod) {
-    // search.action.focusSearchFromResults: 첫 행에서 ⌘↑ 면 검색 입력으로
     if (at <= 0) {
       event.preventDefault();
       inputRef.current?.focus();
@@ -314,8 +303,6 @@ function listKey(event: KeyboardEvent<HTMLDivElement>, rows: VisibleRow[], at: n
   }
 }
 
-// --- 우클릭 메뉴 ---
-
 function RowMenu({ menu, onClose, hasResults, replace }: { menu: Menu | null; onClose: () => void; hasResults: boolean; replace: boolean }) {
   if (!menu) return null;
   const kind: RowKind = menu.node.kind;
@@ -343,10 +330,12 @@ const menuLabel = (action: SearchMenuAction) => ({ replace: SV.replace, replaceA
 
 function runMenuAction(action: SearchMenuAction, node: TreeNode) {
   const state = getState();
-  const workspaceId = searchWorkspaceOf(state);
-  if (!workspaceId) return;
-  const dir = state.workspaces.find((w) => w.id === workspaceId)?.dir ?? "";
-  const path = node.kind === "hit" ? node.hit.path : node.kind === "file" ? node.file.path : node.path;
+  const shownPath = node.kind === "hit" ? node.hit.path : node.kind === "file" ? node.file.path : node.path;
+  const target = searchTargetOf(shownPath);
+  if (!target) return;
+  const workspaceId = target.workspaceId;
+  const rel = target.path;
+  const path = rel;
   const refresh = () => {
     updateSearchView({ details: true });
     queueMicrotask(() => void runSearchView());
@@ -360,7 +349,7 @@ function runMenuAction(action: SearchMenuAction, node: TreeNode) {
       dismissNode(node);
       return;
     case "restrictToFolder":
-      updateSearchView({ include: `./${path}` });
+      updateSearchView({ include: rel ? `./${rel}` : "" });
       refresh();
       return;
     case "expandRecursively": {
@@ -369,7 +358,7 @@ function runMenuAction(action: SearchMenuAction, node: TreeNode) {
       return;
     }
     case "excludeFolder":
-      updateSearchView({ exclude: appendPattern(state.searchView.exclude, `./${path}`) });
+      if (rel) updateSearchView({ exclude: appendPattern(state.searchView.exclude, `./${rel}`) });
       refresh();
       return;
     case "excludeFileType": {
@@ -385,39 +374,42 @@ function runMenuAction(action: SearchMenuAction, node: TreeNode) {
       return;
     }
     case "copy":
-      copyText(copyOf(node, dir));
+      copyText(copyOf(node, absoluteOf));
       return;
     case "copyPath":
-      copyText(`${dir}/${path}`);
+      copyText(absoluteOf(shownPath));
       return;
     case "copyAll":
-      copyText(currentModel().files.map((file) => copyFile(dir, file)).join("\n"));
+      copyText(currentModel().files.map((file) => copyFile(absoluteOf, file)).join("\n"));
       return;
     case "reveal":
       setState({ activeTabKey: "files" });
-      revealFilePath(workspaceId, path);
+      revealFilePath(workspaceId, rel);
       return;
   }
 }
 
-function copyOf(node: TreeNode, dir: string): string {
+function absoluteOf(shown: string): string {
+  const target = searchTargetOf(shown);
+  const dir = target ? (getState().workspaces.find((w) => w.id === target.workspaceId)?.dir ?? "") : "";
+  return target ? `${dir}/${target.path}` : shown;
+}
+
+function copyOf(node: TreeNode, absolute: (path: string) => string): string {
   if (node.kind === "hit") return hitLine(node.hit);
-  if (node.kind === "file") return copyFile(dir, node.file);
-  return node.children.map((child) => copyOf(child, dir)).join("\n");
+  if (node.kind === "file") return copyFile(absolute, node.file);
+  return node.children.map((child) => copyOf(child, absolute)).join("\n");
 }
 
 const hitLine = (hit: SearchHit) => `${hit.line},${hit.start + 1}: ${hit.text.trim()}`;
-const copyFile = (dir: string, file: FileResult) => [`${dir}/${file.path}`, ...file.hits.map((hit) => `  ${hitLine(hit)}`)].join("\n");
+const copyFile = (absolute: (path: string) => string, file: FileResult) => [absolute(file.path), ...file.hits.map((hit) => `  ${hitLine(hit)}`)].join("\n");
 
 function copyText(text: string) {
   void navigator.clipboard.writeText(text).catch(() => flash("Could not copy to the clipboard", "error"));
 }
 
-// --- 목록 크기와 스크롤 ---
-
 let cachedRowHeight = 0;
 
-// 토큰 --size-row 의 실제 픽셀. 한 번 읽어 둔다.
 function useRowHeight(): number {
   const [height, setHeight] = useState(cachedRowHeight);
   useLayoutEffect(() => {
@@ -447,7 +439,6 @@ function useScrollWindow(ref: RefObject<HTMLElement | null>) {
   return window_;
 }
 
-// ⌘↓ 로 입력에서 결과로 올 때: 포커스한 행이 없으면 첫 행을 잡는다
 let revealNonce = 0;
 const revealListeners = new Set<() => void>();
 

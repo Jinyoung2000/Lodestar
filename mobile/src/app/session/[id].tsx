@@ -20,7 +20,6 @@ import { ChatRow, rowType } from "../../ui/chat/ChatRow";
 import type { Actions } from "../../ui/chat/Cards";
 import { useSessionActions } from "../../ui/sessionActions";
 
-// 대화 화면. 캐시된 마지막 메시지가 바로 보이고, 서버의 최신 조각이 오면 맞춰진다. 맨 아래에 붙어 있으면 새 글을 따라가고, 위로 올리면 "Latest" 단추가 나온다.
 const NEAR_BOTTOM = 120;
 
 export default function Session() {
@@ -42,7 +41,6 @@ export default function Session() {
     void store.openSession(id);
     return () => store.closeSession(id);
   }, [id]);
-  // 스크롤이 끝나기 전에 화면을 떠나면 끝 이벤트가 오지 않는다. 그대로 두면 측정 루프가 매 프레임 계속 돈다.
   useEffect(() => () => meter.stop(), [meter]);
 
   const items = timeline?.items;

@@ -1,4 +1,3 @@
-// Bash 명령의 포커스 가드(server/focusGuard.ts) 판정 시험. 순수 함수와 데몬의 훅 함수(가짜 훅 입력)만 부르고 명령은 실행하지 않는다. 실행: npm test
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

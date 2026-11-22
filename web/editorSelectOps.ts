@@ -7,7 +7,6 @@ import type { Target } from "./editorLineOps";
 import { deleteWordPartLeftRange, deleteWordPartRightRange, wordPartLeft, wordPartRight } from "./editorWordPart";
 
 
-// 줄 끝마다 커서. 선택마다 줄 끝에 커서를 하나씩 놓고, 마지막 줄은 선택이 끝난 자리(그 줄의 처음이 아니면)에 놓는다. 선택이 하나도 없으면 아무것도 안 한다.
 export function addCursorsToLineEnds({ state, dispatch }: Target): boolean {
   const doc = state.doc;
   const cursors: SelectionRange[] = [];
@@ -77,7 +76,6 @@ function previousMatch(state: EditorState, session: Session, pos: number): { fro
   return found ?? all[all.length - 1] ?? null;
 }
 
-// 같은 글 전부 선택(⇧⌘L, ⌘F2 는 쓸 수 있는 에디터에서만). 커서 아래 낱말이나 선택한 글의 모든 일치를 선택한다.
 export function selectAllOccurrences({ state, dispatch }: Target): boolean {
   const session = sessionOf(state);
   if (!session) return false;
@@ -106,12 +104,10 @@ function findMatchSelection(direction: Direction, keepLast: boolean) {
   };
 }
 
-// ⌘K ⌘D: 마지막 선택을 다음 일치로 옮긴다(이전 선택은 그대로). 이전 일치 쪽과 "선택 더하기" 쪽은 키 없이 팔레트에 둔다.
 export const moveSelectionToNextFindMatch = findMatchSelection("next", false);
 export const moveSelectionToPreviousFindMatch = findMatchSelection("previous", false);
 export const addSelectionToPreviousFindMatch = findMatchSelection("previous", true);
 
-// 괄호 제거(⌥⌘⌫). 커서에 붙은 괄호 쌍을, 없으면 커서를 감싼 가장 안쪽 괄호 쌍을 지운다.
 export function removeBrackets({ state, dispatch }: Target): boolean {
   if (state.readOnly) return false;
   const seen = new Set<number>();
@@ -129,7 +125,6 @@ export function removeBrackets({ state, dispatch }: Target): boolean {
 
 type Token = { from: number; to: number };
 
-// 커서에 붙은 괄호의 쌍, 없으면 커서를 감싼 쌍
 export function bracketPairAt(state: EditorState, pos: number): { open: Token; close: Token } | null {
   for (const dir of [-1, 1] as const) {
     const match = matchBrackets(state, pos, dir);
@@ -141,7 +136,6 @@ export function bracketPairAt(state: EditorState, pos: number): { open: Token; c
 const OPENERS = new Set(["(", "[", "{"]);
 const CLOSER_OF: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
 
-// 구문 트리에서 첫 자식과 마지막 자식이 짝 맞는 괄호인 가장 안쪽 노드. 트리가 없으면 글자를 훑어 찾는다.
 export function enclosingBrackets(state: EditorState, pos: number): { open: Token; close: Token } | null {
   for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1); node; node = node.parent) {
     const first = node.firstChild;
@@ -188,7 +182,6 @@ function findCloser(state: EditorState, pos: number, opener: string): number | n
   return null;
 }
 
-// 선택 앵커(⌘K ⌘B, ⌘K ⌘K, Esc). 앵커는 문서 위치 하나이고 편집을 따라 움직인다.
 const setAnchor = StateEffect.define<number | null>();
 
 export const selectionAnchor = StateField.define<number | null>({
@@ -236,8 +229,6 @@ export function cancelSelectionAnchor({ state, dispatch }: Target): boolean {
   return true;
 }
 
-// 열 선택(⌥⇧⌘←→↑↓, ⌥⇧⌘PageUp/Down). 시작 줄과 시각 열, 끝 줄과 시각 열을 기억해 두고 줄마다 같은 열 범위를 선택한다.
-// 선택이 다른 이유로 바뀌면 기억을 버리고 현재 선택의 앵커와 머리에서 다시 시작한다.
 type ColumnData = { fromLine: number; fromColumn: number; toLine: number; toColumn: number };
 
 const setColumn = StateEffect.define<ColumnData>();
@@ -310,7 +301,6 @@ export function columnRanges(state: EditorState, data: ColumnData): { ranges: Se
   return { ranges, mainIndex };
 }
 
-// 단어 부분 이동(⌃⌥←→), 선택(⌃⌥⇧←→), 삭제(⌃⌥⌫, ⌃⌥Delete)
 export function cursorWordPart(forward: boolean, select: boolean) {
   return ({ state, dispatch }: Target): boolean => {
     const ranges = state.selection.ranges.map((range) => {

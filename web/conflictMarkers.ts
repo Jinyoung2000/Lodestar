@@ -10,7 +10,6 @@ const MAX_SCAN = 5_000_000;
 
 function blocksOf(state: EditorState): ConflictBlock[] {
   const text = state.doc;
-  // 마커가 한 번도 안 나오는 흔한 파일은 줄 배열을 만들지 않는다. 아주 큰 파일은 건너뛴다.
   if (text.length > MAX_SCAN || !text.sliceString(0).includes("<<<<<<<")) return [];
   return parseConflicts(Array.from(text.iterLines()));
 }
@@ -40,7 +39,6 @@ function build(state: EditorState): Info {
   const builder = new RangeSetBuilder<Decoration>();
   const doc = state.doc;
   blocks.forEach((block, index) => {
-    // 줄 번호는 1부터. 위젯은 시작 줄 위에 한 번, 줄 장식은 위에서 아래로 차례로 넣는다.
     builder.add(doc.line(block.start + 1).from, doc.line(block.start + 1).from, Decoration.widget({ widget: new ConflictActions(index, block), block: true, side: -1 }));
     for (let line = block.start; line <= block.end; line++) {
       const kind = line === block.start || line === block.mid || line === block.end || line === block.base ? LINES.marker : line < (block.base >= 0 ? block.base : block.mid) ? LINES.current : block.base >= 0 && line < block.mid ? LINES.base : LINES.incoming;
@@ -62,7 +60,6 @@ class ConflictActions extends WidgetType {
     return other.index === this.index && other.block.currentLabel === this.block.currentLabel && other.block.incomingLabel === this.block.incomingLabel;
   }
 
-  // 단추는 편집기 줄 높이를 밀어내는 블록 위젯이다. 이벤트는 편집기로 넘기지 않는다.
   ignoreEvent() {
     return true;
   }
@@ -88,7 +85,6 @@ class ConflictActions extends WidgetType {
   }
 }
 
-// 블록 하나를 고른 쪽 내용으로 바꾼다. 위젯이 만들어진 뒤 문서가 바뀌었을 수 있으니 번호는 지금 문서에서 다시 찾는다.
 export function resolveBlock(view: EditorView, index: number, choice: ConflictChoice) {
   const block = conflictBlocks(view.state)[index];
   if (!block) return;
@@ -100,13 +96,11 @@ export function resolveBlock(view: EditorView, index: number, choice: ConflictCh
     view.dispatch({ changes: { from: first.from, to: last.to, insert: replacement.join("\n") }, userEvent: "input.conflict" });
     return;
   }
-  // 고른 쪽이 비어 있으면 블록이 줄째 사라진다. 빈 줄이 남지 않게 줄바꿈 하나를 같이 지운다.
   const from = last.number < doc.lines ? first.from : Math.max(0, first.from - 1);
   const to = last.number < doc.lines ? last.to + 1 : last.to;
   view.dispatch({ changes: { from, to }, userEvent: "input.conflict" });
 }
 
-// 다음 또는 이전 충돌의 시작 줄로 간다. 끝에서 넘기면 반대쪽 끝으로 돈다.
 export function gotoConflict(view: EditorView, direction: 1 | -1) {
   const blocks = conflictBlocks(view.state);
   if (blocks.length === 0) return;
@@ -116,8 +110,6 @@ export function gotoConflict(view: EditorView, direction: 1 | -1) {
   view.dispatch({ selection: { anchor: line.from }, effects: EditorView.scrollIntoView(line.from, { y: "start", yMargin: 48 }) });
   view.focus();
 }
-
-// --- 충돌 개수: 머리 띠가 읽는다 ---
 
 const counts = new Map<string, number>();
 const listeners = new Set<() => void>();

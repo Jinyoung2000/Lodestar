@@ -1,4 +1,3 @@
-// 통합 검색(⌘K)의 화면 문구. 영어.
 export const G = {
   title: "Search",
   placeholder: "Search",

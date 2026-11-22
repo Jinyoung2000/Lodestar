@@ -1,6 +1,5 @@
 export type PeekKind = "definition" | "typeDefinition" | "implementation" | "reference";
 
-// LSP 의 0 기반 줄과 열. 끝은 일치 범위를 칠할 때만 쓴다.
 export type PeekRange = { start: { line: number; character: number }; end: { line: number; character: number } };
 export type PeekRef = { uri: string; range: PeekRange };
 export type PeekGroup = { uri: string; refs: PeekRef[] };
@@ -60,7 +59,6 @@ export function nearestIndex(groups: PeekGroup[], uri: string, line: number, cha
   return best === -1 ? 0 : best;
 }
 
-// 다음, 이전 결과의 번호. 끝에서 처음으로 돌아간다.
 export const stepIndex = (index: number, delta: 1 | -1, count: number) => (count === 0 ? 0 : (index + delta + count) % count);
 
 export function previewLine(lineText: string, startCharacter: number, endCharacter: number): { text: string; matchStart: number; matchEnd: number } {
@@ -74,16 +72,13 @@ export function previewLine(lineText: string, startCharacter: number, endCharact
 
 const KIND_TITLE: Record<PeekKind, string> = { definition: "Definitions", typeDefinition: "Type Definitions", implementation: "Implementations", reference: "References" };
 
-// 머리줄 오른쪽 meta: "References (12)"
 export const peekMeta = (kind: PeekKind, count: number) => `${KIND_TITLE[kind]} (${count})`;
 
-// 결과 없음 안내. 이름이 있으면 "No definition found for 'x'" 꼴.
 export function noResultMessage(kind: PeekKind, word: string | null): string {
   const noun = kind === "definition" ? "definition" : kind === "typeDefinition" ? "type definition" : kind === "implementation" ? "implementation" : "references";
   return word ? `No ${noun} found for '${word}'` : `No ${noun} found`;
 }
 
-// 결과 파일의 이름과 폴더. 폴더는 워크스페이스 안이면 상대 경로, 밖이면 절대 경로.
 export function splitPath(path: string): { name: string; dir: string } {
   const slash = path.lastIndexOf("/");
   return slash === -1 ? { name: path, dir: "" } : { name: path.slice(slash + 1), dir: path.slice(0, slash) };

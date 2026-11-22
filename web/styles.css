@@ -1,4 +1,3 @@
-/* 레이아웃과 의미 있는 클래스. 값은 전부 web/tokens.css 의 변수에서 온다 (design-system). 예외는 lint-tokens: allow 주석으로 표시. */
 
 html,
 body,
@@ -14,7 +13,6 @@ body {
   font-size: var(--text-ui);
   line-height: var(--leading-ui);
   font-weight: var(--weight-ui);
-  /* UI 글자의 자간. 값은 Settings 의 uiLetterSpacing(web/uiType.ts)이 --ui-letter-spacing 으로 덮고, 없을 때만 -0.02em. 고정폭 글꼴(코드, 에디터, 터미널)은 아래에서 0 으로 되돌린다. */
   letter-spacing: var(--ui-letter-spacing, -0.02em);
   overflow: hidden;
 }
@@ -45,8 +43,6 @@ textarea {
   font-family: var(--font-mono);
 }
 
-/* 코드 글꼴. 설정(Settings 의 Editor)이 <html> 에 --editor-* 를 덮어쓰고, 덮기 전 기본값은 디자인 시스템 토큰을 가리킨다. */
-/* 작은 코드(칩, 인라인 코드, 도구 출력)는 같은 비율로 줄인다. 기본 크기와 줄 높이에서 code-sm 토큰 값이 나오는 비율이다. */
 :root {
   --editor-font-family: var(--font-mono);
   --editor-font-size: var(--text-code);
@@ -57,8 +53,6 @@ textarea {
   --editor-line-height-sm: calc(var(--editor-line-height) * 0.9);
 }
 
-/* Black 테마(settings.theme = "black", web/main.tsx 가 <html data-theme="dark" data-black="true"> 를 붙인다). 다크 토큰 위에 바탕 단계만 더 검게 덮는다.
-   새 단계는 본문 글자색 fg 를 검정에 조금 섞어 만든다(fg 는 덮지 않으므로 자기 참조가 없다). 글자, 강조, 구문 색은 다크 그대로다. */
 :root[data-black="true"]:not([data-theme="light"]) {
   --black-0: color-mix(in srgb, var(--fg) 3%, black);
   --black-1: color-mix(in srgb, var(--fg) 5%, black);
@@ -128,8 +122,6 @@ textarea {
   flex: 1;
 }
 
-/* --- 공통 조각 --- */
-
 .chip {
   all: unset;
   box-sizing: border-box;
@@ -158,6 +150,12 @@ textarea {
 }
 .chip .chip-main {
   color: var(--fg);
+}
+.chip[data-chip="model"] .chip-main {
+  color: var(--fg-strong);
+}
+.chip[aria-expanded="true"] {
+  background: var(--surface-hover);
 }
 
 .input {
@@ -223,9 +221,6 @@ textarea {
   color: var(--danger);
 }
 
-/* --- 전체 배치 --- */
-
-/* PANEMIN: 어떤 내용이 와도 앱은 창 폭을 넘지 않는다. 안쪽 가로 레이아웃(.body, .center)은 min-width: 0 으로 내용에 밀려 넓어지지 않는다. */
 .app {
   display: flex;
   flex-direction: column;
@@ -234,8 +229,6 @@ textarea {
   overflow: hidden;
 }
 
-/* 제목줄은 왼쪽 단추, 가운데 묶음, 오른쪽 묶음의 세 칸이다. 양쪽 칸은 자기 내용보다 줄지 않고 남는 폭을 같이 나눠 가운데 묶음이 창 가운데에 놓인다.
-   오른쪽이 넓어 가운데가 창 가운데에 놓이지 못하면 가운데 묶음이 왼쪽으로 비켜서고, 그래도 모자라면 Command Center 가 말줄임으로 줄어든다(round-3 발견 2). 그 전에 Sync 단추가 아이콘만 남는다(아래 container query). */
 .titlebar {
   position: relative;
   display: grid;
@@ -253,7 +246,6 @@ textarea {
 .titlebar > * {
   -webkit-app-region: no-drag;
 }
-/* 왼쪽 여백은 패딩이 아니라 첫 단추의 마진이다. 왼쪽 칸이 창 왼쪽 끝에서 시작해야 두 칸 폭이 같을 때 가운데 묶음이 창 가운데에 놓인다. */
 .titlebar > button {
   justify-self: start;
   margin-left: var(--space-2);
@@ -305,7 +297,6 @@ body[data-electron="1"] .titlebar > button {
   color: var(--fg);
   flex-shrink: 0;
 }
-/* 폭이 모자라면 세션 제목만 먼저 줄고, 폴더와 브랜치는 각자 절반까지 그대로 남는다(dogfood 23). 제목이 읽을 수 없을 만큼 좁아지면(컨테이너 300px 아래) 제목과 구분점을 통째로 접어 그 자리를 폴더와 브랜치에 준다(round-4 발견 15: 제목이 `Fo…` 로 남은 채 브랜치가 `m…` 로 잘렸다). */
 .command-center {
   container-type: inline-size;
 }
@@ -313,7 +304,6 @@ body[data-electron="1"] .titlebar > button {
   min-width: 0;
   flex-shrink: 100;
 }
-/* 폴더는 줄지 않는다(상한 50% 까지). 줄어들 수 있으면 flex 가 초과분을 shrink 값에 비례해 나눠서 제목이 길 때 폴더도 0.2px 쯤 깎이고, overflow 가 있는 글 상자는 그 0.2px 로도 `practi…` 처럼 말줄임이 된다(round-5 발견 9, 갈래 세션). */
 .command-center .cc-folder {
   min-width: 0;
   max-width: 50%;
@@ -328,7 +318,51 @@ body[data-electron="1"] .titlebar > button {
 .command-center > .codicon {
   flex-shrink: 0;
 }
-/* 항목 사이 구분점. 글자 대신 작은 원으로 그린다 */
+.command-center-split {
+  cursor: default;
+  gap: 0;
+}
+.command-center-split:hover {
+  border-color: var(--border);
+}
+.command-center-split > .cc-split-item {
+  all: unset;
+  box-sizing: border-box;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1_5);
+  padding: 0 var(--space-2);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.command-center-split > .cc-split-item + .cc-split-item {
+  border-left: 1px solid var(--border);
+}
+.command-center-split > .cc-split-item:hover {
+  background: var(--surface-hover);
+}
+.command-center-split > .cc-split-item[aria-pressed="true"] {
+  background: var(--surface-selected);
+  color: var(--fg);
+}
+.command-center-split > .cc-split-item:focus-visible {
+  outline: var(--space-0_5) solid var(--accent);
+  outline-offset: calc(var(--space-0_5) * -1);
+}
+.command-center-split .cc-folder {
+  max-width: none;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.command-center-split > .cc-split-item > svg {
+  flex-shrink: 0;
+}
 .cc-dot {
   width: var(--space-0_5);
   height: var(--space-0_5);
@@ -336,8 +370,6 @@ body[data-electron="1"] .titlebar > button {
   border-radius: 50%;
   background: var(--fg-subtle);
 }
-/* TB: Command Center 옆 브랜치 칩 칸. 폭이 늘 같아 칩이 비어도(git 이 아닌 폴더, 세션 없음) Command Center 가 움직이지 않는다.
-   창이 좁으면 Command Center 보다 먼저 줄어든다(shrink 100). */
 .title-branch-slot {
   display: flex;
   align-items: center;
@@ -396,7 +428,6 @@ body[data-electron="1"] .titlebar > button {
 .titlebar-right > * {
   flex-shrink: 0;
 }
-/* 폭이 모자라기 전에 Sync 단추가 먼저 아이콘과 숫자만 남는다. 글자는 화면에서만 감추고 접근성 이름에는 남긴다. */
 @container titlebar (max-width: 1000px) { /* lint-tokens: allow 제목줄 컨테이너 쿼리 경계(CSS 변수는 쿼리 조건에 못 쓴다) */
   .titlebar-right .sync-label {
     position: absolute;
@@ -428,10 +459,6 @@ body[data-electron="1"] .titlebar > button {
   initial-value: 0px; /* lint-tokens: allow @property 초기값 */
 }
 
-/* Customize Layout: 작업 영역은 5열 3행 격자다(배치 계산은 web/layoutConfig.ts gridPlan, 값은 App 이 .body 에 CSS 변수로 건다).
-   열: 1 왼쪽 사이드바, 2 왼쪽 경계, 3 가운데, 4 오른쪽 경계, 5 오른쪽 사이드바. 행: 1 본문, 2 Panel 경계, 3 Panel.
-   .center-and-bottom 과 .center 는 상자 없이 자식만 이 격자에 내놓는다. 사이드바 열은 자기 폭(auto)이고 가운데 열이 남는 폭을 쓴다.
-   Panel 이 걸치는 열(--grid-panel-cols)은 정렬 설정이 정한다. 걸친 쪽의 사이드바는 본문 행까지만, 아닌 쪽은 Panel 행까지 내려간다(--grid-primary-rows, --grid-secondary-rows). */
 .body {
   flex: 1;
   min-height: 0;
@@ -447,14 +474,12 @@ body[data-electron="1"] .titlebar > button {
   --chat-reserve: var(--size-chat-floor);
   display: contents;
 }
-/* 가운데 열(기본 자리): 세션 격자(Chat 중심), 에디터, Board 같은 화면 */
 .center > * {
   grid-column: 3;
   grid-row: 1;
   min-width: 0;
   min-height: 0;
 }
-/* Primary Side Bar(앱 사이드바, Editor 중심의 사이드바)와 그 끌개 */
 .body > .sidebar,
 .body > .focus-side {
   grid-column: var(--grid-primary-col, 1);
@@ -464,7 +489,6 @@ body[data-electron="1"] .titlebar > button {
   grid-column: var(--grid-primary-resizer-col, 2);
   grid-row: var(--grid-primary-rows, 1 / 4);
 }
-/* Secondary Side Bar(Chat 중심의 오른쪽 패널, Editor 중심의 대화 패널)와 그 끌개 */
 .center > .right,
 .center > .panes[data-dock] {
   grid-column: var(--grid-secondary-col, 5);
@@ -474,7 +498,6 @@ body[data-electron="1"] .titlebar > button {
   grid-column: var(--grid-secondary-resizer-col, 4);
   grid-row: var(--grid-secondary-rows, 1 / 4);
 }
-/* Panel 과 그 끌개 */
 .center-and-bottom > .bottom-resizer {
   grid-column: var(--grid-panel-cols, 3 / 4);
   grid-row: 2;
@@ -482,14 +505,12 @@ body[data-electron="1"] .titlebar > button {
 .center-and-bottom > .bottom {
   grid-column: var(--grid-panel-cols, 3 / 4);
   grid-row: 3;
-  /* 끌어서 정한 높이(px)는 저장돼 다음 실행에 그대로 돌아온다. 큰 화면에서 저장한 높이가 작은 화면에서 대화와 입력창을 밀어내지 않게 끌기 상한(창 높이의 60%)과 같은 비율로 막는다. */
   max-height: 60vh; /* lint-tokens: allow 끌기 상한(App.tsx bodyHeight() * 0.6)과 같은 비율 */
 }
 .center-and-bottom > .editor-status {
   grid-column: 1 / -1;
   grid-row: 4;
 }
-/* 사이드바가 오른쪽에 있으면 경계선도 반대쪽에 그린다 */
 .body[data-side="right"] > .sidebar,
 .body[data-side="right"] > .focus-side {
   border-right: 0;
@@ -502,12 +523,9 @@ body[data-electron="1"] .titlebar > button {
 .center[data-columns="many"] {
   --chat-reserve: var(--size-chat-min);
 }
-/* FIXY: 에디터 탭이 열린 Chat 배치에서는 대화 칸이 한 열이어도 --size-chat-editing 을 지킨다 */
 .center[data-columns="one"][data-editing] {
   --chat-reserve: var(--size-chat-editing);
 }
-
-/* --- 사이드바 (SessionList) --- */
 
 .sidebar {
   width: var(--size-sidebar);
@@ -629,25 +647,20 @@ body[data-electron="1"] .titlebar > button {
   min-width: 0;
 }
 
-/* --- 가운데: 세션 격자 --- */
-
 .panes {
   flex: 1 1 0;
   min-width: 0;
   display: grid;
   background: var(--border-subtle);
 }
-/* PANEMIN: 칸은 최소 폭 아래로 줄지 않는다. 칸들의 최소 폭 합이 가운데 폭을 넘으면 칸 영역이 가로로 스크롤된다(열 템플릿 폭은 PaneGrid 가 정한다). */
 .panes:not([data-layout="editor"]) {
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
 }
-/* 스크롤 위치는 늘 칸 경계에 선다. 왼쪽 가장자리에 잘린 칸이 보이지 않고, 잘리는 칸은 오른쪽 끝에만 생긴다(round-3 발견 4 후속). */
 .panes:not([data-layout="editor"]) .pane {
   scroll-snap-align: start;
 }
-/* B5: 행마다 열을 가진 격자. 행 사이 1px 칸과 칸 사이 1px 칸이 경계선 자리고, 4px 잡기 영역은 그 위에 걸쳐 놓는다. */
 .pane-row {
   min-width: 0;
   min-height: 0;
@@ -706,28 +719,22 @@ body[data-electron="1"] .titlebar > button {
   white-space: nowrap;
 }
 
-/* --- 대화 --- */
-
 .timeline {
   flex: 1;
   overflow-y: auto;
-  /* 긴 출력이나 경로처럼 끊을 곳 없는 글이 대화 전체에 가로 스크롤을 만들지 않게 한다. 코드 상자는 자기 안에서 스크롤한다. */
   overflow-x: hidden;
-  scrollbar-gutter: stable; /* 스크롤바가 생기고 사라질 때 안쪽 폭이 출렁이지 않게 자리를 항상 비워 둔다 */
+  scrollbar-gutter: stable;
   overflow-wrap: anywhere;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  /* 오른쪽은 스크롤바 자리(scrollbar-gutter, --size-scrollbar)가 이미 여백을 더하므로 그만큼 빼서 좌우를 같은 32px 로 맞춘다. */
-  /* 그래야 대화 칸이 아래 입력창(.composer, 양옆 32px)과 같은 가로 위치에 선다. */
-  padding: var(--space-4) calc(var(--space-8) - var(--size-scrollbar)) var(--space-4) var(--space-8);
+  padding: var(--space-4) calc(var(--space-4) - var(--size-scrollbar)) var(--space-4) var(--space-4);
 }
 .timeline > * {
   max-width: var(--size-chat-session);
   width: 100%;
   align-self: center;
 }
-/* B2-02: 사용자 말풍선. 폭은 내용만큼이고 왼쪽에 여백을 남긴다. 마크다운으로 그린다. */
 .row-user {
   align-self: flex-end;
   width: auto;
@@ -747,7 +754,6 @@ body[data-electron="1"] .titlebar > button {
 .row-assistant {
   font-size: var(--text-chat);
   line-height: var(--leading-chat);
-  /* em 은 쓰는 요소의 글자 크기로 풀리므로 대화 글자 크기를 바꿔도 자간 비율이 같다 */
   letter-spacing: var(--ui-letter-spacing, -0.02em);
   color: var(--fg);
 }
@@ -758,7 +764,6 @@ body[data-electron="1"] .titlebar > button {
 .markdown > :last-child {
   margin-bottom: 0;
 }
-/* 응답 중인 글의 조각(web/Timeline.tsx StreamingMarkdown). 상자를 만들지 않아 조각이 없을 때와 같은 흐름으로 놓이고, 첫째와 마지막 여백 규칙은 조각 안 요소에 건다. */
 .markdown-chunk {
   display: contents;
 }
@@ -781,11 +786,9 @@ body[data-electron="1"] .titlebar > button {
   color: var(--inline-code-fg);
   word-break: break-word;
 }
-/* 옵시디언 노트 링크 [[제목]]: 대괄호는 마크다운 변환에서 떼고 제목만 링크 색으로 보인다(클릭 동작은 없다) */
 .markdown .wikilink {
   color: var(--accent-text);
 }
-/* 파일 경로 코드 스팬(fileRefs 가 data-file 을 붙인다)과 링크 속 코드는 확장의 `a code` 와 같다: 글자는 링크 색, 칩은 코드 블록 바탕, 링크라서 밑줄 */
 .markdown code[data-file],
 .markdown a code {
   color: var(--accent-text);
@@ -807,7 +810,139 @@ body[data-electron="1"] .titlebar > button {
   overflow-x: auto;
   position: relative;
 }
-/* 코드 블록 복사 버튼(addCodeCopyButtons): 블록에 마우스를 올리거나 키보드 포커스가 오면 오른쪽 위에 보인다 */
+.markdown pre[data-lang]::before {
+  content: attr(data-lang);
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+  user-select: none;
+}
+.markdown .mermaid-preview {
+  margin: var(--space-2) 0;
+  border: 1px solid var(--code-block-border);
+  border-radius: var(--radius-code-block);
+  background: var(--code-block-bg);
+}
+.markdown .mermaid-preview:has(+ pre.mermaid-source:not([hidden])) {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.markdown .mermaid-preview + pre.mermaid-source {
+  margin-top: 0;
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.markdown .mermaid-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-1) 0 var(--space-3);
+  color: var(--fg-subtle);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+}
+.markdown .mermaid-preview-tools {
+  display: flex;
+  gap: var(--space-0_5);
+  opacity: 0;
+}
+.markdown .mermaid-preview:hover .mermaid-preview-tools,
+.markdown .mermaid-preview-tools:focus-within,
+.markdown .mermaid-preview-tools [aria-pressed="true"] {
+  opacity: 1;
+}
+.markdown .mermaid-preview-tools .icon-button:hover,
+.markdown .mermaid-preview-tools [aria-pressed="true"] {
+  background: var(--surface-hover);
+}
+.markdown .mermaid-preview-body {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  overflow-x: auto;
+  cursor: zoom-in;
+}
+.markdown .mermaid-preview-body svg {
+  max-width: 100%;
+  height: auto;
+}
+.aside-lightbox.mermaid-lightbox {
+  background: var(--code-block-bg);
+}
+.mermaid-lightbox-body {
+  display: flex;
+  width: calc(100vw - var(--space-8) - var(--space-4));
+  height: calc(100vh - var(--space-8) - var(--space-4));
+}
+.mermaid-lightbox-body svg {
+  width: 100%;
+  height: 100%;
+}
+.aside-lightbox.mermaid-lightbox .confirm-close {
+  background: var(--code-block-bg);
+}
+.mermaid-preview .mm-text {
+  fill: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+}
+.mermaid-preview .mm-muted {
+  fill: var(--fg-muted);
+}
+.mermaid-preview .mm-tag {
+  font-weight: 600;
+}
+.mermaid-preview .mm-node {
+  fill: var(--surface-overlay);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.mermaid-preview .mm-note {
+  fill: var(--chat-user-bg);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.mermaid-preview .mm-rect {
+  fill: var(--surface-hover);
+  opacity: 0.6;
+}
+.mermaid-preview .mm-frame {
+  fill: none;
+  stroke: var(--fg-subtle);
+  stroke-width: 1;
+}
+.mermaid-preview .mm-lifeline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.mermaid-preview .mm-line {
+  fill: none;
+  stroke: var(--fg-muted);
+  stroke-width: 1;
+}
+.mermaid-preview .mm-thick {
+  stroke-width: 2;
+}
+.mermaid-preview .mm-dashed {
+  stroke-dasharray: 4 3;
+}
+.mermaid-preview .mm-head {
+  fill: var(--fg-muted);
+}
+.mermaid-preview .mm-head-open {
+  fill: none;
+  stroke: var(--fg-muted);
+  stroke-width: 1.5;
+}
+.mermaid-preview .mm-label-bg {
+  fill: var(--code-block-bg);
+}
 .markdown pre .code-copy {
   position: absolute;
   top: var(--space-1);
@@ -822,7 +957,6 @@ body[data-electron="1"] .titlebar > button {
 .markdown pre .code-copy:hover {
   background: var(--surface-hover);
 }
-/* Slack 초안 미리보기(```slack 블록, web/slackPreview.ts): 코드 블록과 같은 상자에 Slack 서식으로 그린 본문, 머리 오른쪽에 서식 그대로 복사하는 버튼 */
 .markdown .slack-preview {
   margin: var(--space-2) 0;
   border: 1px solid var(--code-block-border);
@@ -878,7 +1012,6 @@ body[data-electron="1"] .titlebar > button {
 .markdown pre .cm-syn-value { color: var(--syntax-value); }
 .markdown pre .cm-syn-json-key { color: var(--syntax-json-key); }
 .markdown pre .cm-syn-punct { color: var(--editor-fg); }
-/* PANEMIN: 칸보다 넓은 표는 칸 안에서 가로로 스크롤한다(타임라인이 overflow-x: hidden 이라 이전에는 오른쪽이 잘렸다). 칸에 상속된 overflow-wrap: anywhere 는 셀의 최소 폭을 글자 하나로 만들어 표를 세로로 찌그러뜨리므로 셀 안에서는 끈다. */
 .markdown table {
   display: block;
   max-width: 100%;
@@ -894,7 +1027,6 @@ body[data-electron="1"] .titlebar > button {
   text-align: left;
   overflow-wrap: normal;
 }
-/* 퍼센트 열 히트맵: 열 안에서 값이 클수록 진하다. 단계는 heatmapTables(web/markdownCode.ts)가 data-heat 로 단다. */
 .markdown td[data-heat="1"] { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 .markdown td[data-heat="2"] { background: color-mix(in srgb, var(--accent) 11%, transparent); }
 .markdown td[data-heat="3"] { background: color-mix(in srgb, var(--accent) 16%, transparent); }
@@ -926,7 +1058,6 @@ a,
   text-decoration: underline;
 }
 
-/* StepGroup */
 .steps > summary {
   list-style: none;
   display: flex;
@@ -1066,8 +1197,6 @@ a,
   color: var(--fg);
 }
 
-/* --- 입력창 (Composer) --- */
-
 .composer {
   padding: 0 var(--space-4) var(--space-4);
   display: flex;
@@ -1078,8 +1207,8 @@ a,
   align-self: center;
 }
 .agent:not(.new-session) > .composer {
-  max-width: calc(var(--size-chat-session) + var(--space-8) * 2);
-  padding-inline: var(--space-8);
+  max-width: calc(var(--size-chat-session) + var(--space-4) * 2);
+  padding-inline: var(--space-4);
 }
 .new-session .textarea {
   min-height: var(--size-composer-editor-new);
@@ -1127,20 +1256,30 @@ a,
   font-size: var(--text-code-sm);
   line-height: var(--leading-code-sm);
 }
+.attachment-session {
+  min-width: 0;
+  max-width: 100%;
+}
+.attachment-session-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .attachment-remove {
   all: unset;
   box-sizing: border-box;
   display: inline-flex;
+  flex-shrink: 0;
   cursor: pointer;
   color: var(--fg-subtle);
 }
 .attachment-remove:hover {
   color: var(--fg);
 }
-/* 편집기는 기본 높이(size-composer-editor, 세 줄 남짓)에서 시작해 내용만큼 커지고, 상한을 넘으면 안에서 스크롤한다. */
 .textarea {
   width: 100%;
-  min-height: var(--size-composer-editor);
+  min-height: calc(var(--leading-input) * 2 + var(--space-1_5));
   max-height: calc(var(--leading-input) * 12);
   padding: var(--space-1_5) 0 0;
   border: none;
@@ -1157,7 +1296,6 @@ a,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 도구줄은 어느 폭에서도 한 줄(22px). 줄 폭이 모자라면 모델 라벨만 숨고 아이콘이 남는다(입력창 폭 기준 container query). */
 .composer-tools {
   container-type: inline-size;
   container-name: composer-tools;
@@ -1177,7 +1315,6 @@ a,
 .composer-tools [data-chip] svg {
   flex: none;
 }
-/* FIXY: 모델 칩은 줄이 좁아지면 이름이 말줄임으로 먼저 줄고, 아주 좁을 때만(아래 container query) 아이콘만 남는다. */
 .composer-tools [data-chip="model"] {
   flex: 0 1 auto;
   min-width: 0;
@@ -1197,11 +1334,9 @@ a,
 .composer-tools .spacer {
   min-width: 0;
 }
-/* 곁다리 대화의 입력줄은 버튼 높이(24px)를 따른다 */
 .side-input .composer-tools {
   height: auto;
 }
-/* B3-07: 보내기 버튼. 비었을 때는 회색 화살표, 글자가 있으면 파랑 원 안의 흰 화살표, 응답 중에 비어 있으면 정지 모양. */
 .composer-send {
   all: unset;
   box-sizing: border-box;
@@ -1235,7 +1370,6 @@ a,
     display: none;
   }
 }
-/* 권한 칩 라벨은 모델 라벨보다 먼저 접힌다(가장 긴 `Edit Automatically` 가 모델과 effort 와 게이지와 함께 한 줄에 들어가는 폭 아래). 아이콘만 남고 이름은 툴팁이 알린다. */
 /* lint-tokens: allow container query 조건에는 var() 를 쓸 수 없다 */
 @container composer-tools (max-width: 25rem) {
   .composer-tools .permission-label {
@@ -1282,7 +1416,6 @@ a,
   color: var(--diff-count-del);
 }
 
-/* B3-06: 입력창 상자 아래 줄. 새 세션 화면의 위치와 브랜치 선택만 오른쪽 끝에 붙는다(권한 모드 칩은 상자 안 도구 줄로 옮겼다). */
 .composer-meta {
   display: flex;
   align-items: center;
@@ -1299,7 +1432,6 @@ a,
   color: var(--warning);
 }
 
-/* B3: 입력창 둘레의 팝업(모델, 생각 수준, 권한, 첨부, `/` 와 `@`, 폴더). Popup 컴포넌트가 위치를 정한다. */
 .popup {
   position: fixed;
   z-index: 50;
@@ -1338,7 +1470,6 @@ a,
 .popup-effort .popup-row-detail {
   text-align: left;
 }
-/* 세션 도중에 바꾸면 프롬프트 캐시가 초기화된다는 안내 머리글(닫을 수 있다) */
 .popup-warning {
   display: flex;
   align-items: flex-start;
@@ -1362,7 +1493,6 @@ a,
   flex: 1;
   min-width: 0;
 }
-/* 닫기 단추(24px)를 첫 줄(16px) 가운데에 맞춘다. 위아래로 같은 만큼 빼서 상자 높이는 그대로다 */
 .popup-warning > .icon-button {
   flex: none;
   margin-block: calc(-1 * var(--space-1));
@@ -1424,7 +1554,6 @@ a,
   background: var(--surface-hover);
   color: var(--fg-strong);
 }
-/* 모델 목록: 팝업 바탕(surface-overlay)과 surface-hover 가 거의 같아서, hover 는 surface-selected 로 또렷하게 하고 고른 모델은 행 선택색으로 구분한다. */
 .model-row[data-active] {
   background: var(--surface-selected);
 }
@@ -1462,7 +1591,6 @@ a,
   justify-content: center;
   width: var(--size-icon-sm);
 }
-/* 모델 목록의 ⌘1~⌘9 단축키 표시. 고정 단추 바로 앞, 오른쪽 끝에 붙는다. */
 .popup-row-key {
   margin-left: auto;
   flex: none;
@@ -1518,7 +1646,6 @@ a,
   margin-top: 0;
   max-height: var(--size-popup-list-max);
 }
-/* 위 margin 은 검색칸과 목록 사이 간격이다. 검색칸 없이 목록이 맨 위면(생각 수준, 작업, 하위 에이전트) 위 여백만 두 배가 되므로 뺀다 */
 .popup > .popup-list:first-child {
   margin-top: 0;
 }
@@ -1568,7 +1695,6 @@ a,
   line-height: var(--leading-ui);
 }
 
-/* B3-08: 큐. 대화 맨 아래 QUEUED 라벨과 흐린 말풍선. hover 때 말풍선 위에 세 동작이 뜬다. */
 .queued {
   display: flex;
   flex-direction: column;
@@ -1612,7 +1738,6 @@ a,
 .queued-actions:focus-within {
   display: flex;
 }
-/* QUEUECANCEL: 행에 포커스가 있을 때 Delete 나 Backspace 로 거둔다. 링은 행 전체가 아니라 말풍선에 둔다(행은 가로로 꽉 차 있다). */
 .queued-item:focus {
   outline: none;
 }
@@ -1628,7 +1753,6 @@ a,
   line-height: var(--leading-caption);
 }
 
-/* B3-13: 새 세션 화면. 가운데 정렬된 폴더 알약, 입력창, 아래 줄. */
 .new-session {
   position: relative;
 }
@@ -1701,7 +1825,6 @@ a,
 .new-session-fields .input {
   width: 100%;
 }
-/* FIX4A: 입력란 아래에 이름 문제가 붙을 수 있어 줄 맨 위에 맞추고, 라벨과 경로 힌트는 입력란 높이 안에서 가운데로 */
 .new-session-fields > label,
 .new-session-hint {
   display: flex;
@@ -1723,7 +1846,6 @@ a,
 .new-session-fields .input[aria-invalid] {
   border-color: var(--danger);
 }
-/* B3-14: 위치와 브랜치(입력창 아래 줄 오른쪽) */
 .place-picker {
   display: inline-flex;
   align-items: center;
@@ -1772,7 +1894,6 @@ a,
   display: flex;
   flex-direction: column;
 }
-/* BRANCH-SWITCH: 브랜치 선택기(검색 입력, 현재 브랜치, 로컬, 원격). 행 높이와 안쪽 여백은 popup-row 와 place-item 을 따른다. */
 .popup-branch {
   width: var(--size-popup-branch);
 }
@@ -1820,25 +1941,19 @@ a,
   flex-shrink: 0;
 }
 
-/* --- 오른쪽 패널 --- */
-
 .right {
   width: calc(var(--center-w, 100vw) * 0.54); /* lint-tokens: allow */
-  /* PANEMIN: 칸 영역이 --panes-reserve(.center 에 둠: 한 열이면 300px, 여러 열이면 칸 수 x 최소 폭 합) 아래로 줄지 않게 패널이 양보한다.
-     패널은 --size-panel-narrow 에서 멈추고(칸이 더 있으면 칸 영역이 가로로 스크롤된다), 창 자체가 좁을 때만 그 아래로 줄어 칸 하나(--chat-reserve)를 지킨다. */
   --right-min: max(var(--size-pinned-min), min(var(--size-panel-narrow), calc(var(--center-w, 100vw) - var(--chat-reserve))));
   --side-reserve: 0px; /* lint-tokens: allow 곁다리 대화가 없을 때 0 */
   min-width: var(--right-min);
   max-width: max(var(--right-min), calc(var(--center-w, 100vw) - var(--panes-reserve, var(--chat-reserve)) - var(--side-reserve)));
   flex-shrink: 0;
-  /* 세로 flex 칼럼이어야 .right-body 가 남은 높이만 차지하고 안쪽 에디터가 스스로 스크롤한다 */
   display: flex;
   flex-direction: column;
   min-height: 0;
   border-left: 1px solid var(--border-subtle);
   background: var(--aux-bg);
 }
-/* 칸이 여러 열인 채 에디터 탭이 열려 있으면 오른쪽 패널은 에디터가 쓸 수 있는 최소 폭(--size-pinned-editor-min)에서 멈춘다. 300px 로 눌려 탭 이름이 잘리고 편집기가 줄 번호만 남는 것보다 칸 영역이 가로로 스크롤되는 편이 낫다(round-3 발견 4). 창이 좁으면 칸 하나(--chat-reserve)가 먼저다. */
 .center[data-columns="many"][data-editing] .right {
   --right-min: max(var(--size-pinned-min), min(var(--size-pinned-editor-min), calc(var(--center-w, 100vw) - var(--chat-reserve))));
 }
@@ -1884,7 +1999,6 @@ a,
   margin: 0 var(--space-1);
   flex-shrink: 0;
 }
-/* 탭이 많아 줄이 넘치면 탭만 스크롤하고 오른쪽 단추(더보기, 최대화, 상세)는 늘 보이게 붙여 둔다 */
 .tabs-tail {
   position: sticky;
   right: 0;
@@ -1964,10 +2078,8 @@ a,
   min-height: 0;
   width: 100%;
   border: 0;
-  /* 배경을 안 정한 페이지는 보통 브라우저처럼 흰 바탕이어야 한다 */
   background: white;
 }
-/* 페이지 칸. 기기 에뮬레이션이 켜지면 고른 크기의 틀(.browser-emu)을 위쪽 가운데에 두고, 칸보다 크면 스크롤한다. 틀의 DOM 은 늘 같아서 켜고 꺼도 페이지가 다시 로드되지 않는다. */
 .browser-stage {
   flex: 1;
   min-height: 0;
@@ -1995,7 +2107,6 @@ a,
 .browser-stage[data-emulated] .browser-emu-inner {
   flex: none;
 }
-/* iframe 확대: 틀을 1/배율 만큼 키우고 배율로 줄여 칸을 그대로 채운다 */
 .browser-frame-zoom {
   flex: none;
   display: flex;
@@ -2130,7 +2241,6 @@ a,
   font-weight: var(--weight-ui-strong);
 }
 
-/* 변경 패널 */
 .changes-view {
   flex: 1;
   min-height: 0;
@@ -2159,18 +2269,15 @@ a,
   white-space: nowrap;
   flex-shrink: 0;
 }
-/* 좁은 사이드바에서는 범위 버튼만 줄어든다. 라벨이 말줄임되고 개수, 변경량, 화살표는 남는다 */
 .changes-head > .scope-button {
   flex-shrink: 1;
 }
 .changes-view:not([data-wide]) .changes-head {
   display: none;
 }
-/* Editor 배치의 왼쪽 Changes 뷰는 늘 좁은 목록이라 위 규칙이 머리줄을 숨기지만, 범위(Branch Changes, 파일 수, +/-)는 목록 머리에 남긴다 */
 .changes-view[data-list-only] .changes-head {
   display: flex;
 }
-/* Editor 배치 목록 아래의 접히는 Checks 구역 */
 .changes-checks {
   flex-shrink: 0;
   display: flex;
@@ -2194,21 +2301,36 @@ a,
   overflow-y: auto;
   padding: 0 var(--space-2);
 }
-/* 머리줄 아래 Keep All, Undo All 한 줄 */
 .changes-keep-row {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: flex-end;
   padding: var(--space-1_5) var(--space-3) var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-base);
   flex-shrink: 0;
 }
+.changes-keep-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1_5);
+}
+.changes-keep-actions > .view-button {
+  flex: 0 0 auto;
+  height: var(--size-control-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--text-ui-sm);
+}
+.changes-keep-actions > .view-button:not([data-primary]) {
+  background: var(--surface-overlay);
+}
+.changes-keep-actions > .view-button:not([data-primary]):hover {
+  background: var(--button-secondary-hover-bg);
+}
 .changes-head .strong {
   font-weight: var(--weight-ui-strong);
   color: var(--fg-strong);
 }
-/* 변경 범위 메뉴 버튼: 라벨 · 개수 · 변경량 ⌄ */
 .scope-button {
   all: unset;
   box-sizing: border-box;
@@ -2297,7 +2419,6 @@ button.scope-button:focus-visible {
 }
 .changes-list[data-wide] {
   container-type: size;
-  /* 카드 하나의 diff 는 목록 높이에서 카드 머리와 테두리를 뺀 만큼까지 자란다 */
   --diff-max-height: calc(100cqh - var(--size-pane-header) - 1px - 1px - 1px);
   display: flex;
   flex-direction: column;
@@ -2305,7 +2426,6 @@ button.scope-button:focus-visible {
   padding: var(--space-2);
 }
 
-/* DiffFile */
 .file-section {
   flex-shrink: 0;
   border: 1px solid var(--border-subtle);
@@ -2362,7 +2482,6 @@ button.scope-button:focus-visible {
 .file-section .file-path {
   flex-shrink: 10;
 }
-/* FIXY: 이름은 카드 폭의 절반까지는 말줄임 없이 보인다. 피드백 배지와 +/- 가 붙어도 이름이 `c...` 로 줄지 않는다. */
 .file-section .file-name {
   flex-shrink: 0;
   max-width: 50%;
@@ -2372,7 +2491,6 @@ button.scope-button:focus-visible {
     display: none;
   }
 }
-/* 카드 폭(300px 패널에서 283px)에 머리 요소가 다 들어가도록 간격을 줄인다. 이름이 먼저 말줄임으로 줄어든다. */
 .file-section > summary {
   gap: var(--space-1);
   padding: 0 var(--space-2);
@@ -2392,7 +2510,6 @@ button.scope-button:focus-visible {
   color: var(--fg-muted);
   cursor: pointer;
 }
-/* 변경 패널 안의 +N -M 은 git 장식 색을 쓴다 */
 .file-section .plus,
 .file-row .plus {
   color: var(--git-added);
@@ -2404,7 +2521,6 @@ button.scope-button:focus-visible {
 .file-section[data-selected] {
   border-color: var(--focus-border);
 }
-/* 닫기, 경로 복사, 더보기는 카드에 마우스를 올리거나 고르거나 포커스가 있을 때만 보인다 */
 .file-actions {
   display: inline-flex;
   flex-shrink: 0;
@@ -2423,7 +2539,6 @@ button.scope-button:focus-visible {
   display: block;
   pointer-events: none;
 }
-/* 좁은 상태의 파일 행 */
 .file-row {
   all: unset;
   box-sizing: border-box;
@@ -2477,13 +2592,11 @@ button.scope-button:focus-visible {
   font-size: var(--text-ui-sm);
 }
 
-/* B-base: 작업 폴더 밖 파일의 diff 는 읽기 전용이라 덩어리 Keep 과 Undo 버튼을 숨긴다 */
 .file-diff-host[data-readonly] .chunk-hover-box,
 .file-diff-host[data-readonly] .split-chunk-buttons {
   display: none;
 }
 
-/* B-base: 폴더 밖 변경을 보일지 정하는 줄 */
 .changes-outside {
   display: flex;
   align-items: center;
@@ -2494,7 +2607,6 @@ button.scope-button:focus-visible {
   font-size: var(--text-ui-sm);
 }
 
-/* B-base: 기준 내용을 못 읽은 카드와 탭 */
 .diff-load-failed {
   display: flex;
   align-items: center;
@@ -2503,7 +2615,6 @@ button.scope-button:focus-visible {
 
 .changes-tree {
   width: var(--size-changes-list);
-  /* FIXY: diff 열이 --size-changes-diff-min 아래로 눌리지 않게 목록 열이 먼저 좁아진다(끌어 둔 폭도 같다) */
   max-width: max(var(--size-changes-list-min), calc(100% - var(--size-changes-diff-min)));
   flex-shrink: 0;
   border-left: 1px solid var(--border-subtle);
@@ -2551,7 +2662,6 @@ button.scope-button:focus-visible {
 .tree-node[data-selected] {
   background: var(--surface-selected);
 }
-/* Files 탭: 바뀐 파일은 상태 색, 바뀐 파일이 든 폴더는 녹색 */
 .files-tab {
   flex: 1;
   min-height: 0;
@@ -2602,12 +2712,9 @@ button.scope-button:focus-visible {
 .tree-node .chev[data-collapsed] {
   transform: none;
 }
-/* 파일 행: 폴더 화살표 자리를 비워 아이콘이 형제 폴더 아이콘 열에 맞고 부모보다 한 단 들어가 보인다 */
 .tree-node .chev[data-spacer] {
   visibility: hidden;
 }
-/* Changes 트리(View as Tree, web/ChangesPanel.tsx FileTree)의 파일 행은 화살표 자리 span 이 없다. 같은 폭(화살표 14px + 간격 space-1)을 비워 */
-/* 위의 Files 탭, PR 파일 트리와 같은 열에 맞춘다. 비우지 않으면 폴더 안 파일 아이콘이 부모 폴더 아이콘보다 왼쪽에 선다. */
 div.tree-node[role="button"] > :first-child {
   margin-left: calc(var(--space-4) + var(--space-0_5));
 }
@@ -2621,7 +2728,6 @@ div.tree-node[role="button"] > :first-child {
   gap: var(--space-0_5);
 }
 
-/* 에디터 */
 .editor {
   flex: 1;
   min-height: 0;
@@ -2662,7 +2768,6 @@ div.tree-node[role="button"] > :first-child {
   line-height: var(--leading-caption);
   color: var(--fg-subtle);
 }
-/* FBREDO: 연결 끊김만 눈에 띄게(평소 상태는 글자를 안 보인다) */
 .editor-lsp[data-state="error"] {
   display: inline-flex;
   align-items: center;
@@ -2673,7 +2778,6 @@ div.tree-node[role="button"] > :first-child {
   min-height: 0;
   position: relative;
 }
-/* HTML 미리보기: 바탕을 정하지 않은 문서도 브라우저처럼 보이도록 밝은 기본 바탕(시스템 색 Canvas) 위에 그린다 */
 .html-preview {
   flex: 1;
   min-height: 0;
@@ -2737,8 +2841,6 @@ div.tree-node[role="button"] > :first-child {
   white-space: nowrap;
 }
 
-/* --- 아래 패널 --- */
-
 .bottom {
   height: 240px; /* lint-tokens: allow 아래 패널 기본 높이. 토큰 제안: size-bottom-panel */
   min-height: 120px; /* lint-tokens: allow 아래 패널 최소 높이. 토큰 제안: size-bottom-min */
@@ -2792,7 +2894,6 @@ div.tree-node[role="button"] > :first-child {
   color: var(--fg);
   box-shadow: inset 0 calc(-1 * var(--space-0_5)) 0 var(--accent);
 }
-/* 줄의 gap(space-3)은 탭 사이 간격이다. 오른쪽 아이콘 단추끼리는 에디터와 제목 표시줄 단추처럼 space-1 만 띄운다 */
 .bottom-tabs > button:not(.bottom-tab) + button:not(.bottom-tab) {
   margin-left: calc(var(--space-1) - var(--space-3));
 }
@@ -2832,7 +2933,6 @@ div.tree-node[role="button"] > :first-child {
   min-height: 0;
   padding: var(--space-0_5) 0 0 var(--space-2);
 }
-/* 단일 터미널은 바깥 .terminal-host 안에 TerminalView 의 .terminal-host 가 또 들어간다. 안쪽이 내용 높이로 늘어나 패널 밖으로 잘리지 않게 바깥 높이에 맞추고, 여백은 바깥 한 겹만 둔다. */
 .terminal-host > .terminal-host {
   height: 100%;
   padding: 0;
@@ -2860,10 +2960,7 @@ div.tree-node[role="button"] > :first-child {
   white-space: pre-wrap;
 }
 
-/* --- 사이드 챗 (/btw) --- */
-
 .side {
-  /* 기본은 오른쪽 아래에 떠 있는 창(레이아웃 폭을 쓰지 않는다). 칸과 오른쪽 패널은 그대로 두고 그 위에 겹친다. */
   position: fixed;
   right: var(--space-4);
   bottom: var(--space-4);
@@ -2878,16 +2975,13 @@ div.tree-node[role="button"] > :first-child {
   overflow: hidden;
   background: var(--surface-raised);
 }
-/* 머리를 끌어 창을 옮긴다(에디터나 떠 있는 대화 창을 가릴 때) */
 .side > [data-side-bar] {
   cursor: grab;
   user-select: none;
 }
-/* 머리 이름은 줄지 않고 세션 제목이 먼저 줄어든다 */
 .side > [data-side-bar] .agent-title {
   flex-shrink: 0;
 }
-/* 곁다리를 연 세션의 제목: 창이 좁으면 끝을 말줄임으로 줄이고 전체는 title 툴팁으로 본다 */
 .side-parent-title {
   flex: 0 1 auto;
   min-width: 0;
@@ -2924,11 +3018,7 @@ div.tree-node[role="button"] > :first-child {
   border-top: 1px solid var(--border-subtle);
 }
 
-/* --- 빠른 질문 --- */
-
 .quick {
-  /* 앱 창 기준 고정 배치. 위치는 QuickAsk.tsx 가 질문한 줄을 따라가며 left, top 에 직접 넣는다(크기는 끌어 바꾸고 data-sized 가 되면 inline width, height) */
-  /* 바탕, 테두리, 반경, 안쪽 여백, 포커스 테두리는 같이 달린 .composer-box 가 정한다(메인 입력창과 같은 상자) */
   --quick-answer-min: 80px; /* lint-tokens: allow 답 영역 최소 높이(질문 말풍선과 답 한 줄). 토큰 제안: size-quick-answer-min */
   position: fixed;
   width: min(460px, calc(100vw - var(--space-6))); /* lint-tokens: allow 빠른 질문 창 폭. 토큰 제안: size-quick */
@@ -2943,7 +3033,6 @@ div.tree-node[role="button"] > :first-child {
 .quick[data-sized] .quick-answer {
   min-height: 0;
 }
-/* 첨부 칩 줄이 끌기 손잡이를 겸한다. 파일과 줄 칩은 메인 입력창의 첨부 칩(.attachment)과 같고 닫기 단추만 오른쪽 끝에 붙는다 */
 .quick-top {
   flex-wrap: nowrap;
   align-items: center;
@@ -2964,7 +3053,6 @@ div.tree-node[role="button"] > :first-child {
   flex: none;
   margin-left: auto;
 }
-/* 크기 조절 손잡이: 오른쪽, 아래 가장자리와 오른쪽 아래 모서리. 테두리에 걸쳐 놓고 마우스를 올리면 sash 처럼 accent 선이 보인다 */
 .quick-resize {
   position: absolute;
   z-index: 1;
@@ -3017,7 +3105,6 @@ div.tree-node[role="button"] > :first-child {
 .quick[data-resizing] .quick-resize[data-edge="s"]::after {
   background: var(--accent);
 }
-/* 질문한 줄이 에디터 밖으로 나가면 창 대신 에디터 위나 아래 가장자리에 놓이는 칩. 누르면 그 줄로 스크롤한다 */
 .quick-chip {
   position: fixed;
   z-index: 10; /* lint-tokens: allow 빠른 질문 창과 같은 층 */
@@ -3038,7 +3125,6 @@ div.tree-node[role="button"] > :first-child {
 .quick-chip:hover {
   background: var(--surface-hover);
 }
-/* 답은 메인 대화의 말풍선(.row-user)과 응답(.row-assistant)을 그대로 쓴다. 입력창 안에서 칩 줄과 입력 글 사이를 채운다 */
 .quick-answer {
   flex: 1;
   min-height: calc(var(--quick-answer-min) + var(--space-2) * 2);
@@ -3053,7 +3139,6 @@ div.tree-node[role="button"] > :first-child {
 .quick-answer > * {
   flex: none;
 }
-/* 답을 기다리는 동안: 점 스피너와 shimmer 글자. 아래 입력 placeholder 와 같은 회색 글자로 보이지 않게 한다 */
 .quick-waiting {
   display: flex;
   align-items: center;
@@ -3061,20 +3146,15 @@ div.tree-node[role="button"] > :first-child {
   color: var(--fg-muted);
   font-size: var(--text-ui-sm);
 }
-/* 답 영역과 입력 칸을 선으로 나눠, 입력 placeholder 가 답 글자처럼 읽히지 않게 한다 */
 .quick .textarea {
-  min-height: var(--size-composer-editor);
+  min-height: calc(var(--leading-input) * 2 + var(--space-1_5));
   padding-top: var(--space-2);
   border-top: 1px solid var(--border-subtle);
 }
 
-/* --- TERMASK: 터미널 명령 질문 --- */
-
-/* 질문 상자가 열려 있는 동안만 아래 패널을 키운다(저장된 높이는 그대로). 기본 높이(240px)로는 터미널과 상자가 같이 들어가지 않는다 */
 .bottom[data-termask] {
   min-height: var(--size-bottom-ask);
 }
-/* 터미널 칸(xterm)과 질문 상자를 세로로 쌓는다. 상자가 열리면 xterm 이 그만큼 줄어 글자를 덮지 않는다 */
 .terminal-pane {
   position: relative;
   height: 100%;
@@ -3101,7 +3181,6 @@ div.tree-node[role="button"] > :first-child {
   min-height: var(--size-terminal-min);
   padding: 0;
 }
-/* 빠른 질문 창과 같은 상자(.composer-box)를 터미널 칸 가로폭에 맞춰 아래에 놓는다 */
 .termask {
   flex: 0 1 auto;
   min-height: 0;
@@ -3164,8 +3243,6 @@ div.tree-node[role="button"] > :first-child {
   min-height: var(--leading-input);
 }
 
-/* --- 팔레트와 메뉴 --- */
-
 .palette {
   width: min(600px, calc(100% - var(--space-8))); /* lint-tokens: allow 팔레트 폭. 토큰 제안: size-palette */
 }
@@ -3215,7 +3292,6 @@ div.tree-node[role="button"] > :first-child {
   grid-template-columns: 6em 1fr auto; /* lint-tokens: allow 심볼 종류 열은 글자 폭(em) */
   justify-content: start;
 }
-/* CMDT: ⌘T 입력창의 링크 실행 줄. 주소가 길어도 줄바꿈 없이 말줄임 */
 .palette-link {
   grid-template-columns: 6em auto minmax(0, 1fr); /* lint-tokens: allow 종류 열은 글자 폭(em) */
 }
@@ -3246,7 +3322,6 @@ div.tree-node[role="button"] > :first-child {
   color: var(--fg-muted);
 }
 
-/* 설정과 상태 */
 .status-row {
   display: flex;
   align-items: center;
@@ -3254,7 +3329,6 @@ div.tree-node[role="button"] > :first-child {
   min-height: var(--size-row-lg);
   font-size: var(--text-ui-sm);
 }
-/* 모든 설정 행의 라벨 열 폭이 같아야 컨트롤과 출처 글의 x 가 줄마다 맞는다. 192px 는 Appearance 부터 Format 까지 라벨 한 줄에 들어가는 폭이다 */
 .status-row > label {
   width: calc(var(--space-8) * 6);
   flex-shrink: 0;
@@ -3264,7 +3338,6 @@ div.tree-node[role="button"] > :first-child {
   flex: 1;
   min-width: 0;
 }
-/* 행 아래에 붙는 설명 글. 줄 수와 상관없이 첫 줄이 위 행에서 같은 거리에 놓이도록 위 정렬한다. :where 라서 import-hint 같은 개별 규칙이 이긴다 */
 :where(.status-row.muted.small[data-wide]) {
   align-items: flex-start;
   min-height: 0;
@@ -3282,7 +3355,6 @@ div.tree-node[role="button"] > :first-child {
   padding-left: 0;
   height: var(--size-row);
 }
-/* MCP 목록: 서버 한 줄 아래에 결과와 인증 안내가 붙는다 */
 .mcp-scope-note {
   align-items: flex-start;
   line-height: var(--leading-caption);
@@ -3308,7 +3380,6 @@ div.tree-node[role="button"] > :first-child {
   padding-bottom: var(--space-1);
 }
 
-/* 입력창과 가로로 겹치면 JS 가 --notice-above 에 입력창 위 가장자리까지의 높이를 넣어 그 위로 올린다 */
 .toast-stack {
   position: fixed;
   right: var(--space-2);
@@ -3324,7 +3395,6 @@ div.tree-node[role="button"] > :first-child {
 .toast-stack > * {
   pointer-events: auto;
 }
-/* 단축키 두 번째 키 안내처럼 버튼 없는 한 줄 상태 */
 .toast {
   padding: var(--space-1_5) var(--space-3);
   border-radius: var(--radius-md);
@@ -3337,7 +3407,6 @@ div.tree-node[role="button"] > :first-child {
   max-width: 100%;
   white-space: pre-wrap;
 }
-/* 알림 카드: 버튼 줄은 글 아래에 간격 없이 붙고 카드 오른쪽 끝에 정렬된다. 버튼이 한 줄에 다 안 들어가면 다음 줄로 넘기고 글자는 줄이지 않는다(한 버튼이 카드보다 길 때만 말줄임). 첫 버튼이 주 버튼이다 */
 .notice-card {
   box-sizing: border-box;
   width: 100%;
@@ -3413,17 +3482,16 @@ div.tree-node[role="button"] > :first-child {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: var(--space-8);
+  padding: var(--space-8) var(--space-4) 0;
   color: var(--fg-subtle);
   font-size: var(--text-ui-sm);
+  text-align: center;
 }
 
-/* xterm 이 자기 색을 쓰는 영역 */
 .xterm {
   padding: var(--space-1);
 }
 
-/* --- Tailwind preflight 가 지운 기본 모양을 마크다운 본문에만 되돌린다 --- */
 .markdown h1,
 .markdown h2,
 .markdown h3,
@@ -3451,7 +3519,6 @@ div.tree-node[role="button"] > :first-child {
 .markdown li + li {
   margin-top: var(--space-0_5);
 }
-/* 체크리스트: 글머리 점 대신 체크박스를 왼쪽 여백에 두어 첫 줄 가운데에 맞추고, 줄바꿈된 글자는 첫 줄 글자와 같은 선에 둔다 */
 .markdown li:has(> input[type="checkbox"]) {
   position: relative;
   list-style: none;
@@ -3483,13 +3550,11 @@ div.tree-node[role="button"] > :first-child {
   text-decoration: underline;
 }
 
-/* 팔레트 목록은 대화상자 높이 안에서 스크롤 */
 .palette-list {
   flex: 1;
   min-height: 0;
 }
 
-/* 바뀐 파일 상태 글자 */
 .file-status[data-s="A"] {
   color: var(--success);
 }
@@ -3503,7 +3568,6 @@ div.tree-node[role="button"] > :first-child {
   color: var(--accent-text);
 }
 
-/* 실행 중 점은 천천히 깜빡인다 */
 @keyframes pulse {
   50% {
     opacity: 0.35;
@@ -3517,19 +3581,16 @@ div.tree-node[role="button"] > :first-child {
   cursor: default;
 }
 
-/* 단계 줄 끝의 상태 글자("실패", "허용함")는 줄바꿈 없이, 대상 경로가 대신 줄어든다 */
 .step > summary > .xs,
 .step-line > .xs {
   flex-shrink: 0;
   white-space: nowrap;
 }
 
-/* xterm.css 는 .xterm-viewport 를 검정으로 두고(테마는 안쪽 scrollable 요소에만 적용) 바깥 여백으로 비친다. 토큰 색으로 덮는다. */
 .terminal-host .xterm .xterm-viewport {
   background-color: var(--pane-bg);
 }
 
-/* --- 패널 경계 끌기 --- */
 .resizer {
   flex-shrink: 0;
   position: relative;
@@ -3569,8 +3630,6 @@ div.tree-node[role="button"] > :first-child {
 .resizer[data-active]::after {
   background: var(--accent);
 }
-
-/* --- 피드백: 요소 선택, 입력 창, 제목줄 점 --- */
 
 .feedback-outline {
   position: fixed;
@@ -3626,7 +3685,6 @@ body[data-feedback-pick="1"] {
 .feedback-compose:focus-within {
   border-color: var(--accent);
 }
-/* 요소를 찍는 동안만 숨겨 창 캡처에 들어가지 않게 한다. display 를 쓰면 글 칸의 포커스가 풀린다. */
 .feedback-compose[data-capturing] {
   opacity: 0;
   pointer-events: none;
@@ -3651,12 +3709,10 @@ body[data-feedback-pick="1"] {
   font-size: var(--text-ui-sm);
   line-height: var(--leading-ui-sm);
 }
-.feedback-attach.mono {
-  font-size: var(--text-code-sm);
-  line-height: var(--leading-code-sm);
-}
 .feedback-attach-thumb {
   height: calc(var(--size-control-sm) - var(--space-2));
+  max-width: var(--space-8);
+  object-fit: contain;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   flex-shrink: 0;
@@ -3725,8 +3781,6 @@ body[data-feedback-pick="1"] {
   border-radius: var(--radius-full);
   background: var(--accent);
 }
-
-/* --- 칸반 보드 --- */
 
 .side-item[data-active] {
   background: var(--surface-selected);
@@ -3799,7 +3853,6 @@ body[data-feedback-pick="1"] {
   user-select: none;
 }
 .board-column {
-  /* fix5-2: 열이 폭을 나눠 쓴다(최소 --size-board-column, 최대 --size-chat-floor). 고정 폭일 때는 1440 폭에서 5열 중 Done 이 화면 밖이었다. */
   flex: 1 0 var(--size-board-column);
   max-width: var(--size-chat-floor);
   min-width: 0;
@@ -3813,7 +3866,6 @@ body[data-feedback-pick="1"] {
 .board-column[data-drop] {
   border-color: var(--accent);
 }
-/* BOARDUX: 색은 정보를 담을 때만 쓴다. 상태 아이콘은 열의 역할이, 우선순위 아이콘은 단계가, 라벨 점은 라벨 이름(또는 사용자가 고른 색)이 정한다. 열 머리 배경은 칠하지 않는다. */
 .status-icon,
 .priority-icon {
   flex-shrink: 0;
@@ -3878,7 +3930,6 @@ body[data-feedback-pick="1"] {
 .board-column-count {
   color: var(--board-meta-fg);
 }
-/* 열 메뉴(...)는 열 머리에 마우스를 올리거나 포커스, 메뉴가 열려 있을 때만 보여 제목 자리를 지킨다. */
 .board-column-head .column-menu-button:not([data-state="open"]) {
   width: 0;
   min-width: 0;
@@ -3894,7 +3945,6 @@ body[data-feedback-pick="1"] {
 }
 .board-column-head .agent-title {
   flex: 0 1 auto;
-  /* FIX6C: 기본 .agent-title 의 최소 폭(6ch)이 짧은 이름 뒤에 빈 자리를 만들어 개수와의 간격이 열마다 달랐다. 열 머리는 이름 폭 그대로 두고 개수가 바로 붙게 한다. */
   min-width: 0;
 }
 .board-column-body {
@@ -3910,7 +3960,6 @@ body[data-feedback-pick="1"] {
 }
 .board-add-column {
   flex: 0 0 auto;
-  /* 열 머리줄(테두리 1px 아래 size-pane-header)의 + 단추와 같은 높이에 선다. 열은 위로 붙어(align-items: flex-start) 있어 맞춰 주지 않으면 6px 위에 뜬다 */
   margin-top: calc(1px + (var(--size-pane-header) - var(--size-control-sm)) / 2);
 }
 .name-input {
@@ -3949,7 +3998,6 @@ body[data-feedback-pick="1"] {
 .card[data-dragging] {
   opacity: 0.4;
 }
-/* BOARDUX: Done 열 카드는 흐리게. 마우스를 올리거나 포커스, 선택, 끄는 중에는 되돌려 읽고 잡을 수 있게 한다. */
 .board-column[data-role="done"] .card:not(:hover, :focus-visible, [data-selected], [data-dragging]) {
   opacity: 0.75;
 }
@@ -3983,7 +4031,6 @@ body[data-feedback-pick="1"] {
 .card-priority:focus-visible {
   outline: 2px solid var(--accent); /* lint-tokens: allow 포커스 링 두께 (Button 과 같은 2px) */
 }
-/* 우선순위가 없는 카드는 점선 아이콘을 숨기고, 카드에 마우스를 올리거나 포커스, 선택했을 때만 보여 눌러서 정하게 한다. */
 .card-priority[data-none] {
   opacity: 0;
 }
@@ -4021,7 +4068,6 @@ body[data-feedback-pick="1"] {
 .card-body > * {
   margin: 0;
 }
-/* 카드 미리보기는 제목, 목록, 코드가 섞여도 줄 높이가 같아야 3줄 높이에서 줄 중간이 잘리지 않는다. */
 .card-body :is(h1, h2, h3, h4, p, ul, ol, li, blockquote, pre, code) {
   margin: 0;
   font-size: inherit;
@@ -4118,7 +4164,6 @@ body[data-feedback-pick="1"] {
   flex: 0 1 auto;
 }
 
-/* MORNINGREVIEW: Board 맨 위의 Morning review 영역. 열과 같은 바탕, 테두리, 모서리, 좌우 여백(--space-3)을 쓴다. */
 .review {
   flex: 0 0 auto;
   min-height: 0;
@@ -4249,7 +4294,6 @@ body[data-feedback-pick="1"] {
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-/* 제목 버튼의 클릭 영역을 카드 전체로 넓힌다 (이동 버튼은 위에 둔다) */
 button.review-link::after {
   content: "";
   position: absolute;
@@ -4272,7 +4316,6 @@ button.review-link:focus-visible {
   flex-shrink: 0;
   white-space: nowrap;
 }
-/* 상태 선택 칩은 제목 버튼의 전체 클릭 영역 위에 둔다 */
 .review-status {
   position: relative;
   flex-shrink: 0;
@@ -4301,7 +4344,6 @@ button.review-link:focus-visible {
   background: var(--accent);
 }
 
-/* 카드 상세 (오른쪽 패널의 Card 탭) */
 .card-detail {
   flex: 1;
   min-height: 0;
@@ -4416,7 +4458,6 @@ button.review-link:focus-visible {
 .card-props .field-row[data-top] > label {
   line-height: var(--size-row);
 }
-/* 세션 행은 첫 줄이 행 높이(28px)라 라벨도 같은 줄 높이로 맞춘다. 세션이 없을 때의 안내 글도 같은 높이. */
 .card-props .field-row[data-tall] > label {
   line-height: var(--size-row-lg);
 }
@@ -4447,7 +4488,6 @@ button.review-link:focus-visible {
   flex-shrink: 0;
   white-space: nowrap;
 }
-/* 워크스페이스와 첫 세션 제목이 남는 폭을 나눠 말줄임 하고, 상태 점과 날짜는 줄지 않는다. */
 .card-meta > .card-workspace {
   display: block;
   flex: 0 1 auto;
@@ -4466,8 +4506,6 @@ button.review-link:focus-visible {
   flex-shrink: 0;
 }
 
-
-/* --- Slack Inbox --- */
 
 .inbox {
   flex: 1 1 0;
@@ -4645,7 +4683,6 @@ button.review-link:focus-visible {
   font-size: var(--text-ui);
   line-height: var(--leading-ui);
 }
-/* Slack 화면 종류 탭 (All, Mentions, Threads): 헤더 아래 한 줄, 둥근 탭 */
 .inbox-kinds {
   flex-shrink: 0;
   display: flex;
@@ -4686,7 +4723,6 @@ button.review-link:focus-visible {
   font-size: var(--text-caption);
   line-height: var(--leading-caption);
 }
-/* 상세의 스레드: 메시지마다 둥근 칸, 이 항목의 메시지는 선택 배경 */
 .inbox-thread {
   display: flex;
   flex-direction: column;
@@ -4749,7 +4785,6 @@ button.review-link:focus-visible {
   margin-left: var(--space-1);
 }
 
-/* Split diff (@codemirror/merge MergeView). 스크롤은 편집기가 아니라 .cm-mergeView 가 맡는다. */
 .file-diff .cm-mergeView {
   max-height: var(--diff-max-height, 60vh); /* lint-tokens: allow 섹션 안 diff 최대 높이는 뷰포트 비율 */
 }
@@ -4759,7 +4794,6 @@ button.review-link:focus-visible {
 .file-diff-host[data-mode="split"] {
   overflow: hidden;
 }
-/* 자동 전환을 끈 채 좁아진 split: 두 칸이 찌그러지지 않게 최소 폭을 주고 가로로 스크롤한다. 최소 폭(--split-min-width)은 DiffView.tsx 가 SPLIT_MIN_PANE, SPLIT_GAP 에서 계산해 넣는다. */
 .file-diff-host[data-scroll-x] .cm-mergeView {
   overflow-x: auto;
 }
@@ -4836,9 +4870,6 @@ button.review-link:focus-visible {
   background: var(--surface-hover);
 }
 
-/* === B7: 전역 규칙. 아이콘, 포커스, hover, 선택, 스피너, 진행 표시, Compact View. 컴포넌트 전용 규칙은 각 묶음이 자기 구역에 둔다. === */
-
-/* codicon 은 글꼴 글리프라 flex 줄 안에서 줄어들지 않게 한다. 크기는 Codicon 의 size(font-size)가 정한다. */
 .codicon {
   flex: none;
 }
@@ -4848,7 +4879,6 @@ button.review-link:focus-visible {
   outline-offset: -1px;
 }
 
-/* 아이콘 버튼: 24px 정사각, hover 때 surface-hover 배경, 반경 4px. 클래스를 붙이면 Button 컴포넌트 밖에서도 같은 모양이 된다. */
 .icon-button {
   all: unset;
   box-sizing: border-box;
@@ -4871,7 +4901,6 @@ button.review-link:focus-visible {
   outline-offset: -1px;
 }
 
-/* 목록 행(세션 행, 팔레트 항목): hover 는 surface-hover, 선택은 row-selected 바탕에 row-selected-fg 글자(자식 아이콘과 보조 글자도 같이 밝아진다). */
 .list-row {
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -4891,7 +4920,6 @@ button.review-link:focus-visible {
   color: inherit;
 }
 
-/* Compact View(사이드바 더보기 메뉴): 켜면 세션 행이 한 줄이 된다. 상태는 web/compactView.ts 가 <html data-compact-view> 로 내보낸다. */
 html[data-compact-view="true"] .session-row {
   height: var(--size-session-row-compact);
 }
@@ -4951,7 +4979,6 @@ html[data-compact-view="true"] [data-session-detail] {
   }
 }
 
-/* shimmer: 진행 라벨 글자에 빛이 지나간다. 1.6초 주기. 글자 색은 투명이고 그라데이션이 글자 모양으로 잘린다. */
 .shimmer-text {
   color: transparent;
   background: linear-gradient(90deg, var(--fg-muted) 0%, var(--fg-muted) 40%, var(--fg-strong) 50%, var(--fg-muted) 60%, var(--fg-muted) 100%) 100% 0 / 250% 100% no-repeat;
@@ -4965,7 +4992,6 @@ html[data-compact-view="true"] [data-session-detail] {
   }
 }
 
-/* 진행 막대: 응답 중 입력창 위쪽 테두리를 따라 파란 가는 선이 좌우로 흐른다. 부모에 position: relative 와 overflow: hidden 이 필요하다. */
 .progress-line {
   position: absolute;
   top: 0;
@@ -5009,8 +5035,6 @@ html[data-compact-view="true"] [data-session-detail] {
   }
 }
 
-/* --- B1: 사이드바 세션 목록 --- */
-
 .keycaps {
   margin-left: auto;
   display: inline-flex;
@@ -5033,7 +5057,6 @@ html[data-compact-view="true"] [data-session-detail] {
   line-height: 1;
 }
 
-/* Sessions 머리: 12px 600 본문색, 대문자 아님 */
 .sessions-header {
   display: flex;
   align-items: center;
@@ -5087,7 +5110,6 @@ html[data-compact-view="true"] [data-session-detail] {
   display: flex;
   flex-direction: column;
 }
-/* 폴더 묶음 사이를 띄워 어느 묶음의 행인지 한눈에 갈리게 한다(사용자 요청) */
 .session-group + .session-group {
   margin-top: var(--space-3);
 }
@@ -5126,7 +5148,6 @@ html[data-compact-view="true"] [data-session-detail] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 접힌 묶음만 chevron 이 늘 보이고, 펼친 묶음은 마우스를 올렸을 때만 보인다 */
 .session-group-chevron {
   margin-left: auto;
   display: inline-flex;
@@ -5144,7 +5165,6 @@ html[data-compact-view="true"] [data-session-detail] {
 .session-group-head:hover .session-group-new {
   display: inline-flex;
 }
-/* WSMENU: 폴더 묶음의 ... 버튼은 + 버튼 바로 왼쪽에 같은 크기로 놓인다. 메뉴가 열려 있는 동안은 마우스가 나가도 두 버튼이 남는다 */
 .session-group-more {
   position: absolute;
   right: calc(var(--space-1) + 1px + var(--size-icon-sm) + var(--space-1) + var(--size-control-sm));
@@ -5175,7 +5195,6 @@ html[data-compact-view="true"] [data-session-detail] {
 .sidebar:focus-within .session-row[data-active] {
   background: var(--row-selected);
 }
-/* 포커스는 선택과 따로 파란 외곽선 */
 .session-row:has(.session-item:focus-visible) {
   outline: 1px solid var(--focus-border);
   outline-offset: -1px;
@@ -5231,6 +5250,13 @@ html[data-compact-view="true"] [data-session-detail] {
   align-items: center;
   min-width: 0;
 }
+.session-harness {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-right: var(--space-1);
+  color: var(--fg-muted);
+}
 .session-title {
   min-width: 0;
   flex: 1;
@@ -5246,38 +5272,36 @@ html[data-compact-view="true"] [data-session-detail] {
 .session-row[data-active] .session-title {
   color: var(--row-selected-fg);
 }
-/* 제목 오른쪽 끝에 뜨는 동작 버튼 자리를 비운다. hover 와 선택한 행은 pin, 완료, 더보기 셋. 행이 좁으면(아래 컨테이너 쿼리) 더보기 하나로 접힌다(고정한 세션은 pin 까지 둘). 고정한 세션이 쉴 때는 pin 하나 */
 .session-row {
   container-type: inline-size;
   container-name: session-row;
 }
-.session-row:hover .session-title,
-.session-row[data-active] .session-title,
-.session-row[data-menu] .session-title {
+.session-row:hover .session-title-line,
+.session-row[data-active] .session-title-line,
+.session-row[data-menu] .session-title-line {
   padding-right: calc(var(--size-row) * 3);
 }
 @container session-row (max-width: 280px) { /* lint-tokens: allow 컨테이너 쿼리는 var() 를 못 쓴다. 제목이 읽히려면 필요한 행 폭 */
   .session-action[data-quick] {
     display: none;
   }
-  .session-row:hover .session-title,
-  .session-row[data-active] .session-title,
-  .session-row[data-menu] .session-title {
+  .session-row:hover .session-title-line,
+  .session-row[data-active] .session-title-line,
+  .session-row[data-menu] .session-title-line {
     padding-right: var(--size-row);
   }
-  .session-row[data-pinned]:hover .session-title,
-  .session-row[data-pinned][data-active] .session-title,
-  .session-row[data-pinned][data-menu] .session-title {
+  .session-row[data-pinned]:hover .session-title-line,
+  .session-row[data-pinned][data-active] .session-title-line,
+  .session-row[data-pinned][data-menu] .session-title-line {
     padding-right: calc(var(--size-row) * 2);
   }
 }
-.session-row[data-pinned]:not(:hover):not([data-active]):not([data-menu]) .session-title {
+.session-row[data-pinned]:not(:hover):not([data-active]):not([data-menu]) .session-title-line {
   padding-right: var(--size-row);
 }
 .session-time {
   display: none;
 }
-/* 시간별, 고정, 완료 묶음의 프로젝트 이름. 둘째 줄이 있으면 둘째 줄 폴더 아이콘 옆에, 한 줄 보기(compact)에서는 제목 줄 시간 앞에 둔다 */
 .session-project {
   display: none;
 }
@@ -5319,7 +5343,6 @@ html[data-compact-view="true"] .session-row[data-menu] .session-project {
 .session-detail > .codicon {
   flex-shrink: 0;
 }
-/* 구분 점: 글자가 아니라 CSS 로 그린 작은 원 */
 .session-separator {
   flex-shrink: 0;
   width: var(--space-0_5);
@@ -5334,9 +5357,6 @@ html[data-compact-view="true"] .session-row[data-menu] .session-project {
   color: var(--diff-count-del);
 }
 
-/* 행 오른쪽 위 동작 버튼. 마우스를 올렸거나 선택된 행에서만 보이고, 고정한 세션의 pin 은 늘 보인다. */
-/* 단추(size-row) 가운데를 제목 줄 가운데에 맞춘다. 두 줄 행은 행(54px)이 내용(44px)보다 높아 내용이 가운데로 내려오므로 */
-/* 제목 줄 가운데가 (행 높이 - 둘째 줄 높이) / 2 에 온다. */
 .session-actions {
   position: absolute;
   top: calc((var(--size-session-row) - var(--space-0_5) - var(--leading-session-detail) - var(--size-row)) / 2);
@@ -5352,12 +5372,10 @@ html[data-compact-view="true"] .session-row[data-menu] .session-project {
 .session-row[data-pinned]:not(:hover):not([data-active]):not([data-menu]) .session-actions {
   display: flex;
 }
-/* 한 줄 행은 제목 줄이 행 가운데라 행 높이 전체에서 가운데(Compact View 와 같은 방식) */
 .session-row[data-one-line] .session-actions {
   top: 0;
   bottom: 0;
 }
-/* 승인 줄이 붙은 행은 내용이 행 맨 위에서 시작한다. 제목 줄(위 여백 space-1_5) 가운데에 맞춘다 */
 html:not([data-compact-view="true"]) .session-row[data-approval] .session-actions {
   top: calc(var(--space-1_5) + (var(--leading-session-title) - var(--size-row)) / 2);
 }
@@ -5387,7 +5405,6 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   outline: 1px solid var(--focus-border);
   outline-offset: -1px;
 }
-/* 우클릭 메뉴가 마우스 위치에 뜨도록 대는 보이지 않는 점 */
 .menu-anchor {
   position: fixed;
   width: 0;
@@ -5398,7 +5415,6 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   pointer-events: none;
 }
 
-/* 갈래 자식 행: 부모 왼쪽 twistie 와 자식으로 이어지는 L 자 안내선. 둘째 줄에는 시간만 있다 */
 .session-twistie {
   all: unset;
   position: absolute;
@@ -5429,12 +5445,9 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   pointer-events: none;
 }
 
-/* 승인 대기 행 안의 카드: 제목(UI 글꼴, 세션 제목과 같다)과 Allow 버튼 */
-/* 승인 대기 행은 둘째 줄까지 위 영역이 54px 이고 그 아래 상자가 붙는다(행 전체 88px) */
 .session-row[data-approval] .session-item {
   min-height: calc(var(--size-session-row) - var(--space-0_5));
 }
-/* Compact View 에서는 동작 버튼 영역이 행 전체 높이라 Allow 를 덮는다. 승인 상자를 위에 둬서 클릭이 닿게 한다 */
 .session-approval {
   position: relative;
   z-index: 1;
@@ -5479,7 +5492,6 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   outline-offset: -1px;
 }
 
-/* 이름 바꾸기 입력 */
 .session-rename {
   all: unset;
   box-sizing: border-box;
@@ -5495,7 +5507,6 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   font-size: var(--text-session-title);
 }
 
-/* EMPTYSTART: 폴더가 없는 첫 실행 화면 */
 .empty-start {
   align-items: center;
   justify-content: center;
@@ -5567,7 +5578,6 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   color: var(--fg-muted);
   font-size: var(--text-section-label);
 }
-/* 접힌 때 `+N more`, 펼친 때 `Show less`: 11px, 높이 28px, 가운데 글자에 양옆 가로선 */
 .session-show-more {
   all: unset;
   box-sizing: border-box;
@@ -5596,13 +5606,11 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   outline-offset: -1px;
 }
 
-/* 폴더 없는 세션이 쉬는 동안은 제목 한 줄이라 Compact View 와 같은 높이다 */
 .session-row[data-one-line] {
   min-height: var(--size-session-row-compact);
   justify-content: center;
 }
 
-/* Compact View: 한 줄, 제목과 오른쪽 끝 시간만. 높이는 compactView 규칙(size-session-row-compact)이 정한다 */
 html[data-compact-view="true"] .session-row {
   min-height: var(--size-session-row-compact);
   justify-content: center;
@@ -5625,8 +5633,7 @@ html[data-compact-view="true"] .session-time {
 html[data-compact-view="true"] .session-row[data-pinned] .session-time {
   margin-right: var(--size-row);
 }
-/* pin 자리는 위 시간의 오른쪽 여백이 이미 비운다. 제목에도 비우면 제목 끝과 프로젝트 이름 사이가 벌어진다 */
-html[data-compact-view="true"] .session-row[data-pinned]:not(:hover):not([data-active]):not([data-menu]) .session-title {
+html[data-compact-view="true"] .session-row[data-pinned]:not(:hover):not([data-active]):not([data-menu]) .session-title-line {
   padding-right: 0;
 }
 html[data-compact-view="true"] .session-row:hover .session-time,
@@ -5634,7 +5641,6 @@ html[data-compact-view="true"] .session-row[data-active] .session-time,
 html[data-compact-view="true"] .session-row[data-menu] .session-time {
   display: none;
 }
-/* transform 을 쓰면 안에 둔 position: fixed 메뉴 앵커가 마우스 대신 이 상자를 기준으로 밀린다 */
 html[data-compact-view="true"] .session-actions {
   top: 0;
   bottom: 0;
@@ -5644,7 +5650,6 @@ html[data-compact-view="true"] .session-twistie {
   transform: translateY(-50%);
 }
 
-/* B1-01: 맨 위 고정 항목은 titlebar 바로 아래에서 시작하고 행 사이 간격이 없다(행 중심 y 가 28px 간격) */
 .sidebar {
   padding-top: 0;
 }
@@ -5652,9 +5657,6 @@ html[data-compact-view="true"] .session-twistie {
   gap: 0;
 }
 
-/* --- B2: 대화 메시지와 메시지 단위 동작 --- */
-
-/* B2-01: 칸 머리의 상태 점과 대화 영역 */
 .pane-status {
   display: inline-flex;
   flex: none;
@@ -5672,7 +5674,6 @@ html[data-compact-view="true"] .session-twistie {
 .timeline-wrap > .timeline {
   flex: 1;
   min-width: 0;
-  /* 위쪽 여백을 첫 턴의 margin 으로 옮겨, sticky 말풍선이 스크롤 영역의 맨 위에 붙게 한다 */
   padding-top: 0;
 }
 .timeline-wrap > .timeline > .turn:first-child {
@@ -5690,7 +5691,6 @@ html[data-compact-view="true"] .session-twistie {
   color: var(--fg-subtle);
 }
 
-/* 한 턴: 사용자 말풍선과 그 응답들. 말풍선의 sticky 는 이 턴 안에서만 유지된다. */
 .turn {
   position: relative;
   display: flex;
@@ -5705,7 +5705,6 @@ html[data-compact-view="true"] .session-twistie {
   height: 1px;
   pointer-events: none;
 }
-/* 턴 사이 간격. FBREDO: 말풍선 위에 22px 구분선 줄을 두던 것을 없앴다(체크포인트 동작은 말풍선 모서리 단추로 옮겼다). */
 .turn + .turn {
   margin-top: calc(var(--space-3) - var(--space-0_5));
 }
@@ -5729,16 +5728,13 @@ html[data-compact-view="true"] .session-twistie {
   background: var(--pane-bg);
   pointer-events: none;
 }
-/* 붙어 있는 동안 긴 말풍선은 두 줄까지 */
 .turn-user[data-stuck] .row-user-text {
   max-height: calc(var(--leading-chat) * 2);
   overflow: hidden;
 }
-/* 코드 블록, 표, 인용은 두 줄 안에 테두리 윗부분만 잘려 빈 상자처럼 보이므로 붙은 동안은 감추고 글 줄만 남긴다(펼친 말풍선에서는 그대로 보인다) */
 .turn-user[data-stuck] .row-user-text :is(pre, table, blockquote, hr) {
   display: none;
 }
-/* 블록 사이 여백이 둘째 줄을 반쯤 잘라 보이게 하므로 붙은 동안은 줄을 붙여 둔다 */
 .turn-user[data-stuck] .row-user-text :is(p, ul, ol, li) {
   margin-top: 0;
   margin-bottom: 0;
@@ -5746,12 +5742,10 @@ html[data-compact-view="true"] .session-twistie {
 .row-user-text > :last-child {
   margin-bottom: 0;
 }
-/* 말풍선 속 코드 블록: 불투명한 회색 상자가 파란 말풍선 위에 떠 보이지 않게 말풍선 색을 한 겹 더 깔아 같은 계열로 조금 짙게 둔다 */
 .row-user-text pre,
 .row-user-text pre .code-copy {
   background: var(--chat-user-bg);
 }
-/* 보낸 메시지의 피드백 본문: 칩 아래 말풍선. 피드백이 여럿이면 줄이 나뉜다. */
 .feedback-bodies {
   display: flex;
   flex-direction: column;
@@ -5761,7 +5755,6 @@ html[data-compact-view="true"] .session-twistie {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* FBFIX: 보낸 메시지의 첨부 칩(피드백에서 고른 화면 요소). 말풍선 위에 오른쪽 정렬 */
 .user-attachments {
   display: flex;
   flex-wrap: wrap;
@@ -5809,7 +5802,6 @@ html[data-compact-view="true"] .session-twistie {
   flex-shrink: 0;
   color: var(--fg);
 }
-/* FILEATTACH: 말풍선의 파일 칩(이름 뒤에 크기) */
 .user-attachment-file {
   cursor: default;
 }
@@ -5820,7 +5812,6 @@ html[data-compact-view="true"] .session-twistie {
   white-space: nowrap;
 }
 
-/* B2-05: 복원한 자리 줄(Checkpoint restored, Redo). 평소 상태에서는 줄을 만들지 않는다. */
 .checkpoint-divider {
   display: flex;
   align-items: center;
@@ -5830,7 +5821,6 @@ html[data-compact-view="true"] .session-twistie {
   line-height: var(--leading-ui);
   color: var(--fg-muted);
 }
-/* FBREDO: 사용자 말풍선의 체크포인트 동작. 자리를 차지하지 않고(절대 위치) 말풍선 오른쪽 위 모서리에 걸친다. 평소엔 투명, 말풍선에 마우스를 올리면 흐리게, 단추에 올리면 또렷하게(Claude Code 의 Message actions) */
 .checkpoint-actions {
   display: flex;
   gap: var(--space-1);
@@ -5904,7 +5894,6 @@ html[data-compact-view="true"] .session-twistie {
   outline: 1px solid var(--focus-border);
 }
 
-/* B2-07: 응답 본문의 파일 링크는 본문 색이고 마우스를 올릴 때만 밑줄 */
 .row-assistant .file-link {
   color: var(--fg);
 }
@@ -5912,7 +5901,6 @@ html[data-compact-view="true"] .session-twistie {
   text-decoration: underline;
 }
 
-/* B2-08, B2-09: 응답 아래 줄과 턴 변경 요약. 변경 요약은 항상 보이고(마지막 턴은 입력창 위 칩이 대신한다), 복사 버튼과 시각은 마우스를 올렸을 때만 */
 .turn-footer {
   display: flex;
   flex-direction: column;
@@ -5930,7 +5918,6 @@ html[data-compact-view="true"] .session-twistie {
   line-height: var(--leading-ui-sm);
   color: var(--fg);
 }
-/* 파일 목록이 있는 턴: <summary> 가 .turn-changes 모양이고 펼치면 아래에 테두리 상자로 파일 행이 선다 */
 .turn-changes-details {
   align-self: stretch;
 }
@@ -6032,7 +6019,6 @@ html[data-compact-view="true"] .session-twistie {
   color: var(--diff-count-del);
 }
 
-/* B2-10 ~ B2-14: 단계 묶음과 도구 행 */
 .steps > summary {
   gap: var(--space-1_5);
   font-size: var(--text-chat);
@@ -6048,7 +6034,6 @@ html[data-compact-view="true"] .session-twistie {
   gap: var(--space-1_5);
   min-width: 0;
 }
-/* "Working:" 라벨은 줄어들거나 줄바꿈되지 않고, 뒤의 대상(StepTarget)이 말줄임으로 줄어든다 */
 .steps-working > :first-child {
   flex-shrink: 0;
   white-space: nowrap;
@@ -6107,7 +6092,6 @@ html[data-compact-view="true"] .session-twistie {
 .step[data-cancelled] .step-icon {
   color: var(--fg-muted);
 }
-/* B2-13: 터미널 명령 상자. 진행 중에는 스피너, 취소되면 ⊗ */
 .step-terminal {
   display: flex;
   flex-direction: column;
@@ -6120,7 +6104,6 @@ html[data-compact-view="true"] .session-twistie {
   line-height: var(--editor-line-height-sm);
   max-height: 300px; /* lint-tokens: allow 도구 출력 상자 최대 높이. 토큰 제안: size-output-max */
 }
-/* 대화 본문 높이에 놓이는 상자(검사 로그 등)는 도구 단계 들여쓰기를 따르지 않는다 */
 .step-terminal.notice-output {
   margin-left: 0;
 }
@@ -6129,7 +6112,6 @@ html[data-compact-view="true"] .session-twistie {
   align-items: center;
   gap: var(--space-1_5);
   min-width: 0;
-  /* 여러 줄 명령이 상자 최대 높이를 넘으면 상자 밖으로 흘러나오지 않고 명령 줄 안에서 스크롤한다 */
   min-height: 0;
   overflow: auto;
   color: var(--fg);
@@ -6151,7 +6133,6 @@ html[data-compact-view="true"] .session-twistie {
   line-height: var(--editor-line-height-sm);
 }
 
-/* B2-11, B2-16: 진행 표시 한 줄과 대기 중 승인 안내 */
 .thinking-indicator {
   display: flex;
   align-items: center;
@@ -6161,7 +6142,6 @@ html[data-compact-view="true"] .session-twistie {
   color: var(--fg-muted);
 }
 
-/* B2-16: 입력창 위 승인 카드 */
 .approval-card {
   display: flex;
   flex-direction: column;
@@ -6249,7 +6229,6 @@ pre.approval-json {
 .approval-json [data-json="word"] {
   color: var(--syntax-keyword);
 }
-/* 편집 승인의 변경 미리보기와 접힌 Input */
 .approval-diff {
   margin-inline: var(--space-3);
   border: 1px solid var(--border-subtle);
@@ -6321,7 +6300,6 @@ pre.approval-json {
   border-left: 1px solid var(--accent-fg);
 }
 
-/* B2-18: 아래로 가기 버튼 */
 .scroll-bottom {
   all: unset;
   box-sizing: border-box;
@@ -6347,7 +6325,6 @@ pre.approval-json {
   outline: 1px solid var(--focus-border);
 }
 
-/* B2-19: 글을 고르면 뜨는 도구 막대 */
 .selection-bar {
   position: fixed;
   z-index: 50;
@@ -6378,10 +6355,30 @@ pre.approval-json {
 .selection-bar button:focus-visible {
   outline: 1px solid var(--focus-border);
 }
+.selection-comment {
+  align-items: flex-start;
+}
+.selection-comment-input {
+  box-sizing: border-box;
+  min-width: var(--size-feedback-input-min);
+  max-width: var(--size-feedback-input-max);
+  min-height: var(--size-control-sm);
+  max-height: calc(var(--leading-input) * 8);
+  padding: var(--space-1) var(--space-1_5);
+  border: 0;
+  outline: 0;
+  resize: none;
+  field-sizing: content;
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-input);
+  line-height: var(--leading-input);
+}
+.selection-comment-input::placeholder {
+  color: var(--fg-muted);
+}
 
-/* --- B6: 세션 검색과 명령 팔레트(빠른 선택창) --- */
-
-/* 제목줄 바로 아래에 붙고 높이는 400px 까지. 뒤를 어둡게 하지 않는다(Palette 의 quickpick) */
 .palette-quickpick {
   top: var(--size-titlebar);
   width: min(var(--size-quickpick-width), calc(100% - var(--space-8)));
@@ -6405,7 +6402,6 @@ pre.approval-json {
   line-height: var(--leading-ui);
   cursor: pointer;
 }
-/* 명령, 파일, New Session 행은 한 줄이라 22px 에 맞춘다 */
 .quickpick-row[data-command],
 .quickpick-row[data-file-option],
 .quickpick-row[data-new-session] {
@@ -6435,7 +6431,6 @@ pre.approval-json {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 둘째 줄: 사이드바 세션 행 둘째 줄과 같은 모양, 글자만 본문 크기 */
 .quickpick-detail {
   font-size: var(--text-ui);
   line-height: var(--leading-ui);
@@ -6465,7 +6460,6 @@ pre.approval-json {
   padding-bottom: 0;
 }
 
-/* --- 3차 재비교: 앱 안 확인 창(브라우저 confirm 대신) --- */
 .confirm-overlay {
   position: fixed;
   inset: 0;
@@ -6655,7 +6649,6 @@ pre.approval-json {
   color: var(--fg-muted);
 }
 
-/* G7: 확인 창의 체크 줄(Don't ask again) */
 .confirm-check {
   grid-column: 2;
   display: flex;
@@ -6667,7 +6660,6 @@ pre.approval-json {
   cursor: pointer;
 }
 
-/* G7: Share with Agent. 공유 중이면 주소창 안에 "Sharing with Agent" 알약이 서고, 페이지 가장자리에 색 테두리가 둘린다. */
 .browser-share-pill {
   all: unset;
   box-sizing: border-box;
@@ -6709,7 +6701,6 @@ pre.approval-json {
   mask-composite: exclude;
 }
 
-/* G7: Site Permissions 선택창의 줄. 아이콘, 이름과 설명, 오른쪽에 허용과 차단 단추. */
 .quickpick-permission {
   gap: var(--space-2);
 }
@@ -6742,7 +6733,6 @@ pre.approval-json {
   color: inherit;
   cursor: pointer;
 }
-/* 허용과 차단 단추는 줄 위에 있을 때만 보인다. 지금 상태를 알리는 단추는 늘 보인다. */
 .quickpick-button:not([data-action="reset"]) {
   visibility: hidden;
 }
@@ -6806,7 +6796,6 @@ pre.approval-json {
   }
 }
 
-/* G8: Browser 도구 단계의 페이지 칩(지구본과 호출 시점의 페이지 제목)과 스크린샷 썸네일 */
 .page-chip {
   display: inline-flex;
   align-items: center;
@@ -6850,7 +6839,6 @@ pre.approval-json {
   overflow: auto;
 }
 
-/* G8: 에뮬레이션 틀의 크기 손잡이(오른쪽과 아래 가장자리), 페이지 대화상자 줄, file: 주소의 Reload 드롭다운 */
 .browser-stage[data-emulated] .browser-emu {
   position: relative;
 }
@@ -6990,7 +6978,6 @@ pre.approval-json {
   border-left: 1px solid var(--border);
 }
 
-/* scrollbar-width, scrollbar-color 를 쓰면 아래 ::-webkit-scrollbar 가 무시되므로 어디에도 쓰지 않는다. */
 *::-webkit-scrollbar {
   width: var(--size-scrollbar);
   height: var(--size-scrollbar);
@@ -7017,7 +7004,6 @@ pre.approval-json {
   background-color: var(--scrollbar-slider-active);
 }
 
-/* 왼쪽 사이드바(세션 목록 포함)는 좁은 영역이라 트랙을 6px 로 줄여 슬라이더를 가늘게 그린다 */
 .sidebar::-webkit-scrollbar,
 .sidebar-list::-webkit-scrollbar,
 .pr-body::-webkit-scrollbar {
@@ -7036,12 +7022,10 @@ pre.approval-json {
   border-radius: 0;
 }
 
-/* --- B7: 에디터 그룹, 탭 끌기, 저장 표시 --- */
 .editor-area {
   flex: 1;
   min-height: 0;
   display: flex;
-  /* EDPARITY(C): 에디터 그룹 아래에 상태 표시줄(web/EditorStatus.tsx)이 한 줄로 선다 */
   flex-direction: column;
   position: relative;
 }
@@ -7062,7 +7046,6 @@ pre.approval-json {
   min-height: 0;
   display: flex;
 }
-/* 에디터 그룹은 최소 폭(--group-min, EditorArea 가 정함) 아래로 눌리지 않는다. 패널이 좁아 모자라면 그룹 줄이 가로로 스크롤된다. */
 .editor-split[data-dir="row"] {
   overflow-x: auto;
   scroll-snap-type: x mandatory;
@@ -7084,7 +7067,6 @@ pre.approval-json {
   display: flex;
   flex-direction: column;
 }
-/* 포커스가 없는 그룹의 탭 색은 web/tabStrip.css */
 .tab-close {
   position: relative;
 }
@@ -7101,7 +7083,6 @@ pre.approval-json {
 .tab[data-dirty] .tab-dot {
   display: block;
 }
-/* 저장 안 한 탭은 점으로 보이지만 닫을 수 있다: 탭 위에 마우스를 올리거나 단추에 포커스가 있으면 점 대신 닫기 X 를 보여 닫을 수 있음을 알린다. */
 .tab[data-dirty]:hover .tab-close .codicon,
 .tab[data-dirty] .tab-close:focus-visible .codicon {
   display: inline-block;
@@ -7181,7 +7162,6 @@ body[data-tab-dragging] iframe {
   color: var(--accent-fg);
   border-color: color-mix(in srgb, var(--accent-fg) 10%, transparent);
 }
-/* 위험한 선택지(확인 창에서 주 단추가 아닌 삭제 단추): 빨간 글자와 테두리 */
 .confirm-buttons > button[data-danger] {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 55%, transparent);
@@ -7205,7 +7185,6 @@ body[data-tab-dragging] iframe {
   line-height: var(--leading-caption);
 }
 
-/* --- B7: Files 탭의 새 파일 --- */
 .files-header {
   display: flex;
   align-items: center;
@@ -7248,7 +7227,6 @@ body[data-tab-dragging] iframe {
   border-color: var(--input-error-border);
   outline: none;
 }
-/* 입력 바로 아래, 입력과 같은 폭으로 뒤 행 위에 겹쳐 뜬다 */
 .tree-new-error {
   position: absolute;
   z-index: 5; /* lint-tokens: allow 트리 행 위에 겹치는 검증 메시지 */
@@ -7266,9 +7244,6 @@ body[data-tab-dragging] iframe {
   overflow-wrap: anywhere;
 }
 
-/* --- 닫힌 사이드바의 hover 미리보기 (SidebarPeek) --- */
-
-/* 제목줄 아래 왼쪽 가장자리. 제목줄은 드래그 영역이라 hover 를 못 받으므로 띠는 그 아래에서 시작한다 */
 .sidebar-peek-edge {
   position: fixed;
   top: var(--size-titlebar);
@@ -7300,7 +7275,6 @@ body[data-tab-dragging] iframe {
     transform 120ms ease-out;
   -webkit-app-region: no-drag;
 }
-/* 사이드바가 오른쪽에 있으면 가장자리 띠와 미리보기 패널도 오른쪽에서 나온다 */
 body[data-sidebar-side="right"] .sidebar-peek-edge {
   left: auto;
   right: 0;
@@ -7312,7 +7286,6 @@ body[data-sidebar-side="right"] .sidebar-peek {
 body[data-sidebar-side="right"] .sidebar-peek:not([data-shown]) {
   transform: translateX(var(--space-2));
 }
-/* 쉬는 상태에서는 transform 을 두지 않는다. transform 이 있으면 안쪽 fixed 요소(우클릭 메뉴 앵커)의 기준이 패널이 된다 */
 .sidebar-peek[data-shown] {
   opacity: 1;
   transform: none;
@@ -7325,7 +7298,6 @@ body[data-sidebar-side="right"] .sidebar-peek:not([data-shown]) {
   min-height: 0;
   border-right: 0;
   background: transparent;
-  /* 아래 여백(space-2)과 같게 위도 띄운다. 첫 행이 둥근 모서리에 붙어 잘리지 않는다 */
   padding-top: var(--space-2);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -7370,7 +7342,6 @@ body[data-sidebar-side="right"] .sidebar-peek:not([data-shown]) {
 }
 .import-text {
   flex: 1;
-  /* 칩이 많아 좁아지면 제목이 한 글자로 줄지 않고 칩이 아래 줄로 내려간다 */
   min-width: calc(var(--space-8) * 3);
   display: flex;
   flex-direction: column;
@@ -7456,7 +7427,6 @@ body[data-sidebar-side="right"] .sidebar-peek:not([data-shown]) {
   align-items: flex-start;
   gap: var(--space-2);
   width: 100%;
-  /* 세션 안 입력창(.agent > .composer)과 같은 폭과 양옆 여백에 맞춘다 */
   max-width: calc(var(--size-chat-session) + var(--space-8) * 2);
   align-self: center;
   padding: var(--space-1) var(--space-8);
@@ -7466,7 +7436,6 @@ body[data-sidebar-side="right"] .sidebar-peek:not([data-shown]) {
 }
 .import-notice > .codicon {
   flex-shrink: 0;
-  /* 글이 두 줄이 되어도 아이콘은 첫 줄 중앙에 둔다 */
   display: inline-flex;
   align-items: center;
   height: var(--leading-caption);
@@ -7482,7 +7451,6 @@ html[data-embed] .pane {
   flex: 1 1 0;
 }
 
-/* import: 가져온 세션의 압축 지점 구분선(압축 이전 대화는 그 위에 읽기 전용으로 있다) */
 .compact-divider {
   display: flex;
   align-items: center;
@@ -7493,13 +7461,10 @@ html[data-embed] .pane {
   color: var(--fg-muted);
 }
 
-/* import: 새로고침 아이콘을 감싼 span 이 인라인이면 줄 상자 때문에 아이콘이 버튼 가운데보다 위로 뜬다 */
 .import-icon {
   display: inline-flex;
 }
 
-/* --- FLOAT: Editor 중심 배치와 떠 있는 에이전트 창 --- */
-/* 가운데를 에디터가 차지하므로 오른쪽 패널은 에디터를 --size-float-min-width 아래로 줄이지 않는다. */
 .center[data-layout="editor"] {
   --chat-reserve: var(--size-float-min-width);
 }
@@ -7514,9 +7479,6 @@ html[data-embed] .pane {
 .editor-center[hidden] {
   display: none;
 }
-/* Chat 중심에서 에디터 탭이 열려 있을 때 오른쪽 패널: 에디터 옆에 고정 칸(Changes, Files). 폭은 --pinned-w(web/pinnedLayout.ts 가 패널 폭에 맞춰 계산)
-   위치는 data-side: right 는 에디터 오른쪽, left 는 왼쪽(row-reverse 라 사이 끌개가 DOM 순서 그대로 가운데에 놓인다).
-   data-presentation: side 는 나란히, collapsed 는 접힘, overlay 는 패널이 좁아 에디터 위에 서랍으로 뜸 */
 .right-split {
   flex: 1;
   min-height: 0;
@@ -7551,8 +7513,6 @@ html[data-embed] .pane {
 .right-pinned[hidden] {
   display: none;
 }
-/* 고정 탭줄(Changes, Files, Source Control, Card)이 좁으면 활성이 아닌 탭은 아이콘만 보인다. 글자는 font-size 0 으로 접고(아이콘은 자기 크기를 따로 가진다) 이름은 그대로 읽힌다.
-   줄 자신이 컨테이너라서 Chat 배치의 단독 패널과 에디터 옆 칸 모두 같은 규칙을 쓴다. 이렇게 하지 않으면 세 번째 탭이 오른쪽 꼬리 단추(X)에 가려진다. */
 .tabs[data-tab-strip="side"] {
   container-type: inline-size;
 }
@@ -7562,7 +7522,6 @@ html[data-embed] .pane {
     gap: 0;
   }
 }
-/* C(발견 17): 패널이 더 좁으면(200px 대) 활성 탭도 아이콘만 남긴다. 활성 탭 이름이 꼬리 단추 아래로 잘려 한 글자만 보이던 것을 막는다. 이름은 단추의 title 로 읽힌다. */
 @container (max-width: 300px) { /* lint-tokens: allow 컨테이너 쿼리는 var() 를 못 쓴다. 활성 탭 이름까지 접는 한계 폭 */
   .tab:not([data-kind="card"]) > .tab-label {
     font-size: 0;
@@ -7572,7 +7531,6 @@ html[data-embed] .pane {
     margin-left: var(--space-1);
   }
 }
-/* 탭줄 맨 앞에 놓이는 펴기 단추(Left 위치). 탭은 줄 높이를 다 채우지만 이 단추는 가운데에 선다 */
 .tabs > .pinned-toggle {
   align-self: center;
   margin: 0 var(--space-1);
@@ -7593,11 +7551,9 @@ html[data-embed] .pane {
   right: auto;
   left: 0;
 }
-/* 에디터 안의 층(스크롤 눈금자 6, 거터, 찾기 상자)은 z-index 가 서랍(2)보다 커서 서랍 위로 비쳐 나온다. 에디터를 따로 층으로 묶어 서랍 아래에 둔다 */
 .right-split[data-presentation="overlay"] .cm-editor {
   isolation: isolate;
 }
-/* 격자는 폭 0 으로 접고, 활성 칸만 창이 된다. 나머지 칸은 숨긴 채 마운트되어 있다. */
 .panes[data-layout="editor"] {
   flex: 0 0 0;
   width: 0;
@@ -7618,14 +7574,10 @@ html[data-embed] .pane {
   overflow: hidden;
   pointer-events: auto;
 }
-.pane[data-floating] > .agent {
-  min-height: 0;
-}
-/* 에디터 모드의 떠 있는 창에서는 새 세션 입력창도 다른 대화처럼 아래에서 시작한다 */
-.pane[data-floating] .new-session-body {
+.pane[data-floating] .new-session-body,
+.pane[data-docked] .new-session-body {
   align-items: flex-end;
 }
-/* 창 머리(.float-bar)가 칸 머리를 대신한다 */
 .pane[data-floating] .agent > .pane-header {
   display: none;
 }
@@ -7642,41 +7594,6 @@ html[data-embed] .pane {
   cursor: grab;
   user-select: none;
 }
-.float-bar .spacer {
-  flex: 1;
-}
-.float-title {
-  all: unset;
-  box-sizing: border-box;
-  display: inline-flex;
-  flex: 0 1 auto;
-  max-width: 65%; /* lint-tokens: allow 제목 오른쪽에 창을 끌 빈 자리를 남긴다 */
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 0;
-  height: var(--size-control-sm);
-  padding: 0 var(--space-1_5);
-  border-radius: var(--radius-sm);
-  color: var(--fg);
-  cursor: pointer;
-}
-.float-title:hover {
-  background: var(--surface-hover);
-}
-.float-title:focus-visible {
-  outline: 1px solid var(--focus-border);
-  outline-offset: -1px;
-}
-.float-title-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.float-title > .codicon {
-  flex: none;
-  color: var(--fg-muted);
-}
 .float-session-menu {
   max-width: var(--size-popup-attach);
 }
@@ -7687,7 +7604,6 @@ html[data-embed] .pane {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 가장자리 크기 조절 띠: 보이지 않고 창 안쪽 가장자리에 놓인다. 모서리는 띠 두 배 크기다. */
 .float-grip {
   position: absolute;
   z-index: 1;
@@ -7745,7 +7661,6 @@ html[data-embed] .pane {
   bottom: 0;
   cursor: nwse-resize;
 }
-/* 접힌 알약: 창의 오른쪽 아래 모서리에 붙는다. 칸의 나머지는 숨기고 알약만 보인다. */
 .pane[data-floating][data-collapsed] {
   max-width: var(--size-float-pill-max);
   border: 0;
@@ -7809,7 +7724,6 @@ html[data-embed] body {
   background: var(--pane-bg);
 }
 
-/* keys: 창 확대 중에도 제목줄은 신호등 버튼(네이티브)과 같은 화면 크기로 둔다. 메인이 --window-zoom 에 확대 배율을 넣는다. */
 body[data-electron="1"] .titlebar {
   zoom: calc(1 / var(--window-zoom, 1));
 }
@@ -7827,7 +7741,6 @@ body[data-electron="1"] .titlebar {
 .df-layer > * {
   pointer-events: auto;
 }
-/* 입력 상자: panel.background(surface-base), 테두리 editorWidget.border(hover-border), 모서리 8px, 안쪽 4px */
 .df-input {
   position: absolute;
   display: flex;
@@ -7938,7 +7851,6 @@ body[data-electron="1"] .titlebar {
 .df-menu-item:hover .df-menu-hint {
   color: inherit;
 }
-/* 줄 번호 열: 마우스를 올린 줄은 번호 대신 `+`(editorGutter.commentRangeForeground 바탕, commentGlyphForeground 글자), 피드백이 쌓인 줄은 번호가 accent */
 .cm-lineNumbers .cm-gutterElement.cm-feedback-glyph {
   position: relative;
   cursor: pointer;
@@ -7959,7 +7871,6 @@ body[data-electron="1"] .titlebar {
 .cm-lineNumbers .cm-gutterElement.cm-feedback-numbered {
   color: var(--accent-text);
 }
-/* 쌓인 피드백의 줄 범위: 왼쪽에 agentFeedback range glyph 와 같은 accent 줄(editorGutter.modifiedBackground). 호버한 항목의 줄은 배경도 옅게 */
 .cm-line.cm-feedback-line {
   position: relative;
 }
@@ -7975,10 +7886,8 @@ body[data-electron="1"] .titlebar {
 .cm-line.cm-feedback-highlight {
   background-color: var(--surface-hover);
 }
-/* 쌓인 피드백 위젯: 접힌 머리 한 줄이 편집기 오른쪽 위에 뜨고 누르면 항목이 펴진다 */
 .df-pill {
   box-sizing: border-box;
-  /* --df-avail 은 편집기가 보이는 폭(거터와 여백 제외). 줄이 길어 스크롤 폭이 넓어도 위젯이 보이는 칸 안에 들어온다. */
   min-width: min(var(--size-feedback-pill-min), var(--df-avail, 100%));
   max-width: min(var(--size-feedback-pill-max), var(--df-avail, 100%));
   margin: var(--space-1) var(--space-2);
@@ -8084,7 +7993,6 @@ body[data-electron="1"] .titlebar {
   resize: none;
   overflow: hidden;
 }
-/* 입력창 위 칩과 대화의 칩 */
 .feedback-chip {
   all: unset;
   box-sizing: border-box;
@@ -8180,13 +8088,11 @@ body[data-electron="1"] .titlebar {
   background: var(--surface-base);
 }
 
-/* FBRETRY: 피드백 세션 대화의 실패 알림 아래 Retry Checks 단추 줄 */
 .feedback-retry-row {
   display: flex;
   gap: var(--space-2);
 }
 
-/* 카드는 도구 줄(position: relative)의 왼쪽 가장자리에 맞춘다. 좁은 칸에서도 입력창 밖으로 나가지 않는다. */
 .context-gauge-wrap {
   display: inline-flex;
   flex: none;
@@ -8256,7 +8162,6 @@ body[data-electron="1"] .titlebar {
   font-size: var(--text-ui-sm);
   line-height: var(--leading-ui-sm);
 }
-/* 단추에서 카드로 마우스가 건너가는 틈에서 카드가 닫히지 않게 */
 .context-card::after {
   content: "";
   position: absolute;
@@ -8318,7 +8223,6 @@ body[data-electron="1"] .titlebar {
   outline: 1px solid var(--border);
 }
 
-/* SUB: Agent 호출 행과 입력창 위 `N agents running` 칩 */
 .step-agent > summary .agent-name {
   flex: 0 1 auto;
   color: var(--fg);
@@ -8398,8 +8302,6 @@ body[data-electron="1"] .titlebar {
   white-space: nowrap;
 }
 
-/* HANDOFF: 인계 문서 칩, 문서 창, 원 세션 끝의 `Handed off to` 줄 */
-/* 세션 제목은 코드가 아니라 UI 글꼴이다(파일 경로 칩만 mono). 길면 최대 폭에서 말줄임. */
 .attachment.handoff-chip {
   max-width: calc(var(--space-8) * 8);
   padding-right: var(--space-1);
@@ -8492,7 +8394,6 @@ body[data-electron="1"] .titlebar {
   text-decoration: underline;
 }
 
-/* 보낸 메시지 위 인계 문서 칩은 좁은 칸에서 이름을 말줄임으로 줄인다 */
 .user-attachment-handoff .user-attachment-name {
   flex-shrink: 1;
   min-width: 0;
@@ -8501,7 +8402,6 @@ body[data-electron="1"] .titlebar {
   white-space: nowrap;
 }
 
-/* --- 보드와 멘션 화면의 목록 + 상세 두 칸 (세션 오른쪽 패널과 따로) --- */
 .right[hidden],
 .resizer[hidden] {
   display: none;
@@ -8512,7 +8412,6 @@ body[data-electron="1"] .titlebar {
   min-height: 0;
   display: flex;
 }
-/* 상세 칸은 세션 오른쪽 패널(.right)과 같은 배경과 경계선이다. 상세는 --size-panel-narrow 아래로 줄지 않는다(창이 좁으면 목록이 먼저 줄어든다). 넓을 때 목록은 --size-chat-floor 아래로 안 줄도록 상세가 양보한다. */
 .split-detail {
   width: 50%; /* lint-tokens: allow 기본 비율: 목록과 반반. 끌어서 바꾸면 Layout 에 px 로 저장된다 */
   min-width: var(--size-panel-narrow);
@@ -8532,7 +8431,6 @@ body[data-electron="1"] .titlebar {
   position: relative;
 }
 
-/* FBSTATUS: Improvements 화면 행의 반영 상태 라벨(아이콘 + 문구) */
 .feedback-state {
   display: inline-flex;
   flex-shrink: 0;
@@ -8547,25 +8445,21 @@ body[data-electron="1"] .titlebar {
 .feedback-state > .codicon {
   flex-shrink: 0;
 }
-/* 문구는 모두 흐린 색이고 색은 아이콘에만 둔다. 미적용은 빨강 대신 흐린 색(사용자: 너무 공격적). */
 .feedback-state[data-tone="success"] > .codicon {
   color: var(--success);
 }
 .feedback-state[data-tone="warning"] > .codicon {
   color: var(--warning);
 }
-/* 답 대기는 사용자 차례라는 표시라 문구까지 강조색(accent-text)으로 읽힌다. 빨강은 쓰지 않는다. */
 .feedback-state[data-tone="accent"] {
   color: var(--accent-text);
 }
 .feedback-state[data-tone="info"] > .codicon {
   color: var(--running);
 }
-/* Retry all not applied 의 아이콘은 돌리기(spin)용 span 에 싸여 있다. 줄글(inline) span 이면 아이콘이 글자 기준선에 얹혀 글자보다 2px 위에 뜨므로 가운데에 세운다 */
 .inbox > .pane-header button > span:first-child:has(> .codicon) {
   display: inline-flex;
 }
-/* 상세 칸이 옆에 있으면 목록이 좁아지니, 좁은 목록의 머리줄은 Mark all read 글자를 접고 아이콘만 남긴다 */
 .split-view > .inbox {
   container-type: inline-size;
 }
@@ -8575,7 +8469,6 @@ body[data-electron="1"] .titlebar {
   }
 }
 
-/* --- SESSIONDRAG: 사이드바 세션 행을 가운데 칸에 끌어 놓기 --- */
 body[data-session-dragging] {
   user-select: none;
   cursor: grabbing;
@@ -8591,7 +8484,6 @@ body[data-session-dragging] iframe {
   background: var(--group-drop-bg);
   pointer-events: none;
 }
-/* 커서 오른쪽 아래를 따라다니는 세션 제목 칩 */
 .session-drag-chip {
   position: fixed;
   z-index: 70; /* lint-tokens: allow 끄는 동안의 표시 */
@@ -8616,7 +8508,6 @@ body[data-session-dragging] iframe {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* SESSIONORDER: 사이드바에서 같은 묶음 안의 자리를 바꿀 때 놓을 자리의 삽입선. 위치와 크기는 끌기 코드(web/sessionDrag.ts)가 인라인으로 준다. */
 .session-reorder-line {
   position: fixed;
   z-index: 70; /* lint-tokens: allow 끄는 동안의 표시 */
@@ -8626,7 +8517,6 @@ body[data-session-dragging] iframe {
   pointer-events: none;
 }
 
-/* IMPROVE: 사이드바 바닥의 Improvements 항목. 목록이 짧으면 바닥에 붙고(margin-top: auto), 길어서 스크롤되면 보이는 영역 바닥에 머문다(sticky) */
 .sidebar-foot {
   position: sticky;
   bottom: 0;
@@ -8636,7 +8526,7 @@ body[data-session-dragging] iframe {
   border-top: 1px solid var(--border-subtle);
 }
 .sidebar-foot .side-item {
-  width: 100%; /* 버튼은 내용 폭으로 줄어들어 개수가 라벨 옆에 붙는다. 다른 사이드 항목처럼 줄 끝으로 민다 */
+  width: 100%;
   color: var(--fg-subtle);
   font-weight: var(--weight-ui);
 }
@@ -8646,7 +8536,6 @@ body[data-session-dragging] iframe {
 .sidebar-foot .side-item[data-active] {
   color: var(--fg-strong);
 }
-/* 답을 기다리는 개선: 강조색 점과 "N waiting". 뒤에 미적용 개수가 오면 둘 사이에 한 칸 띄운다 */
 .side-item .side-waiting {
   display: inline-flex;
   align-items: center;
@@ -8672,7 +8561,6 @@ body[data-session-dragging] iframe {
   line-height: var(--leading-caption);
 }
 
-/* FIX5-1: 승인 단축키 힌트, 제목줄 AttentionChip, 실패 상태, 푸터 개수 라벨, 12px 미만이던 글자 올림 */
 .approval-actions button {
   font-size: var(--text-ui-sm);
   line-height: var(--leading-ui-sm);
@@ -8741,7 +8629,6 @@ body[data-session-dragging] iframe {
   flex: none;
   color: var(--fg-subtle);
 }
-/* 미적용: 아이콘만 차분한 붉은 기운. 문구는 다른 상태처럼 흐리다(빨강 경고는 사용자가 너무 공격적이라고 했다). */
 .feedback-state[data-tone="failed"] > .codicon,
 .side-count > .codicon {
   color: color-mix(in srgb, var(--danger) 60%, var(--fg-muted));
@@ -8763,11 +8650,9 @@ body[data-session-dragging] iframe {
 .side-count-word {
   margin-left: var(--space-0_5);
 }
-/* 기본 폭(280)에서 "1 waiting" 옆에 "2 not applied" 가 함께 들어가도록 이때는 아이콘을 뺀다(글자가 라벨이다) */
 .side-waiting + .side-count > .codicon {
   display: none;
 }
-/* 푸터 행은 어떤 폭에서도 한 줄이다. 모자라면 오른쪽 라벨부터 접고(숫자와 아이콘은 남고 툴팁과 접근성 이름에 전문이 있다), 더 모자라면 waiting 글자도 접는다. */
 .sidebar-foot .side-item {
   white-space: nowrap;
   overflow: hidden;
@@ -8795,7 +8680,6 @@ body[data-session-dragging] iframe {
   line-height: var(--leading-ui-sm);
 }
 
-/* UITYPE: Settings 화면. 위에 검색, 왼쪽 목차, 오른쪽에 묶음별 카드. 값은 전부 토큰이고 폭은 space-8(32) 의 배수다. */
 .settings-dialog {
   width: min(calc(var(--space-8) * 30), calc(100% - var(--space-8)));
   height: 80vh; /* lint-tokens: allow 뷰포트 비율 */
@@ -9019,7 +8903,6 @@ body[data-session-dragging] iframe {
   width: calc(var(--space-8) * 6);
   justify-content: space-between;
 }
-/* QUICKENTRY: 단축키 후보 목록과 녹화 버튼이 한 줄 */
 .setting-quick-shortcut {
   display: flex;
   align-items: center;
@@ -9087,7 +8970,6 @@ body[data-session-dragging] iframe {
 .settings-dialog[data-narrow] .setting-select {
   width: calc(var(--space-8) * 5);
 }
-/* 스위치: 트랙 36x20, 손잡이 16 */
 .switch {
   all: unset;
   box-sizing: border-box;
@@ -9130,12 +9012,10 @@ body[data-session-dragging] iframe {
   margin: 0;
 }
 
-/* R4FIX: 미리보기 탭(제목 기울임). 다른 파일을 한 번 눌러 열면 이 탭 자리가 바뀐다 */
 .tab[data-preview] .tab-label {
   font-style: italic;
 }
 
-/* R4FIX: 변경 목록 행의 hover 단추(Open File, Discard Changes). 마우스를 올리거나 행에 포커스가 있으면 +N -M 자리를 이 단추들이 쓴다 */
 .file-row-actions {
   display: none;
   align-items: center;
@@ -9154,7 +9034,6 @@ body[data-session-dragging] iframe {
   display: none;
 }
 
-/* R4FIX: Changes 탭 머리의 개수 배지. 탭 글자가 접히는 좁은 폭(font-size 0)에서도 자기 크기를 지킨다 */
 .tab-badge {
   flex-shrink: 0;
   min-width: calc(var(--leading-caption) + var(--space-1));
@@ -9177,17 +9056,14 @@ body[data-session-dragging] iframe {
   }
 }
 
-/* FIX3-1: 데몬 연결이 끊겼을 때 창 맨 위 띠 */
 .daemon-banner {
   flex-shrink: 0;
-  /* 단추가 있는 띠와 없는 띠의 높이를 맞춘다 */
   min-height: calc(var(--size-control-sm) + var(--space-0_5) + 2 * var(--space-2));
 }
 .daemon-banner .spin {
   color: var(--warning);
 }
 
-/* FIX4A: 에이전트의 마지막 쓰기 뒤 바뀐 파일 표시 */
 .changes-modified-since {
   display: inline-flex;
   align-items: center;
@@ -9195,13 +9071,10 @@ body[data-session-dragging] iframe {
   color: var(--warning);
 }
 
-/* fixB: 질문 카드와 계획 승인 카드. 머리와 단추 줄은 승인 카드(.approval-card)와 같다. */
-/* 질문 카드와 계획 카드는 내용만큼 자라다가 칸 높이의 70% 에서 멈추고, 그때부터 본문만 스크롤한다. 머리와 단추 줄은 고정이다. */
 .question-card,
 .plan-card {
   max-height: calc((100vh - var(--size-titlebar) - var(--size-chat-header)) * 0.7);
 }
-/* 스크롤 영역 위아래 여백만큼 가장자리를 흐리게 해서 잘린 행의 테두리가 조각으로 보이지 않는다 */
 .question-list {
   flex: 1 1 auto;
   min-height: 0;
@@ -9290,7 +9163,6 @@ body[data-session-dragging] iframe {
   color: var(--fg-muted);
   overflow-wrap: anywhere;
 }
-/* 표시(라디오, 체크)는 첫 줄 글자 높이에 세로 가운데로 맞춘다 */
 .question-mark {
   flex: none;
   box-sizing: border-box;
@@ -9437,7 +9309,6 @@ body[data-session-dragging] iframe {
   color: var(--fg-muted);
 }
 
-/* fixB: 입력창의 이미지 칩(썸네일과 이름), 끌어다 놓을 때의 표시 */
 .attachment.attachment-image {
   height: auto;
   padding: var(--space-0_5) var(--space-1) var(--space-0_5) var(--space-0_5);
@@ -9448,7 +9319,6 @@ body[data-session-dragging] iframe {
   border-radius: var(--radius-sm);
   object-fit: cover;
 }
-/* FILEATTACH: 입력창의 파일 칩(아이콘, 이름, 크기 또는 업로드 진행률). 업로드 실패는 오류 색으로 */
 .attachment.attachment-file {
   max-width: 100%;
   font-family: var(--font-sans);
@@ -9465,6 +9335,13 @@ body[data-session-dragging] iframe {
 .attachment-file-meta {
   flex-shrink: 0;
   color: var(--fg-muted);
+}
+.attachment.attachment-quote {
+  max-width: var(--size-feedback-pill-max);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+  color: var(--accent-text);
 }
 .attachment-file[data-status="uploading"] .attachment-file-meta {
   color: var(--accent-text);
@@ -9484,7 +9361,6 @@ body[data-session-dragging] iframe {
   color: var(--accent-text);
 }
 
-/* fixB: 타임라인의 질문과 계획 승인 단계(펼침 안) */
 .step-qa {
   display: flex;
   flex-direction: column;
@@ -9534,7 +9410,6 @@ body[data-session-dragging] iframe {
   flex: none;
 }
 
-/* C(발견 13): chord 두 번째 키를 기다리는 동안과 취소됐을 때의 한 줄 안내. 창 아래 가운데에 떠서 에디터에 포커스가 있어도 보인다. */
 .chord-hint {
   position: fixed;
   left: 50%;
@@ -9559,9 +9434,6 @@ body[data-session-dragging] iframe {
   color: var(--fg-muted);
 }
 
-/* --- fix5-2 --- */
-/* 전역 button { color: inherit } 이 Tailwind 유틸리티 레이어보다 이기므로 Button 컴포넌트의 변형별 글자색이 먹지 않았다.
-   라이트 테마의 primary 단추는 어두운 글자(대비 1.78)였고 비활성 단추는 활성과 같은 글자색이었다. Button 이 내는 data-variant 로 직접 지정한다. */
 button[data-variant="primary"] {
   color: var(--accent-fg);
 }
@@ -9577,12 +9449,10 @@ button[data-variant]:disabled .codicon {
   opacity: 0.6; /* lint-tokens: allow 비활성 아이콘을 글자보다 한 단계 더 흐리게. 토큰 제안: opacity-disabled */
 }
 
-/* 카드 상세 칸은 보드를 덜 가리도록 좁게 연다. 끌어서 바꾸면 그 폭이 저장된다. */
 .split-detail[data-compact] {
   width: var(--size-panel-narrow);
 }
 
-/* 할 일 줄과 목록 */
 .step-tasks {
   display: flex;
   flex-direction: column;
@@ -9622,7 +9492,6 @@ button[data-variant]:disabled .codicon {
   flex: 1 1 0;
 }
 
-/* 하위 에이전트 결과 본문은 대화 본문과 같은 마크다운으로 그린다(굵게, 코드, 목록) */
 .agent-result {
   padding: var(--space-0_5) 0;
   color: var(--fg-muted);
@@ -9632,7 +9501,6 @@ button[data-variant]:disabled .codicon {
 .agent-result strong {
   color: var(--fg);
 }
-/* 할 일 팝업은 한 줄 행. 진행 중인 항목만 진하게 */
 .task-row {
   align-items: center;
 }
@@ -9649,11 +9517,9 @@ button[data-variant]:disabled .codicon {
   transform: rotate(90deg);
 }
 
-/* fix5-3: 사이드바는 위 항목, Sessions 머리줄, 스크롤되는 묶음 목록, 바닥 Improvements 의 네 칸이다. 전체가 스크롤되면 머리줄이 사라졌다(round-5 발견 12). */
 .sidebar {
   overflow: hidden;
 }
-/* 구역 묶음: Pull Requests, Notion, Sessions 가 순서(CSS order)대로 쌓인다. Sessions 칸만 남는 높이를 차지하고 그 안의 목록이 스크롤된다. */
 .sidebar-sections {
   display: flex;
   flex-direction: column;
@@ -9663,7 +9529,6 @@ button[data-variant]:disabled .codicon {
 .sidebar-block {
   flex: none;
 }
-/* 구역 머리 끌기: 끄는 구역은 흐리게, 놓을 자리는 대상 구역의 위나 아래 가장자리에 강조선 */
 .sidebar-block[data-dragging] {
   opacity: 0.5;
 }
@@ -9683,10 +9548,9 @@ button[data-variant]:disabled .codicon {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  scrollbar-gutter: stable; /* 스크롤바가 생기고 사라질 때 안쪽 폭이 출렁이지 않게 자리를 항상 비워 둔다 */
+  scrollbar-gutter: stable;
 }
 
-/* fix5-3: 디스크에서 사라진 폴더(round-5 발견 21). 묶음 머리와 행을 흐리게, 아이콘은 경고색. 흐림은 읽을 수는 있게 둔다. */
 .session-group[data-missing] .session-group-name,
 .session-group[data-missing] .session-row {
   opacity: 0.55;
@@ -9697,18 +9561,15 @@ button[data-variant]:disabled .codicon {
 .session-group[data-missing] .session-group-new {
   visibility: hidden;
 }
-/* 비활성 메뉴 항목은 흐리게 보이고 이유는 title 로 읽힌다 */
 .session-menu [data-disabled] {
   opacity: 0.5;
   cursor: default;
 }
 
-/* fix5-3: 알림이 덮는 대화 바닥에 알림 높이만큼 자리를 더한다(web/NoticeStack.tsx 가 --notice-cover 를 넣는다) */
 .timeline-wrap > .timeline {
   padding-bottom: calc(var(--space-4) + var(--notice-cover, 0px));
 }
 
-/* FIX6C: 키보드 단축키 목록(web/ShortcutsView.tsx). 행은 명령 팔레트 행과 같은 22px, 범주 머리줄은 섹션 라벨 크기 */
 .shortcuts-list {
   display: flex;
   flex-direction: column;
@@ -9753,7 +9614,6 @@ button[data-variant]:disabled .codicon {
 .shortcuts-row .quickpick-section {
   align-self: center;
 }
-/* 모든 행이 같은 키캡 모양이다. 기본 키캡은 배경이 빠른 선택창 바탕과 같아 선택된 행에서만 상자가 보였다. 선택 행은 글자 색만 바뀐다. */
 .shortcuts-row .keycap {
   background: var(--surface-base);
   border-color: var(--border);
@@ -9814,7 +9674,6 @@ button[data-variant]:disabled .codicon {
   line-height: var(--leading-ui-sm);
 }
 
-/* FIX6C: MCP 서버 행 아래의 도구 목록. 서버 이름 글자와 왼쪽이 맞는다(.mcp-detail 과 같은 들여쓰기). */
 .mcp-tools {
   display: flex;
   flex-direction: column;
@@ -9856,7 +9715,6 @@ button[data-variant]:disabled .codicon {
   white-space: nowrap;
 }
 
-/* FIX6C: 아래 패널의 Problems 탭(web/ProblemsPanel.tsx). 행은 22px, 아이콘과 메시지와 위치가 한 줄이다. */
 .bottom-tab-count {
   margin-left: var(--space-1);
   padding: 0 var(--space-1);
@@ -9944,7 +9802,6 @@ button[data-variant]:disabled .codicon {
   padding-left: var(--space-2);
 }
 
-/* ATTACH-DEDUPE: 이름이 같은 다른 파일 칩의 상위 폴더 꼬리, 이미 붙어 있는 칩을 다시 붙이려 할 때의 강조 */
 .attachment-tail {
   min-width: 0;
   max-width: calc(var(--space-8) * 3);
@@ -9978,7 +9835,6 @@ button[data-variant]:disabled .codicon {
   }
 }
 
-/* GROUPS: 에디터 그룹(탭 복사 끌기, 빈 그룹, 최대화, Ctrl+Tab 탭 전환). 경로 줄은 web/breadcrumbs.css */
 .tab-ghost[data-copy]::before {
   content: "+";
   margin-right: var(--space-1);
@@ -10073,7 +9929,6 @@ button[data-variant]:disabled .codicon {
   background: currentColor;
 }
 
-/* MISSINGLINK: 아직 없는 파일을 가리키는 대화 링크(fileRefMark 가 data-missing 을 단다). 눌리지만 흐리고 점선으로 그린다. */
 .markdown [data-file][data-missing="true"],
 .row-assistant .file-link[data-missing="true"] {
   color: var(--fg-muted);
@@ -10176,7 +10031,6 @@ button[data-variant]:disabled .codicon {
   align-items: center;
   margin-left: auto;
   margin-right: var(--space-1);
-  /* 경로가 길어 말줄임으로 잘리면 margin-left: auto 가 0 이 되어 단추가 경로에 붙는다. 이름과 경로 사이와 같은 간격을 남긴다 */
   padding-left: var(--space-1_5);
 }
 .quickopen-row[data-active] .quickopen-actions,
@@ -10202,7 +10056,6 @@ button[data-variant]:disabled .codicon {
 .quickopen-action:hover {
   background: var(--quickinput-action-hover);
 }
-/* 묶음 라벨: 11px, descriptionForeground. 선택 행에서는 행 글자색을 따른다 */
 .quickopen-group {
   align-self: center;
   margin-left: var(--space-1);
@@ -10215,8 +10068,6 @@ button[data-variant]:disabled .codicon {
 .quickopen-dialog .quickpick-empty {
   color: var(--quickinput-description);
 }
-
-/* --- TOBOARD: 대화의 한 부분을 Board 카드로 --- */
 
 .popup-toboard {
   width: var(--size-popup-toboard);
@@ -10288,11 +10139,9 @@ button[data-variant]:disabled .codicon {
   justify-content: flex-end;
   gap: var(--space-2);
 }
-/* 이미 카드가 있는 부분의 단추는 켜진 모양 */
 [data-action="add-to-board"][data-on] {
   color: var(--accent);
 }
-/* 할 일 한 줄 끝의 단추. 줄에 마우스를 올리거나 키보드로 닿았을 때만 보이고, 카드가 있으면 늘 보인다. */
 .step-task-board {
   all: unset;
   box-sizing: border-box;
@@ -10321,7 +10170,6 @@ button[data-variant]:disabled .codicon {
   outline: 1px solid var(--focus-border);
   outline-offset: -1px;
 }
-/* 카드에서 돌아온 메시지를 잠깐 밝혔다가 원래대로 */
 [data-item-id][data-flash] {
   border-radius: var(--radius-md);
   animation: toboard-flash 1.6s ease-out;
@@ -10335,8 +10183,6 @@ button[data-variant]:disabled .codicon {
   }
 }
 
-/* --- NOTES: 메모장 화면. 머리줄, 빈 상태 문구, 목록 줄의 간격과 색은 Slack 화면(.inbox)과 같은 토큰을 쓴다. 편집기 안쪽만 코드 에디터의 글꼴과 색이다. --- */
-
 .notes-view,
 .notes-list-pane,
 .notes-editor {
@@ -10347,7 +10193,6 @@ button[data-variant]:disabled .codicon {
   flex-direction: column;
   background: var(--surface-raised);
 }
-/* 목록은 --size-notes-list 폭이고, 편집기가 나머지를 받는다. 창이 좁으면 목록이 먼저 --size-pinned-min 까지 줄고, 그 아래에서는 둘이 같이 줄어든다. */
 .notes-list-pane {
   flex: 0 1 var(--size-notes-list);
   min-width: var(--size-pinned-min);
@@ -10356,7 +10201,6 @@ button[data-variant]:disabled .codicon {
 .notes-editor {
   min-width: var(--size-pinned-min);
 }
-/* 편집기 머리줄의 글자와 단추는 본문 글자 열(줄 좌우 여백 --space-6)과 같은 선에 둔다. 폭이 --size-notes-text 이하일 때 제목 왼쪽과 본문 왼쪽이 맞는다. */
 .notes-editor > .pane-header {
   padding: 0 var(--space-6);
 }
@@ -10460,7 +10304,6 @@ button[data-variant]:disabled .codicon {
   flex: 1;
   min-height: 0;
   background: var(--editor-bg);
-  /* 커서와 선택은 앱 강조색이다(코드 에디터의 --editor-* 값을 이 편집기 안에서만 바꾼다). */
   --editor-cursor: var(--accent-text);
   --editor-selection: color-mix(in srgb, var(--accent) 35%, transparent);
   --editor-selection-inactive: color-mix(in srgb, var(--accent) 20%, transparent);
@@ -10495,7 +10338,6 @@ button[data-variant]:disabled .codicon {
   font-weight: var(--weight-ui-strong);
 }
 
-/* ASIDEVIEW: Aside(브라우저 조작) 호출 행. 제목, 주소, 결과 미리보기가 한 줄에 놓이고 이미지는 줄 아래 썸네일이다. */
 .step-aside > summary {
   min-width: 0;
 }
@@ -10633,7 +10475,6 @@ button[data-variant]:disabled .codicon {
 .aside-lightbox .confirm-close:hover {
   background: var(--surface-hover);
 }
-/* MOBILE: Settings 의 Mobile access 카드 */
 .setting-mobile {
   display: flex;
   flex-direction: column;
@@ -10688,7 +10529,6 @@ button[data-variant]:disabled .codicon {
   overflow-wrap: anywhere;
 }
 
-/* --- Customize Layout (web/CustomizeLayout.tsx): 제목줄 아래의 빠른 선택창. 입력 없이 구역 머리와 항목 목록만 있다 --- */
 .layout-dialog {
   width: min(var(--size-quickpick-width), calc(100% - var(--space-8)));
 }
@@ -10703,7 +10543,6 @@ button[data-variant]:disabled .codicon {
 .layout-title {
   flex: 1;
   min-width: 0;
-  /* 가운데 정렬 제목. 오른쪽 단추 둘의 폭만큼 왼쪽을 비워 제목이 상자 가운데에 선다 */
   padding-left: calc(var(--size-icon) * 2 + var(--space-1));
   text-align: center;
 }
@@ -10881,39 +10720,180 @@ button[data-variant]:disabled .codicon {
   margin: var(--space-2) var(--space-2) 0 0;
 }
 
-/* CODEX: 새 세션 화면의 도구 선택(Claude, Codex)과 Codex 세션 표시 */
-.harness-switch {
+.provider-mark {
   display: inline-flex;
+  flex: none;
   align-items: center;
-  height: var(--size-pill);
-  padding: var(--space-0_5);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  gap: var(--space-0_5);
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-ui-strong);
+  line-height: 1;
+  letter-spacing: 0;
 }
-.harness-switch button {
+.provider-mark[data-small] {
+  width: var(--size-provider-mark-sm);
+  height: var(--size-provider-mark-sm);
+}
+.popup.model-popover {
+  padding: 0;
+}
+.model-popover-grid {
+  display: grid;
+  grid-template-columns: var(--size-picker-rail) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: calc(var(--size-picker-rail) + var(--size-picker-list) + var(--size-picker-levels));
+  max-width: calc(100vw - var(--space-4));
+  min-height: 0;
+  max-height: inherit;
+}
+.model-popover-grid[data-levels] {
+  grid-template-columns: var(--size-picker-rail) minmax(0, var(--size-picker-list)) minmax(0, var(--size-picker-levels));
+}
+.model-popover-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-0_5);
+  padding: var(--space-1) 0;
+  border-right: 1px solid var(--border);
+}
+.model-popover-tab {
   all: unset;
   box-sizing: border-box;
   display: inline-flex;
+  flex: none;
   align-items: center;
-  height: 100%;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-full);
+  justify-content: center;
+  width: var(--size-picker-tab-width);
+  height: var(--size-picker-tab-height);
+  border-radius: var(--radius-sm);
   color: var(--fg-muted);
   cursor: pointer;
-  font-size: var(--text-ui);
-  line-height: var(--leading-ui);
 }
-.harness-switch button:hover {
-  background: var(--surface-hover);
-}
-.harness-switch button[data-on] {
+.model-popover-tab:hover {
   background: var(--surface-hover);
   color: var(--fg);
 }
-.harness-switch button:focus-visible {
-  outline: var(--space-0_5) solid var(--accent);
-  outline-offset: 1px;
+.model-popover-tab[aria-selected="true"] {
+  background: var(--surface-selected);
+  color: var(--fg-strong);
+}
+.model-popover-tab:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+.model-popover-rail-separator {
+  flex: none;
+  width: var(--space-6);
+  height: 1px;
+  margin: var(--space-0_5) 0;
+  background: var(--border);
+}
+.model-popover-models,
+.model-popover-levels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-1);
+}
+.model-popover-levels {
+  border-left: 1px solid var(--border);
+}
+.model-popover-list,
+.model-popover-level-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  outline: none;
+}
+.model-popover-list {
+  max-height: var(--size-picker-list-max);
+  overflow-y: auto;
+}
+.model-popover-heading {
+  flex: none;
+  color: var(--fg-muted);
+  font-weight: var(--weight-ui-strong);
+}
+.model-popover-group {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-row-lg);
+  padding: 0 var(--space-2);
+}
+.model-popover-levels-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-row-lg);
+  padding: 0 var(--space-2);
+}
+.model-popover-levels-model {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  color: var(--fg-muted);
+  font-size: var(--text-caption);
+}
+.model-popover-name {
+  flex: 1 1 auto;
+}
+.model-popover-detail {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: var(--text-caption);
+}
+.model-row[aria-selected="true"] .model-popover-detail,
+.model-row[aria-selected="true"] .popup-row-key {
+  color: inherit;
+}
+.model-popover .popup-row-key {
+  margin-left: 0;
+}
+.model-popover .popup-row-action {
+  display: none;
+  margin-left: 0;
+}
+.model-popover .model-row:hover .popup-row-action,
+.model-popover .popup-row-action[data-on],
+.model-popover .popup-row-action:focus-visible {
+  display: inline-flex;
+}
+.model-popover .model-row:hover .popup-row-key:has(+ .popup-row-action:not([data-on])) {
+  display: none;
+}
+.model-popover-status {
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  color: var(--fg-muted);
+}
+.model-popover-note {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-row-lg);
+  padding: var(--space-0_5) var(--space-1) var(--space-0_5) var(--space-3);
+  border-top: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+.model-popover-note > span:not(.codicon) {
+  flex: 1;
+  min-width: 0;
+}
+.model-popover-note > .icon-button {
+  flex: none;
 }
 .new-session-codex-note {
   margin-top: 0;
@@ -10923,21 +10903,16 @@ button[data-variant]:disabled .codicon {
   text-align: left;
 }
 .harness-badge {
+  display: inline-flex;
   flex: none;
-  padding: 0 var(--space-1_5);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
+  align-items: center;
   color: var(--fg-muted);
-  font-size: var(--text-ui-sm);
-  line-height: var(--leading-ui);
-  white-space: nowrap;
 }
 .permission-option:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-/* 편집 승인을 오른쪽 패널의 파일 탭 위에 붙인다. 카드가 길어도 파일이 절반은 보인다 */
 .editor-approval {
   flex: none;
   max-height: 50%;
@@ -10946,7 +10921,6 @@ button[data-variant]:disabled .codicon {
   border-bottom: 1px solid var(--border-subtle);
 }
 
-/* RELEASE: 피드백 입력 창의 issue 미리보기(Report on GitHub…). 입력 창과 같은 틀 안에서 이름 칸 + 값 칸의 두 열로 그린다 */
 .feedback-report {
   display: flex;
   flex-direction: column;
@@ -10984,7 +10958,6 @@ button[data-variant]:disabled .codicon {
   line-height: var(--leading-ui-sm);
   color: var(--fg-muted);
 }
-/* 이름 칸을 옆 값 칸의 첫 줄 글자 높이에 맞춘다 */
 .feedback-report-label[data-field="title"] {
   padding-top: calc((var(--size-control) - var(--leading-ui-sm)) / 2);
 }
@@ -11056,7 +11029,6 @@ button[data-variant]:disabled .codicon {
   flex: 1;
 }
 
-/* RELEASE: 사이드바 바닥 Improvements 위의 새 버전 줄. 줄 전체가 릴리스 노트를 여는 단추이고 오른쪽에 닫기 단추가 붙는다 */
 .release-notice {
   display: flex;
   align-items: center;
@@ -11084,7 +11056,6 @@ button[data-variant]:disabled .codicon {
   flex-shrink: 0;
 }
 
-/* RELEASE: Settings 의 New version available 행 설명 아래 버전 줄 */
 .setting-release {
   display: flex;
   flex-wrap: wrap;

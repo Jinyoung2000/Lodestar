@@ -1,10 +1,8 @@
-// 편집 승인 카드가 보일 변경 미리보기를 만드는 순수 함수들. 시험: test/approvalpreview.test.ts
 
 export type EditPreview = {
   path: string;
   before: string;
   after: string;
-  // 파일이 아직 없어 이 호출이 새로 만든다
   isNew: boolean;
 };
 
@@ -16,8 +14,6 @@ export function targetPath(input: Record<string, unknown>) {
   return typeof input.file_path === "string" ? input.file_path : null;
 }
 
-// current 는 승인을 묻는 지금 디스크의 내용(없는 파일이면 null, 읽지 못했으면 undefined).
-// 읽은 내용이 있으면 파일 전체에 변경을 적용한 결과를 비교하고(앞뒤 문맥과 실제 줄 번호가 보인다), 못 읽었거나 바꿀 문자열을 못 찾으면 바꾸는 조각끼리만 비교한다.
 export function previewEdit(toolName: string, input: Record<string, unknown>, current: string | null | undefined): EditPreview | null {
   const path = targetPath(input);
   if (path === null || !EDIT_TOOLS.has(toolName)) return null;
@@ -57,7 +53,6 @@ function editOf(input: Record<string, unknown>): OneEdit | null {
   return { oldString: input.old_string, newString: input.new_string, replaceAll: input.replace_all === true };
 }
 
-// 순서대로 적용한다. 바꿀 문자열이 없으면 null(도구도 이때 실패한다).
 function applyEdits(text: string, edits: OneEdit[]): string | null {
   let out = text;
   for (const { oldString, newString, replaceAll } of edits) {

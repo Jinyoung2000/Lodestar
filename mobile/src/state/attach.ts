@@ -1,5 +1,3 @@
-// 이미지 첨부: 고르거나 찍은 사진을 기기에서 긴 변 2048px, JPEG 0.8 로 줄이고, 작은 미리보기(96px)를 만들고, 데몬에 바이너리로 올린다.
-// 줄이기와 올리기는 백그라운드로 돌아 입력창을 막지 않는다. 진행률은 칩에 보이고, 보내기는 올리기가 끝난 뒤에 나간다.
 import * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -21,7 +19,6 @@ async function prepare(asset: PickedAsset) {
   if (target) context.resize(target);
   const rendered = await context.renderAsync();
   const out = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: JPEG_QUALITY });
-  // 말풍선 칩에 쓰는 작은 미리보기(data URL). 서버가 thumb 길이를 제한한다(30KB).
   const thumbContext = ImageManipulator.manipulate(out.uri).resize({ width: THUMB_EDGE });
   const thumbRendered = await thumbContext.renderAsync();
   const thumb = await thumbRendered.saveAsync({ format: SaveFormat.JPEG, compress: THUMB_QUALITY, base64: true });
@@ -34,7 +31,6 @@ export type AttachmentsApi = {
   addAssets: (assets: PickedAsset[]) => void;
   remove: (key: string) => void;
   clear: () => void;
-  // 올리기가 모두 끝난 첨부의 참조(서버가 준 id, 이름, 미리보기)
   refs: () => ImageRef[];
   progress: number | null;
   ready: boolean;

@@ -25,7 +25,6 @@ export function currentDefaults(): EffectiveDefaults {
   return effectiveDefaults(s.settings, s.defaults);
 }
 
-// Side Chat 은 따로 고르지 않으면 메인 세션의 모델을 따른다. 메인도 고른 적이 없으면 새 세션 기본 모델, 그것도 없으면 CLI 기본값.
 export function sideChatModel(picked: string | null, agentModel: string | null | undefined, defaults: EffectiveDefaults) {
   return picked ?? agentModel ?? defaults.model ?? "default";
 }
@@ -34,7 +33,6 @@ export type DraftDefaults = EffectiveDefaults & { modelSource: DefaultSource | "
 
 export function draftDefaults(settings: Settings | null, resolved: ResolvedDefaults | null, last: LastPicked): DraftDefaults {
   const base = effectiveDefaults(settings, resolved);
-  // 옛 데몬은 출처를 안 준다. 그때는 고른 값이 있으면 agent-nav 로 본다.
   const explicit = {
     model: (resolved?.model.source ?? (settings?.defaultModel ? "agent-nav" : "builtin")) === "agent-nav",
     effort: (resolved?.effort.source ?? (settings?.defaultEffort ? "agent-nav" : "builtin")) === "agent-nav",

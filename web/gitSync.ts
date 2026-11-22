@@ -25,7 +25,6 @@ export async function fetchFlow(target: ScmTarget, options: { quiet?: boolean } 
   return report(target, result, () => void fetchFlow(target, options));
 }
 
-// quiet 이면 성공 알림을 내지 않는다(Sync 가 마지막에 한 번 알린다)
 export async function pullFlow(target: ScmTarget, mode: ScmPullMode = "ff", options: { quiet?: boolean } = {}): Promise<SyncOutcome> {
   const result = await rpc.call("scm.pull", { ...target, mode });
   if (result.ok) {
@@ -40,7 +39,6 @@ export async function pullFlow(target: ScmTarget, mode: ScmPullMode = "ff", opti
   return report(target, result, () => void pullFlow(target, mode, options));
 }
 
-// push 가 거절되면(원격에 내가 모르는 커밋이 있음) 먼저 가져오게 하고, 충돌 없이 끝나면 한 번 더 push 한다.
 export async function pushFlow(target: ScmTarget, options: { quiet?: boolean } = {}): Promise<SyncOutcome> {
   const result = await rpc.call("scm.push", target);
   if (result.ok) {
@@ -60,7 +58,6 @@ export async function pushFlow(target: ScmTarget, options: { quiet?: boolean } =
   return report(target, again, () => void pushFlow(target, options));
 }
 
-// 갈라짐이나 push 거절의 이유를 말하고 어떻게 합칠지 묻는다. 취소하면 null.
 async function askReconcile(target: ScmTarget, reason: "diverged" | "pushRejected"): Promise<ScmPullMode | null> {
   const remote = await remoteOf(target);
   const upstream = remote.upstream ?? M.divergedGeneric;
@@ -83,7 +80,6 @@ async function remoteOf(target: ScmTarget): Promise<Remote> {
   }
 }
 
-// 분류된 실패를 알림으로 보인다. 충돌은 오류가 아니라 해결할 일이라 경고로, 파일을 여는 단추를 붙인다.
 function report(target: ScmTarget, result: Extract<ScmSyncResult, { ok: false }>, retry: () => void): SyncOutcome {
   const { problem, output } = result;
   if (problem.kind === "conflict") {
@@ -122,7 +118,6 @@ function actionsFor(problem: GitProblem, output: string, retry: () => void): Not
   return [{ label: M.retry, run: retry }, { ...details, primary: true }];
 }
 
-// 충돌 알림의 단추: Source Control 을 열고 첫 충돌 파일을 편집기로 연다.
 export async function showConflicts(target: ScmTarget & { workspaceId?: string }) {
   openSourceControl();
   try {
@@ -130,6 +125,5 @@ export async function showConflicts(target: ScmTarget & { workspaceId?: string }
     const first = status.conflicts[0];
     if (first && target.workspaceId) openScmFile(target.workspaceId, first);
   } catch {
-    // 패널은 이미 열렸다
   }
 }

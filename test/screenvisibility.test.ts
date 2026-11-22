@@ -1,5 +1,3 @@
-// Slack 과 Board 화면을 설정(showSlack, showBoard)으로 숨기는 규칙을 확인한다: 판정 함수, 설정 기본값과 검증, 단축키 표, 명령 팔레트, 단축키 목록, 검색 Actions, 저장된 창 복원, 카드 열기.
-// 브라우저 전역은 최소한으로 흉내 낸다. Slack 도 모델도 부르지 않는다. 실행: npm test
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,7 +11,7 @@ const g = globalThis as unknown as Record<string, unknown>;
 g.localStorage = fake;
 g.sessionStorage = fake;
 g.window = g;
-g.addEventListener = () => {}; // 브라우저의 window 는 이벤트 대상이다. web/idleReload.ts 가 불러올 때 입력 이벤트를 단다
+g.addEventListener = () => {};
 g.removeEventListener = () => {};
 g.document = { querySelector: () => null, documentElement: { dataset: {}, style: {} }, addEventListener() {}, hasFocus: () => true, visibilityState: "visible" };
 g.location = { reload() {}, origin: "http://localhost" };
@@ -223,7 +221,6 @@ test("the morning review command and its new-review toast do nothing while Board
   setState({ review: reviewState(null) });
   receiveReview(reviewState("2026-10-27"));
   expect(reviewToasts() === 0 && getState().centerView === "sessions", "toast while hidden");
-  // 켜져 있을 때는 같은 입력이 알림을 만든다(위 시험이 우연히 통과한 것이 아님을 보인다)
   setState({ settings: settingsWith({ showBoard: true }), review: reviewState(null) });
   receiveReview(reviewState("2026-10-28"));
   return expect(reviewToasts() === 1, `toasts while shown: ${reviewToasts()}`);

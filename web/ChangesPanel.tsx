@@ -21,9 +21,7 @@ import { ActionButton } from "./ScmRows";
 import { S } from "./strings";
 import { formatClock } from "./timelineModel";
 
-// 이 폭부터 파일 섹션(diff)과 목록 열이 나란히 보이는 넓은 상태다. 그보다 좁으면 파일 행 목록만 보인다.
 export const WIDE_MIN = 440;
-// 아직 읽지 않은 변경. 생성 파일 거르기(useMemo)가 렌더마다 새 배열로 다시 돌지 않게 같은 참조를 쓴다.
 const NO_FILES: ChangedFile[] = [];
 
 export function ChangesPanel({ agent }: { agent: FolderAgent }) {
@@ -38,7 +36,6 @@ export function ChangesPanel({ agent }: { agent: FolderAgent }) {
   const changes = pickChanges(agent, scope, showOutside, scoped, gitChanges);
   const treeView = useChangesView((s) => s.treeView);
   const listOnly = useStore((s) => s.layoutMode === "editor");
-  // 열려 있는 diff 탭의 파일(목록에서 그 행이 고른 상태로 보인다). Editor 배치에서만 쓴다.
   const openPath = useStore((s) => {
     if (s.layoutMode !== "editor") return null;
     const tab = s.tabs.find((t) => t.key === s.activeTabKey);
@@ -47,14 +44,12 @@ export function ChangesPanel({ agent }: { agent: FolderAgent }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(false);
-  // FIXY: diff 가 DIFF_MIN 아래로 눌리지 않게, 파일 목록 열은 diff 와 같이 들어갈 만큼 넓을 때만 보인다(좁으면 목록 열이 먼저 사라진다)
   const [listFits, setListFits] = useState(false);
 
   useEffect(() => {
     if (!changes) void refreshGit(agent.id);
     if (!prs) void refreshPrs(agent.id);
   }, [agent.id, changes, prs]);
-  // 턴이 시작되거나 끝나면 Last Turn 범위가 달라진다.
   useEffect(() => {
     void refreshGit(agent.id);
   }, [agent.id, agent.status]);
@@ -76,7 +71,6 @@ export function ChangesPanel({ agent }: { agent: FolderAgent }) {
     return () => setChangesWide(false);
   }, [wide]);
 
-  // 목록에서 고른 파일의 섹션으로 스크롤한다.
   useEffect(() => {
     if (!wide || !selected) return;
     const section = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-file]") ?? [])].find((el) => el.dataset.file === selected.path);
@@ -85,14 +79,9 @@ export function ChangesPanel({ agent }: { agent: FolderAgent }) {
 
   const allFiles = changes?.files ?? NO_FILES;
   const files = useMemo(() => allFiles.filter((f) => !isGeneratedPath(f.path)), [allFiles]);
-  // 에디터 탭이 열려 옆으로 갈라진 오른쪽 패널(EditorsWithSide)에서는 패널을 넓혀 카드 보기로 바꾸면 에디터가 눌리므로, 목록에서 고른 파일의 diff 를 에디터 탭으로 연다.
   const beside = useStore((s) => s.layoutMode !== "editor" && shownTabsOf(s).length > 0);
-  // 한 번 클릭은 미리보기 탭(다음 클릭이 같은 탭을 바꾼다), 더블클릭과 Enter 는 고정 탭
-  // ⌥클릭, ⌥⌘클릭은 옆 그룹에 diff 탭으로 연다
-  // Editor 배치는 늘 diff 탭으로 열고, 목록이 보던 범위를 같이 넘겨 탭이 그 범위의 기준과 비교하게 한다.
   const pick = (path: string, preview = true, side = false) => (listOnly || side || beside ? openDiff(agent.id, toTarget(path, agent.workspaceId).workspaceId, path, { preview: preview && !side, side, ...(listOnly ? { scope } : {}) }) : openChanges(path));
   const emptyText = scope === "lastTurn" && changes && changes.base === null ? S.noLastTurn : info?.repoRoot && !info.base && scope === "session" ? S.noBaseCommitCannotCompare : S.noChangedFiles;
-  // Editor 배치 목록의 키보드: 위아래는 포커스만 옮기고(열지 않는다), Enter 는 고정 탭으로 연다(행의 onEnter).
   const onListKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
     const rows = [...e.currentTarget.querySelectorAll<HTMLElement>("[data-nav-row]")];
@@ -113,14 +102,19 @@ export function ChangesPanel({ agent }: { agent: FolderAgent }) {
       <div className="changes-main">
         <div className="changes-head" data-custom-scope={scope !== defaultChangeScope(agent) || undefined}>
           <ScopeMenu agent={agent} scope={scope} files={files} baseBranch={info?.baseBranch ?? null} baseLabel={scope === "session" ? (info?.baseLabel ?? null) : null} />
+          {(wide || files.length > 0) && <span className="spacer" />}
+          {files.length > 0 && <KeepUndoActions agent={agent} files={allFiles} />}
           {wide && (
             <>
-              <span className="spacer" />
               <ChangesMenu readDiffWidth={() => listRef.current?.querySelector<HTMLElement>(".file-diff-host")?.clientWidth ?? 0} />
             </>
           )}
         </div>
-        {files.length > 0 && <KeepUndoRow agent={agent} files={allFiles} />}
+        {files.length > 0 && !wide && !listOnly && (
+          <div className="changes-keep-row">
+            <KeepUndoActions agent={agent} files={allFiles} />
+          </div>
+        )}
         {(showOutside || (changes?.outsideCount ?? 0) > 0) && <OutsideToggle agentId={agent.id} show={showOutside} count={changes?.outsideCount ?? 0} />}
         {scope === "session" && changes?.shellNote && <ShellNoteRow note={changes.shellNote} />}
         <SubmitFeedback agentId={agent.id} />
@@ -146,16 +140,13 @@ export function ChangesPanel({ agent }: { agent: FolderAgent }) {
   );
 }
 
-// 머리줄 아래 한 줄의 Keep All 과 Undo All. 보이는 범위의 파일 전부에 한 번에 적용한다. 머리줄 안에 두면 좁은 폭에서 범위 이름을 가려서 자기 줄을 갖는다.
-function KeepUndoRow({ agent, files }: { agent: FolderAgent; files: ChangedFile[] }) {
+function KeepUndoActions({ agent, files }: { agent: FolderAgent; files: ChangedFile[] }) {
   return (
-    <div className="changes-keep-row">
+    <div className="changes-keep-actions">
       <button type="button" className="view-button" data-primary="" title={S.keepAllTitle} onClick={() => void keepAllChanges(agent.id, agent.workspaceId, files).catch((e: Error) => flash(e.message))}>
-        <Codicon name="check-all" />
         {S.keepAll}
       </button>
       <button type="button" className="view-button" title={S.undoAllTitle} onClick={() => void undoAllChanges(agent.id, files).catch((e: Error) => flash(S.discardFailed(e.message), "error"))}>
-        <Codicon name="discard" />
         {S.undoAll}
       </button>
     </div>
@@ -197,7 +188,6 @@ function DiffViewItem({ value, current, label }: { value: DiffView; current: Dif
   );
 }
 
-// B6: 폴더 없는 세션(퀵 챗)은 변경 대상이 없어 늘 빈 상태다.
 export function ChatChanges() {
   return (
     <div className="changes-view">
@@ -215,8 +205,6 @@ export function ChatChanges() {
 
 const changesScope = (agentId: string) => `changes:${agentId}`;
 
-// 모노레포에서 세션의 작업 폴더 밖 변경은 기본으로 목록과 개수에서 빠진다. 빠진 개수를 알리고 켜면 같이 보인다(그 파일은 보기만 된다).
-// FIX5-0: 같은 폴더에서 다른 세션이 동시에 돌아 Bash 귀속을 건너뛴 턴이 있었다는 부드러운 안내. 귀속 규칙은 그대로고 어느 턴이었는지만 알린다.
 function ShellNoteRow({ note }: { note: ShellNote }) {
   const last = note.turns[note.turns.length - 1];
   return (
@@ -237,9 +225,7 @@ function OutsideToggle({ agentId, show, count }: { agentId: string; show: boolea
   );
 }
 
-// 범위 메뉴 버튼. 라벨, 개수, 변경량을 span 셋으로 두고 사이 구분점은 CSS 가 그린다.
 function ScopeMenu({ agent, scope, files, baseBranch, baseLabel }: { agent: Agent; scope: ChangeScope; files: ChangedFile[]; baseBranch: string | null; baseLabel: string | null }) {
-  // 피드백 개선 세션은 시작 때 파일 해시가 유일한 기준이라 범위를 고를 수 없다.
   if (agent.feedbackId) {
     return (
       <div className="scope-button" title={baseLabel ?? undefined}>
@@ -338,7 +324,6 @@ export function FileRow({ file, selected, feedbackAgentId, actions, onPick, onPi
   );
 }
 
-// 행 hover 단추 둘. 열 파일이 없는 행(새 세션 화면의 지워진 파일)에는 Open File 이, onDiscard 가 없는 행(작업 폴더 밖 파일은 보기만 되고, 이름 바뀐 파일은 옛 이름까지 되돌려야 해서 이 단추로는 못 한다)에는 Discard Changes 가 없다.
 export type RowActionHandlers = { onOpenFile?: () => void; onKeep?: () => void; onDiscard?: () => void };
 
 function RowActions({ actions }: { actions: RowActionHandlers }) {
@@ -352,7 +337,6 @@ function RowActions({ actions }: { actions: RowActionHandlers }) {
   );
 }
 
-// 세션 변경 목록 행의 단추 동작
 function sessionActions(agent: FolderAgent, file: ChangedFile): RowActionHandlers {
   return {
     onOpenFile: () => openChangedFile(agent.id, agent.workspaceId, file),
@@ -361,7 +345,6 @@ function sessionActions(agent: FolderAgent, file: ChangedFile): RowActionHandler
   };
 }
 
-// FIX4A: 에이전트의 마지막 쓰기 뒤 바뀐 파일의 표시. Undo 가 이 파일을 건너뛴다.
 function ModifiedSinceMark() {
   return (
     <span className="changes-modified-since" title={S.changedSinceEdit} data-testid="modified-since">
@@ -415,7 +398,6 @@ function FileSection({ agent, file, scope, selected }: { agent: FolderAgent; fil
   }, [live]);
   const [collapse, setCollapse] = useState(true);
   const wrap = useChangesView((s) => s.wordWrap);
-  // 패널 `...` 의 Collapse All Diffs 와 Expand All Diffs 는 카드마다 자기 접힘 상태를 덮어쓴다.
   const collapseNonce = useChangesView((s) => s.collapseNonce);
   const allCollapsed = useChangesView((s) => s.allCollapsed);
   const seenNonce = useRef(collapseNonce);
@@ -424,7 +406,6 @@ function FileSection({ agent, file, scope, selected }: { agent: FolderAgent; fil
     seenNonce.current = collapseNonce;
     setOpen(!allCollapsed);
   }, [collapseNonce, allCollapsed]);
-  // 팔레트의 Keep 이나 Undo 뒤에 diff 를 새 기준과 디스크 내용으로 다시 만든다.
   const [revision, setRevision] = useState(0);
   const { name, dir } = splitRel(file.rel);
   const target = toTarget(file.path, agent.workspaceId);
@@ -525,16 +506,12 @@ function FileSection({ agent, file, scope, selected }: { agent: FolderAgent; fil
   );
 }
 
-// 화면 밖 카드 빈 칸의 첫 높이 짐작. 바뀐 줄 수에 접히지 않는 앞뒤 문맥 몇 줄을 더한다. 넘치면 .file-diff 의 max-height 가 자른다.
 const IDLE_LINE_PX = 19;
 const IDLE_CONTEXT_LINES = 6;
-// 목록 화면 위아래로 이만큼 안에 든 카드는 미리 띄운다(스크롤하다 빈 칸이 보이지 않게).
 // lint-tokens: allow IntersectionObserver rootMargin 은 CSS 변수를 못 쓰고 px 문자열만 받는다
 const NEAR_MARGIN = "1200px 0px";
-// 멀어진 카드는 이만큼 뒤에 내린다. 덩어리 Undo 의 디스크 쓰기(150ms 대기)가 끝나기 전에 에디터가 사라지지 않게 하고, 위아래로 잠깐 오갈 때 다시 만들지 않는다.
 const FAR_DELAY_MS = 1500;
 
-// 카드가 Changes 목록(스크롤 칸) 화면 근처에 있는가. 들어오면 바로 true, 멀어지면 FAR_DELAY_MS 뒤에 false.
 function useNearList(ref: RefObject<HTMLElement | null>) {
   const [near, setNear] = useState(false);
   useEffect(() => {
@@ -563,7 +540,6 @@ function useNearList(ref: RefObject<HTMLElement | null>) {
   return near;
 }
 
-// 맨 오른쪽 열(--size-changes-list): 바뀐 파일 목록과 Checks. 목록은 기본이 평평한 행이고, 탭줄 `...` 의 View as Tree 를 켜면 폴더 트리다. 파일 행은 그 카드로 스크롤한다.
 function ChangesTree({ agent, files }: { agent: FolderAgent; files: ChangedFile[] }) {
   const selected = useChangesView((s) => s.selected[agent.id]);
   const treeView = useChangesView((s) => s.treeView);
@@ -583,8 +559,6 @@ function ChangesTree({ agent, files }: { agent: FolderAgent; files: ChangedFile[
   );
 }
 
-// Editor 배치 목록 아래의 접히는 Checks 구역. 넓은 카드 보기의 오른쪽 열(ChangesTree)에만 있던 PR 과 체크 목록을 옮겨 왔다.
-// 접혀 있으면 PrChecksSection 을 그리지 않아서 PR 과 체크를 60초마다 읽는 일도 펼칠 때부터 시작한다.
 function ChecksFold({ agent }: { agent: FolderAgent }) {
   const open = useChangesView((s) => s.checksOpen);
   return (
@@ -604,11 +578,10 @@ function ChecksFold({ agent }: { agent: FolderAgent }) {
   );
 }
 
-const LIST_MIN = 200; // --size-changes-list-min
+const LIST_MIN = 200;
 const LIST_MAX = 400;
-const DIFF_MIN = 360; // --size-changes-diff-min
+const DIFF_MIN = 360;
 
-// 파일 목록 열 왼쪽 경계 끌기. 왼쪽으로 끌수록 열이 넓어지고, 더블클릭은 기본 폭으로 되돌린다.
 function ListResizer() {
   const [active, setActive] = useState(false);
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -619,7 +592,6 @@ function ListResizer() {
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
-      // 합성 PointerEvent 는 캡처가 거절된다. window 리스너로 끝까지 따라가므로 없어도 된다.
     }
     setActive(true);
     const move = (e: PointerEvent) => setChangesListWidth(Math.round(Math.min(Math.max(startSize + startX - e.clientX, LIST_MIN), LIST_MAX)));
@@ -634,7 +606,6 @@ function ListResizer() {
   return <div className="resizer" role="separator" aria-label={S.resizeFileList} aria-orientation="vertical" data-axis="x" data-active={active || undefined} onPointerDown={onPointerDown} onDoubleClick={() => setChangesListWidth(null)} />;
 }
 
-// 폴더 트리. 트리 행 22px, 깊이마다 space-3 들여쓰기. 파일 행을 누르면 onPick 이 불린다.
 export function FileTree({ actionsOf, files, selectedPath, onPick, onPin, onEnter }: { actionsOf: (file: ChangedFile) => RowActionHandlers; files: ChangedFile[]; selectedPath: string | null; onPick: (file: ChangedFile, event?: { altKey: boolean }) => void; onPin?: (file: ChangedFile) => void; onEnter?: (file: ChangedFile) => void }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const tree = useMemo(() => buildTree(files), [files]);
@@ -718,7 +689,6 @@ function buildTree(files: ChangedFile[]): TreeNode {
       node = child;
     }
   }
-  // 하위 폴더가 하나뿐인 폴더는 합쳐서 "a/b" 로 보여 준다.
   const squash = (node: TreeNode): TreeNode => {
     node.children = node.children.map(squash);
     if (!node.file && node.children.length === 1 && !node.children[0].file && node.path) {

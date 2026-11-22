@@ -1,5 +1,3 @@
-// 에디터 안 말풍선의 상태 규칙: 띄우면 보이고, 다음 입력이나 커서 이동이면 닫힌다. (표시와 시간 제한은 시험 인스턴스에서 확인)
-// 실행: npm test
 import { EditorState, type StateEffect } from "@codemirror/state";
 import { closeEditorMessage, editorMessage, messageField, showEditorMessage } from "../web/editorMessage";
 
@@ -12,7 +10,6 @@ const check = (name: string, ok: boolean, detail = "") => {
 const state0 = EditorState.create({ doc: "const a = 1;\nconst b = 2;", extensions: [editorMessage()] });
 check("starts empty", state0.field(messageField) === null);
 
-// 내보낸 함수가 쓰는 view.dispatch 와 view.state 만 가진 가짜 view 로 부른다
 type FakeView = { state: EditorState; dispatch: (spec: { effects?: StateEffect<unknown> | StateEffect<unknown>[] }) => void };
 const fake: FakeView = { state: state0, dispatch: (spec) => void (fake.state = fake.state.update(spec).state) };
 

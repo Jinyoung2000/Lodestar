@@ -1,5 +1,3 @@
-// 개요 눈금자의 순수 계산(web/editorRulerModel.ts): 칸 폭, 표시 합치기, 커서 선, 슬라이더, 선택 일치.
-// 실행: npm test
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { CURSOR_CSS_PX, LANE_CENTER, LANE_FULL, LANE_LEFT, LANE_RIGHT, layoutCursors, layoutZones, overSlider, rulerLanes, scrollFromDelta, scrollFromOffset, selectionMatches, sliderMetrics, type RulerZone } from "../web/editorRulerModel";
 
@@ -9,7 +7,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 
-// 칸: 14px 트랙, dpr 1 이면 캔버스 폭 14. 왼쪽 경계선 1 뒤에서 4, 5, 4 로 나뉜다.
 const one = rulerLanes(14);
 check("lanes at dpr 1 split 13 as 4 / 5 / 4", one.w[LANE_LEFT] === 4 && one.w[LANE_CENTER] === 5 && one.w[LANE_RIGHT] === 4, JSON.stringify(one));
 check("lane x starts after the 1px border", one.x[LANE_LEFT] === 1 && one.x[LANE_CENTER] === 5 && one.x[LANE_RIGHT] === 10);
@@ -58,7 +55,6 @@ check("the cursor line is 2px tall across the full lane", cursors.length === 1 &
 check("cursors on neighbouring pixels join, far ones do not", layoutCursors([{ top: 5000, color: "c" }, { top: 5010, color: "c" }], metrics).length === 1 && layoutCursors([{ top: 5000, color: "c" }, { top: 8000, color: "c" }], metrics).length === 2);
 check("cursor colors that differ stay separate", layoutCursors([{ top: 5000, color: "a" }, { top: 5010, color: "b" }], metrics).length === 2);
 
-// 슬라이더: 보이는 높이 800, 문서 4000, 가로 스크롤바 없음
 const slider = sliderMetrics({ visible: 800, scrollSize: 4000, scrollPosition: 1600, oppositeSize: 0 });
 check("slider size is visible/scroll of the track", slider.needed && slider.size === 160 && slider.track === 800, JSON.stringify(slider));
 check("slider position follows the ratio (track - size) / (scroll - visible)", slider.position === Math.round(1600 * (640 / 3200)) && slider.position === 320);
@@ -69,7 +65,6 @@ check("clicking the track centers the slider on the click", scrollFromOffset(sli
 check("dragging by a pixel moves the scroll by 1/ratio", scrollFromDelta(slider, 1600, 64) === 1600 + 320);
 check("hit test of the slider", overSlider(slider, 321) && !overSlider(slider, 100) && !overSlider(slider, 481));
 
-// 선택 일치
 const doc = "foo bar foo\nbaz foo\n";
 const selected = (from: number, to: number) => EditorState.create({ doc, selection: EditorSelection.single(from, to), extensions: [EditorState.allowMultipleSelections.of(true)] });
 check("selection matches skip the selection itself", JSON.stringify(selectionMatches(selected(0, 3))) === JSON.stringify([{ from: 8, to: 11 }, { from: 16, to: 19 }]));

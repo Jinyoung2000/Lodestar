@@ -11,20 +11,16 @@ export type ZoneParts = {
   body: HTMLElement;
   host: EditorView;
   close: () => void;
-  // 띠 높이나 폭이 바뀐 뒤 안쪽을 다시 잴 때 부른다(미리보기 에디터 등).
   onLayout: (listener: (size: { width: number; height: number }) => void) => void;
 };
 
 export type ZoneSpec = {
   id: number;
-  // 띠가 놓일 줄의 문서 위치와 화살표가 가리킬 위치
   anchor: number;
   arrowAt: number;
   lines: number;
-  // CSS 클래스 이름 하나. peek 과 문제 보기가 색 변수를 갈라 쓴다.
   className: string;
   mount: (parts: ZoneParts) => () => void;
-  // 크기를 끌어 바꾸면 알린다(줄 수를 기억하는 데 쓴다).
   onResize?: (lines: number) => void;
 };
 
@@ -161,7 +157,6 @@ class ZoneWidget extends WidgetType {
     this.cleanup = spec.mount({ root, head, title, actions, body, host: view, close, onLayout: (listener) => layoutListeners.push(listener) });
     this.observer = new ResizeObserver(layout);
     this.observer.observe(view.scrollDOM);
-    // 화면이 그려지지 않는 창(가려진 창)에서는 rAF 가 돌지 않으므로 타이머도 같이 건다. 먼저 불린 쪽 한 번만 한다.
     let placed = false;
     const place = () => {
       if (placed || !root.isConnected) return;

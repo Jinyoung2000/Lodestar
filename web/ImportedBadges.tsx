@@ -23,7 +23,6 @@ export function ImportedNotice({ agent }: { agent: Agent }) {
   );
 }
 
-// 몇 초마다 데몬에 묻는다. 창이 가려져 있으면 묻지 않는다.
 function useVscodeActivity(agentId: string, enabled: boolean) {
   const [active, setActive] = useState(false);
   useEffect(() => {

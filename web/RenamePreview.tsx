@@ -111,7 +111,6 @@ function EditRow({ item, checked, onToggle }: { item: PreviewEdit; checked: bool
   );
 }
 
-// 패널을 body 에 붙이고 사용자가 고르기를 기다린다. 적용하면 체크된 항목만 든 편집을, 버리면 null 을 돌려준다.
 export function openRenamePreview(options: { files: PreviewFile[]; label: string; names: ReadonlyMap<string, string>; bounds: { left: number; width: number; bottom: number; height: number } }): Promise<WorkspaceEdit | null> {
   return new Promise((resolve) => {
     const host = document.createElement("div");

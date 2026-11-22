@@ -1,5 +1,3 @@
-// 에디터 그룹 배치 트리 조작(web/editorLayoutOps.ts)과 탭 목록 규칙(web/editorTabs.ts). 순수 함수만 본다.
-// 실행: npm test
 import { groupIdsOf, MAIN_GROUP, type EditorLayout } from "../web/editorGroups";
 import { evenLayout, flipLayout, groupAtIndex, groupInDirection, LAYOUT_PRESETS, moveGroup, nextToJoin, planPreset, presetGroupCount, splitSpec, swapGroups } from "../web/editorLayoutOps";
 import { baseKeyOf, clampDrop, renamedKey, closable, findInGroup, isDuplicable, mruOrder, sameContent, shiftTarget, stepTab, stickyAnchor, uniqueKey } from "../web/editorTabs";
@@ -13,7 +11,6 @@ const expect = (condition: boolean, detail: string) => {
 
 const g = (id: string): EditorLayout => ({ type: "group", id });
 const split = (id: string, dir: "row" | "column", ...children: EditorLayout[]): EditorLayout => ({ type: "split", id, dir, children, sizes: children.map(() => 1 / children.length) });
-// main 은 왼쪽, 오른쪽 열은 위 g1 아래 g2
 const tree = split("s1", "row", g("main"), split("s2", "column", g("g1"), g("g2")));
 
 let seq = 0;
@@ -92,8 +89,6 @@ test("새 그룹 방향", () => {
   expect(JSON.stringify(splitSpec("left")) === '{"dir":"row","before":true}' && JSON.stringify(splitSpec("down")) === '{"dir":"column","before":false}', "방향");
   return "ok";
 });
-
-// --- 탭 규칙 ---
 
 const t = (key: string, extra: Record<string, unknown> = {}) => ({ key, kind: "file", ...extra });
 

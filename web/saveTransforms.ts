@@ -2,7 +2,6 @@ import { ChangeSet, type ChangeSpec, type Text } from "@codemirror/state";
 
 
 export type SaveTransformOptions = { trimTrailingWhitespace: boolean; insertFinalNewline: boolean; trimFinalNewlines: boolean };
-// all 은 포맷을 거치지 않는 저장(포맷 꺼짐, 이름 없는 탭)에서 세 변환을 한 번에 적용한다.
 export type SaveTransformPhase = "beforeFormat" | "afterFormat" | "all";
 
 export function saveTransformChanges(doc: Text, options: SaveTransformOptions, phase: SaveTransformPhase): ChangeSet {
@@ -59,7 +58,6 @@ export function trimFinalNewlines(doc: Text): ChangeSet {
   return ChangeSet.of({ from, to: doc.length }, doc.length);
 }
 
-// 공백과 탭만 공백으로 본다
 function lastNonWhitespaceIndex(text: string) {
   for (let i = text.length - 1; i >= 0; i--) {
     const code = text.charCodeAt(i);

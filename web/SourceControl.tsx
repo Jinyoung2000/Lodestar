@@ -1,9 +1,13 @@
 import "./scm.css";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { Agent } from "../shared/protocol";
+import { useMissingFolders } from "./missingFolders";
+import { isMultiRoot, sessionRoots } from "./sessionFolders";
 import { createPortal } from "react-dom";
 import type { ScmStatus } from "../shared/scm";
 import { activeAgentOf } from "./activeAgentOf";
 import { Codicon } from "./icons";
+import { editorGitWorkspaceOf } from "./editorChat";
 import { useScmActions, type ScmActions } from "./scmActions";
 import { scmDraftKey, setScmDraft, setScmTree, useScmStatus, useScmView } from "./scmState";
 import { M } from "./scmStrings";
@@ -14,10 +18,9 @@ import { S } from "./strings";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
-// Source Control 보기: 오른쪽 패널의 고정 탭 본문. 대상은 지금 칸 세션의 작업 폴더 저장소이고,
-// 세션이 없으면 새 세션 화면에서 고른 폴더, 그것도 없으면 마지막으로 연 작업 폴더다.
 export function SourceControlTab() {
   const agent = useStore((s) => activeAgentOf(s.panes, s.activePaneId, s.agents));
+  const editorWorkspaceId = useStore(editorGitWorkspaceOf);
   const draftWorkspaceId = useStore((s) => {
     const pane = s.panes.find((p) => p.id === s.activePaneId);
     return pane?.kind === "draft" ? pane.workspaceId : null;
@@ -25,6 +28,8 @@ export function SourceControlTab() {
   const lastWorkspaceId = useStore((s) => (s.workspaces.some((w) => w.id === s.activeWorkspaceId) ? s.activeWorkspaceId : null));
   if (agent) {
     if (!inFolder(agent)) return <div className="empty-hint">{M.chatNoRepo}</div>;
+    if (isMultiRoot(agent)) return <ScmRepos key={agent.id} agent={agent} editorWorkspaceId={editorWorkspaceId} />;
+    if (editorWorkspaceId) return <ScmView key={editorWorkspaceId} agentId={null} workspaceId={editorWorkspaceId} />;
     return <ScmView key={agent.id} agentId={agent.id} workspaceId={agent.workspaceId} />;
   }
   const workspaceId = draftWorkspaceId || lastWorkspaceId;
@@ -46,26 +51,73 @@ function ScmView({ agentId, workspaceId }: { agentId: string | null; workspaceId
   return <ScmLoaded agentId={agentId} workspaceId={workspaceId} status={status} reload={reload} />;
 }
 
-function ScmLoaded({ agentId, workspaceId, status, reload }: { agentId: string | null; workspaceId: string; status: ScmStatus; reload: () => Promise<void> }) {
+function ScmRepos({ agent, editorWorkspaceId }: { agent: Agent; editorWorkspaceId: string | null }) {
+  const workspaces = useStore((s) => s.workspaces);
+  const missingFolders = useMissingFolders();
+  const roots = useMemo(() => {
+    const primary = editorWorkspaceId ? workspaces.find((workspace) => workspace.id === editorWorkspaceId) : undefined;
+    return sessionRoots(agent, workspaces)
+      .filter((root) => root.primary || root.id !== primary?.id)
+      .map((root) => root.primary && primary ? { ...root, id: primary.id, workspace: primary, label: primary.name } : root)
+      .filter((root) => root.workspace && !missingFolders.has(root.id));
+  }, [agent, workspaces, missingFolders, editorWorkspaceId]);
+  const [closed, setClosed] = useState<ReadonlySet<string>>(() => new Set(roots.filter((r) => !r.primary).map((r) => r.id)));
+  const toggle = (id: string) =>
+    setClosed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  return (
+    <div className="scm-multi" role="tree" aria-label={S.scmReposAria}>
+      {roots.map((root) => (
+        <ScmRepo key={root.id} agentId={root.primary && !editorWorkspaceId ? agent.id : null} workspaceId={root.id} label={root.label} primary={root.primary} open={!closed.has(root.id)} onToggle={() => toggle(root.id)} />
+      ))}
+    </div>
+  );
+}
+
+function ScmRepo({ agentId, workspaceId, label, primary, open, onToggle }: { agentId: string | null; workspaceId: string; label: string; primary: boolean; open: boolean; onToggle: () => void }) {
+  const { status, reload } = useScmStatus(agentId, workspaceId);
+  if (!status?.repoRoot) return null;
+  const count = status.staged.length + status.changes.length + status.conflicts.length;
+  return (
+    <div role="group">
+      <button type="button" role="treeitem" aria-expanded={open} className="scm-root" onClick={onToggle}>
+        <Codicon name={open ? "chevron-down" : "chevron-right"} size={14} />
+        <Codicon name="repo" size={14} />
+        <span className="scm-root-name">{label}</span>
+        {status.branch && (
+          <span className="scm-root-branch">
+            <Codicon name="git-branch" size={12} />
+            {status.branch}
+          </span>
+        )}
+        {count > 0 && <span className="scm-root-count">{count}</span>}
+      </button>
+      {open && <ScmLoaded agentId={agentId} workspaceId={workspaceId} status={status} reload={reload} compact titleActions={primary} />}
+    </div>
+  );
+}
+
+function ScmLoaded({ agentId, workspaceId, status, reload, compact = false, titleActions: showTitle = true }: { agentId: string | null; workspaceId: string; status: ScmStatus; reload: () => Promise<void>; compact?: boolean; titleActions?: boolean }) {
   const draftKey = scmDraftKey(agentId, workspaceId);
   const message = useScmView((v) => v.drafts[draftKey] ?? "");
   const tree = useScmView((v) => v.tree);
   const actions = useScmActions({ agentId, workspaceId, status, reload, message, setMessage: (text) => setScmDraft(draftKey, text) });
   const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null);
-  const findTitleSlot = useCallback((element: HTMLDivElement | null) => setTitleSlot(element?.closest(".focus-side")?.querySelector<HTMLElement>(SCM_TITLE_SLOT) ?? null), []);
-  // 커밋, 브랜치, 앞섬이 바뀌면 Worktrees 와 Graph 를 다시 읽는다
+  const findTitleSlot = useCallback((element: HTMLDivElement | null) => setTitleSlot(element?.closest('[data-group-body="side"]')?.parentElement?.querySelector<HTMLElement>(SCM_TITLE_SLOT) ?? null), []);
   const refreshKey = `${status.repoRoot}|${status.branch}|${status.lastCommit?.hash}|${status.ahead}|${status.behind}`;
   const nothing = status.staged.length + status.changes.length + status.conflicts.length === 0;
-  // FIX6B: 병합이 시작되면 git 이 만든 병합 메시지(MERGE_MSG)를 커밋 칸에 채운다. 사용자가 이미 쓴 글은 덮지 않는다.
   useEffect(() => {
     if (status.operation === "merge" && status.mergeMessage && !message) setScmDraft(draftKey, status.mergeMessage);
-    // 메시지를 일부러 비웠을 때 다시 채우지 않도록 병합이 바뀔 때만 본다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.operation, status.mergeMessage, draftKey]);
   const titleActions = <ScmTitleActions status={status} tree={tree} actions={actions} reload={reload} />;
   return (
     <div className="scm-view" aria-label={M.viewAria} ref={findTitleSlot}>
-      {titleSlot ? createPortal(titleActions, titleSlot) : <div className="scm-head" role="toolbar" aria-label={S.scmTitleActionsAria}>{titleActions}</div>}
+      {showTitle && (titleSlot ? createPortal(titleActions, titleSlot) : <div className="scm-head" role="toolbar" aria-label={S.scmTitleActionsAria}>{titleActions}</div>)}
       <div className="scm-top">
         <CommitBox status={status} message={message} actions={actions} onMessage={(text) => setScmDraft(draftKey, text)} />
       </div>
@@ -82,10 +134,12 @@ function ScmLoaded({ agentId, workspaceId, status, reload }: { agentId: string |
           </div>
         )}
       </div>
-      <div className="scm-dock">
-        <ScmWorktrees currentRoot={status.repoRoot ?? ""} refreshKey={refreshKey} />
-        <ScmGraph target={{ agentId: agentId ?? undefined, workspaceId }} refreshKey={refreshKey} />
-      </div>
+      {!compact && (
+        <div className="scm-dock">
+          <ScmWorktrees currentRoot={status.repoRoot ?? ""} refreshKey={refreshKey} />
+          <ScmGraph target={{ agentId: agentId ?? undefined, workspaceId }} refreshKey={refreshKey} />
+        </div>
+      )}
     </div>
   );
 }
@@ -139,10 +193,8 @@ function ScmTitleActions({ status, tree, actions, reload }: { status: ScmStatus;
   );
 }
 
-// 커밋 메시지 입력(⌘Enter 로 커밋), 메시지 생성 단추, Commit 단추와 옵션 메뉴
 function CommitBox({ status, message, actions, onMessage }: { status: ScmStatus; message: string; actions: ScmActions; onMessage: (text: string) => void }) {
   const field = useRef<HTMLTextAreaElement>(null);
-  // ⌃⇧G 와 "Source Control: Focus Commit Message" 가 보낸 요청. 상태를 읽어 오느라 입력이 늦게 마운트되어도 3초 안이면 받는다.
   const focusRequest = useStore((s) => s.focusScmMessage);
   useEffect(() => {
     if (focusRequest === null) return;
@@ -151,7 +203,6 @@ function CommitBox({ status, message, actions, onMessage }: { status: ScmStatus;
   }, [focusRequest]);
   const hasWork = hasWorkOf(status);
   const syncable = !hasWork && !!status.upstream && status.ahead + status.behind > 0;
-  // 입력이 빈 채 Commit 을 눌러 알림이 뜬 경우 입력으로 돌아간다
   const commit = (options: Parameters<ScmActions["commit"]>[0]) => {
     if (!message.trim() && !options.amend) field.current?.focus();
     return actions.commit(options);
@@ -227,7 +278,6 @@ function CommitBox({ status, message, actions, onMessage }: { status: ScmStatus;
   );
 }
 
-// 커밋이 실패했을 때 git 이 낸 출력 전문. 훅이 막은 경우에만 훅 없이 다시 하는 단추를 둔다.
 function CommitFailure({ actions }: { actions: ScmActions }) {
   const failure = actions.failure;
   const box = useRef<HTMLPreElement>(null);
@@ -259,7 +309,6 @@ function CommitFailure({ actions }: { actions: ScmActions }) {
   );
 }
 
-// FIX6B: 병합이나 리베이스가 진행 중일 때 목록 위에 뜨는 띠. 충돌이 남았는지 알리고, 다 풀리면 이어가기를, 언제든 중단을 고른다.
 function OperationBar({ status, actions }: { status: ScmStatus; actions: ScmActions }) {
   const merge = status.operation === "merge";
   const left = status.conflicts.length;

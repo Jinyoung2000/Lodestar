@@ -25,7 +25,6 @@ export function useTabSwitcher() {
   );
 }
 
-// 열려 있지 않으면 열고(앞으로 가기는 직전 에디터, 뒤로 가기는 가장 오래된 에디터를 고른다), 열려 있으면 step 만큼 고른 행을 옮긴다. hold 는 ⌃Tab 처럼 키를 누른 채 쓰는 호출이다.
 export function cycleTabSwitcher(step: 1 | -1, scope: SwitcherScope = "group", hold = true) {
   if (current) {
     set({ ...current, index: stepIndex(current.index, current.rows.length, step) });
@@ -41,7 +40,6 @@ export function cycleTabSwitcher(step: 1 | -1, scope: SwitcherScope = "group", h
     mru: mruOf(scope === "group" ? s.activeGroupId : ALL_GROUPS),
   });
   if (!rows.length) return;
-  // 활성 에디터가 목록 맨 앞에 없으면(Changes, Files 가 보이는 중) 직전 에디터는 첫 행이다
   const first = rows[0].key === s.activeTabKey ? openingIndex(rows.length, "second") : 0;
   set({ rows, index: step === 1 ? first : openingIndex(rows.length, "last"), scope, hold });
   window.addEventListener("keydown", onKeyDown, true);
@@ -98,10 +96,8 @@ function onKeyDown(event: KeyboardEvent) {
     swallow();
     set({ ...current, index: stepIndex(current.index, current.rows.length, event.key === "ArrowDown" ? 1 : -1) });
   } else if (current.hold && !event.ctrlKey && !["Tab", "Shift", "Control"].includes(event.key)) {
-    // Ctrl 을 이미 뗐는데 keyup 을 놓친 경우의 보험
     commitTabSwitcher();
   } else if (!current.hold && !event.metaKey && !event.ctrlKey && !event.altKey && event.key !== "Tab" && event.key.length === 1) {
-    // 입력 상자가 없는 목록이라 글자는 어디에도 들어가지 않는다
     swallow();
   }
 }

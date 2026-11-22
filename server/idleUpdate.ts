@@ -11,7 +11,6 @@ const execFileAsync = promisify(execFile);
 
 const TICK_MS = 60_000; // lint-tokens: allow 상태를 보는 주기(ms)
 const INSTALLED_APP = "/Applications/Lodestar.app";
-// 앱 본체: 이 파일들이 바뀌면 데몬 재시작으로는 반영되지 않고 앱을 다시 설치해야 한다.
 const APP_FILES = ["main.mjs", "preload.cjs", "pw-preload.cjs"];
 
 export type IdleUpdateDeps = {
@@ -19,18 +18,12 @@ export type IdleUpdateDeps = {
   srcRoot: string;
   enabled: () => boolean;
   busy: () => number;
-  // 이 데몬이 뜬 시각. 레포 빌드가 이보다 새로우면 데몬을 다시 띄워야 반영된다.
   startedAt: number;
-  // 데몬 재시작 요청(server/index.ts 의 restartScheduler). 창은 다시 읽는다.
   restart: () => void;
-  // 시험에서 바꾼다. 비우면 맥의 HID 유휴 시간.
   idleSeconds?: () => Promise<number>;
   log?: (line: string) => void;
 };
 
-// IDLEUPDATE: 자리를 비운 사이 새 소스를 스스로 반영한다. 단계는 shared/idleUpdate.ts 가 정하고, 여기서는 사실을 모으고 단계를 실행한다.
-// 앱 설치는 앱 자신을 끄기 때문에 떼어 낸 셸 스크립트가 한다: 앱 종료, 교체, 재실행, 새 앱이 응답하지 않으면 이전 앱으로 되돌림.
-// 기록은 ~/.agent-nav/auto-update.log, 빌드 출력은 auto-update-build.log.
 export class IdleUpdater {
   private timer: NodeJS.Timeout | null = null;
   private working = false;
@@ -57,7 +50,6 @@ export class IdleUpdater {
       mkdirSync(this.deps.home, { recursive: true });
       writeFileSync(join(this.deps.home, "auto-update.log"), `${new Date().toISOString()} ${line}\n`, { flag: "a" });
     } catch {
-      // 기록 실패는 업데이트를 막지 않는다
     }
   }
 
@@ -85,7 +77,6 @@ export class IdleUpdater {
     const facts = await this.facts();
     const next = idleUpdateStep(facts);
     if (next.step === "wait") {
-      // 같은 이유로 기다리는 동안은 한 번만 적는다.
       if (next.reason !== this.lastReason && next.reason !== "off") this.note(`wait: ${next.reason} (idle ${Math.round(facts.idleSeconds)}s, busy ${facts.busy})`);
       this.lastReason = next.reason;
       return;
@@ -94,7 +85,6 @@ export class IdleUpdater {
     const source = facts.source!;
     if (next.step === "build") await this.run("build", source, "npm", ["run", "build"], { AGENT_NAV_SRC_STAMP: source });
     else if (next.step === "package") {
-      // --no-install: 레포에 설치된 electron-builder 만 쓴다. 없을 때 npx 가 레지스트리에서 새로 받아 실행하는 일을 아무도 없는 사이에 하지 않는다(실패로 기록되고 30분 뒤 다시 본다).
       if (await this.run("package", source, "npx", ["--no-install", "electron-builder", "--mac", "--dir"])) await this.run("package", source, "npm", ["run", "postdist"]);
     } else if (next.step === "install") this.install(source);
     else {
@@ -107,7 +97,6 @@ export class IdleUpdater {
     return join(this.deps.srcRoot, "release", "mac-arm64", "Lodestar.app");
   }
 
-  // 레포에서 명령 하나를 낮은 우선순위로 돌린다. 출력은 auto-update-build.log 에 이어 붙인다.
   private async run(step: IdleUpdateStepName, source: string, command: string, args: string[], extraEnv: Record<string, string> = {}) {
     this.working = true;
     this.note(`${step}: ${command} ${args.join(" ")}`);
@@ -134,7 +123,6 @@ export class IdleUpdater {
     }
   }
 
-  // 설치 스크립트가 새 앱이 뜨지 않아 되돌렸으면 그 소스와 시각을 남겨 둔다.
   private rolledBack(): IdleUpdateFacts["lastFailure"] {
     try {
       const info = JSON.parse(readFileSync(join(this.deps.home, "auto-update-rollback.json"), "utf8")) as { source?: string; at?: number };
@@ -164,7 +152,6 @@ function readStamp(file: string): { src: string | null; builtAt: number } | null
   }
 }
 
-// 앱 본체 파일의 해시. 하나라도 없으면 null.
 function appHash(dir: string): string | null {
   const hash = createHash("sha1");
   for (const file of APP_FILES) {
@@ -177,7 +164,6 @@ function appHash(dir: string): string | null {
   return hash.digest("hex");
 }
 
-// 입력(키보드, 마우스)이 없었던 초. 읽지 못하면 0(쓰는 중으로 본다: 닫는 쪽).
 async function hidIdleSeconds(): Promise<number> {
   try {
     const { stdout } = await execFileAsync("ioreg", ["-c", "IOHIDSystem"], { maxBuffer: 4 * 1024 * 1024 });
@@ -188,7 +174,6 @@ async function hidIdleSeconds(): Promise<number> {
   }
 }
 
-// 앱을 끄고 갈아 끼운 뒤 다시 연다. 새 앱이 60초 안에 응답하지 않으면 이전 앱으로 되돌리고 그 소스를 기록한다(30분 동안 다시 시도하지 않는다).
 export function installScript(release: string, home: string, source: string) {
   const log = join(home, "auto-update.log");
   const prev = join(home, "previous", "Lodestar.app");

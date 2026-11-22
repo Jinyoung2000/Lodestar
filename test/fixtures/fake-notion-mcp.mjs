@@ -1,6 +1,3 @@
-// 가짜 Notion MCP 서버 (stdio). 합성 페이지만 담고 실제 Notion 에는 닿지 않는다.
-// 도구 이름과 인자는 실제 Notion MCP 와 같고(notion-fetch, notion-update-page, notion-create-pages, notion-search, notion-create-comment),
-// 도구 호출이 올 때마다 NOTION_FAKE_LOG 파일에 한 줄씩 기록한다. 시험이 이 파일로 "어떤 호출이 나갔는가"를 확인한다.
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -45,7 +42,6 @@ const pages = {
   [DB_ID]: { title: "Work summary", icon: "📊", path: "Team", edited: "2026-10-15T09:00:00.000Z", database: true, content: "" },
 };
 
-// 세션마다 서버가 새로 뜨므로, 수정한 내용은 파일에 남겨 다음 서버가 이어받는다.
 const STATE = process.env.NOTION_FAKE_STATE;
 const loadState = () => {
   if (!STATE || !existsSync(STATE)) return;
@@ -113,7 +109,6 @@ server.tool("notion-create-comment", "Add a comment to a page.", { page_id: z.st
   return { content: [{ type: "text", text: "comment created" }] };
 });
 
-// 알려진 쓰기 도구 목록에 없는 새 도구. 앱은 읽기 목록에 없으면 쓰기로 보고 막아야 한다.
 server.tool("notion-archive-workspace", "Archive pages in bulk (a tool the app has never heard of).", { page_id: z.string() }, async (args) => {
   log("notion-archive-workspace", args);
   return { content: [{ type: "text", text: "archived" }] };

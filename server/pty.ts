@@ -18,9 +18,6 @@ try {
   loadError = String((error as Error).message).split("\n")[0];
 }
 
-// 세션 cwd 에서 뜨는 진짜 셸. 브라우저의 xterm 과 WebSocket 으로 잇는다.
-// 클라이언트 → 서버: JSON {t:"d", d} 입력, {t:"r", cols, rows} 크기. 서버 → 클라이언트: 출력 문자열 그대로.
-// 사용자가 터미널 탭을 열 때만 만들어지고, 에이전트가 이 경로를 쓰는 일은 없다.
 export function bridgePty(socket: WebSocket, cwd: string, cols: number, rows: number, ptyId: string | null = null) {
   if (!ptyModule) {
     socket.send(`\r\n${T.terminalUnavailable(String(loadError))}\r\n`);
@@ -58,7 +55,6 @@ export function bridgePty(socket: WebSocket, cwd: string, cols: number, rows: nu
   });
 }
 
-// TERMASK: 화면이 붙인 ptyId 로 셸을 찾아 지금 작업 폴더를 읽는다. 셸이 cd 한 뒤의 값은 시작 폴더와 다르므로 프로세스의 cwd 를 lsof 로 본다.
 const live = new Map<string, { pid: number; startCwd: string }>();
 
 export async function ptyInfo(ptyId: string): Promise<{ cwd: string; shell: string; os: string }> {

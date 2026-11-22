@@ -1,5 +1,3 @@
-// 고정 스크롤의 순수 계산(web/editorStickyModel.ts, web/editorStickyFolds.ts): 후보 트리, 보이는 범위와 겹치는 후보, 고정할 줄 고르기와 밀림.
-// 실행: npm test
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
 import { EditorState } from "@codemirror/state";
@@ -16,7 +14,6 @@ const json = (value: unknown) => JSON.stringify(value);
 const sym = (start: number, end: number, children: StickySymbol[] = [], sel = start): StickySymbol => ({ rangeStartLine: start, selStartLine: sel, rangeEndLine: end, children });
 const node = (start: number, end: number, children: StickyNode[] = []): StickyNode => ({ start, end, children });
 
-// 심볼 -> 후보 트리
 const tree = symbolsToSticky([sym(1, 10, [sym(2, 5), sym(3, 3), sym(6, 9)])]);
 check("a class with two methods keeps both and drops the one liner", json(tree) === json([node(1, 10, [node(2, 5), node(6, 9)])]), json(tree));
 check("top level symbols are sorted by range start", json(symbolsToSticky([sym(20, 30), sym(1, 10)]).map((n) => n.start)) === json([1, 20]));
@@ -30,7 +27,6 @@ check("children are ordered by start, then wider first", (() => {
   return json(ordered.map((c) => [c.start, c.end])) === json([[2, 9], [2, 5], [10, 12]]);
 })());
 
-// 후보 줄
 const roots = [node(1, 10, [node(2, 5), node(6, 9)])];
 const candidates = candidateLines(roots, { start: 3, end: 12 }, 20, 20);
 check("candidates are the class, then both methods one slot lower", json(candidates) === json([{ start: 1, end: 9, top: 0, height: 20 }, { start: 2, end: 4, top: 20, height: 20 }, { start: 6, end: 8, top: 20, height: 20 }]), json(candidates));
@@ -47,7 +43,6 @@ check("only siblings that meet the viewport are visited in a long list", (() => 
   return result.length >= 3 && result.length <= 5 && result.every((c) => c.start >= 4991 && c.start <= 5031);
 })());
 
-// 고정할 줄 (줄 높이 20, 줄 n 은 (n-1)*20 부터 n*20)
 const top = (line: number) => (line - 1) * 20;
 const bottom = (line: number) => line * 20;
 const at = (scrollTop: number, max = 5) => findStickyState(candidates, max, scrollTop, top, bottom);
@@ -66,7 +61,6 @@ check("state equality", stickyStateEquals(at(100), at(101)) && !stickyStateEqual
 check("at most a quarter of the editor height", maxStickyLines(800, 20) === 10 && maxStickyLines(200, 20) === 3 && maxStickyLines(60, 20) === 1 && maxStickyLines(40, 20) === 1 && maxStickyLines(20, 20) === 0);
 check("layout stacks lines one slot apart", json(stickyLayout({ startLines: [1, 6, 8], endLines: [], lastLineRelativePosition: 0 }, 20)) === json({ tops: [0, 20, 40], height: 60 }));
 
-// 들여쓰기
 const python1 = ["def a():", "  x", "  y", "z"];
 check("indent blocks close at the line where the indent returns", json(indentRanges(python1, 2)) === json([{ start: 1, end: 4 }]));
 check("nested indent blocks and blank lines", (() => {
@@ -76,7 +70,6 @@ check("nested indent blocks and blank lines", (() => {
 check("tabs count to the next tab stop", json(indentRanges(["f", "\tx", "g"], 4)) === json([{ start: 1, end: 3 }]));
 check("nesting by containment", json(nestRanges([{ start: 1, end: 10 }, { start: 2, end: 5 }, { start: 3, end: 4 }, { start: 6, end: 9 }])) === json([node(1, 10, [node(2, 5, [node(3, 4)]), node(6, 9)])]));
 
-// 구문 트리 접기 범위 -> 후보
 const source = ["class Box {", "  size = 1;", "  grow(n) {", "    if (n) {", "      this.size += n;", "    }", "    return this.size;", "  }", "}", "", "function top() {", "  return 1;", "}"].join("\n");
 const state = EditorState.create({ doc: source, extensions: [javascript()] });
 const folded = stickyFromSymbols(foldSymbols(state), (pos) => state.doc.lineAt(pos).number);

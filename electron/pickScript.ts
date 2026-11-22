@@ -1,11 +1,7 @@
-// Browser 탭 안의 페이지에서 요소를 고르거나(Add Element), 요소에 댓글을 달거나(Comment on Elements), 영역을 고르는(Add Area Screenshot) 스크립트. 메인 프로세스가 guest 의 격리된 JS 세계(executeJavaScriptInIsolatedWorld)에서 실행한다.
-// 격리된 세계라서 페이지의 스크립트가 이 스크립트의 변수나 결과를 읽거나 바꿀 수 없다. 페이지로 가는 통로(preload, 브릿지)는 만들지 않는다.
-// 이 파일의 함수들은 문자열로 바뀌어 페이지에 들어가므로 자기 안의 것만 쓴다. DOM 형태만 읽어서 단위 시험이 가짜 요소로도 부른다.
 
 type El = { nodeType: number; tagName: string; id?: string; classList?: ArrayLike<string>; parentElement: El | null; children: ArrayLike<El> };
 type Doc = { querySelectorAll(selector: string): ArrayLike<unknown> };
 
-// 요소까지의 CSS 선택자. 고유한 id 를 만나면 거기서 끝내고, 아니면 태그와 클래스 둘, 같은 태그 형제가 있으면 :nth-of-type 을 붙여 body 까지 잇는다.
 export function cssPathOf(el: El, doc: Doc): string {
   const parts: string[] = [];
   for (let node: El | null = el; node && node.nodeType === 1; node = node.parentElement) {
@@ -110,7 +106,6 @@ function pickerMain(cssPath: (el: El, doc: Doc) => string, mode: "element" | "co
   const PLUS = "M8.5 3a.5.5 0 0 0-1 0v4.5H3a.5.5 0 0 0 0 1h4.5V13a.5.5 0 0 0 1 0V8.5H13a.5.5 0 0 0 0-1H8.5V3Z";
   const CLOSE = "M3.854 3.146a.5.5 0 0 0-.708.708L7.293 8l-4.147 4.146a.5.5 0 0 0 .708.708L8 8.707l4.146 4.147a.5.5 0 0 0 .708-.708L8.707 8l4.147-4.146a.5.5 0 0 0-.708-.708L8 7.293 3.854 3.146Z";
 
-  // 댓글 뒤를 어둡게 하는 배경(윤곽 자리만 뚫림)과 윤곽
   const backdrop = document.createElementNS(SVG, "svg");
   backdrop.setAttribute("class", "comment-backdrop");
   const maskId = `an-cutout-${Math.random().toString(36).slice(2)}`;
@@ -170,7 +165,7 @@ function pickerMain(cssPath: (el: El, doc: Doc) => string, mode: "element" | "co
   remove.appendChild(icon(CLOSE));
 
   const previousCursor = document.createElement("style");
-  previousCursor.textContent = `/* agent-nav injected style */ * { cursor: ${mode === "area" ? "crosshair" : "default"} !important; }`;
+  previousCursor.textContent = `* { cursor: ${mode === "area" ? "crosshair" : "default"} !important; }`;
   document.head.appendChild(previousCursor);
   root.appendChild(host);
 
@@ -216,7 +211,6 @@ function pickerMain(cssPath: (el: El, doc: Doc) => string, mode: "element" | "co
     label.style.left = `${Math.max(0, Math.min(r.left, document.documentElement.clientWidth - label.offsetWidth))}px`;
     label.style.top = `${top}px`;
   };
-  // 입력줄과 미리보기를 anchor(화면 좌표) 옆에 놓는다. 오른쪽과 아래에 자리가 있으면 거기, 아니면 반대쪽에 두고 붙은 모서리를 직각으로 한다.
   const layoutSurface = (surface: HTMLElement, at: { x: number; y: number }, hit?: HTMLElement) => {
     const vw = document.documentElement.clientWidth;
     let width = surface.offsetWidth;
@@ -447,7 +441,6 @@ function pickerMain(cssPath: (el: El, doc: Doc) => string, mode: "element" | "co
     const height = Math.abs(e.clientY - dragStart.y);
     dragStart = null;
     dragbox.style.display = "none";
-    // 클릭 정도의 작은 끌기는 영역이 아니다. 다시 끌 수 있게 둔다.
     if (width < 4 || height < 4) return;
     queue.push({ type: "area", url: location.href, title: document.title, rect: { x, y, width, height } });
     finish({ type: "done" });
@@ -471,6 +464,5 @@ function pickerMain(cssPath: (el: El, doc: Doc) => string, mode: "element" | "co
 
 export type PickMode = "element" | "comment" | "area";
 export const pickScript = (mode: PickMode, theme: PickTheme) => `(${pickerMain.toString()})(${cssPathOf.toString()}, ${JSON.stringify(mode)}, ${JSON.stringify(theme)}, ${JSON.stringify(PICK_CSS)})`;
-// 쌓인 결과를 비우며 읽는다. 없으면 null.
 export const PICK_READ_SCRIPT = "(()=>{const q=window.__agentNavPickQueue;return q&&q.length?JSON.stringify(q.splice(0)):null})()";
 export const PICK_STOP_SCRIPT = "window.__agentNavPickStop && window.__agentNavPickStop()";

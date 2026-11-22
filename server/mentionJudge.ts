@@ -5,8 +5,6 @@ import { claudeBin, claudeEnv } from "./claude";
 import { HOME } from "./store";
 import { spawnInGroup } from "./processGroups";
 
-// 새 멘션이 작업 요청인지 판단하는 일회성 haiku 세션. 도구가 하나도 없고(tools: [], MCP 서버 없음), 설정과 훅과 CLAUDE.md 를 읽지 않고,
-// 대화 기록을 남기지 않는다(persistSession: false). 그래서 이 세션은 Slack 에 아무것도 할 수 없다. 여러 멘션을 한 번에 묶어 보낸다.
 const JUDGE_MODEL = "haiku";
 export const JUDGE_BATCH = 10;
 const TEXT_LIMIT = 1500;
@@ -53,7 +51,6 @@ export function toJudgeInput(item: InboxItem, n: number): JudgeInput {
   return { n, channel: item.channelName, from: item.from.name, time: item.time, text: cleanSlackText(item.text).slice(0, TEXT_LIMIT) };
 }
 
-// 메시지 본문이 구분자를 닫아서 다른 메시지처럼 보이게 만들지 못하게 한다.
 export function judgePrompt(batch: JudgeInput[]): string {
   const blocks = batch.map((m) => `<message n="${m.n}" channel="${attr(m.channel)}" from="${attr(m.from)}" time="${m.time}">\n${m.text.replace(/<\/?message/gi, "<\\message")}\n</message>`);
   return [`Judge these ${batch.length} Slack messages.`, ...blocks].join("\n\n");
@@ -61,7 +58,6 @@ export function judgePrompt(batch: JudgeInput[]): string {
 
 const attr = (value: string) => value.replace(/["<>\n]/g, " ");
 
-// 구조화 출력을 검증한다. 입력 순서(batch[i].n 은 i+1)대로 돌려주고, 형식이 틀리거나 빠진 항목은 null 이다 (그 항목은 다음에 다시 판단한다).
 export function parseJudgments(structured: unknown, count: number): (JudgeOut | null)[] {
   const out: (JudgeOut | null)[] = Array.from({ length: count }, () => null);
   const list = (structured as { results?: unknown } | null)?.results;

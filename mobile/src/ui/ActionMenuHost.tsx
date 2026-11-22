@@ -4,7 +4,6 @@ import { registerActionMenuHost, type ActionMenuRequest } from "./actionMenu";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Text } from "./Text";
 
-// 안드로이드의 하단 시트 메뉴(iOS 는 시스템 액션 시트를 쓰므로 아무것도 그리지 않는다). 항목은 개수 제한 없이 세로로 쌓이고, 바깥이나 Cancel 로 닫힌다.
 export function ActionMenuHost() {
   const colors = useColors();
   const [request, setRequest] = useState<ActionMenuRequest | null>(null);

@@ -1,5 +1,3 @@
-// 오른쪽 패널 탭 끌어서 옮기기(web/tabOrder.ts)와 에디터 그룹 배치(web/editorGroups.ts). 순수 함수만 본다.
-// 실행: npm test
 import { adjacentGroup, groupIdsOf, moveToGroup, neighborAfterClose, normalizeLayout, removeGroup, setSplitSizes, SINGLE_LAYOUT, splitGroup, type EditorLayout } from "../web/editorGroups";
 import { moveTab } from "../web/tabOrder";
 
@@ -40,7 +38,6 @@ test("자기 자리에 놓으면 그대로", () => {
   const s = { tabs: [t("a"), t("b"), t("c")], filesIndex: 1 };
   const same = moveTab(s, "b", "c");
   expect(keys(same) === "a,b,c" && same.filesIndex === 1, `${keys(same)} ${same.filesIndex}`);
-  // a 는 files 앞 구역, b 는 files 뒤 구역의 첫 탭이다. b 바로 앞에 놓으면 files 를 넘어 뒤 구역이 된다.
   const across = moveTab(s, "a", "b");
   expect(keys(across) === "a,b,c" && across.filesIndex === 0, `${keys(across)} ${across.filesIndex}`);
   const stay = moveTab(s, "a", "files");

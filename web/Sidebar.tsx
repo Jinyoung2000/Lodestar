@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type 
 import { canHandOff, startHandoff } from "./handoffActions";
 import { createWorktreePr, mergeWorktree } from "./worktreeActions";
 import { harnessOf, type Agent, type TimelineItem, type Workspace } from "../shared/protocol";
-import { HarnessBadge } from "./AgentView";
 import { needsReview, QUESTION_TOOL } from "../shared/interactive";
 import { displayPath } from "./displayPath";
 import { improvementsBusy, needsInputCount, notAppliedCount } from "./improvementRows";
@@ -12,13 +11,15 @@ import { ImportedMark } from "./ImportedBadges";
 import { PullRequestsSection } from "./PullRequestsSection";
 import { SectionMoveItems } from "./SectionMoveItems";
 import { beginSectionDrag, useSectionDrag, useSidebarOrder, type SidebarSection } from "./sidebarOrder";
-import { BoardIcon, Chat, Check, ChevronDown, ChevronRight, Close, Codicon, CircleFilled, CircleSmallFilled, CommentDiscussion, DotSpinner, Filter, Folder, FolderCompact, More, NoteIcon, Pin, Plus, Search, TreeItemExpanded, WorktreeCompact } from "./icons";
+import { BoardIcon, Chat, Check, ChevronDown, ChevronRight, Close, Codicon, CircleFilled, CircleSmallFilled, CommentDiscussion, DotSpinner, Filter, Folder, FolderCompact, More, NoteIcon, Pin, Plus, ProviderIcon, Search, TreeItemExpanded, WorktreeCompact } from "./icons";
 import { RenameInput } from "./RenameInput";
 import { useCompactView } from "./compactView";
 import { useMissingFolders } from "./missingFolders";
+import { moveChatToFolder } from "./sessionFolders";
 import { worktreeMenuState } from "./worktreeMenu";
 import { rpc } from "./rpc";
 import { WorkspacePathInput } from "./WorkspacePathInput";
+import { canPickFolder, newProjectInNewSession, openFolderInNewSession } from "./folderOpen";
 import { allowPermission, copySessionLink, deleteSession, ensureRowChanges, markRead, setDone, setPinned } from "./sessionActions";
 import { FALLBACK_ORDERING, isDefaultView, relativeTime, sidebarLayout, sumChanges, type FolderOrder, type Ordering, type SessionGroup, type SessionRow as Row, type ShowRange } from "./sessionList";
 import { expandGroup, resetSessionView, setCollapsedGroups, setSessionView, startRename, toggleGroupCollapsed, toggleGroupExpanded, toggleParentCollapsed, useSessionList } from "./sessionListState";
@@ -46,12 +47,10 @@ import {
 } from "./ui/dropdown-menu";
 import { useCommandKey, useCommandKeycaps } from "./commandKeys";
 
-// 우클릭으로 연 메뉴는 마우스 위치(at)에 뜨고, 행의 ... 버튼으로 연 메뉴는 버튼 아래에 뜬다.
 type RowMenu = { id: string; at?: { x: number; y: number } };
 
 export function Sidebar({ width }: { width: number | null }) {
   const inboxUnread = useStore((s) => s.inbox?.unread ?? 0);
-  // 설정 Show Board, Show Slack 이 꺼져 있으면(기본) 위쪽 진입 항목을 그리지 않는다.
   const showBoard = useStore((s) => boardShown(s.settings));
   const showSlack = useStore((s) => slackShown(s.settings));
   const reviewUnread = useStore((s) => !!s.review?.unreadDate);
@@ -94,9 +93,7 @@ export function Sidebar({ width }: { width: number | null }) {
     collapsedGroups: new Set(collapsedGroups),
     orders,
   });
-  // 끌기와 ⌥↑ ⌥↓ 가 접힌 항목까지 담은 전체 순서를 읽을 수 있게, 그린 목록을 넘겨 둔다
   useEffect(() => publishSessionLists(scopes));
-  // 비어 있던 Chats 에 퀵 챗이 생기면 펼쳐서 보인다
   const chatCount = groups.find((g) => g.kind === "chats")?.count ?? 0;
   const previousChatCount = useRef(0);
   useEffect(() => {
@@ -133,19 +130,21 @@ export function Sidebar({ width }: { width: number | null }) {
           <NoteIcon /> {S.notes}
           <SideKeycaps command="notes" />
         </button>
-        <button type="button" className="side-item" onClick={() => setAddOpen((v) => !v)}>
+        <button type="button" className="side-item" onClick={() => (canPickFolder() ? void openFolderInNewSession() : setAddOpen((v) => !v))}>
           <Plus /> {S.addWorkspace}
+          <SideKeycaps command="openFolder" />
+        </button>
+        <button type="button" className="side-item" onClick={() => void newProjectInNewSession()}>
+          <Codicon name="new-folder" /> {S.newProjectSide}
         </button>
         {addOpen && <WorkspacePathInput className="workspace-input" onAdded={() => setAddOpen(false)} onCancel={() => setAddOpen(false)} />}
       </div>
-      {/* 구역 순서는 CSS order 로 정한다. 구역 머리를 끌거나 더보기 메뉴의 Move Section Up/Down 으로 순서를 바꾼다. */}
       <div className="sidebar-sections">
         <div className="sidebar-block" style={{ order: sectionOrder.indexOf("pullRequests") }} {...sectionProps("pullRequests")}>
           <PullRequestsSection />
         </div>
         <div className="sidebar-block" data-grow="" style={{ order: sectionOrder.indexOf("sessions") }} {...sectionProps("sessions")}>
           <SessionsHeader customView={!isDefaultView(view, defaultOrdering)} ordering={view.ordering ?? defaultOrdering} allCollapsed={allCollapsed} onToggleAll={() => setCollapsedGroups(allCollapsed ? [] : groups.map((g) => g.id))} />
-          {/* Sessions 머리줄은 고정하고 묶음 목록만 스크롤한다(round-5 발견 12). 위 항목들과 아래 Improvements 는 고정이다. */}
           <div className="sidebar-list">
         {groups.map((group) => {
           const isCollapsed = collapsedGroups.includes(group.id);
@@ -190,8 +189,6 @@ export function Sidebar({ width }: { width: number | null }) {
   );
 }
 
-// RELEASE: GitHub 에 새 릴리스가 있으면 Improvements 위에 한 줄. 누르면 릴리스 노트를 기본 브라우저로 열고(설치는 하지 않는다), X 로 닫으면 그 버전은 다시 뜨지 않는다.
-// 설정 New version available 이 꺼져 있거나 새 버전이 없으면 아무것도 그리지 않는다.
 function ReleaseNotice() {
   const on = useStore((s) => s.settings?.notifyNewVersion === true);
   const release = useStore((s) => releaseToNotify(s.release));
@@ -210,8 +207,6 @@ function ReleaseNotice() {
   );
 }
 
-// 사이드바 바닥의 작은 항목. Lodestar 가 피드백으로 만든 개선 세션은 Sessions 목록에 없고 이 항목이 Improvements 화면으로 연다.
-// 답을 기다리는 항목이 있으면 강조색 점과 "N waiting" 이 붙고, 미적용이 있으면 흐린 숫자만 붙고, 개선 세션이 돌거나 검사 중이면 아이콘 자리에 점 스피너가 돈다.
 function ImprovementsEntry() {
   const open = useStore((s) => s.centerView === "improvements");
   const count = useStore((s) => notAppliedCount(s.feedbacks, s.agents));
@@ -241,7 +236,6 @@ function ImprovementsEntry() {
   );
 }
 
-// 분 단위로 다시 그려서 "now", "2 mins ago" 가 흘러가게 한다. 행의 시간은 이 값이 아니라 그릴 때의 Date.now() 로 비교한다(틱 사이에 갱신된 세션이 미래 시각이 되지 않게).
 function useMinuteClock() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -363,15 +357,12 @@ function folderOrderOf(value: string): FolderOrder {
   return value === "name" || value === "manual" ? value : "recent";
 }
 
-// WSMENU: 폴더 묶음 머리는 우클릭, hover 때 나오는 ... 버튼, 포커스한 머리에서 Shift+F10 이나 메뉴 키로 같은 메뉴(web/GroupMenu.tsx)를 연다.
 function GroupHead({ group, workspace, missing, collapsed, onToggle, onNewSession }: { group: SessionGroup; workspace: Workspace | undefined; missing: boolean; collapsed: boolean; onToggle: () => void; onNewSession: (e: MouseEvent) => void }) {
   const [menu, setMenu] = useState<{ at?: { x: number; y: number } } | null>(null);
   const menuWorkspace = group.kind === "workspace" ? workspace : undefined;
-  // 고정, 완료, 채팅 묶음은 폴더 메뉴가 없고, 손으로 정한 순서가 있을 때만 Reset Order 하나짜리 메뉴가 생긴다
   const customOrder = useStore((s) => group.resetScopes.some((scope) => (s.sessionOrders[scope]?.length ?? 0) > 0));
   const hasMenu = !!menuWorkspace || customOrder;
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    // ⌥↑, ⌥↓: 폴더 묶음을 한 칸 옮긴다. 옮기면 묶음의 DOM 이 새 자리로 다시 붙으면서 포커스를 잃을 수 있어 다시 준다.
     if ((e.key === "ArrowUp" || e.key === "ArrowDown") && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && group.kind === "workspace" && group.workspaceId) {
       e.preventDefault();
       const id = group.workspaceId;
@@ -441,7 +432,6 @@ type RowProps = {
   onMenu: (menu: RowMenu | null) => void;
   childrenCollapsed: boolean;
   onToggleChildren: () => void;
-  // 시간별, 고정, 완료 묶음은 여러 프로젝트가 섞이므로 행에 프로젝트 이름을 붙인다
   showProject: boolean;
 };
 
@@ -454,14 +444,14 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
   const gitBranch = useStore((s) => s.gitInfo[agent.id]?.branch ?? null);
   const inRepo = useStore((s) => !!s.gitInfo[agent.id]?.repoRoot);
   const isChild = depth > 0;
-  // 폴더 없는 세션(퀵 챗)은 쉬는 동안 제목 한 줄이다. 진행 중, 입력 필요, 오류는 상태 문구가 있어 둘째 줄을 둔다.
+  const folderCount = agent.workspaceId ? 1 + (agent.extraWorkspaceIds?.length ?? 0) : 0;
   const oneLine = agent.workspaceId === null && agent.status === "idle" && !agent.imported;
   const sum = sumChanges(changes?.files);
   const time = relativeTime(agent.updatedAt, Date.now());
   const project = showProject && !isChild ? (workspace?.name ?? null) : null;
   const branch = agent.worktree?.branch ?? gitBranch;
   const tooltip = [
-    `${agent.title} (${harnessOf(agent) === "codex" ? S.harnessCodex : S.tipHarness})`,
+    `${agent.title} (${harnessOf(agent) === "claude" ? S.tipHarness : S.harnessNames[harnessOf(agent)]})`,
     workspace && `${S.tipWorkspace}: ${displayPath(workspace.dir)}`,
     agent.worktree && `${S.tipWorktree}: ${displayPath(agent.worktree.root)}`,
     branch && `${S.tipBranch}: ${branch}`,
@@ -483,7 +473,6 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
       e.preventDefault();
       setDone(agent, !agent.done);
     } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && row.scope) {
-      // ⌥↑, ⌥↓: 같은 목록 안에서 한 칸 옮긴다. 옮기면 행의 DOM 이 새 자리로 다시 붙으면서 포커스를 잃을 수 있어 다시 준다.
       e.preventDefault();
       if (stepSession(row.scope, agent.id, e.key === "ArrowUp" ? -1 : 1, agent.title)) requestAnimationFrame(() => document.querySelector<HTMLElement>(`.session-row[data-id="${CSS.escape(agent.id)}"] .session-item`)?.focus());
     }
@@ -528,8 +517,10 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
         </span>
         <span className="session-text">
           <span className="session-title-line">
+            <span className="session-harness">
+              <ProviderIcon harness={harnessOf(agent)} size={14} />
+            </span>
             {renaming ? <RenameInput agent={agent} /> : <span className="session-title">{agent.title}</span>}
-            {harnessOf(agent) === "codex" && <HarnessBadge />}
             {project && <span className="session-project">{project}</span>}
             <span className="session-time" data-session-time>
               {time}
@@ -578,6 +569,15 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
                   <span>{time}</span>
                 </>
               )}
+              {folderCount > 1 && (
+                <>
+                  <SessionSeparator />
+                  <span className="session-detail-folders">
+                    <Codicon name="folder-library" size={12} />
+                    {S.folderCount(folderCount)}
+                  </span>
+                </>
+              )}
             </span>
           )}
         </span>
@@ -620,7 +620,6 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
   );
 }
 
-// 상태 아이콘은 우선순위가 있다: 진행 중과 입력 필요 스피너, 오류, 안 읽음, PR, 읽음 순.
 function StatusIcon({ agent, pr }: { agent: Agent; pr: { number: number; title: string } | undefined }) {
   if (agent.status === "running") return <DotSpinner state="running" />;
   if (agent.status === "waiting") return <DotSpinner state="waiting" />;
@@ -656,8 +655,6 @@ function SessionSeparator() {
   return <span className="session-separator" aria-hidden="true" />;
 }
 
-// 승인 대기 세션 행 안의 카드. 대화로 가지 않고 그 자리에서 허용한다(기존 agents.respondPermission 그대로).
-// 안 연 세션은 타임라인이 없어서 승인 항목을 한 번 읽어 온다.
 function InlineApproval({ agent }: { agent: Agent }) {
   const pending = useStore((s) => s.timelines[agent.id]?.find((i): i is Extract<TimelineItem, { kind: "permission" }> => i.kind === "permission" && i.status === "pending"));
   useEffect(() => {
@@ -665,9 +662,7 @@ function InlineApproval({ agent }: { agent: Agent }) {
   }, [agent.id]);
   const preview = useEditPreview(agent.id, pending);
   if (!pending) return null;
-  // 승인 카드와 같은 제목 규칙: 새 파일을 만드는 Write 는 "Create file?"
   const title = pending.notion ? pending.notion.summary : preview?.isNew ? S.approvalCreateTitle : S.approvalTitle(pending.toolName);
-  // fixB: 질문과 계획 승인은 허용으로 답할 수 없어 세션을 연다. 그 밖의 승인은 Allow Once(카드의 주 단추와 알림과 같은 범위)다.
   const asks = needsReview(pending.toolName);
   return (
     <div className="session-approval">
@@ -679,7 +674,6 @@ function InlineApproval({ agent }: { agent: Agent }) {
   );
 }
 
-// 워크트리 세션의 Merge 와 PR 항목. 메뉴가 열릴 때 기준 브랜치에 없는 커밋 수와 이 브랜치의 PR 을 읽어, 합칠 게 없으면 두 항목을 끄고 이유를 보이며 열린 PR 이 있으면 Create 대신 Open 을 보인다.
 function WorktreeItems({ agent, worktree }: { agent: Agent; worktree: NonNullable<Agent["worktree"]> }) {
   const [unmerged, setUnmerged] = useState<number | null>(null);
   const prs = useStore((s) => s.prs[agent.id]?.prs);
@@ -714,12 +708,9 @@ function WorktreeItems({ agent, worktree }: { agent: Agent; worktree: NonNullabl
   );
 }
 
-// 세션을 보드 카드로 만든다. 행의 보드 버튼과 우클릭 메뉴가 같이 쓴다.
 function useBoardCard(agent: Agent) {
   const board = useStore((s) => s.board);
-  // 이 세션의 대화에서 따로 담은 카드(TOBOARD)는 세션 자체의 카드가 아니다. 세션을 보드에 추가하는 단추의 "이미 있음" 판정에서 뺀다.
   const linked = board?.cards.find((c) => c.agentIds.includes(agent.id) && c.source?.agentId !== agent.id);
-  // 지금 도는 세션이면 In Progress, 아니면 Todo 에 놓는다. 그 열이 없으면 첫 열.
   const addToBoard = async () => {
     const role = agent.status === "running" || agent.status === "waiting" ? "inProgress" : "todo";
     const columnId = board?.columns.find((c) => c.role === role)?.id;
@@ -736,7 +727,6 @@ function useBoardCard(agent: Agent) {
 
 function SessionMenu({ agent }: { agent: Agent }) {
   const { board, linked, addToBoard } = useBoardCard(agent);
-  // Rename 은 메뉴가 완전히 닫힌 뒤에 입력을 연다. 메뉴가 열린 채 입력이 포커스를 받으면 메뉴의 포커스 가두기가 되가져가고, 닫히며 트리거 버튼에 포커스를 돌려줘 친 글자가 메뉴 글자 탐색으로 들어간다.
   const renaming = useRef(false);
   return (
     <DropdownMenuContent
@@ -772,6 +762,7 @@ function SessionMenu({ agent }: { agent: Agent }) {
       <DropdownMenuItem disabled={!canHandOff(agent)} onSelect={() => startHandoff(agent.id)}>
         {S.handoffMenu}
       </DropdownMenuItem>
+      {agent.workspaceId === null && !agent.feedbackId && !agent.imported && <DropdownMenuItem onSelect={() => void moveChatToFolder(agent.id)}>{S.moveToFolderMenu}</DropdownMenuItem>}
       {agent.worktree && (
         <>
           <DropdownMenuSeparator />

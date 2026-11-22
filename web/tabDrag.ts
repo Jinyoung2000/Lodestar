@@ -3,9 +3,6 @@ import { useSyncExternalStore } from "react";
 import { dropMarkAt } from "./tabDropMark";
 import { copyTabToGroup, copyTabToNewGroup, getState, moveTabToGroup, moveTabToNewGroup } from "./store";
 
-// 오른쪽 패널 탭을 끌어서 순서를 바꾸고 다른 에디터 그룹으로 옮긴다. HTML 끌어놓기가 아니라 포인터 이벤트로 직접 만든다(창구로 합성한 마우스 입력으로도 같게 움직이고, 놓을 자리를 직접 그려야 해서다).
-// 놓을 곳은 셋이다: 탭줄(마우스 아래 탭 앞), 그룹 본문 가운데(그 그룹 맨 끝), 그룹 본문 가장자리(그 방향에 새 그룹).
-
 export type DropTarget =
   | { kind: "strip"; group: string; beforeKey: string | null; x: number; top: number; height: number }
   | { kind: "body"; group: string }
@@ -14,7 +11,6 @@ export type DropTarget =
 export type TabDrag = { key: string; label: string; x: number; y: number; target: DropTarget | null; copy: boolean };
 
 const THRESHOLD = 4;
-// 본문 가장자리로 치는 비율. 가운데 절반은 그 그룹으로 옮기기다.
 const EDGE = 0.25;
 
 let drag: TabDrag | null = null;
@@ -22,7 +18,6 @@ const listeners = new Set<() => void>();
 
 function set(next: TabDrag | null) {
   drag = next;
-  // 끄는 동안 글자 선택과 webview 가 포인터를 가로채지 않게 한다(styles.css 의 data-tab-dragging)
   document.body.toggleAttribute("data-tab-dragging", next !== null);
   for (const listener of listeners) listener();
 }
@@ -37,7 +32,6 @@ export function useTabDrag() {
   );
 }
 
-// 탭을 누른 채 THRESHOLD 이상 움직이면 끌기가 시작된다. 그 전에 떼면 평범한 클릭이다.
 export function beginTabDrag(event: ReactPointerEvent, key: string, label: string) {
   if (event.button !== 0) return;
   const startX = event.clientX;
@@ -63,7 +57,6 @@ export function beginTabDrag(event: ReactPointerEvent, key: string, label: strin
     if (!started) return;
     const target = drag?.target ?? null;
     set(null);
-    // 끌기 끝에 따라오는 click 은 탭을 누른 것으로 치지 않는다
     const swallow = (e: Event) => {
       e.stopPropagation();
       e.preventDefault();
@@ -79,7 +72,6 @@ export function beginTabDrag(event: ReactPointerEvent, key: string, label: strin
       e.stopPropagation();
       finish(false);
     } else if (e.key === "Alt" && started && copy !== (e.type === "keydown")) {
-      // 끄는 도중 ⌥ 를 눌렀다 떼면 복사 표시도 따라 바뀐다
       copy = e.type === "keydown";
       set({ key, label, x: last.x, y: last.y, target: drag?.target ?? null, copy });
     }
@@ -126,5 +118,4 @@ function commitDrop(key: string, target: DropTarget, copy: boolean) {
   else (copy ? copyTabToNewGroup : moveTabToNewGroup)(key, target.group, target.side === "left" || target.side === "right" ? "row" : "column", target.side === "left" || target.side === "top");
 }
 
-// 탭줄에 같이 있는 고정 칸 탭(Changes, Files)은 에디터 탭이 아니다. 탭 키가 곧 그 이름이다.
 const isPinnedSlot = (key: string) => key === "changes" || key === "files" || key === "card";

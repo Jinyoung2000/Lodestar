@@ -1,4 +1,3 @@
-// TS 안 graphql 태그 템플릿을 GraphQL 문법으로 읽는지(web/graphqlEmbed.ts) 시험. 실행: npm test
 import { highlightTree } from "@lezer/highlight";
 import { refineJavascript, syntaxHighlighters } from "../web/editorSyntax";
 import { loadGraphqlParser } from "../web/graphqlEmbed";

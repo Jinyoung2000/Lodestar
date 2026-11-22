@@ -6,9 +6,6 @@ import { KeychainError, keyStoreFor, validKeyShape, type KeyStore } from "./line
 import { ISSUE_QUERY, ISSUES_QUERY, MAX_PAGE_SIZE, META_QUERIES, PAGE_SIZE, parseIssue, parseMeta, parseViewer, UPDATE_ISSUE_MUTATION, VIEWER_QUERY, type MetaRaw } from "./linearQueries";
 import { requireConfirmed } from "./pr";
 
-// LINEAR: Linear 연동의 RPC 핸들러. 읽기는 캐시하고(meta 10분, 이슈 목록 30초, 연결 상태 1분), 쓰기는 상태와 우선순위 두 가지뿐이다.
-// 쓰기와 키 변경은 화면이 사용자의 클릭으로 보낸 confirmed: true 가 있어야 하고(server/pr.ts 와 같은 규칙), 세션의 모델에게 주는 도구나 모바일 허용 목록(shared/mobile.ts)에는 없다.
-
 export const META_TTL_MS = 10 * 60_000;
 export const ISSUES_TTL_MS = 30_000;
 export const STATUS_TTL_MS = 60_000;
@@ -21,12 +18,10 @@ export type LinearDeps = {
   api?: LinearApi;
   keys?: KeyStore;
   now?: () => number;
-  // 세션의 Linear 표지를 바꾸고 화면에 알린다(index.ts 가 store.patchAgent 와 broadcast 로 채운다).
   setAgentIssue: (agentId: string, issue: LinearIssueRef | null) => void;
   log?: (line: string) => void;
 };
 
-// 값이 TTL 안이면 그대로, 아니면 loader 를 한 번만 불러 같이 기다린다. 실패는 저장하지 않는다.
 class TtlCache<T> {
   private readonly values = new Map<string, { at: number; value: T }>();
   private readonly pending = new Map<string, Promise<LinearResult<T>>>();
@@ -86,13 +81,11 @@ export function linearHandlers(deps: LinearDeps): Handlers {
       const org = result.data.organization;
       return { ok: true, data: { connected: true, viewer, organization: org && typeof org.name === "string" && typeof org.urlKey === "string" ? { name: org.name, urlKey: org.urlKey } : null } };
     };
-    // 저장 전 확인(keyOverride)은 캐시를 거치지 않는다.
     const result = keyOverride ? await load() : await statusCache.get("status", force, load);
     note("status", result);
     return result.ok ? result.data : { connected: false, error: result.error };
   };
 
-  // 여러 쪽짜리 메타 목록 하나를 끝까지(최대 MAX_META_PAGES 쪽) 읽는다.
   const readAll = async (query: string, field: string): Promise<LinearResult<unknown[]>> => {
     const nodes: unknown[] = [];
     let after: string | null = null;
@@ -132,7 +125,6 @@ export function linearHandlers(deps: LinearDeps): Handlers {
       requireConfirmed(params);
       const key = typeof params.key === "string" ? params.key.trim() : "";
       if (!validKeyShape(key)) return { connected: false, error: { kind: "invalidKey", message: "That does not look like a Linear API key. Create one under Settings, Account, Security & access in Linear." } };
-      // 먼저 이 키로 viewer 를 읽어 보고, 통과한 키만 저장한다.
       const status = await readStatus(true, key);
       if (!status.connected) return status;
       try {
@@ -217,7 +209,6 @@ export function linearHandlers(deps: LinearDeps): Handlers {
         if (!reply.ok) return reply;
         const issue = parseIssue(reply.data.issueUpdate?.issue);
         if (!reply.data.issueUpdate?.success || !issue) return fail("server", "Linear did not apply the change.");
-        // 바꾼 뒤 30초 동안 옛 상태가 보이지 않게 이슈 캐시를 비운다.
         pageCache.clear();
         issueCache.clear();
         return { ok: true, data: issue } as LinearResult<LinearIssue>;

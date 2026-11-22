@@ -40,7 +40,6 @@
   color: inherit;
 }
 
-/* 심볼 아이콘: symbolIcon.*Foreground 기본색 */
 .breadcrumb-symbol {
   display: inline-flex;
   align-items: center;
@@ -60,7 +59,6 @@
   color: var(--symbol-variable);
 }
 
-/* 형제 목록. 조각 아래 8px, 위로 향한 화살표, 배경 breadcrumbPicker.background, 1px widget.border, 모서리 3px, box-shadow 는 shadow-lg */
 .breadcrumb-picker {
   position: fixed;
   z-index: 50;
@@ -96,7 +94,6 @@
   color: var(--fg-muted);
 }
 
-/* 행: 높이 22px, 들여쓰기 한 단계 8px, 접는 화살표 칸 16px */
 .breadcrumb-row {
   box-sizing: border-box;
   display: flex;

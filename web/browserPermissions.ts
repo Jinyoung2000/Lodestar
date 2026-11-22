@@ -28,7 +28,6 @@ const BY_ELECTRON: Record<string, PermissionCategory> = {
 
 export const isAlwaysAllowed = (permission: string) => ALWAYS_ALLOWED.has(permission);
 
-// Electron 권한 이름 하나가 어느 범주들에 걸리는지. media 는 요청한 종류(video, audio)에 따라 camera 와 microphone 이고, 종류를 모르면 둘 다다. 모르는 권한은 빈 목록(거절).
 export function categoriesFor(permission: string, mediaTypes?: readonly string[]): PermissionCategory[] {
   if (permission === "media") {
     const found = new Set<PermissionCategory>();
@@ -39,7 +38,6 @@ export function categoriesFor(permission: string, mediaTypes?: readonly string[]
   return category ? [category] : [];
 }
 
-// 권한을 묻는 주소의 origin. http 와 https 만 관리한다(그 밖은 빈 글).
 export function permissionOrigin(url: string): string {
   try {
     const parsed = new URL(url);
@@ -58,7 +56,6 @@ export class PermissionStore {
     return this.data.get(origin)?.get(category);
   }
 
-  // 지금 이 범주를 허용하는가(기록이 있으면 그것, 없으면 기본값).
   isAllowed(origin: string, category: PermissionCategory): boolean {
     return (this.getDecision(origin, category) ?? PERMISSION_DEFAULTS[category]) === "allow";
   }
@@ -67,7 +64,6 @@ export class PermissionStore {
     return this.getDecision(origin, category) ?? PERMISSION_DEFAULTS[category];
   }
 
-  // state 가 null 이면 기록을 지워 기본값으로 되돌린다.
   set(origin: string, category: PermissionCategory, state: PermissionDecision | null) {
     if (!origin) return;
     if (state === null) {
@@ -81,7 +77,6 @@ export class PermissionStore {
     this.data.set(origin, entries);
   }
 
-  // 요청 하나의 판정. allow 면 허용, deny 면 거절, ask 면 사용자에게 물어야 한다(범주가 여럿이면 어느 것이든 거절이 우선).
   decide(origin: string, categories: readonly PermissionCategory[]): "allow" | "deny" | "ask" {
     if (!origin || categories.length === 0) return "deny";
     if (categories.every((c) => this.isAllowed(origin, c))) return "allow";
@@ -95,7 +90,6 @@ export class PermissionStore {
     return out;
   }
 
-  // 저장된 값에서 모르는 범주와 값은 버린다.
   hydrate(raw: unknown) {
     this.data.clear();
     if (!raw || typeof raw !== "object") return;

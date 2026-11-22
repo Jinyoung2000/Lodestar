@@ -1,5 +1,3 @@
-// FBRETRY: 검사에서 떨어진 피드백의 검사만 다시 돌려 반영하는 흐름 단독 시험(임시 git 저장소와 임시 홈, 모델 호출 없음).
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -71,7 +69,6 @@ async function until(runner: Runner, id: string, done: (status: string) => boole
   throw new Error(`timed out at ${runner.get(id).status}`);
 }
 
-// 개선 세션이 web/ui.txt 를 고친 뒤 턴이 끝난 상태까지 만든다.
 async function failedAtCheck(runner: Runner, edit: (worktree: string) => void) {
   const feedback = await runner.create({ text: "change the ui text", element: null, screenshot: null, screenshotNote: null });
   writeFileSync(join(feedback.worktree, "web/ui.txt"), "after\n");
@@ -90,7 +87,6 @@ const rejects = (fn: () => unknown) => {
   }
 };
 
-// 1. 본 작업 폴더의 시험 데이터가 깨져 있어 떨어졌다가, 본 작업 폴더를 고친 뒤 Retry 로 반영된다.
 {
   const src = sourceRepo("src1", "broken");
   const { runner, notices } = harness(src.dir);
@@ -122,7 +118,6 @@ const rejects = (fn: () => unknown) => {
   check("an applied feedback cannot be retried", rejects(() => runner.retryChecks(id)) !== null);
 }
 
-// 2. 원인을 worktree 안에서 고쳐도(개선 세션의 후속 수정) Retry 가 그 파일까지 반영한다.
 {
   const src = sourceRepo("src2", "broken");
   const { runner } = harness(src.dir);
@@ -133,7 +128,6 @@ const rejects = (fn: () => unknown) => {
   check("a fix made inside the worktree is applied with the feedback", src.read("test/data.txt") === "ok" && src.read("web/ui.txt") === "after\n");
 }
 
-// 3. 본 작업 폴더도 같은 줄을 고쳤으면 병합이 못 합쳐 충돌로 실패하지만, 검사를 한 번 돌린 피드백이라 Retry 대상이다.
 {
   const src = sourceRepo("src3", "broken");
   const { runner } = harness(src.dir);
@@ -151,7 +145,6 @@ const rejects = (fn: () => unknown) => {
   check("retry after the conflicting edit is gone applies", src.read("web/ui.txt") === "after\n" && src.read("test/data.txt") === "ok");
 }
 
-// 4. 거절: 검사 전에 멈춘 것, 세션이 아직 도는 것, worktree 가 없는 것.
 {
   const src = sourceRepo("src4", "broken");
   const { runner, setAgentStatus } = harness(src.dir);

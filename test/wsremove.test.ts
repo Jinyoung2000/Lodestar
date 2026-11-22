@@ -1,4 +1,3 @@
-// WSMENU: 폴더를 목록에서 뺄 때 세션을 지우지 않고 숨기는지, 도는 세션이 있으면 거절하는지, 다시 추가하면 돌아오는지. 데몬도 모델도 필요 없다. 실행: npm test
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,7 +42,6 @@ test("프로세스가 떠 있는(warm) 세션의 폴더를 빼도 오류 없이 
   const emitted: unknown[] = [];
   const runner = new AgentRunner(store, (event) => emitted.push(event));
   let closed = 0;
-  // 한 번 턴을 돌린 세션은 프로세스를 들고 있다. 실제 SDK 대신 닫힘만 세는 가짜를 넣는다.
   (runner as unknown as { runs: Map<string, unknown> }).runs.set("warm-1", { closed: false, stopWatch: null, idleTimer: null, input: { close: () => closed++ }, query: { close: () => closed++ }, steers: new Set() });
   const { agents } = store.removeFolderFromList(ws.id);
   for (const agent of agents) runner.closeIdle(agent.id);

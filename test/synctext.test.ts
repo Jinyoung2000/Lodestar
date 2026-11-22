@@ -1,4 +1,3 @@
-// 제목줄 Sync 확인창 문구(web/strings.ts 의 syncConfirm*) 단독 시험. 실행: npm test
 import { S } from "../web/strings";
 
 const cases: { name: string; run: () => string }[] = [];

@@ -1,25 +1,21 @@
 import { randomUUID } from "node:crypto";
 import type { Agent, CodexMeta, CodexModelInfo, EffortLevel, PermissionDecision, QueuedMessage, ServerEvent, TimelineItem, TurnChanges, UserAttachment } from "../../shared/protocol";
 import { EFFORT_LEVELS } from "../../shared/protocol";
-import { CODEX_FALLBACK_MODE, codexPermission } from "../../shared/codexPermission";
+import { CODEX_FALLBACK_MODE, codexPermission, codexSessionConfig, withWritableRoots } from "../../shared/codexPermission";
 import { isDirectory } from "../cwdWatch";
 import { imagePath } from "../images";
+import { chatGuidance, sessionEnv } from "../sessionEnv";
 import type { Store } from "../store";
 import { T } from "../strings";
 import { AppServer, AppServerError, CODEX_BIN } from "./appServer";
 import { commandApproval, fileChangeApproval, itemToTimeline, planToTool, summarizeDiff, turnErrorOf } from "./mapping";
 import type { CodexApprovalDecision, CodexPlanStep, CodexThreadItem, CodexTokenUsage, CodexTurn } from "./types";
 
-// CODEX: Codex 세션 실행기. AgentRunner 가 harness 가 codex 인 세션의 send, interrupt, 승인 응답 등을 여기로 넘긴다.
-// 데몬 하나에 앱 서버 프로세스 하나를 공유하고(server/codex/appServer.ts), 스레드는 threadId 로 구분한다.
-// 타임라인과 상태 갱신은 AgentRunner 와 같은 저장소와 이벤트를 쓰되, 그 쪽 훅(보드, 변경 장부)은 host 로 받아 쓴다.
-
 export type CodexHost = {
   store: Store;
   emit: (event: ServerEvent) => void;
   upsert: (agentId: string, item: TimelineItem) => void;
   setStatus: (agentId: string, status: Agent["status"]) => void;
-  // 턴 시작과 끝에서 보드 훅, 변경 장부(세션 범위와 Last Turn)를 돌린다
   turnStarted: (agentId: string) => void;
   turnEnded: (agentId: string) => void;
   turnChanges: (agentId: string) => Promise<TurnChanges | undefined>;
@@ -27,7 +23,6 @@ export type CodexHost = {
   noteBash: (agentId: string) => void;
   recordBeforeEdit: (agentId: string, toolName: string, input: Record<string, unknown>) => Promise<unknown>;
   recordAfterEdit: (agentId: string, toolName: string, input: Record<string, unknown>) => Promise<unknown>;
-  // 정상 종료한 턴 뒤에 큐의 다음 메시지를 보낸다
   sendQueued: (agentId: string, next: QueuedMessage) => void;
   idleLimitMs: () => number;
 };
@@ -38,14 +33,13 @@ type PendingApproval = { requestId: string | number; itemId: string; decide: (de
 type Session = {
   agentId: string;
   threadId: string | null;
-  // 이 데몬이 띄운 앱 서버 프로세스에서 스레드가 열려 있는가. 앱 서버가 다시 뜨면 false 가 되고 다음 전송이 thread/resume 한다.
   loaded: boolean;
   turnId: string | null;
+  completing: boolean;
   active: boolean;
   interrupted: boolean;
   interruptRequested: boolean;
   cwd: string;
-  // 이 턴에서 받은 항목(파일 변경 승인 카드를 item/started 때의 변경으로 만든다)
   items: Map<string, CodexThreadItem>;
   text: Map<string, string>;
   thinking: Map<string, string[]>;
@@ -60,8 +54,21 @@ type Session = {
 };
 
 const INTERRUPT_GRACE_MS = 10_000;
+const STEER_TIMEOUT_MS = 10_000;
 const META_TTL_MS = 5 * 60_000;
 const IDLE_CLOSE_ENV_MS = Number(process.env.AGENT_NAV_IDLE_CLOSE_MS) || 0;
+
+type PromptDisplay = { display?: string; attachments?: UserAttachment[] };
+
+function promptInput(prompt: string, shown: PromptDisplay) {
+  return [
+    { type: "text", text: prompt, text_elements: [] },
+    ...(shown.attachments ?? []).flatMap((attachment) => {
+      const path = attachment.kind === "image" ? imagePath(attachment.id) : null;
+      return path ? [{ type: "localImage", path }] : [];
+    }),
+  ];
+}
 
 export class CodexRunner {
   private server: AppServer | null = null;
@@ -73,17 +80,10 @@ export class CodexRunner {
 
   constructor(private host: CodexHost) {}
 
-  // --- 공개 진입점 (AgentRunner 가 harness 로 나눠 부른다) ---
-
   isActive(agentId: string) {
     return this.sessions.get(agentId)?.active === true;
   }
 
-  willQueue(agentId: string) {
-    return this.isActive(agentId);
-  }
-
-  // 도는 턴과 승인 대기 수. 데몬을 재시작해도 되는지 판단할 때 센다(AgentRunner.activeCount).
   activeCount() {
     let count = 0;
     for (const session of this.sessions.values()) if (session.active) count += 1 + session.approvals.size;
@@ -102,13 +102,11 @@ export class CodexRunner {
     return this.sessions.get(agentId)?.approvals.has(itemId) === true;
   }
 
-  // 사용자가 보낸 메시지로 턴을 시작한다. 앞의 턴이 아직 도는 중이면 호출하는 쪽이 큐에 넣는다.
-  async startTurn(agentId: string, prompt: string, shown: { display?: string; attachments?: UserAttachment[] } = {}) {
+  async startTurn(agentId: string, prompt: string, shown: PromptDisplay = {}) {
     const agent = this.host.store.agent(agentId);
     const session = this.sessionOf(agent);
-    const shownFields = { ...(shown.display !== undefined ? { shown: shown.display } : {}), ...(shown.attachments?.length ? { attachments: shown.attachments } : {}) };
-    // 아래 await 전에 active 를 올려서 그 사이에 오는 send 가 큐로 가게 한다
     session.active = true;
+    session.completing = false;
     session.interrupted = false;
     session.interruptRequested = false;
     session.errorShown = false;
@@ -120,12 +118,10 @@ export class CodexRunner {
     session.turnDiff = null;
     session.cwd = agent.cwd;
     this.cancelIdle();
-    // 아래 await 전에 사용자 말풍선과 running 상태를 올린다. 서버를 띄우는 동안에도 화면이 바로 응답 중으로 보이고, 그 사이에 오는 send 는 큐로 간다.
-    this.host.upsert(agentId, { id: randomUUID(), kind: "user", text: prompt, source: "user", at: new Date().toISOString(), ...shownFields });
+    this.recordPrompt(agentId, prompt, shown);
     if (agent.unread || agent.done) this.host.store.patchAgent(agentId, { unread: false, done: false });
     this.host.setStatus(agentId, "running");
     this.host.turnStarted(agentId);
-    // 앱 서버가 어떤 도구를 쓸지 미리 알 수 없어서, 턴이 끝날 때 작업 폴더의 변경을 이 세션 몫으로 귀속하게 표시한다(Bash 와 같은 규칙).
     this.host.noteBash(agentId);
     if (!(await isDirectory(agent.cwd))) {
       this.host.upsert(agentId, { id: randomUUID(), kind: "error", text: T.errWorkingDirectoryGone(agent.cwd), auth: false });
@@ -137,38 +133,55 @@ export class CodexRunner {
     try {
       const server = await this.ensureServer();
       const threadId = await this.ensureThread(server, session, agent, permission);
-      const input = [
-        { type: "text", text: prompt, text_elements: [] },
-        ...(shown.attachments ?? []).flatMap((a) => {
-          const path = a.kind === "image" ? imagePath(a.id) : null;
-          return path ? [{ type: "localImage", path }] : [];
-        }),
-      ];
       const response = await server.request<{ turn?: CodexTurn }>("turn/start", {
         threadId,
-        input,
+        input: promptInput(prompt, shown),
         cwd: agent.cwd,
         approvalPolicy: permission.approvalPolicy,
         approvalsReviewer: permission.approvalsReviewer,
-        sandboxPolicy: permission.sandboxPolicy,
+        sandboxPolicy: withWritableRoots(permission.sandboxPolicy, this.host.store.extraDirs(agent)),
         ...(agent.model ? { model: agent.model } : {}),
         ...(agent.effort ? { effort: agent.effort } : {}),
       });
-      if (response.turn?.id && !session.turnId) session.turnId = response.turn.id;
+      if (response.turn?.id && !session.turnId && !session.completing) session.turnId = response.turn.id;
       if (session.interruptRequested && session.turnId) void this.interruptTurn(session);
     } catch (error) {
       this.failStart(session, error);
     }
   }
 
+  async steer(agentId: string, prompt: string, shown: PromptDisplay): Promise<boolean> {
+    const session = this.sessions.get(agentId);
+    const server = this.server;
+    if (!session?.active || session.interrupted || session.completing || !session.threadId || !session.turnId || !server || server.closed) return false;
+    const expectedTurnId = session.turnId;
+    try {
+      await server.request("turn/steer", { threadId: session.threadId, expectedTurnId, input: promptInput(prompt, shown) }, STEER_TIMEOUT_MS);
+    } catch (error) {
+      if (error instanceof AppServerError && /no active turn|expected active turn id|active turn already ended/i.test(error.message)) return false;
+      throw error;
+    }
+    if (this.sessions.get(agentId) === session) this.recordPrompt(agentId, prompt, shown);
+    return true;
+  }
+
+  private recordPrompt(agentId: string, prompt: string, shown: PromptDisplay) {
+    this.host.upsert(agentId, {
+      id: randomUUID(),
+      kind: "user",
+      text: prompt,
+      source: "user",
+      at: new Date().toISOString(),
+      ...(shown.display !== undefined ? { shown: shown.display } : {}),
+      ...(shown.attachments?.length ? { attachments: shown.attachments } : {}),
+    });
+  }
+
   async interrupt(agentId: string) {
     const session = this.sessions.get(agentId);
     if (!session?.active) return;
-    // 승인을 기다리는 요청은 취소로 답해야 서버가 멈춘 채 기다리지 않는다
     for (const pending of [...session.approvals.values()]) pending.decide("cancel");
     session.interrupted = true;
-    // 중단한 턴의 turn/completed 가 오지 않으면 강제로 끝낸다.
-    // 중단 요청을 보내기 전에 건다: 앱 서버가 답하지 않으면 아래 await 가 끝나지 않아 타이머가 영영 안 걸리고 세션이 응답 중으로 남는다. 중단을 두 번 눌러도 타이머는 하나만 둔다.
     if (session.interruptTimer) clearTimeout(session.interruptTimer);
     session.interruptTimer = setTimeout(() => {
       if (!session.active || !session.interrupted) return;
@@ -177,7 +190,6 @@ export class CodexRunner {
     }, INTERRUPT_GRACE_MS);
     session.interruptTimer.unref();
     if (!session.threadId || !session.turnId) {
-      // 스레드를 만드는 중이거나 turn/start 응답 전이다. 응답이 오는 대로 끊는다.
       session.interruptRequested = true;
     } else {
       await this.interruptTurn(session);
@@ -191,17 +203,11 @@ export class CodexRunner {
     pending.decide(decision === "allow" ? "accept" : decision === "allowAlways" ? "acceptForSession" : "decline");
   }
 
-  // 세션을 지울 때: 도는 턴을 끊고 앱 서버가 이 스레드를 더 이상 구독하지 않게 한다. Codex 쪽 기록(~/.codex/sessions)은 지우지 않는다.
   async remove(agentId: string) {
     const session = this.sessions.get(agentId);
     if (!session) return;
     await this.interrupt(agentId);
-    if (session.interruptTimer) clearTimeout(session.interruptTimer);
-    if (session.threadId) {
-      this.byThread.delete(session.threadId);
-      if (session.loaded && this.server && !this.server.closed) void this.server.request("thread/unsubscribe", { threadId: session.threadId }).catch(() => undefined);
-    }
-    this.sessions.delete(agentId);
+    this.dropThread(session);
   }
 
   closeAll() {
@@ -212,20 +218,16 @@ export class CodexRunner {
     this.starting = null;
   }
 
-  // 데몬이 응답 중에 끝났던 세션을 끊긴 것으로 표시할 때 쓰는 문구
   cutOffText() {
     return T.daemonStoppedMidReplyCodex;
   }
 
-  // 모델 목록, 로그인 상태, config.toml 기본값. 앱 서버를 한 번 띄워 읽고 몇 분 캐시한다.
   async meta(refresh = false): Promise<CodexMeta> {
     if (!refresh && this.metaCache && Date.now() - this.metaCache.at < META_TTL_MS) return this.metaCache.meta;
     const meta = await this.readMeta();
     this.metaCache = { at: Date.now(), meta };
     return meta;
   }
-
-  // --- 앱 서버 ---
 
   private ensureServer(): Promise<AppServer> {
     if (this.server && !this.server.closed) return Promise.resolve(this.server);
@@ -261,7 +263,6 @@ export class CodexRunner {
     }
   }
 
-  // 마지막 턴이 끝나고 한동안 쓰지 않으면 앱 서버를 닫는다(Claude 쪽 유휴 프로세스와 같은 한도). 다음 전송이 thread/resume 으로 이어 간다.
   private armIdle() {
     this.cancelIdle();
     const limit = IDLE_CLOSE_ENV_MS || this.host.idleLimitMs();
@@ -281,16 +282,19 @@ export class CodexRunner {
     this.idleTimer = null;
   }
 
-  // --- 스레드 ---
-
   private sessionOf(agent: Agent): Session {
     let session = this.sessions.get(agent.id);
+    if (session && !session.active && session.threadId !== (agent.codexThreadId ?? null)) {
+      this.dropThread(session);
+      session = undefined;
+    }
     if (!session) {
       session = {
         agentId: agent.id,
         threadId: agent.codexThreadId ?? null,
         loaded: false,
         turnId: null,
+        completing: false,
         active: false,
         interrupted: false,
         interruptRequested: false,
@@ -313,14 +317,25 @@ export class CodexRunner {
     return session;
   }
 
-  // 스레드를 열어 둔다. 저장된 threadId 가 있으면 resume, 없거나 resume 이 실패하면 새로 시작한다.
+  private dropThread(session: Session) {
+    if (session.interruptTimer) clearTimeout(session.interruptTimer);
+    if (session.threadId) {
+      this.byThread.delete(session.threadId);
+      if (session.loaded && this.server && !this.server.closed) void this.server.request("thread/unsubscribe", { threadId: session.threadId }).catch(() => undefined);
+    }
+    this.sessions.delete(session.agentId);
+  }
+
   private async ensureThread(server: AppServer, session: Session, agent: Agent, permission: NonNullable<ReturnType<typeof codexPermission>>): Promise<string> {
     if (session.loaded && session.threadId) return session.threadId;
+    const guidance = chatGuidance(agent, this.host.store.workspaces, { explicitId: false });
     const common = {
       cwd: agent.cwd,
       approvalPolicy: permission.approvalPolicy,
       approvalsReviewer: permission.approvalsReviewer,
       sandbox: permission.sandbox,
+      config: codexSessionConfig(sessionEnv(agent.id)),
+      ...(guidance ? { developerInstructions: guidance } : {}),
       ...(agent.model ? { model: agent.model } : {}),
     };
     let response: { thread?: { id?: string }; model?: string; reasoningEffort?: string | null } | null = null;
@@ -353,7 +368,6 @@ export class CodexRunner {
   private async interruptTurn(session: Session) {
     if (!this.server || this.server.closed || !session.threadId || !session.turnId) return;
     try {
-      // 답하지 않는 앱 서버를 끝없이 기다리지 않는다(세션 삭제가 이 응답을 기다린다)
       await this.server.request("turn/interrupt", { threadId: session.threadId, turnId: session.turnId }, INTERRUPT_GRACE_MS);
     } catch (error) {
       console.error("[codex] turn/interrupt failed", error);
@@ -368,8 +382,6 @@ export class CodexRunner {
     this.host.upsert(session.agentId, { id: randomUUID(), kind: "error", text: auth ? T.codexNotLoggedIn : text, auth });
     this.finishTurn(session, "error");
   }
-
-  // --- 알림 ---
 
   private sessionByThread(threadId: unknown): Session | null {
     const agentId = typeof threadId === "string" ? this.byThread.get(threadId) : undefined;
@@ -409,7 +421,6 @@ export class CodexRunner {
         return;
       }
       case "item/commandExecution/outputDelta": {
-        // 실행 중인 명령의 출력은 도는 동안 도구 항목의 output 에 쌓인다
         const id = String(params.itemId);
         const current = this.currentTool(session.agentId, id);
         if (current && current.status === "running") this.host.upsert(session.agentId, { ...current, output: `${current.output ?? ""}${String(params.delta ?? "")}`.slice(-20_000) });
@@ -437,13 +448,11 @@ export class CodexRunner {
       case "error":
         return this.onTurnError(session, params);
       case "serverRequest/resolved": {
-        // 서버가 요청을 스스로 닫았다(턴이 끝나거나 중단됨). 카드가 남아 있으면 거절로 정리한다.
         const resolved = [...session.approvals.values()].find((p) => p.requestId === params.requestId);
         resolved?.decide("cancel");
         return;
       }
       case "turn/completed":
-        // 턴 요약을 만드는 사이 세션이 지워지면 뒤의 상태 갱신이 던진다. 잡지 않은 거절은 데몬을 죽인다.
         return void this.onTurnCompleted(session, params.turn as CodexTurn).catch((error) => console.error("[codex] turn end failed", error));
       default:
         return;
@@ -465,7 +474,6 @@ export class CodexRunner {
     session.items.set(item.id, item);
     if (item.type === "fileChange") {
       const mapped = itemToTimeline(item, phase, this.mapContext(session));
-      // 변경 장부: 파일을 쓰기 전 내용을 기준으로 남기고(started), 쓴 뒤 해시를 맞춘다(completed)
       for (const tool of mapped) {
         if (tool.kind !== "tool") continue;
         if (phase === "started") void this.host.recordBeforeEdit(agentId, tool.name, tool.input).catch(() => undefined);
@@ -475,7 +483,6 @@ export class CodexRunner {
       return;
     }
     if (item.type === "agentMessage" && phase === "completed") session.text.delete(item.id);
-    // 완료된 도구는 도는 동안 쌓은 출력을 완료 값(aggregatedOutput 이 전체다)으로 덮는다. 어시스턴트 글에는 응답 아래 줄에 보일 모델을 단다.
     const model = this.host.store.agent(agentId).activeModel;
     for (const next of itemToTimeline(item, phase, this.mapContext(session))) {
       this.host.upsert(agentId, next.kind === "assistant" && phase === "completed" && model ? { ...next, model } : next);
@@ -494,7 +501,6 @@ export class CodexRunner {
   }
 
   private onTurnError(session: Session, params: Record<string, unknown>) {
-    // 서버가 다시 시도하는 오류는 보이지 않는다
     if (params.willRetry === true) return;
     const { text, auth } = turnErrorOf(params.error as CodexTurn["error"]);
     session.errorShown = true;
@@ -502,10 +508,12 @@ export class CodexRunner {
   }
 
   private async onTurnCompleted(session: Session, turn: CodexTurn | undefined) {
-    if (!session.active) return;
+    if (!session.active || session.completing || (session.turnId && turn?.id && session.turnId !== turn.id)) return;
+    session.completing = true;
     if (session.interruptTimer) clearTimeout(session.interruptTimer);
     session.interruptTimer = null;
     const agentId = session.agentId;
+    const turnId = session.turnId;
     const status = turn?.status ?? "completed";
     const interrupted = status === "interrupted" || session.interrupted;
     this.settleTools(session, interrupted);
@@ -518,8 +526,7 @@ export class CodexRunner {
     const waited = session.approvalWaitMs;
     session.approvalWaitMs = 0;
     const changes = (await this.host.turnChanges(agentId)) ?? (session.turnDiff ? summarizeDiff(session.turnDiff, session.cwd) : undefined);
-    // 요약을 만드는 사이 세션이 지워졌으면(remove) 여기서 멈춘다. 이어 가면 지워진 세션의 타임라인 파일이 다시 생기고 상태 갱신이 던진다.
-    if (this.sessions.get(agentId) !== session) return;
+    if (this.sessions.get(agentId) !== session || !session.active || !session.completing || session.turnId !== turnId) return;
     const tokens = Math.max(0, session.tokenNow - session.tokenBase);
     session.tokenBase = session.tokenNow;
     this.host.upsert(agentId, {
@@ -534,7 +541,6 @@ export class CodexRunner {
     this.finishTurn(session, status === "failed" ? "error" : "ok");
   }
 
-  // 글이 중간에서 끊긴 스트리밍 항목을 확정으로 바꾼다
   private closeDrafts(session: Session) {
     for (const [id, text] of session.text) this.host.upsert(session.agentId, { id, kind: "assistant", text, streaming: false, at: new Date().toISOString() });
     session.text.clear();
@@ -561,7 +567,6 @@ export class CodexRunner {
     session.approvals.clear();
     session.approvalSince = null;
     this.closeDrafts(session);
-    // 중단과 오류로 끝난 턴도 변경 장부를 마무리한다(정상 종료는 turnChanges 가 이미 마무리했다)
     void this.host.finishTouch(agentId).catch((error) => console.error("[codex] change ledger not closed", error));
     if (outcome === "interrupted") this.host.upsert(agentId, { id: randomUUID(), kind: "notice", text: T.stopped });
     this.host.setStatus(agentId, outcome === "error" ? "error" : "idle");
@@ -573,8 +578,6 @@ export class CodexRunner {
     if (next) this.host.sendQueued(agentId, next);
   }
 
-  // --- 서버가 보낸 요청 (승인) ---
-
   private onRequest(id: number | string, method: string, params: Record<string, unknown>): Promise<unknown> {
     const session = this.sessionByThread(params.threadId);
     switch (method) {
@@ -582,7 +585,6 @@ export class CodexRunner {
       case "item/fileChange/requestApproval":
         return session ? this.askApproval(session, id, method, params) : Promise.resolve({ decision: "decline" });
       case "item/permissions/requestApproval":
-        // 샌드박스 밖 네트워크와 파일 접근 요청. 1단계에서는 받지 않고 알린다.
         if (session) this.host.upsert(session.agentId, { id: randomUUID(), kind: "notice", text: T.codexExtraPermission });
         return Promise.resolve({ permissions: {}, scope: "turn" });
       case "item/tool/requestUserInput":
@@ -592,7 +594,6 @@ export class CodexRunner {
         if (session) this.host.upsert(session.agentId, { id: randomUUID(), kind: "notice", text: T.codexElicitation(String(params.serverName ?? "MCP")) });
         return Promise.resolve({ action: "decline", content: null, _meta: null });
       default:
-        // ChatGPT 토큰 갱신(account/chatgptAuthTokens/refresh), attestation 등은 Lodestar 가 토큰을 다루지 않으므로 거절한다
         return Promise.reject(new Error(`Unsupported request: ${method}`));
     }
   }
@@ -603,7 +604,6 @@ export class CodexRunner {
     const isCommand = method === "item/commandExecution/requestApproval";
     const card = isCommand ? commandApproval(requestId, params, itemId) : fileChangeApproval(requestId, params, session.items.get(itemId), session.cwd);
     if (isCommand && !this.currentTool(agentId, itemId)) {
-      // 시작 알림보다 요청이 먼저 오는 경우를 대비해 도구 항목을 만든다
       this.host.upsert(agentId, { id: itemId, kind: "tool", name: "Bash", input: { command: String(card.input.command ?? "") }, status: "running", output: null });
     }
     this.host.upsert(agentId, card);
@@ -624,8 +624,6 @@ export class CodexRunner {
       session.approvals.set(card.id, { requestId, itemId, decide });
     });
   }
-
-  // --- 메타 ---
 
   private async readMeta(): Promise<CodexMeta> {
     const base: CodexMeta = { installed: true, version: null, loggedIn: false, account: null, models: [], defaultModel: null, defaultEffort: null, error: null, fetchedAt: new Date().toISOString() };
@@ -657,7 +655,6 @@ export class CodexRunner {
       const effort = config.config?.model_reasoning_effort;
       base.defaultEffort = effort && (EFFORT_LEVELS as string[]).includes(effort) ? (effort as EffortLevel) : null;
     } catch {
-      // config.toml 을 못 읽어도 모델 목록은 쓸 수 있다
     }
     this.armIdle();
     return base;

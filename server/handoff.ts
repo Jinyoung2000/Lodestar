@@ -9,13 +9,10 @@ import { HOME } from "./store";
 import { T } from "./strings";
 import { spawnInGroup } from "./processGroups";
 
-// HANDOFF: 지금 세션의 기록으로 새 세션에 건넬 인계 문서를 만든다.
-// 원 세션을 resume 하되 forkSession 으로 갈라서 읽기만 하고(persistSession: false 라 새 기록 파일도 만들지 않는다), 도구 없이 한 번 답하게 한다. 원 세션의 기록 파일은 바뀌지 않는다(.verify 시험으로 크기와 수정 시각을 비교).
 export const HANDOFF_DIR = join(HOME, "handoffs");
 const TIMEOUT_MS = 180_000;
 const ID_PATTERN = /^[a-z0-9]+-[a-f0-9]{6}$/;
 
-// 문서는 사용자가 이 대화에서 쓴 언어로 쓰게 한다. 섹션 이름도 그 언어로 옮긴다.
 export const HANDOFF_SYSTEM_PROMPT = [
   "You write handoff documents for coding sessions. You can see the whole conversation so far, and you answer without using any tool.",
   "Write only what the conversation supports. If something was not verified, say it was not verified. Never invent file paths, commands or results.",
@@ -34,12 +31,9 @@ export const HANDOFF_PROMPT = [
   "Keep every section short. Leave a section's body as a single dash when there is nothing to say.",
 ].join("\n");
 
-// 문서를 만드는 질문은 도구 없이 대화만 보므로, Source Control 패널이나 터미널에서 만든 커밋은 대화에 없다(dogfood 2회차 10번).
-// 그래서 지금 작업 폴더의 git 상태를 읽어 질문 끝에 붙이고, 대화와 다르면 이쪽이 맞다고 알려 준다.
 const GIT_LOG_COUNT = 5;
 const GIT_STATUS_LINES = 30;
 
-// sessionFiles 는 이 세션의 에이전트가 만진 파일(서버의 장부, 상대 경로). 아래 폴더 전체의 git 상태에는 다른 세션과 사용자의 변경이 섞여 있어서, 이 세션 것을 따로 알려 준다.
 export async function gitStateBlock(cwd: string, sessionFiles: string[] | null = null): Promise<string | null> {
   const run = (args: string[]) => gitOps.git(cwd, args).then((out) => out.trim(), () => null);
   if ((await run(["rev-parse", "--git-dir"])) === null) return null;
@@ -78,7 +72,6 @@ export async function generateHandoff(agent: Agent, sessionFiles: string[] | nul
       options: {
         cwd: agent.cwd,
         env: claudeEnv(),
-        // 이 세션이 지금 쓰는 모델(마지막 턴에서 실제로 쓰인 것)로 쓴다
         model: agent.activeModel ?? agent.model ?? undefined,
         resume: agent.sessionId,
         resumeSessionAt: agent.resumeAt ?? undefined,
@@ -130,11 +123,9 @@ export function readHandoff(id: string): { id: string; text: string; path: strin
   }
 }
 
-// 칩에서 고친 문서. 이미 만들어진 문서만 덮어쓴다(새 id 를 만들지 않는다).
 export function saveHandoff(id: string, text: string) {
   readHandoff(id);
   if (typeof text !== "string") throw new Error(T.errHandoffEmpty);
-  // 사용자가 고친 글을 덮어쓰는 자리라 임시 파일에 쓴 뒤 바꾼다(도중에 끊겨도 반쪽 문서가 남지 않는다).
   const tmp = `${handoffPath(id)}.${process.pid}.tmp`;
   writeFileSync(tmp, text);
   renameSync(tmp, handoffPath(id));

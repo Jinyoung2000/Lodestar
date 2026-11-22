@@ -1,6 +1,3 @@
-// split diff 의 덩어리 Keep, Undo 가 inline(unifiedMergeView 의 acceptChunk, rejectChunk)과 같은 결과를 내는지 확인한다. 데몬도 DOM 도 필요 없다.
-// 같은 (기준, 현재) 쌍에서 덩어리마다 양쪽 방식을 돌려 기준 문서와 현재 문서를 비교한다.
-// 실행: npm test
 import { acceptChunk, Chunk, getChunks, getOriginalDoc, rejectChunk, unifiedMergeView } from "@codemirror/merge";
 import { ChangeSet, EditorState, Text, type TransactionSpec } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
@@ -15,7 +12,6 @@ const expect = (condition: boolean, detail: string) => {
 };
 
 
-// acceptChunk, rejectChunk 는 view.state 와 view.dispatch 만 쓴다. DOM 없이 EditorState 를 직접 갱신하는 가짜 view 를 쓴다.
 function inlineView(original: string, current: string) {
   const view = {
     state: EditorState.create({ doc: current, extensions: [unifiedMergeView({ original, mergeControls: false, diffConfig: DIFF_CONFIG })] }),
@@ -26,7 +22,6 @@ function inlineView(original: string, current: string) {
   return view;
 }
 
-// inline: 덩어리 index 번째를 처리한 뒤의 [기준, 현재]
 function runInline(original: string, current: string, index: number, action: ChunkAction): [string, string] {
   const view = inlineView(original, current);
   const chunk = getChunks(view.state)!.chunks[index];
@@ -35,7 +30,6 @@ function runInline(original: string, current: string, index: number, action: Chu
   return [getOriginalDoc(view.state).toString(), view.state.doc.toString()];
 }
 
-// split: 같은 덩어리를 chunkEdit 로 처리한 뒤의 [기준, 현재]
 function runSplit(original: string, current: string, index: number, action: ChunkAction): [string, string] {
   const a = Text.of(original.split("\n"));
   const b = Text.of(current.split("\n"));
@@ -84,7 +78,6 @@ const PAIRS: [string, string, string][] = [
 ];
 for (const [name, original, current] of PAIRS) test(`Keep and Undo of each chunk match inline: ${name}`, () => `${compare(original, current)} chunks`);
 
-// 시드를 고정한 무작위 쌍 400개. 줄 몇 개를 지우고, 바꾸고, 끼워 넣고, 끝 줄바꿈을 바꾼다.
 test("Keep and Undo of each chunk match inline on 400 random pairs", () => {
   let seed = 20261014;
   const random = () => {
@@ -109,8 +102,6 @@ test("Keep and Undo of each chunk match inline on 400 random pairs", () => {
   return `${total} chunks checked`;
 });
 
-// 긴 블록을 끼워 넣고 그 뒤 줄 하나를 고치면 git 처럼 "블록 추가" 와 "그 줄 수정" 두 덩어리다.
-// 글자 단위 비교가 scanLimit 에서 끊기면 블록 뒤의 같은 줄(return, JSX 머리)까지 지웠다 다시 쓴 한 덩어리로 묶였다(2026-11-02 app-webview 화면).
 test("A long inserted block before an edited line splits into an insertion and a modification, like git", () => {
   const head = ["const a = 1", "", "return (", "  <Screen", "    noBorder", "    appBar={{", "      title: 'old',", "    }}", "  />", ")"];
   const block = Array.from({ length: 30 }, (_, i) => `  const field${i} = { key: 'k${i}', title: '제목 ${i}', value: value${i} ?? empty }`);
@@ -124,7 +115,6 @@ test("A long inserted block before an edited line splits into an insertion and a
   return lines.join(", ");
 });
 
-// 덩어리를 하나씩 Keep 하면 기준이 현재와 같아지고, 하나씩 Undo 하면 현재가 기준과 같아진다 (같은 결과로 끝난다).
 test("Keeping every chunk one by one makes the base equal the current text, undoing makes the current equal the base", () => {
   const original = "1\n2\n3\n4\n5\n6\n7\n8\n";
   const current = "1\nTWO\n3\n4.5\n5\n6\n8\nnine\n";
@@ -144,7 +134,6 @@ test("Keeping every chunk one by one makes the base equal the current text, undo
   return "ok";
 });
 
-// 새 파일의 덩어리를 Undo 하면 본문이 비고 그 변경은 "revert" 사용자 이벤트다. 이때만 파일을 지우고, 사용자가 직접 비운 것은 지우지 않는다.
 test("Undoing the only chunk of a new file removes the file, but emptying it by hand does not", () => {
   const original = "";
   const current = "export const a = 1;\nexport const b = 2;\n";

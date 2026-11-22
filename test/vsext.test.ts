@@ -36,7 +36,6 @@ const agent = (id: string, over: Partial<Agent> = {}): Agent => ({
   updatedAt: "2026-10-15T11:00:00Z",
   ...over,
 });
-// /tmp 가 /private/tmp 로 풀리는 것처럼 심볼릭 링크를 흉내 낸다.
 const real = (path: string) => path.replace(/^\/link\//, "/p/");
 
 const workspaces = [ws("main", "/p/app"), ws("wt", "/p/app.worktrees/feat", "main"), ws("other", "/p/other"), ws("fb", "/p/app", null, true)];
@@ -134,7 +133,6 @@ test("호스트 출처: VS Code webview 만 인정", () => {
 const THEME_VARS: Record<string, Record<string, string>> = {
   dark: { "--vscode-editor-background": "#1f1f1f", "--vscode-foreground": "#cccccc", "--vscode-descriptionForeground": "#9d9d9d", "--vscode-input-background": "#313131", "--vscode-input-border": "#3c3c3c", "--vscode-focusBorder": "#0078d4", "--vscode-button-background": "#0078d4", "--vscode-button-foreground": "#ffffff", "--vscode-textLink-foreground": "#4daafc", "--vscode-editorWidget-background": "#202020", "--vscode-list-hoverBackground": "#2a2d2e", "--vscode-list-inactiveSelectionBackground": "#37373d" },
   light: { "--vscode-editor-background": "#ffffff", "--vscode-foreground": "#3b3b3b", "--vscode-descriptionForeground": "#717171", "--vscode-input-background": "#ffffff", "--vscode-input-border": "#cecece", "--vscode-focusBorder": "#005fb8", "--vscode-button-background": "#005fb8", "--vscode-button-foreground": "#ffffff", "--vscode-textLink-foreground": "#005fb8", "--vscode-editorWidget-background": "#f8f8f8", "--vscode-list-hoverBackground": "#f2f2f2", "--vscode-list-inactiveSelectionBackground": "#e4e6f1" },
-  // 고대비는 일부 변수가 비어 있다(값 없음은 기본 토큰을 쓴다)
   hc: { "--vscode-editor-background": "#000000", "--vscode-foreground": "#ffffff", "--vscode-focusBorder": "#f38518", "--vscode-button-background": "#000000", "--vscode-button-foreground": "#ffffff", "--vscode-textLink-foreground": "#21a6ff" },
 };
 
@@ -171,7 +169,6 @@ function runPanelScript(initial: string) {
 }
 
 const lastColors = (messages: { type: string; colors?: EmbedColors }[]) => messages.filter((m) => m.type === "agent-nav:colors").at(-1)?.colors;
-// 웹이 토큰에 덮은 값을 읽는다.
 function tokensFor(colors: EmbedColors | undefined) {
   const set = new Map<string, string>();
   applyHostColors({ style: { setProperty: (name, value) => void set.set(name, value), removeProperty: (name) => (set.delete(name), "") } }, colors ?? {});
@@ -215,12 +212,9 @@ test("색 값은 CSS 색 모양만 받는다", () => {
   return expect(good && !bad, `good=${good} bad=${bad}`);
 });
 
-// 흉내 낸 테마 변수 표를 역할 이름으로 바꾼다(webview 스크립트가 하는 일과 같다).
 function THEME_VARS_COLORS(name: string): EmbedColors {
   return Object.fromEntries(Object.entries(EMBED_COLORS).flatMap(([role, { vscode }]) => (THEME_VARS[name][vscode] ? [[role, THEME_VARS[name][vscode]]] : [])));
 }
-
-// --- 사이드바 Chat 뷰: 화면 목록(chatState)과 webview 문서(chatHtml) ---
 
 const frame = (id: string, over: Partial<Frame> = {}): Frame => ({ key: `agent:${id}`, agentId: id, workspaceId: null, src: `src-${id}`, ...over });
 const draft = (workspaceId: string): Frame => ({ key: `draft:${workspaceId}`, agentId: null, workspaceId, src: `draft-${workspaceId}` });
@@ -294,7 +288,6 @@ test("선택 영역 첨부 대상: 포커스 있는 패널 > 설정이 정한 �
 
 type FakeFrame = { src: string; hidden: boolean; removed: boolean; focused: boolean; sets: number; sent: { type: string; theme?: string }[]; contentWindow: { postMessage: (m: { type: string; theme?: string }) => void }; remove: () => void; focus: () => void };
 
-// chatHtml 의 스크립트를 가짜 문서에서 돌린다. 확장 -> 문서 메시지는 host(), iframe -> 문서 메시지는 fromFrame(), 문서 -> 확장은 posted 에 쌓인다.
 function runChatScript() {
   const html = chatHtml({ nonce: "N0NCE", origin: "http://127.0.0.1:7788", theme: "dark" });
   const script = /<script nonce="N0NCE">([\s\S]*?)<\/script>/.exec(html)?.[1] ?? "";

@@ -1,25 +1,31 @@
-import { harnessOf, type Agent, type Harness, type HarnessSeen, type TimelineItem } from "./protocol";
+import { HARNESS_VALUES, harnessOf, type Agent, type Harness, type HarnessSeen, type TimelineItem } from "./protocol";
 
 export const CARRY_MAX_CHARS = 48_000;
 export const CARRY_MESSAGE_MAX_CHARS = 8_000;
 export const CARRY_MAX_FILES = 100;
 
-export const HARNESS_NAMES: Record<Harness, string> = { claude: "Claude", codex: "Codex" };
+export const HARNESS_NAMES: Record<Harness, string> = { claude: "Claude", codex: "Codex", antigravity: "Antigravity" };
 
 export type SwitchBlock = "running" | "background" | "waiting" | "notion" | "feedback" | "imported";
 
 type SwitchDivider = Extract<TimelineItem, { kind: "notice" }> & { switched: Harness };
-type CarryAgent = Pick<Agent, "harness" | "sessionId" | "resumeFrom" | "codexThreadId" | "seenThrough" | "cwd">;
+type CarryAgent = Pick<Agent, "harness" | "sessionId" | "resumeFrom" | "codexThreadId" | "seenThrough" | "cwd"> & Partial<Pick<Agent, "antigravitySessionId">>;
 
 export const otherHarness = (harness: Harness): Harness => (harness === "claude" ? "codex" : "claude");
+
+export const otherHarnesses = (harness: Harness): Harness[] => HARNESS_VALUES.filter((value) => value !== harness);
 
 export function isSwitchDivider(item: TimelineItem): item is SwitchDivider {
   return item.kind === "notice" && item.switched !== undefined;
 }
 
+export function lastSwitchDividerId(items: readonly TimelineItem[]): string | null {
+  return items.findLast(isSwitchDivider)?.id ?? null;
+}
+
 export function harnessAtStart(items: readonly TimelineItem[], current: Harness): Harness {
   const first = items.find(isSwitchDivider);
-  return first ? otherHarness(first.switched) : current;
+  return first ? (first.switchedFrom ?? otherHarness(first.switched)) : current;
 }
 
 function lastIndexWhere(items: readonly TimelineItem[], match: (item: TimelineItem) => boolean, before = items.length) {
@@ -28,7 +34,10 @@ function lastIndexWhere(items: readonly TimelineItem[], match: (item: TimelineIt
 }
 
 export function hasOwnMemory(agent: CarryAgent): boolean {
-  return harnessOf(agent) === "codex" ? !!agent.codexThreadId : !!(agent.sessionId ?? agent.resumeFrom);
+  const harness = harnessOf(agent);
+  if (harness === "codex") return !!agent.codexThreadId;
+  if (harness === "antigravity") return !!agent.antigravitySessionId;
+  return !!(agent.sessionId ?? agent.resumeFrom);
 }
 
 export function carryStart(items: readonly TimelineItem[], agent: CarryAgent): number {
@@ -46,9 +55,9 @@ export function carryAfterCut(kept: readonly TimelineItem[], seen: HarnessSeen |
   const toClaude = lastIndexWhere(kept, (item) => isSwitchDivider(item) && item.switched === "claude");
   if (toClaude === -1) return {};
   if (kept.slice(toClaude + 1).some((item) => item.kind === "user")) return { carryPending: false };
-  const toCodex = lastIndexWhere(kept, (item) => isSwitchDivider(item) && item.switched === "codex", toClaude);
+  const leftClaude = lastIndexWhere(kept, (item) => isSwitchDivider(item) && item.switched !== "claude", toClaude);
   const { claude: _claude, ...rest } = seen ?? {};
-  return { carryPending: true, seenThrough: toCodex === -1 ? rest : { ...rest, claude: kept[toCodex].id } };
+  return { carryPending: true, seenThrough: leftClaude === -1 ? rest : { ...rest, claude: kept[leftClaude].id } };
 }
 
 export function remapSeen(seen: HarnessSeen | undefined, mapId: (id: string) => string): HarnessSeen | undefined {
@@ -58,7 +67,7 @@ export function remapSeen(seen: HarnessSeen | undefined, mapId: (id: string) => 
 
 export function checkpointLocked(items: readonly TimelineItem[], harness: Harness): Set<string> {
   const locked = new Set<string>();
-  const until = harness === "codex" ? items.length : lastIndexWhere(items, (item) => isSwitchDivider(item) && item.switched === "claude");
+  const until = harness !== "claude" ? items.length : lastIndexWhere(items, (item) => isSwitchDivider(item) && item.switched === "claude");
   for (let i = 0; i < until; i++) if (items[i].kind === "user") locked.add(items[i].id);
   return locked;
 }
@@ -109,9 +118,13 @@ export function carryTranscript(items: readonly TimelineItem[], agent: CarryAgen
     }
   });
   if (!entries.length && !files.size) return null;
+  const lastDivider = items.findLast(isSwitchDivider);
+  const intro = lastDivider?.movedFrom
+    ? `The text between these tags is the earlier conversation of this session. It started as a chat without a project folder (in ${lastDivider.movedFrom}), and the user moved it into this folder (${agent.cwd}), so you start fresh here and these turns are not in your memory. You are ${HARNESS_NAMES[current]}.`
+    : `The text between these tags is the earlier conversation of the same task in this folder (${agent.cwd}). You are ${HARNESS_NAMES[current]}. The user switched this session to you, and these turns are not in your memory.`;
   const head = [
     "<earlier-conversation>",
-    `The text between these tags is the earlier conversation of the same task in this folder (${agent.cwd}). You are ${HARNESS_NAMES[current]}. The user switched this session to you, and these turns are not in your memory. Replies labelled Claude or Codex came from that tool. Treat this as background, not as a new request. The user's new message follows after the closing tag.`,
+    `${intro} Replies labelled with a tool name (${HARNESS_VALUES.map((value) => HARNESS_NAMES[value]).join(", ")}) came from that tool. Treat this as background, not as a new request. The user's new message follows after the closing tag.`,
   ].join("\n");
   const fileList = [...files].slice(0, CARRY_MAX_FILES).map(([path, n]) => `- ${relativeTo(agent.cwd, path)} (+${n.additions} -${n.deletions})`);
   const fileBlock = fileList.length ? `Files changed in these turns:\n${fileList.join("\n")}${files.size > CARRY_MAX_FILES ? `\n- ... ${files.size - CARRY_MAX_FILES} more` : ""}` : "";

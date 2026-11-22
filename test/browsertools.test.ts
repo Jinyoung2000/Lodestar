@@ -1,5 +1,3 @@
-// 에이전트의 Browser 도구(server/browserBridge.ts, server/browserTools.ts): 공유된 탭에만 닿고, 다른 세션과 공유 안 된 탭은 거절하며, 페이지 내용은 믿을 수 없는 데이터로 표시한다.
-// 화면 쪽 공유 목록(web/browserHost.ts)과 타임라인 문구(web/browserToolLabels.ts)도 함께 본다. 실행: npm test
 import type { BrowserSharedPage, ServerMessage } from "../shared/protocol";
 import { BrowserBridge, type BridgeClient } from "../server/browserBridge";
 import { browserMcpServer, browserToolNeedsApproval, fileUrlInside, isBrowserToolName, listBrowserPages, openBrowserPage, runBrowserTool } from "../server/browserTools";
@@ -13,7 +11,6 @@ const expect = (condition: boolean, detail: string) => {
   return detail;
 };
 
-// 보낸 이벤트를 모아 두는 가짜 연결
 const fakeClient = () => {
   const sent: { event: { type: string; id: string; agentId: string; pageId: string; tool: string; args: Record<string, unknown> } }[] = [];
   const client: BridgeClient & { sent: typeof sent } = { sent, send: (text) => sent.push(JSON.parse(text) as ServerMessage as never) };

@@ -9,16 +9,11 @@ import { spawnInGroup } from "./processGroups";
 import { HOME, type Store } from "./store";
 import { T } from "./strings";
 
-// 아침 할 일 리뷰의 데몬 쪽. 보드와 세션의 상태를 모아 모델을 한 번 부르고, 결과를 ~/.agent-nav/reviews/YYYY-MM-DD.json(화면용)과 .md(사본)로 남긴다.
-// 언제 돌지는 shared/morningReview.ts 의 reviewDue 가 정하고, 여기는 1분마다 그 판정을 부른다. 자동 실행 기록은 reviews/state.json 에 있어서 데몬이 다시 떠도 하루에 한 번만 만든다.
 export const REVIEW_DIR = join(HOME, "reviews");
 const TIMEOUT_MS = 180_000;
 const TICK_MS = 60_000;
 const FIRST_TICK_MS = 5_000;
 const FALLBACK_MODEL = "sonnet";
-// 모델 호출 한 번이 쓸 수 있는 턴. 구조화 출력(json_schema)은 SDK 안에서 StructuredOutput 도구 호출이라 답 한 번이 이미 2턴으로 세어지고(result.num_turns=2),
-// 모델이 첫 호출을 스키마에 맞지 않게 내면 SDK 가 고쳐 쓰라고 한 턴을 더 돈다. 한도가 1이면 haiku 에서 그 재시도가 "Reached maximum number of turns (1)" 로 막혔다(2026-10-21 12번 중 2번).
-// 도구가 하나도 없어서 여유를 둬도 늘어나는 건 재시도뿐이다.
 const MAX_TURNS = 4;
 
 export type ReviewModelRequest = { prompt: string; model: string | undefined; signal: AbortSignal };
@@ -32,9 +27,7 @@ export type ReviewDeps = {
   store: ReviewStoreView;
   board: ReviewBoardView;
   emit: (event: ServerEvent) => void;
-  // 카드가 옮겨졌다는 알림 (보드 화면 갱신)
   boardChanged: () => void;
-  // 자동 실행을 막는 곳(시험 인스턴스). 수동 실행은 막지 않는다.
   autoBlocked?: () => boolean;
   modelName?: () => string | undefined;
   model?: ReviewModelRun;
@@ -68,7 +61,6 @@ export class MorningReviewService {
     return { running: this.running, startedAt: this.startedAt, error: this.error, reviews: this.reviews, unreadDate: this.ledger.unreadDate };
   }
 
-  // 데몬이 뜨고 5초 뒤(저장소가 다 올라온 뒤)와 그 뒤 1분마다 때가 됐는지 본다. 앱이 꺼져 있다가 켜지거나 맥이 깨어나면 첫 판정에서 그날 것을 만든다.
   start() {
     const first = setTimeout(() => this.tick(), FIRST_TICK_MS);
     const every = setInterval(() => this.tick(), TICK_MS);
@@ -89,7 +81,6 @@ export class MorningReviewService {
     if (trigger) void this.run(trigger);
   }
 
-  // 리뷰를 만든다. 실패는 던지지 않고 state().error 에 담는다 (화면이 이벤트로 받는다). 이미 만드는 중이면 던진다.
   async run(trigger: ReviewTrigger): Promise<ReviewState> {
     if (this.running) throw new Error(T.errReviewRunning);
     const now = this.now();
@@ -98,7 +89,6 @@ export class MorningReviewService {
     this.startedAt = now.toISOString();
     this.error = null;
     if (trigger !== "manual") {
-      // 시도는 모델을 부르기 전에 기록한다: 부르는 도중에 데몬이 죽어도 다시 떠서 무한히 되풀이하지 않는다.
       this.ledger = { ...this.ledger, attemptDate: date, attempts: (this.ledger.attemptDate === date ? this.ledger.attempts : 0) + 1, lastAttemptAt: now.getTime() };
       this.saveLedger();
     }
@@ -140,14 +130,11 @@ export class MorningReviewService {
     } finally {
       clearTimeout(timer);
     }
-    // 모델이 돌려준 시점의 보드로 읽는다: 기다리는 동안 사용자가 카드를 옮겼거나 지웠을 수 있다.
     const parsed = parseReview(result.structured ?? result.text, input, board.get(), store.agents);
     if (!parsed.summary && REVIEW_SECTIONS.every((s) => parsed.items[s].length === 0)) throw new Error(T.errReviewEmpty);
     return { ...base, model, empty: null, summary: parsed.summary, items: parsed.items, costUsd: result.costUsd };
   }
 
-  // 이동 제안을 적용한다. cardIds 가 null 이면 아직 적용하지 않은 제안 전부. 카드는 목적지 열의 끝으로 간다.
-  // 만든 뒤 사용자가 카드를 다른 열로 옮겼거나 지웠으면 건너뛰고, 이미 목적지에 있으면 손대지 않고 적용된 것으로 표시한다.
   apply(date: string, cardIds: string[] | null): { review: ReviewState; applied: number; skipped: number } {
     const review = this.reviews.find((r) => r.date === date);
     if (!review) throw new Error(T.errReviewUnknown);
@@ -193,7 +180,6 @@ export class MorningReviewService {
     this.deps.emit({ type: "review", review: this.state() });
   }
 
-  // 메모리 목록(최근 7일, 최신순)과 날짜 파일 두 개를 갱신한다.
   private keep(review: MorningReview) {
     const others = this.reviews.filter((r) => r.date !== review.date);
     this.reviews = [review, ...others].sort((a, b) => b.date.localeCompare(a.date)).slice(0, REVIEW_LIMITS.keepDays);
@@ -210,7 +196,6 @@ export class MorningReviewService {
         const review = sanitizeReview(JSON.parse(readFileSync(join(this.dir, name), "utf8")), name.slice(0, 10));
         if (review) out.push(review);
       } catch {
-        // 읽을 수 없는 날은 건너뛴다 (파일은 그대로 둔다)
       }
     }
     return out;
@@ -245,7 +230,6 @@ function writeAtomic(path: string, text: string) {
   renameSync(tmp, path);
 }
 
-// 디스크의 리뷰는 믿지 않고 모양을 다시 맞춘다. 날짜가 파일 이름과 다르거나 모양이 틀리면 버린다.
 export function sanitizeReview(raw: unknown, date: string): MorningReview | null {
   const r = raw as Partial<MorningReview> | null;
   if (!r || typeof r !== "object" || r.date !== date || typeof r.generatedAt !== "string") return null;
@@ -283,8 +267,6 @@ export function sanitizeReview(raw: unknown, date: string): MorningReview | null
   };
 }
 
-// 모델 호출 한 번. 도구도, MCP 서버도, 설정 파일과 훅도 없고 대화 기록도 남기지 않는다(server/mentionJudge.ts 와 같은 격리).
-// 구조화 출력(json_schema)이 있으면 그것을, 없으면 답 글을 돌려주고 읽는 쪽(parseReview)이 JSON 을 꺼낸다.
 export async function runReviewModel(request: ReviewModelRequest): Promise<ReviewModelResult> {
   const q = query({
     prompt: request.prompt,
@@ -293,7 +275,6 @@ export async function runReviewModel(request: ReviewModelRequest): Promise<Revie
       env: claudeEnv(),
       model: request.model,
       maxTurns: MAX_TURNS,
-      // 보이지 않는 생각 토큰을 끈다: 보드 한 개 리뷰에서 haiku 가 생각에만 1만 토큰 넘게 쓰고(100초), 끄면 700 토큰(9초)이었다. 데이터를 추려 쓰는 일이라 생각이 필요하지 않다.
       thinking: { type: "disabled" },
       tools: [],
       allowedTools: [],
@@ -324,7 +305,6 @@ export async function runReviewModel(request: ReviewModelRequest): Promise<Revie
       } else failure = message.subtype === "success" ? message.result : message.subtype;
     }
   } catch (error) {
-    // SDK 는 오류 결과를 먼저 흘려보낸 뒤 반복자를 던진다. 이유는 위의 결과가 이미 알려 줬으니 그걸 쓴다.
     if (failure === null) throw error;
   } finally {
     q.close();
@@ -337,10 +317,8 @@ export async function runReviewModel(request: ReviewModelRequest): Promise<Revie
   return { structured, text, costUsd };
 }
 
-// error_max_turns 같은 SDK 결과 이름은 화면에 올리지 않는다. 로그인 만료나 요금 한도처럼 모델이 글로 알려 준 이유는 그대로 둔다.
 export const reviewFailureText = (failure: string) => (/^error_[a-z_]+$/.test(failure) ? T.errReviewModel : failure);
 
-// 호출자의 중단 신호를 SDK 가 받는 AbortController 로 잇는다
 function abortOf(signal: AbortSignal): AbortController {
   const controller = new AbortController();
   if (signal.aborted) controller.abort();

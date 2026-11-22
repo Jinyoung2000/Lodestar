@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// CODEX: 시험용 가짜 Codex 앱 서버. `codex app-server` 의 stdio JSON-RPC(JSONL) 프로토콜 중 Lodestar 가 쓰는 부분만 흉내 낸다.
-// 실제 프로토콜은 `codex app-server generate-ts` (0.163.0) 로 확인했고, 알림과 요청의 모양은 그 바인딩과 실제 서버 응답을 따른다.
-// 시나리오는 프롬프트 안의 표지로 고른다: [stream] [cmd] [patch] [patch2] [slow] [fail] [plan] [mcp] [ask] (표지가 없으면 한 줄 답).
-// 환경 변수: FAKE_CODEX_LOG(받은 요청을 JSONL 로 남길 파일), FAKE_CODEX_STATE(스레드 목록을 두는 폴더), FAKE_CODEX_LOGGED_OUT=1(로그인 안 된 계정), FAKE_CODEX_CRASH=1(첫 턴에서 비정상 종료)
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -35,7 +31,7 @@ const MODELS = [
 
 let counter = 0;
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${++counter}`;
-const active = new Map(); // threadId -> { turnId, interrupted, wake }
+const active = new Map();
 
 const turnObject = (id, status, extra = {}) => ({ id, rootTurnId: id, items: [], itemsView: "notLoaded", status, error: null, startedAt: Math.floor(Date.now() / 1000), completedAt: null, durationMs: null, ...extra });
 
@@ -44,7 +40,6 @@ rl.on("line", (line) => {
   if (!line.trim()) return;
   const message = JSON.parse(line);
   if (message.method === undefined) {
-    // 서버 요청에 대한 클라이언트의 답
     const resolve = waiting.get(message.id);
     if (resolve) {
       waiting.delete(message.id);
@@ -53,7 +48,7 @@ rl.on("line", (line) => {
     return;
   }
   log({ method: message.method, params: message.params });
-  if (message.id === undefined) return; // initialized 같은 알림
+  if (message.id === undefined) return;
   void handle(message).catch((error) => write({ id: message.id, error: { code: -32603, message: String(error?.message ?? error) } }));
 });
 
@@ -102,7 +97,6 @@ async function handle({ id, method, params }) {
   }
 }
 
-// 사용자가 보낸 글에서 표지를 찾는다
 const promptOf = (params) => params.input.map((i) => (i.type === "text" ? i.text : "")).join("\n");
 
 async function pause(state, ms) {
@@ -192,7 +186,6 @@ async function runTurn(params, state) {
   };
 
   if (prompt.includes("[crashed]")) {
-    // 이어 가기 시험용: 프로세스를 죽인 뒤 같은 스레드가 resume 되는지 본다
   }
 
   await reasoning();
@@ -200,7 +193,6 @@ async function runTurn(params, state) {
 
   if (prompt.includes("[slow]")) {
     await say("Working on it. ".repeat(4), 8);
-    // 끝나지 않는 명령: 시작만 알리고 중단될 때까지 둔다(중단하면 turn/completed 의 interrupted 로 닫힌다)
     const id = uid("cmd");
     notify("item/started", { threadId, turnId, startedAtMs: Date.now(), item: { type: "commandExecution", id, pluginId: null, scriptPath: null, command: "/bin/zsh -lc \"sleep 30\"", cwd, processId: null, source: "agent", status: "inProgress", commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null } });
     while (!state.interrupted) await pause(state, 100);
@@ -248,5 +240,4 @@ function finish(threadId, turnId, status, startedAt) {
   notify("turn/completed", { threadId, turn: turnObject(turnId, status, { completedAt: Math.floor(Date.now() / 1000), durationMs: Date.now() - startedAt, error: status === "failed" ? { message: "The model hit a fixture error", codexErrorInfo: "other", additionalDetails: null, misalignment: null } : null }) });
 }
 
-// 시작 직후 실제 서버처럼 상관없는 알림을 하나 보낸다(클라이언트가 모르는 알림을 무시해야 한다)
 notify("remoteControl/status/changed", { status: "disabled", serverName: "fixture", installationId: "fixture", environmentId: null });

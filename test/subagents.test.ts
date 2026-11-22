@@ -1,5 +1,3 @@
-// SUB: 서브에이전트 현황(server/subagents.ts 의 순수 조각과 AgentRunner 의 메시지 처리). 모델은 부르지 않는다. 실행: npm test
-// 메시지 모양은 실제 SDK 출력(.verify/ctx-spike.mts 로 haiku 에게 Agent 도구를 쓰게 해서 찍은 순서)을 따른다.
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,7 +25,6 @@ const expect = (condition: boolean, detail: string) => {
 const NOW = "2026-10-15T12:00:00.000Z";
 const LATER = "2026-10-15T12:00:09.000Z";
 const tool = (patch: Partial<ToolItem> = {}): ToolItem => ({ id: "T1", kind: "tool", name: "Agent", input: { description: "Read a.txt", subagent_type: "general-purpose", run_in_background: true }, status: "running", output: null, task: sub.newTask({ description: "Read a.txt", subagent_type: "general-purpose", run_in_background: true }, NOW), ...patch });
-// SDK 메시지는 필요한 필드만 만든다(task_* 의 uuid, session_id 는 쓰지 않는다)
 const started = { type: "system", subtype: "task_started", task_id: "a1", tool_use_id: "T1", description: "Read a.txt word", subagent_type: "general-purpose", is_backgrounded: true, task_type: "local_agent" } as never;
 const progress = { type: "system", subtype: "task_progress", task_id: "a1", tool_use_id: "T1", description: "Reading /tmp/a.txt", subagent_type: "general-purpose", usage: { total_tokens: 24038, tool_uses: 1, duration_ms: 1476 }, last_tool_name: "Read" } as never;
 const notification = (status: "completed" | "failed" | "stopped", summary = "ALPHA\n\nThe file has one line.") => ({ type: "system", subtype: "task_notification", task_id: "a1", tool_use_id: "T1", status, output_file: "/x", summary, usage: { total_tokens: 29647, tool_uses: 1, duration_ms: 5084 } }) as never;
@@ -119,8 +116,6 @@ test("mainFlow, groupTurns: 서브에이전트가 부른 도구는 대화의 단
   return expect(shared.mainFlow(items).length === 3 && shared.runningBackground(items).length === 1, "mainFlow keeps user, Agent row, assistant; the Agent row is still a running background task");
 });
 
-// --- AgentRunner: 실제 SDK 메시지 순서를 흘려 넣는다 ---
-
 const dir = join(home, "work");
 mkdirSync(dir, { recursive: true });
 let seq = 0;
@@ -143,7 +138,6 @@ function harness() {
 
 test("흐름: 백그라운드 서브에이전트가 턴이 끝난 뒤에도 돌다가 알림으로 끝난다", async () => {
   const h = harness();
-  // 1. 메인 응답이 Agent 를 부른다(백그라운드)
   await h.feed({ type: "assistant", parent_tool_use_id: null, uuid: "m1", message: { model: "claude-haiku-5-5", usage: { input_tokens: 2, cache_read_input_tokens: 22530, cache_creation_input_tokens: 4367, output_tokens: 17 }, content: [{ type: "tool_use", id: "T1", name: "Agent", input: { description: "Read a.txt", subagent_type: "general-purpose", run_in_background: true } }] } });
   expect(h.item("T1")?.task?.status === "running" && h.item("T1")?.task?.backgrounded === true, "task at tool_use");
   await h.feed(started);
@@ -152,11 +146,9 @@ test("흐름: 백그라운드 서브에이전트가 턴이 끝난 뒤에도 돌�
   expect(h.item("T1")?.status === "done" && h.item("T1")?.task?.status === "running", "launch result keeps task running");
   expect(shared.runningBackground(h.items()).length === 1, "chip counts 1");
 
-  // 메인 턴이 끝난다(서브에이전트는 계속 돈다)
   await h.feed({ type: "assistant", parent_tool_use_id: null, uuid: "m2", message: { model: "claude-haiku-5-5", usage: { input_tokens: 2, cache_read_input_tokens: 26486, cache_creation_input_tokens: 7637, output_tokens: 4 }, content: [{ type: "text", text: "launched" }] } });
   await h.feed({ type: "result", subtype: "success", is_error: false, num_turns: 1, duration_ms: 500, total_cost_usd: 0, uuid: "r1", user_message_uuids: [], queued_turn_count: 0 });
   expect(h.run.active === false && h.store.agent(h.id).status === "idle", `turn ended (active=${h.run.active})`);
-  // 2. 서브에이전트가 도구를 부른다. 메인 턴은 이미 끝나 있어(run.active false) 이 프레임들이 새 턴을 열면 안 된다.
   await h.feed({ type: "assistant", parent_tool_use_id: "T1", uuid: "c1", message: { model: "claude-haiku-5-5", usage: { input_tokens: 2, cache_read_input_tokens: 18374, cache_creation_input_tokens: 5642, output_tokens: 16 }, content: [{ type: "tool_use", id: "C1", name: "Read", input: { file_path: "/tmp/a.txt" } }] } });
   await h.feed(progress);
   await h.feed({ type: "user", parent_tool_use_id: "T1", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "C1", content: "1\talpha file: contains the word ALPHA\n2\t" }] } });
@@ -166,13 +158,11 @@ test("흐름: 백그라운드 서브에이전트가 턴이 끝난 뒤에도 돌�
   expect(h.item("T1")?.task?.toolUses === 1 && h.item("T1")?.task?.tokens === 24038, "progress usage");
   expect(h.store.agent(h.id).contextUsage === undefined || h.store.agent(h.id).contextUsage?.used !== 18374 + 5642 + 2, "child usage is not the session context");
 
-  // 3. 알림으로 끝난다
   await h.feed(notification("completed"));
   const t = h.item("T1")!.task!;
   expect(t.status === "completed" && t.summary === "ALPHA", JSON.stringify(t));
   expect(shared.runningBackground(h.items()).length === 0, "chip count back to 0");
   expect(h.items().some((i) => i.kind === "notice" && i.text.includes("ALPHA")), "notice kept");
-  // 4. 모든 변화가 이벤트로 나갔다
   const upserts = h.events.filter((e) => e.type === "timelineUpsert" && e.item.kind === "tool" && e.item.id === "T1").length;
   return expect(upserts >= 5, `${upserts} upserts of the Agent row`);
 });

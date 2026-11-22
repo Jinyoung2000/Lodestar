@@ -4,12 +4,8 @@ import { join } from "node:path";
 import { byRecent, isNoteId, noteMatches, notePreviewOf, noteTitleOf, NOTE_MAX_CHARS, type Note, type NoteDoc } from "../shared/notes";
 import { T } from "./strings";
 
-// 메모장 저장소. 메모 하나는 `<dir>/<id>.md` 파일 하나이고, 지운 메모는 `<dir>/.trash/` 로 옮긴다(영구 삭제 경로는 빈 메모뿐).
-// 쓰기는 같은 폴더의 임시 파일에 쓴 뒤 rename 으로 바꿔서 도중에 끊겨도 반쪽 파일이 남지 않는다. 데몬이 한 프로세스이고 모든 파일 작업이 동기라서
-// 같은 메모에 저장이 동시에 몰려도 호출 순서대로 하나씩 반영된다(나중 호출이 이긴다).
 export class NoteStore {
   private readonly trashDir: string;
-  // 목록과 검색이 파일을 매번 다시 읽지 않도록 본문과 파일 상태를 들고 있는다. list 가 디스크와 맞춰 본다(바깥에서 고친 파일도 따라온다).
   private cache = new Map<string, { text: string; mtimeMs: number; size: number; note: Note }>();
   private tmpCounter = 0;
 
@@ -56,7 +52,6 @@ export class NoteStore {
     return this.load(id).note;
   }
 
-  // 본문이 있는 메모는 notes/.trash 로 옮긴다(같은 이름이 있으면 뒤에 시각을 붙인다). 빈 메모는 잃을 글이 없어 그냥 지운다.
   delete(id: string): void {
     this.checkId(id);
     const file = this.file(id);
@@ -95,7 +90,6 @@ export class NoteStore {
     this.cache.delete(id);
   }
 
-  // 캐시에 있고 파일 상태(수정 시각과 크기)가 그대로면 캐시, 아니면 다시 읽는다.
   private load(id: string) {
     const stat = statSync(this.file(id));
     const hit = this.cache.get(id);
@@ -116,7 +110,6 @@ export class NoteStore {
       try {
         this.load(id);
       } catch {
-        // 읽는 사이에 지워진 파일은 다음 목록에서 빠진다.
         this.cache.delete(id);
       }
     }

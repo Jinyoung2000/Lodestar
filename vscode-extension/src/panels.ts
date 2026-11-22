@@ -9,7 +9,6 @@ import { readSettings } from "./settings";
 
 const VIEW_TYPE = "lodestar.session";
 
-// 세션 패널은 agentId 당 하나다. 새 세션 입력창 패널은 첫 메시지를 보내 세션이 생기면 그 세션 패널이 된다.
 type Entry = { panel: vscode.WebviewPanel; agentId: string | null; workspaceId: string | null };
 type PanelState = { agentId?: string; title?: string };
 type FromWebview = EmbedToHost | { type: "ext:openApp" };
@@ -32,7 +31,6 @@ export class Panels {
     );
   }
 
-  // 새 세션이 패널에 묶였을 때(트리가 그 행을 고르도록) 알린다.
   onSessionBound(listener: (agentId: string) => void) {
     this.onBound = listener;
   }
@@ -59,7 +57,6 @@ export class Panels {
     return [...this.entries].some((e) => e.panel.active);
   }
 
-  // 지금 쓰는 패널(가장 마지막에 활성이었던 패널)에 에디터 선택을 첨부한다.
   attachSelection(message: EmbedFromHost) {
     const entry = this.current();
     if (!entry) return false;
@@ -110,7 +107,6 @@ export class Panels {
     entry.panel.webview.html = panelHtml({ nonce: randomBytes(16).toString("base64url"), origin: `http://127.0.0.1:${port}`, src: embedUrl(port, target, themeKind()), theme: themeKind() });
   }
 
-  // 새 세션이 패널에 묶이면 webview 에 복원 상태를 맡긴다(창을 다시 읽어도 같은 세션 패널이 돌아온다).
   private bind(entry: Entry) {
     if (!entry.agentId) return;
     const title = this.daemon.agents.find((a) => a.id === entry.agentId)?.title ?? entry.panel.title;
@@ -164,7 +160,6 @@ export class Panels {
     void entry.panel.webview.postMessage({ kind: "daemon", online: this.daemon.state === "online", message: daemonMessage(this.daemon.state, readSettings().port) });
   }
 
-  // 보고 있는 패널의 세션은 읽음으로 둔다(Lodestar 앱이 열린 세션을 읽음으로 두는 것과 같다).
   private markVisibleRead() {
     if (!vscode.window.state.focused || this.daemon.state !== "online") return;
     for (const entry of this.entries) {

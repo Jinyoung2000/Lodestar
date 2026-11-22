@@ -35,7 +35,6 @@ function focusEditor() {
   group.focus();
 }
 
-// ⌃⌘J. Editor 배치의 대화를 접거나 펼친다(떠 있는 창은 알약으로, 오른쪽 패널은 닫고 열기). Chat 배치에는 접을 대화가 없어서, 누르면 Editor 배치로 바꾸면서 대화를 펼치고 돌아가는 키를 알린다.
 export function toggleFloatCollapsed() {
   const s = getState();
   if (s.layoutMode !== "editor") {
@@ -47,7 +46,6 @@ export function toggleFloatCollapsed() {
   toggleChatVisible();
 }
 
-// Editor 배치에서 대화를 보이거나 숨긴다. 보이게 할 때는 입력창으로 포커스를 옮긴다. ⌥⌘B, ⌃⌘J 와 오른쪽 패널 머리의 단추가 같은 길이다.
 export function toggleChatVisible() {
   const s = getState();
   const hidden = chatHiddenInEditor(s);

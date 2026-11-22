@@ -9,7 +9,6 @@
   color: var(--editor-lightbulb-autofix);
 }
 
-/* 들여쓰기 안에 놓는 전구: 스크롤 영역 안 절대 위치라 글자와 함께 움직인다 */
 .cm-scroller > .cm-lightbulb.codicon {
   position: absolute;
   z-index: 5; /* lint-tokens: allow 글자 위, 거터(CodeMirror 200)와 메뉴(50) 아래 */
@@ -20,7 +19,6 @@
   height: var(--size-icon);
 }
 
-/* 글리프 여백: 전구가 있는 줄에서만 줄 높이 폭을 차지한다(평소에는 폭 0이라 거터 왼쪽이 비지 않는다) */
 .cm-glyph-margin .cm-gutterElement {
   display: flex;
   justify-content: center;

@@ -4,7 +4,6 @@ import { useStore } from "./store";
 import { S } from "./strings";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
-// 입력창 위 변경 칩 옆의 "N Pull Requests" 칩. 누르면 이 브랜치의 PR 목록이 열리고, 항목을 고르면 그 PR 을 옆 칸 탭의 PR 화면(web/PullRequestView.tsx)으로 연다. 대화는 그대로 보인다.
 export function PullRequestsChip({ agentId }: { agentId: string }) {
   const prs = useStore((s) => s.prs[agentId]);
   if (!prs?.available || prs.prs.length === 0) return null;

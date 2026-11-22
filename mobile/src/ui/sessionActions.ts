@@ -4,9 +4,6 @@ import type { Agent } from "@shared/protocol";
 import { store } from "../state/app";
 import { showActionMenu } from "./actionMenu";
 
-// 세션 하나에 하는 동작 메뉴(목록 길게 누르기, 대화 화면 머리의 ... 단추, 워크스페이스 화면이 같이 쓴다).
-// 이름 바꾸기는 입력 창이 필요해서 renaming 에 대상을 두고, 화면이 <RenameDialog initial={renaming?.title ?? null}> 로 띄운다.
-// 메뉴 문구는 데스크톱 사이드바와 같다(Pin, Mark as Done, Mark as Unread). done 은 Paseo 의 보관(archive)에 해당한다.
 export function useSessionActions() {
   const [renaming, setRenaming] = useState<Agent | null>(null);
   const fail = useCallback((error: unknown) => Alert.alert("Could not update the session", error instanceof Error ? error.message : String(error)), []);

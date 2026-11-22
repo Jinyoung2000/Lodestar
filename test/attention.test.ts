@@ -1,4 +1,3 @@
-// 사람이 봐야 하는 세션의 수와 목록(Dock 배지, 제목줄 칩). 실행: npm test
 import { attentionCount, attentionItems, awayItems, isSessionShown } from "../shared/attention";
 
 let failed = 0;

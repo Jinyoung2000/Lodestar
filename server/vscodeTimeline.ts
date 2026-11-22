@@ -9,18 +9,11 @@ import { toolResultText } from "./agents";
 import { messageText } from "./checkpoints";
 import { T } from "./strings";
 
-// IMPORT: Claude 세션 기록(jsonl)에서 타임라인을 만든다. 기록은 읽기만 한다.
-// 대화 줄기(어느 항목이 이어지는지)는 getSessionMessages 가 정한다(B2 의 체크포인트 짝짓기가 쓰는 것과 같은 경로라서 복원 규칙이 그대로 맞는다).
-// SDK 의 SessionMessage 에는 시각 외의 부가 정보(isMeta, origin, API 오류 표시, system 하위 종류)가 없어서, 같은 파일을 한 번 훑어 uuid 별 메모(RawNote)를 따로 만든다.
-// 항목 id 는 세션 기록의 uuid 에서 정해서(agent-nav 가 직접 돌린 턴과 같은 규칙), 다시 가져와도 같은 항목이 겹치지 않는다.
-
-// 새 항목을 만들 때 쓰는 것만 담은 메모
 export type RawNote = {
   type: string;
   subtype?: string;
   timestamp?: string;
   isMeta?: boolean;
-  // 압축 뒤 대화 맨 앞에 들어가는 요약문(모델에게 주는 글이라 화면에는 보이지 않는다)
   isCompactSummary?: boolean;
   originKind?: string;
   promptSource?: string;
@@ -33,20 +26,15 @@ export type RawIndex = {
   firstTimestamp: string | null;
   lastTimestamp: string | null;
   aiTitle: string | null;
-  // 기록에 남은 작업 폴더(첫 항목)
   cwd: string | null;
   permissionMode: string | null;
   effort: string | null;
-  // 압축 이전 줄기를 거슬러 올라가는 데 쓰는 항목(uuid 별). keepEntries 로 읽었을 때만 채운다.
   entries: Map<string, RawEntry>;
-  // entries 의 uuid 를 파일 순서대로
   entryOrder: string[];
 };
 
-// 줄기를 따라가는 데 필요한 것만 담은 기록 항목
 export type RawEntry = { type: string; uuid: string; parentUuid: string | null; logicalParentUuid: string | null; isSidechain: boolean; message: unknown; timestamp?: string };
 
-// getSessionMessages 가 돌려주는 항목에서 쓰는 필드. timestamp 는 타입 선언에는 없지만 실제로 온다.
 export type ChainMessage = {
   type: "user" | "assistant" | "system";
   uuid: string;
@@ -57,16 +45,12 @@ export type ChainMessage = {
 
 export type BuiltItem = { item: TimelineItem; ts: string | null };
 
-// --- 위치 ---
-
 export function claudeProjectsDir(env: NodeJS.ProcessEnv = process.env) {
   return join(env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "projects");
 }
 
-// Claude Code 가 폴더 경로로 기록 폴더 이름을 만드는 규칙: 영문자와 숫자가 아닌 글자는 모두 `-`
 export const projectDirName = (cwd: string) => cwd.replace(/[^A-Za-z0-9]/g, "-");
 
-// <projects>/<폴더 이름>/<세션 id>.jsonl. 작업 폴더로 먼저 찾고, 없으면 모든 프로젝트 폴더를 훑는다.
 export function findTranscript(claudeSessionId: string, cwd: string | null, projects = claudeProjectsDir()): string | null {
   const name = `${claudeSessionId}.jsonl`;
   if (cwd) {
@@ -90,8 +74,6 @@ const realOrSame = (path: string) => {
     return path;
   }
 };
-
-// --- 기록 읽기 ---
 
 export async function readRawIndex(file: string, options: { keepEntries?: boolean } = {}): Promise<RawIndex> {
   const index: RawIndex = { notes: new Map(), firstTimestamp: null, lastTimestamp: null, aiTitle: null, cwd: null, permissionMode: null, effort: null, entries: new Map(), entryOrder: [] };
@@ -133,7 +115,6 @@ export async function readRawIndex(file: string, options: { keepEntries?: boolea
   return index;
 }
 
-// 대화 줄기. 압축(compact)이 있었으면 마지막 압축 경계부터다(resume 이 아는 범위와 같다). 작업 폴더로 못 찾으면 모든 프로젝트에서 찾는다.
 export async function loadChain(claudeSessionId: string, cwd: string | null): Promise<ChainMessage[]> {
   const options = { includeSystemMessages: true };
   const found = cwd ? await getSessionMessages(claudeSessionId, { ...options, dir: cwd }) : [];
@@ -141,13 +122,10 @@ export async function loadChain(claudeSessionId: string, cwd: string | null): Pr
   return chain as unknown as ChainMessage[];
 }
 
-// --- 타임라인 만들기 ---
-
 const HIDDEN_COMMAND_TEXT = /^<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>/;
 const SYSTEM_TEXT = /^<(task-notification|local-command|command-name|command-message|system-reminder)/;
 const SYSTEM_TURN_ORIGINS = new Set(["task_notification", "scheduled", "peer"]);
 
-// 사용자가 보낸 메시지인지, CLI 가 스스로 넣은 메시지(작업 알림, 예약 실행, 스킬 본문)인지. 라이브 턴의 source 와 같은 뜻이다.
 export function userSource(note: RawNote | undefined, text: string): "user" | "system" {
   if (note?.isMeta) return "system";
   if (note?.originKind && note.originKind !== "human") return "system";
@@ -170,7 +148,6 @@ export function buildItems(chain: ChainMessage[], notes: Map<string, RawNote>, o
   let lastTimestamp: string | null = null;
   let model: string | null = null;
 
-  // 사용자 메시지부터 다음 사용자 메시지 전까지가 한 턴이다. 라이브 턴의 result 처럼 턴 끝에 경과 시간을 담은 항목을 하나 둔다(승인 대기 시간은 빼지 못해 조금 길게 나온다).
   const closeTurn = () => {
     const turn = open.turn;
     if (turn?.replied && turn.startMs !== null && turn.lastMs !== null) {
@@ -220,7 +197,6 @@ export function buildItems(chain: ChainMessage[], notes: Map<string, RawNote>, o
       continue;
     }
 
-    // user
     if (typeof content === "string") {
       pushUser(m.uuid, content, ts, note);
       continue;
@@ -265,12 +241,9 @@ export function buildItems(chain: ChainMessage[], notes: Map<string, RawNote>, o
   return { built, lastTimestamp, model };
 }
 
-// --- 압축 이전 대화 ---
-
 export function splitAtCompaction(chain: ChainMessage[], notes: Map<string, RawNote>, entries: Map<string, RawEntry>, order: string[]): { before: ChainMessage[]; after: ChainMessage[] } {
   const boundary = chain.find((m) => m.type === "system" && notes.get(m.uuid)?.subtype === "compact_boundary");
   if (!boundary) return { before: [], after: chain };
-  // 경계의 logicalParentUuid 가 기록에 없는 경우가 있다(CLI 가 압축 때 쓴 마지막 항목 id 가 파일에 남지 않음). 그때는 파일에서 경계 바로 앞의 항목에서 시작한다.
   const logical = entries.get(boundary.uuid)?.logicalParentUuid;
   const at = order.indexOf(boundary.uuid);
   const start = logical && entries.has(logical) ? logical : at > 0 ? order[at - 1] : null;
@@ -292,14 +265,8 @@ export function splitAtCompaction(chain: ChainMessage[], notes: Map<string, RawN
   return { before, after: chain.filter((m) => m === boundary || !preUuids.has(m.uuid)) };
 }
 
-// 압축 이전 항목은 읽기 전용이다: 사용자 항목에 표시를 붙여 체크포인트 복원과 갈래를 막는다.
 export const markPreCompact = (built: BuiltItem[]): BuiltItem[] => built.map((b) => (b.item.kind === "user" ? { ...b, item: { ...b.item, preCompact: true } } : b));
 
-// --- 이미 있는 타임라인과 합치기 ---
-
-// 겹치지 않는 새 항목(add)과, 이미 있는데 결과가 늦게 생긴 도구 호출(update).
-// 이미 있는 id, 같은 uuid 를 messageId 로 가진 사용자 항목은 건너뛴다. syncedUntil 이 있으면 그 시각 이하의 항목은 새로 더하지 않는다
-// (agent-nav 가 직접 돌린 턴이 남긴 기록은 이미 타임라인에 있고, 항목 id 가 달라도 중복으로 들어오지 않게 한다).
 export function mergeBuilt(existing: TimelineItem[], built: BuiltItem[], syncedUntil: string | null): { add: TimelineItem[]; update: TimelineItem[] } {
   const byId = new Map(existing.map((i) => [i.id, i]));
   const messageIds = new Set(existing.flatMap((i) => (i.kind === "user" && i.messageId ? [i.messageId] : [])));
@@ -322,15 +289,11 @@ export function mergeBuilt(existing: TimelineItem[], built: BuiltItem[], syncedU
   return { add, update };
 }
 
-// --- 목록용 가벼운 훑기 ---
-
 const HEAD_BYTES = 64 * 1024;
 const TAIL_BYTES = 512 * 1024;
 
-// firstPrompt 는 제목이 없는 세션의 제목 후보(첫 사용자 메시지 앞부분)
 export type TranscriptPeek = { mtimeMs: number; cwd: string | null; firstTimestamp: string | null; lastTimestamp: string | null; aiTitle: string | null; firstPrompt: string | null };
 
-// 후보 목록을 만들 때는 수십 MB 짜리 기록을 통째로 읽지 않는다. 앞부분(작업 폴더, 첫 시각)과 뒷부분(마지막 시각, 최신 제목)만 읽는다.
 export async function peekTranscript(file: string): Promise<TranscriptPeek | null> {
   let handle;
   try {
@@ -366,7 +329,6 @@ async function readRange(handle: Awaited<ReturnType<typeof open>>, start: number
   return buffer.subarray(0, bytesRead).toString("utf8");
 }
 
-// 잘린 가장자리 줄은 버린다(앞이 잘렸으면 첫 줄, 뒤가 잘렸을 수 있으니 마지막 줄은 파싱에 실패하면 건너뛴다).
 function parseLines(text: string, skipFirst: boolean): Record<string, any>[] {
   const lines = text.split("\n");
   if (skipFirst) lines.shift();
@@ -376,7 +338,6 @@ function parseLines(text: string, skipFirst: boolean): Record<string, any>[] {
     try {
       out.push(JSON.parse(line));
     } catch {
-      // 잘린 줄
     }
   }
   return out;

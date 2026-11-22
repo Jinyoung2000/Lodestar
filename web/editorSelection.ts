@@ -12,7 +12,6 @@ export function selectionExtension(options: EditorOptions, context: OptionContex
 
 const rounded = Facet.define<boolean, boolean>({ combine: (values) => values[values.length - 1] ?? true });
 
-// 오목한 모서리를 채우는 조각의 폭(번들 ROUNDED_PIECE_WIDTH)
 const FILLET_WIDTH = 10;
 
 const selectionLayer = layer({
@@ -30,7 +29,6 @@ function selectionMarkers(view: EditorView): readonly LayerMarker[] {
   const multiple = ranges.length > 1;
   for (const range of ranges) {
     if (range.empty) continue;
-    // 줄 바꿈 모드는 한 줄이 여러 화면 줄이라 조각 모양을 정할 수 없어 CodeMirror 의 기본 조각을 쓴다
     if (view.lineWrapping) markers.push(...RectangleMarker.forRange(view, "cm-selectionBackground", range));
     else markers.push(...rangeMarkers(view, range, multiple));
   }
@@ -48,7 +46,6 @@ function rangeMarkers(view: EditorView, range: SelectionRange, multiple: boolean
   for (const block of view.viewportLineBlocks) {
     if (block.type !== BlockType.Text || block.to < range.from || block.from > range.to) continue;
     const line = doc.lineAt(block.from);
-    // 선택이 다음 줄의 맨 앞에서 끝나면 그 줄은 칠하지 않는다
     if (line.number === lastLine && range.to === line.from && range.from < line.from) continue;
     const start = Math.max(range.from, line.from);
     const end = Math.min(range.to, line.to);
@@ -81,7 +78,6 @@ function rangeMarkers(view: EditorView, range: SelectionRange, multiple: boolean
   return markers;
 }
 
-// 글자 사이 위치의 가로 좌표(화면 기준). 줄 처음이면 오른쪽 글자의 왼쪽, 아니면 왼쪽 글자의 오른쪽.
 function caretX(view: EditorView, pos: number, lineStart: number): number | null {
   const coords = pos > lineStart ? view.coordsAtPos(pos, -1) : view.coordsAtPos(pos, 1);
   if (!coords) return null;

@@ -1,4 +1,3 @@
-// 닫힌 사이드바 hover 미리보기 상태 기계(web/peekController.ts)를 가짜 타이머로 확인한다. 실행: npm test
 import { createPeekController, isPeekHeld, PEEK_CLOSE_DELAY_MS, PEEK_OPEN_DELAY_MS, type PeekTimers } from "../web/peekController";
 
 const cases: { name: string; run: () => string }[] = [];

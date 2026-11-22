@@ -51,7 +51,6 @@ export function minimapExtension(options: EditorOptions): Extension {
   ];
 }
 
-// 줄이 아주 길어도 폭 120칸 안쪽만 그리므로 앞부분만 읽는다(탭이 칸을 늘려도 충분한 여유)
 const MAX_LINE_CHARS = 600;
 const ZERO_WIDTH = "0px";
 
@@ -82,7 +81,6 @@ const PALETTE_VARS: Record<Exclude<keyof Palette, "foreground">, string> = {
   deleted: "--editor-gutter-deleted",
 };
 
-// 미니맵 장식: position 1 은 글자 위 칸 범위, 2 는 왼쪽 가장자리 2픽셀 띠(변경 줄)
 type Decoration = { from: number; to: number; color: Rgba; z: number; position: 1 | 2 };
 
 class MinimapPlugin {
@@ -181,8 +179,6 @@ class MinimapPlugin {
     return `${layout.canvasInnerWidth}x${layout.canvasInnerHeight}:${layout.minimapScale}:${layout.renderMinimap}:${rendered.startLineNumber}-${rendered.endLineNumber}+${rendered.topPaddingLineCount}:${this.themeVersion}:${state.tabSize}:${state.doc.length}:${syntaxTreeKey(state)}:${docId(state)}`;
   }
 
-  // --- 크기 ---
-
   private measure(settings: MinimapSettings): MinimapLayout {
     const view = this.view;
     const scroller = this.scroller;
@@ -257,18 +253,14 @@ class MinimapPlugin {
     this.setWidth(ZERO_WIDTH);
   }
 
-  // 다른 확장이 editorAttributes 로 style 속성 전체를 다시 쓰면(editorScroll.ts 의 --editor-last-columns) 적어 둔 값이 지워지므로 매번 실제 값과 비교해 다시 적는다
   private setWidth(width: string) {
     const style = this.view.dom.style;
     if (style.getPropertyValue("--editor-minimap-width") !== width) style.setProperty("--editor-minimap-width", width);
   }
 
-  // --- 색 ---
-
   private readPalette(): Palette {
     if (this.palette) return this.palette;
     const style = getComputedStyle(this.view.dom);
-    // Black 테마(web/styles.css)의 바탕은 color-mix() 라 문자열로 못 읽으면 숨긴 span 의 계산된 color 로 다시 읽는다
     const computed = (name: string) => {
       const probe = document.createElement("span");
       probe.style.color = `var(${name})`;
@@ -285,7 +277,6 @@ class MinimapPlugin {
     return palette;
   }
 
-  // 구문 색 클래스(cm-syn-*)의 실제 색. 에디터 안에 숨긴 span 에 클래스를 붙여 계산된 color 를 읽는다.
   private colorOfClass(cls: string, palette: Palette): Rgba {
     if (!cls) return palette.foreground;
     const cached = this.classColors.get(cls);
@@ -295,8 +286,6 @@ class MinimapPlugin {
     this.classColors.set(cls, color);
     return color;
   }
-
-  // --- 글자 ---
 
   private renderChars(layout: MinimapLayout, rendered: RenderLayout, palette: Palette) {
     const context = this.canvas.getContext("2d");
@@ -338,7 +327,6 @@ class MinimapPlugin {
     context.putImageData(image, 0, 0);
   }
 
-  // 구문 트리의 색 구간. 보이는 범위까지 파서를 잠깐 돌려 둔다(예산 안에서만).
   private spansBetween(from: number, to: number): Span[] {
     const state = this.view.state;
     const tree = ensureSyntaxTree(state, to, 30) ?? syntaxTree(state);
@@ -346,8 +334,6 @@ class MinimapPlugin {
     highlightTree(tree, syntaxHighlighters, (start, end, cls) => spans.push({ from: start, to: end, cls }), from, to);
     return spans;
   }
-
-  // --- 장식 ---
 
   private renderDecorations(layout: MinimapLayout, rendered: RenderLayout, palette: Palette, settings: MinimapSettings) {
     const context = this.decorations.getContext("2d");
@@ -390,7 +376,6 @@ class MinimapPlugin {
 
     const seen = new Set<number>();
     const selectionColor = palette.selection;
-    // 1. 선택이 걸친 줄의 옅은 띠. 번들 그대로 첫 줄 위쪽에서 마지막 줄 위쪽까지 칠한다(여러 줄 선택에서만 띠가 생긴다).
     context.fillStyle = toCanvasColor(transparent(selectionColor, 0.5));
     let bandStart = 0;
     let bandEnd = 0;
@@ -406,7 +391,6 @@ class MinimapPlugin {
       bandEnd = y(lines[1]);
     }
     if (bandEnd > bandStart) context.fillRect(MINIMAP_PAD, bandStart, width, bandEnd - bandStart);
-    // 2. 장식이 걸친 줄의 옅은 띠(z 가 높은 것부터, 줄마다 한 번)
     for (let index = decorations.length - 1; index >= 0; index--) {
       const decoration = decorations[index]!;
       if (decoration.position !== 1) continue;
@@ -419,7 +403,6 @@ class MinimapPlugin {
         context.fillRect(MINIMAP_PAD, y(line), width, lineHeight);
       }
     }
-    // 3. 선택한 글자 범위, 4. 장식의 글자 범위와 왼쪽 띠(z 가 낮은 것부터)
     if (selectionColor.a > 0) {
       for (const range of state.selection.ranges) {
         const lines = lineRange(range.from, range.to);
@@ -438,7 +421,6 @@ class MinimapPlugin {
     }
   }
 
-  // 보이는 줄 범위에 걸친 장식만 모은다. 찾기 일치, 선택 일치, 진단은 번들과 같이 글자 위(position 1), 변경 줄은 왼쪽 띠(position 2)다.
   private collectDecorations(state: EditorState, palette: Palette, settings: MinimapSettings, windowFrom: number, windowTo: number): Decoration[] {
     const out: Decoration[] = [];
     const inside = (from: number, to: number) => from <= windowTo && to >= windowFrom;
@@ -457,8 +439,6 @@ class MinimapPlugin {
     }
     return out.sort((a, b) => a.z - b.z);
   }
-
-  // --- 슬라이더와 입력 ---
 
   private placeSlider(rendered: RenderLayout) {
     this.slider.style.display = rendered.sliderNeeded ? "block" : "none";
@@ -482,7 +462,6 @@ class MinimapPlugin {
       this.root.addEventListener("pointercancel", this.onPointerUp);
       return;
     }
-    // 글자 부분을 누르면 그 줄을 에디터 가운데로 보낸다(커서는 옮기지 않는다)
     if (event.button !== 0 && event.pointerType === "mouse") return;
     const line = lineAtOffset(rendered, { ...layout, lineCount: this.view.state.doc.lines }, event.clientY - this.root.getBoundingClientRect().top);
     this.centerLine(line);
@@ -528,7 +507,6 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: strin
   return node;
 }
 
-// 구문 트리와 문서가 같은지 판별하는 열쇠. 객체 자체를 비교할 수 없어(키 문자열이어야 한다) 마지막으로 본 객체에 번호를 붙인다.
 const identity = new WeakMap<object, number>();
 let identityCounter = 0;
 function idOf(object: object): number {

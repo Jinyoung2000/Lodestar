@@ -3,7 +3,6 @@ import { Check, ChevronDown } from "../icons";
 import { forwardRef, type ComponentPropsWithoutRef } from "react";
 import { cn } from "../lib/utils";
 
-// shadcn/ui Select 를 디자인 시스템에 맞춘 것. 트리거는 고스트 칩(24px), 목록은 surface-overlay + border + shadow-overlay.
 export const Select = SelectPrimitive.Root;
 export const SelectValue = SelectPrimitive.Value;
 

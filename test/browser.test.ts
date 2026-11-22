@@ -1,5 +1,3 @@
-// Browser 탭: 주소 해석(web/browserUrl.ts), iframe 가능 여부 확인(server/frameProbe.ts), 팔레트의 키 없는 명령(web/commands.ts).
-// 실행: npm test
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { frameBlockReason, parseHttpUrl, probeFrame } from "../server/frameProbe";
@@ -51,7 +49,6 @@ test("isOwnOrigin: 데몬 주소와 같은 포트의 loopback 이름은 모두 �
   expect(isOwnOrigin("http://localhost:7796/x", own), "localhost same port");
   expect(!isOwnOrigin("http://localhost:7801/", own), "other port");
   expect(!isOwnOrigin("https://example.com/", own), "external");
-  // 0.0.0.0 과 [::] 도 이 기기의 서버로 닿으므로 데몬 주소로 본다(토큰이 든 페이지를 guest 가 열지 못하게)
   expect(isOwnOrigin("http://0.0.0.0:7796/", own) && isOwnOrigin("http://[::]:7796/", own), "all-interfaces names");
   return "ok";
 });

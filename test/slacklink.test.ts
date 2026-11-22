@@ -1,4 +1,3 @@
-// Slack 메시지 링크를 slack:// 으로 바꾸는 순수 함수 시험. 실행: npm test
 import { externalOpenUrl, slackAppUrl } from "../shared/slackLink";
 
 const TEAM = "T0123ABCD";

@@ -35,7 +35,6 @@ export const hidItem = (d: HidDevice): DeviceItem => {
 };
 export const bluetoothItem = (d: BluetoothDevice): DeviceItem => ({ deviceId: d.deviceId, label: d.deviceName || d.deviceId, detail: d.deviceId });
 
-// 입력한 글로 목록을 거른다(이름과 상세 둘 다, 대소문자 무시)
 export const filterDevices = (devices: DeviceItem[], query: string) => {
   const q = query.trim().toLowerCase();
   return q ? devices.filter((d) => d.label.toLowerCase().includes(q) || (d.detail ?? "").toLowerCase().includes(q)) : devices;

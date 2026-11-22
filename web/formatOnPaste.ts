@@ -7,7 +7,6 @@ export function formatOnPasteExtension(): Extension {
     const pasted = pastedRange(update);
     if (!pasted) return;
     const { view } = update;
-    // 리스너 안에서는 dispatch 할 수 없고 포맷은 붙인 직후의 문서를 읽어야 하므로 한 박자 뒤에 부른다.
     queueMicrotask(() => void import("./editorDocs").then((docs) => docs.formatPastedRange(view, pasted)));
   });
 }

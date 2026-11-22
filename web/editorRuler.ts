@@ -24,11 +24,9 @@ export function rulerExtension(options: EditorOptions): Extension {
 }
 
 const HIDE_DELAY_MS = 500;
-// 큰 문서에서 일치 개수 계산은 입력마다 하지 않고 잠깐 멈춘 뒤에 한다(찾기 위젯의 RECOUNT_DELAY 와 같은 값)
 const RECOUNT_DELAY_MS = 120;
 const LARGE_DOC = 100_000;
 
-// 위치로 적은 표시 하나. 그릴 때 줄 높이로 바꾼다(줄 높이 추정이 바뀌면 다시 바꿔야 해서 위치를 들고 있다).
 type SourceZone = { from: number; to: number; lane: RulerLane; color: string; z: number };
 
 type Colors = Record<"error" | "warning" | "info" | "find" | "selection" | "wordWrite" | "bracket" | "added" | "modified" | "deleted" | "border" | "cursor", string>;
@@ -65,7 +63,6 @@ class RulerPlugin {
   private sourcesDirty = true;
   private paintKey = "";
   private lastChangeSet: unknown = null;
-  // 표시 원본. 문서나 선택이 바뀔 때만 다시 모으고 그릴 때는 위치를 줄 높이로 바꾸기만 한다.
   private diagnostics: SourceZone[] = [];
   private changes: SourceZone[] = [];
   private finds: SourceZone[] = [];
@@ -87,7 +84,6 @@ class RulerPlugin {
     this.observer = new ResizeObserver(() => this.schedule());
     this.observer.observe(view.dom);
     this.observer.observe(this.scroller);
-    // 테마(다크, 라이트)나 색 스타일이 바뀌면 색을 다시 읽는다
     this.themeObserver = new MutationObserver(() => {
       this.colors = null;
       this.paintKey = "";
@@ -134,7 +130,6 @@ class RulerPlugin {
     this.placeSlider();
   }
 
-  // 띠를 스크롤러 세로 범위에 맞춘다(위쪽에 패널이 있어도 스크롤러 기준)
   private layout() {
     const top = this.scroller.offsetTop;
     const height = this.scroller.offsetHeight;
@@ -144,11 +139,8 @@ class RulerPlugin {
     this.decoration.toggleAttribute("hidden", this.scroller.scrollTop <= 0);
   }
 
-  // --- 표시 원본 모으기 ---
-
   private collect() {
     this.sourcesDirty = false;
-    // 표시 원본이 바뀌었으니 같은 크기여도 다시 그린다
     this.paintKey = "";
     const state = this.view.state;
     const settings = state.facet(rulerSettings);
@@ -163,7 +155,6 @@ class RulerPlugin {
     this.collectSlow(settings, colors);
   }
 
-  // 문서 전체를 훑는 둘(찾기 일치, 선택 일치). 큰 문서는 입력이 멈춘 뒤에 센다.
   private collectSlow(settings: RulerSettings, colors: Colors) {
     window.clearTimeout(this.recountTimer);
     const run = () => {
@@ -189,8 +180,6 @@ class RulerPlugin {
     return colors;
   }
 
-  // --- 그리기 ---
-
   private paint() {
     const state = this.view.state;
     const settings = state.facet(rulerSettings);
@@ -201,7 +190,6 @@ class RulerPlugin {
     const scrollHeight = this.scroller.scrollHeight;
     const changeSet = changeMarksOf(state).set;
     if (changeSet !== this.lastChangeSet) {
-      // 변경 줄 표시는 거터가 늦게 다시 계산해서 상태가 바뀐 뒤에 따라온다
       this.sourcesDirty = true;
       this.schedule();
     }
@@ -250,8 +238,6 @@ class RulerPlugin {
     }
   }
 
-  // --- 세로 슬라이더 ---
-
   private metrics() {
     return sliderMetrics({ visible: this.scroller.clientHeight, scrollSize: this.scroller.scrollHeight, scrollPosition: this.scroller.scrollTop, oppositeSize: 0 });
   }
@@ -291,7 +277,6 @@ class RulerPlugin {
     this.scheduleHide();
   };
 
-  // 트랙을 누르면 슬라이더 가운데가 누른 자리에 오도록 바로 이동하고, 이어서 끌 수 있다. 슬라이더를 누르면 그 자리에서 끌기가 시작된다.
   private readonly onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -325,7 +310,6 @@ class RulerPlugin {
     this.scheduleHide();
   };
 
-  // 띠 위에서 굴린 휠도 에디터를 스크롤한다(띠는 스크롤러 밖의 요소라 직접 넘겨 준다)
   private readonly onWheel = (event: WheelEvent) => {
     event.preventDefault();
     const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? this.view.defaultLineHeight : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? this.scroller.clientHeight : 1;
@@ -346,12 +330,10 @@ function preventFocusSteal(event: MouseEvent) {
 }
 
 
-// 진단: 오른쪽 칸. 오류 30, 경고 20, 정보 10. hint 는 표시하지 않는다.
 function diagnosticZones(state: EditorState, colors: Colors): SourceZone[] {
   return diagnosticRanges(state).map(({ from, to, severity }) => ({ from, to, lane: LANE_RIGHT, color: colors[severity], z: SEVERITY_Z[severity] }));
 }
 
-// 변경 줄(추가, 수정, 삭제): 왼쪽 칸, 줄 단위
 function changeZones(state: EditorState, colors: Colors): SourceZone[] {
   const { set, kindOf } = changeMarksOf(state);
   const zones: SourceZone[] = [];
@@ -362,22 +344,18 @@ function changeZones(state: EditorState, colors: Colors): SourceZone[] {
   return zones;
 }
 
-// 찾기 일치: 가운데 칸. 찾기 위젯이 열려 있을 때만 있다.
 function findZones(state: EditorState, colors: Colors): SourceZone[] {
   return findMatchRanges(state).map(({ from, to }) => ({ from, to, lane: LANE_CENTER, color: colors.find, z: 10 }));
 }
 
-// 선택 일치: 가운데 칸
 function selectionZones(state: EditorState, colors: Colors): SourceZone[] {
   return selectionMatchRanges(state).map(({ from, to }) => ({ from, to, lane: LANE_CENTER, color: colors.selection, z: 0 }));
 }
 
-// 같은 단어 강조: 가운데 칸. 쓰기는 연보라, 읽기와 텍스트 일치는 선택 일치와 같은 회색.
 function wordZones(state: EditorState, colors: Colors): SourceZone[] {
   return wordHighlightMarks(state).map(({ from, to, kind }) => ({ from, to, lane: LANE_CENTER, color: kind === "write" ? colors.wordWrite : colors.selection, z: 0 }));
 }
 
-// 짝이 맞는 괄호 한 쌍: 가운데 칸. 커서 앞뒤를 보는 규칙은 bracketMatching() 과 같다.
 function bracketZones(state: EditorState, colors: Colors): SourceZone[] {
   const zones: SourceZone[] = [];
   for (const range of state.selection.ranges) {

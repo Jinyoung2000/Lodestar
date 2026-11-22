@@ -22,21 +22,15 @@ import { hint } from "./hint";
 import { Checkbox } from "./ui/checkbox";
 import { issueTitleFrom, LODESTAR_REPOSITORY, newIssueUrl } from "../shared/release";
 
-// 피드백: 제목줄 버튼이나 ⌥⌘F 로 화면 위쪽 가운데에 입력 창을 열고, 한 줄을 보내면 데몬이 agent-nav 소스를 고치는 세션을 연다.
-// 열면 입력 창(compose)과 요소 고르기(picking)가 함께 켜진다. 요소를 클릭하면 칩으로 붙고 고르기가 꺼지고, 아무것도 고르지 않고 쓴 뒤 Enter 로 보내도 된다(그때는 화면 상태와 창 스크린샷이 따라간다).
-// 상태 전이는 web/feedbackFlow.ts. Esc 는 고르기가 켜져 있으면 고르기만 끄고, 꺼져 있으면 닫는다.
-
 import type { DeviceRequest } from "./browserDevices";
 import type { NativeNotification } from "./notifications";
 import { useCommandKey } from "./commandKeys";
 
-// 요소 선택 결과(electron/main.ts 의 agent-nav:browser-pick). html 은 페이지에서 온 믿을 수 없는 글이다.
 export type BrowserPick =
   | { kind: "element"; url: string; title: string; tag: string; selector: string; html: string; text: string; png: string | null }
   | { kind: "area"; url: string; title: string; png: string | null }
   | { kind: "comments"; count: number };
 
-// 요소 댓글 하나(Comment on Elements). 메인이 댓글이 달릴 때마다 보낸다.
 export type BrowserComment = { url: string; title: string; tag: string; selector: string; html: string; text: string; png: string | null; comment: string; number: number };
 
 export type BrowserNative = {
@@ -65,33 +59,28 @@ declare global {
       notify?: (payload: NativeNotification) => Promise<boolean>;
       clearNotification?: (agentId: string) => Promise<void>;
       setBadgeCount?: (count: number) => Promise<void>;
-      // Browser 탭 guest 조작(electron/preload.ts). id 는 <webview> 의 getWebContentsId().
       browserPickCancel?: (id: number) => Promise<void>;
       browserCapture?: (id: number) => Promise<{ png: string; url: string; title: string } | null>;
       browserClearStorage?: (partition?: string) => Promise<void>;
       browserEmulate?: (id: number, params: { width: number; height: number; dpr: number; mobile?: boolean; userAgent?: string | null } | null) => Promise<void>;
       readsWindowAfterDaemonRestart?: boolean;
-      // FILEATTACH: File 의 디스크 경로(electron/preload.ts). 없는 File 은 빈 문자열이고, 이 함수가 없는 옛 preload 면 업로드 폴백을 쓴다.
       pathForFile?: (file: File) => string;
-      // Developer: Reload Window, Restart Daemon(electron/preload.ts). restartDaemon 은 메인이 데몬을 띄웠을 때만 true 를 돌려준다.
       reloadWindow?: () => Promise<void>;
       restartDaemon?: () => Promise<boolean | "deferred">;
-      // FIX3-1: 앱이 죽은 데몬을 다시 띄우는 중인지(restarting) 포기했는지(stopped)
       daemonState?: () => Promise<{ state: "running" | "restarting" | "stopped"; attempt: number; maxAttempts: number }>;
       onDaemonState?: (listener: (state: { state: "running" | "restarting" | "stopped"; attempt: number; maxAttempts: number }) => void) => () => void;
       pickFolder?: () => Promise<string | null>;
       windowZoom?: (action: "in" | "out" | "reset") => Promise<number>;
-      // 여러 창(electron/preload.ts): 새 창 열기, 이 창 닫기, 이 창 칸에 열린 세션 알리기(알림이 그 세션을 연 창으로 가게), 살아 있는 창 id 목록과 그 변화
       newWindow?: () => Promise<void>;
       closeWindow?: () => Promise<void>;
-      setOpenAgents?: (agentIds: string[]) => Promise<void>;
+      setOpenAgents?: (agentIds: string[], layoutMode: "chat" | "editor") => Promise<void>;
+      openNotificationSession?: (agentId: string) => Promise<void>;
       windowIds?: () => Promise<string[]>;
       onWindowsChanged?: (listener: (ids: string[]) => void) => () => void;
     } & BrowserNative & QuickEntryNative;
   }
 }
 
-// 이 화면 조각들은 피드백 도구 자신이라 선택 대상이 아니다.
 const UI_ATTR = "data-feedback-ui";
 const STYLE_PROPS = ["display", "gap", "padding", "margin", "font-size", "font-weight", "line-height", "color", "background-color", "border-radius", "border"];
 
@@ -109,7 +98,6 @@ export function cancelFeedback() {
   setState({ feedbackMode: "off", feedbackPicking: false, feedbackTarget: null, feedbackDraft: null });
 }
 
-// Esc 한 번: 고르기가 켜져 있으면 고르기만 끄고, 꺼져 있으면 피드백을 닫는다.
 export function escapeFeedback() {
   const next = pressEscape(currentFlow());
   if (next.mode === "off") cancelFeedback();
@@ -125,7 +113,6 @@ function applyFlow(flow: FeedbackFlow) {
   setState({ feedbackMode: flow.mode, feedbackPicking: flow.picking });
 }
 
-// 입력 창을 띄우기 전에 창을 찍는다(입력 창이 찍히지 않게). 화면 상태도 열린 오버레이를 닫기 전에 읽는다.
 async function openFeedback() {
   if (opening) return;
   opening = true;
@@ -164,7 +151,6 @@ const FRAME_WAIT_MS = 200; // lint-tokens: allow 가려진 창에서 rAF 가 멈
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// 윤곽과 이름표가 지워진 화면을 두 프레임 기다린다. 창이 가려져 rAF 가 멈춘 경우에는 시간으로 넘어간다.
 function nextFrames() {
   return Promise.race([new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))), sleep(FRAME_WAIT_MS)]);
 }
@@ -172,23 +158,19 @@ function nextFrames() {
 const CAPTURE_TRIES = 3; // lint-tokens: allow 재시도 횟수
 const CAPTURE_RETRY_MS = 150; // lint-tokens: allow 재시도 간격(ms)
 
-// 창이 막 다시 그려진 직후에는 capturePage 가 UnknownVizError 로 한 번 실패하기도 해서 짧게 다시 해 본다.
 async function captureWithRetry(capture: (rect: { x: number; y: number; width: number; height: number }) => Promise<string | null>) {
   for (let attempt = 0; attempt < CAPTURE_TRIES; attempt++) {
     try {
       const result = await Promise.race([capture({ x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }), sleep(CAPTURE_TIMEOUT_MS).then(() => "timeout" as const)]);
-      // 시간이 지나도 안 오는 캡처는 다시 해도 같으므로 스크린샷 없이 연다.
       if (result === "timeout") return null;
       if (result) return result;
     } catch {
-      // 다음 시도
     }
     await sleep(CAPTURE_RETRY_MS);
   }
   return null;
 }
 
-// 창 전체 PNG(base64)와 말풍선 칩에 쓸 작은 JPEG. 데스크톱 앱이 아니거나 찍지 못하면 null.
 async function captureWindow(): Promise<{ png: string; thumb: string } | null> {
   const native = window.agentNavNative;
   if (!native) return null;
@@ -208,7 +190,6 @@ async function captureWindow(): Promise<{ png: string; thumb: string } | null> {
   }
 }
 
-// 소스 위치가 있는 가장 가까운 조상의 컴포넌트 이름. web/ui 의 기본 부품(Button 등)은 건너뛰고 그 부품을 쓴 컴포넌트를 이름으로 삼는다.
 function componentOf(el: Element) {
   for (let node: Element | null = el; node; node = node.parentElement) {
     const source = node.getAttribute("data-source");
@@ -274,13 +255,16 @@ function boxBetween(a: { x: number; y: number }, b: { x: number; y: number }): B
   return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) };
 }
 
+function selectionSize({ width, height }: Pick<Box, "width" | "height">) {
+  return `${Math.round(width)}×${Math.round(height)}`;
+}
+
 function clampBox(box: Box): Box {
   const x = Math.max(0, box.x);
   const y = Math.max(0, box.y);
   return { x, y, width: Math.min(window.innerWidth, box.x + box.width) - x, height: Math.min(window.innerHeight, box.y + box.height) - y };
 }
 
-// 끌어서 고른 영역을 요소 정보처럼 만든다. 영역을 통째로 담는 가장 작은 요소의 소스 위치와 스타일을 빌리고, 크기와 글은 영역 기준으로 바꾼다.
 function describeRegion(box: Box): ElementInfo {
   let el: Element | null = targetAt(box.x + box.width / 2, box.y + box.height / 2);
   while (el && el.parentElement) {
@@ -289,10 +273,9 @@ function describeRegion(box: Box): ElementInfo {
     el = el.parentElement;
   }
   const { info } = describeElement(el ?? document.body);
-  return { ...info, width: Math.round(box.width), height: Math.round(box.height), text: `Region dragged at (${Math.round(box.x)}, ${Math.round(box.y)}), inside ${info.component ?? info.tag}. ${info.text}`.slice(0, 160) };
+  return { ...info, kind: "region", width: Math.round(box.width), height: Math.round(box.height), text: `Region dragged at (${Math.round(box.x)}, ${Math.round(box.y)}), inside ${info.component ?? info.tag}. ${info.text}`.slice(0, 160) };
 }
 
-// 요소 고르기와 입력 창을 그린다. 고르는 동안에는 페이지의 클릭을 가로채 아래 요소가 반응하지 않게 한다(피드백 화면 조각 위는 제외).
 export function FeedbackLayer() {
   const mode = useStore((s) => s.feedbackMode);
   const picking = useStore((s) => s.feedbackPicking);
@@ -312,8 +295,6 @@ export function FeedbackLayer() {
     }
     let last: { x: number; y: number } | null = null;
     let selecting = false;
-    // 드래그로 영역 고르기. pointerdown 을 아래 swallow 가 preventDefault 하면 브라우저가 mousedown, mouseup 을 보내지 않으므로 pointer 이벤트로 받는다.
-    // 드래그로 영역 고르기: 버튼을 누른 자리와, 일정 거리 넘게 끌어서 영역 모드가 켜졌는지. 끝난 직후 따라오는 click 은 요소 선택으로 읽지 않는다.
     let down: { x: number; y: number } | null = null;
     let dragging = false;
     let dragEnded = false;
@@ -330,7 +311,6 @@ export function FeedbackLayer() {
       last = { x: event.clientX, y: event.clientY };
       if (!dragging) hoverAt(event.clientX, event.clientY);
     };
-    // 영역을 끄는 동안의 움직임. pointerdown 이 취소되면 브라우저가 mousemove 도 보내지 않을 수 있어 pointermove 로 받는다.
     const onDragMove = (event: MouseEvent) => {
       if (!down) return;
       if (!dragging && Math.hypot(event.clientX - down.x, event.clientY - down.y) >= DRAG_THRESHOLD) dragging = true;
@@ -350,19 +330,15 @@ export function FeedbackLayer() {
       dragging = false;
       setDrag(null);
       const box = clampBox(boxBetween(start, { x: event.clientX, y: event.clientY }));
-      // 너무 작은 영역은 손이 떨린 것으로 보고 무시한다(이어지는 click 도 요소 선택으로 읽지 않는다).
       dragEnded = true;
       setTimeout(() => (dragEnded = false), 0);
       if (box.width < MIN_REGION || box.height < MIN_REGION || selecting) return;
       void attach(describeRegion(box), box);
     };
-    // 휠은 막지 않는다. 스크롤로 요소가 움직이면 마지막 마우스 자리 기준으로 윤곽을 다시 잡는다.
     const onScroll = () => {
       if (last) hoverAt(last.x, last.y);
     };
-    // 피드백 화면 조각(입력 창, 제목줄 피드백 단추) 위의 이벤트는 정상 동작해야 한다.
     const inFeedbackUi = (event: Event) => event.target instanceof Element && event.target.closest(`[${UI_ATTR}]`) !== null;
-    // 고르는 동안 마우스 이벤트가 페이지 요소로 가지 않게 캡처 단계에서 끊는다.
     const swallow = (event: Event) => {
       if (inFeedbackUi(event)) return;
       event.preventDefault();
@@ -377,10 +353,8 @@ export function FeedbackLayer() {
       const { info, rect } = describeElement(el);
       void attach(info, rect);
     };
-    // 고른 요소나 영역을 찍어 입력 창에 붙인다.
     const attach = async (info: ElementInfo, rect: Box) => {
       selecting = true;
-      // 윤곽, 이름표, 입력 창을 걷고 요소만 찍는다 (Electron 일 때만 가능).
       setCapturing(true);
       await nextFrames();
       let screenshot: string | null = null;
@@ -395,7 +369,6 @@ export function FeedbackLayer() {
       } else screenshotNote = "not running in the desktop app";
       setCapturing(false);
       selecting = false;
-      // 찍는 동안 Esc 로 고르기를 껐거나 닫았으면 붙이지 않는다.
       const next = attachElement(currentFlow());
       if (!next.attached) return;
       setState({ feedbackMode: next.mode, feedbackPicking: next.picking, feedbackTarget: { info, rect, screenshot, screenshotNote } });
@@ -428,7 +401,6 @@ export function FeedbackLayer() {
     };
   }, [active]);
 
-  // 이름표가 입력 창과 겹치지 않게 입력 창의 자리를 알고 있는다. 칩이 붙거나 글이 길어지면 높이가 변한다.
   useEffect(() => {
     const el = mode === "compose" ? document.querySelector(".feedback-compose") : null;
     if (!el) {
@@ -450,7 +422,8 @@ export function FeedbackLayer() {
   }, [mode, draft !== null]);
 
   if (mode === "off") return null;
-  const shown = picking ? hover : target ? { rect: target.rect, label: `${target.info.component ?? target.info.tag} ${target.info.width}×${target.info.height}` } : null;
+  const targetName = target?.info.kind === "region" ? S.feedbackRegion : target?.info.component ?? target?.info.tag;
+  const shown = picking ? hover : target ? { rect: target.rect, label: `${targetName} ${selectionSize(target.info)}` } : null;
   const place = shown ? labelPlacement(shown.rect, composeBox, LABEL_HEIGHT, shown.label.length * LABEL_CHAR_WIDTH + LABEL_PADDING) : null;
   return (
     <>
@@ -458,7 +431,7 @@ export function FeedbackLayer() {
         <>
           <div {...{ [UI_ATTR]: "" }} className="feedback-outline feedback-region" style={{ left: drag.x, top: drag.y, width: drag.width, height: drag.height }} />
           <div {...{ [UI_ATTR]: "" }} className="feedback-label" style={{ left: drag.x, top: drag.y + drag.height }} data-below>
-            {Math.round(drag.width)}×{Math.round(drag.height)}
+            {S.feedbackRegion} {selectionSize(drag)}
           </div>
         </>
       )}
@@ -478,10 +451,8 @@ export function FeedbackLayer() {
 function FeedbackCompose({ target, draft, picking, capturing }: { target: FeedbackTarget | null; draft: FeedbackDraft; picking: boolean; capturing: boolean }) {
   const [text, setText] = useState(draft.text);
   const [sending, setSending] = useState(false);
-  // RELEASE: Report on GitHub… 를 누르면 같은 창이 issue 미리보기로 바뀐다. Back 으로 돌아오면 쓰던 글이 그대로다.
   const [reporting, setReporting] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
-  // 처음 열 때와 요소가 붙을 때 커서는 글 칸에 있어야 바로 타이핑하고 Enter 로 보낼 수 있다.
   useEffect(() => {
     if (!reporting) ref.current?.focus();
   }, [target, reporting]);
@@ -522,7 +493,6 @@ function FeedbackCompose({ target, draft, picking, capturing }: { target: Feedba
     setState({ feedbackDraft: { ...draft, text } });
     ref.current?.focus();
   };
-  // 칩이나 단추를 눌러도 입력 커서는 글 칸에 남아 있어야 바로 Enter 로 보낼 수 있다.
   const setShotOn = (shotOn: boolean) => {
     setState({ feedbackDraft: { ...draft, text, shotOn } });
     ref.current?.focus();
@@ -533,7 +503,6 @@ function FeedbackCompose({ target, draft, picking, capturing }: { target: Feedba
     ref.current?.focus();
   };
 
-  // 미리보기에서는 요소 고르기를 끈다(윤곽이 미리보기 위에 겹치지 않게)
   const startReport = () => {
     setState({ feedbackPicking: false, feedbackDraft: { ...draft, text } });
     setReporting(true);
@@ -559,18 +528,7 @@ function FeedbackCompose({ target, draft, picking, capturing }: { target: Feedba
               </button>
             </span>
           )}
-          {target && (
-            <span className="feedback-attach mono" data-kind="element">
-              <Codicon name="symbol-class" size={12} />
-              <span className="feedback-attach-name">
-                {target.info.component ?? target.info.tag} {target.info.width}×{target.info.height}
-              </span>
-              {target.info.sources[0] && <span className="faint feedback-attach-where">{target.info.sources[0]}</span>}
-              <button type="button" className="attachment-remove" aria-label={S.feedbackRemoveElement} onClick={removeAttached}>
-                <Close size={12} />
-              </button>
-            </span>
-          )}
+          {target && <FeedbackSelectionAttachment target={target} onRemove={removeAttached} />}
         </div>
       )}
       <textarea
@@ -592,11 +550,11 @@ function FeedbackCompose({ target, draft, picking, capturing }: { target: Feedba
           }
         }}
       />
-      {target && !target.screenshot && <div className="feedback-note xs">{S.feedbackScreenshotMissing}</div>}
+      {target && !target.screenshot && <div className="feedback-note xs">{window.agentNavNative ? S.feedbackCaptureFailed : S.feedbackScreenshotMissing}</div>}
       <div className="feedback-compose-bar">
-        <Button size="sm" variant={picking ? "ghost-on" : "ghost"} aria-pressed={picking} title={picking ? S.feedbackPick : S.feedbackPickElementTitle} onClick={togglePick}>
+        <Button size="sm" variant={picking ? "ghost-on" : "ghost"} aria-pressed={picking} title={picking ? S.feedbackPick : S.feedbackSelectScreenTitle} onClick={togglePick}>
           <Pick size={14} />
-          {S.feedbackPickElement}
+          {S.feedbackSelectScreen}
         </Button>
         {draft.shot && !draft.shotOn && (
           <Button size="sm" title={S.feedbackScreenshotTitle} onClick={() => setShotOn(true)}>
@@ -617,9 +575,27 @@ function FeedbackCompose({ target, draft, picking, capturing }: { target: Feedba
   );
 }
 
-// RELEASE: issue 미리보기. 제목은 고칠 수 있고, 버전은 자동으로 붙고, 스크린샷과 요소/파일 경로는 체크했을 때만 들어간다.
-// 앱은 issue 를 만들지 않는다. Open in Browser 가 제목과 본문을 쿼리로 담은 새 issue 화면을 기본 브라우저로 열고, 제출은 사용자가 한다. 그 전에는 아무것도 밖으로 나가지 않는다.
-// GitHub 은 이미지를 미리 채울 수 없어서 스크린샷은 체크하면 클립보드에 복사해 두고 브라우저에서 붙여 넣게 한다.
+function FeedbackSelectionAttachment({ target, onRemove }: { target: FeedbackTarget; onRemove: () => void }) {
+  const { info, screenshot } = target;
+  const isRegion = info.kind === "region";
+  return (
+    <span className="feedback-attach" data-kind={isRegion ? "region" : "element"}>
+      {isRegion && screenshot ? (
+        <img className="feedback-attach-thumb" src={`data:image/png;base64,${screenshot}`} alt="" />
+      ) : (
+        <Codicon name={isRegion ? "device-camera" : "symbol-class"} size={12} />
+      )}
+      <span>{isRegion ? (screenshot ? S.feedbackRegionScreenshot : S.feedbackRegion) : S.feedbackElement}</span>
+      {!isRegion && <span className="mono feedback-attach-where">{info.component ?? info.tag}</span>}
+      <span className="mono faint feedback-attach-name">{selectionSize(info)}</span>
+      {!isRegion && info.sources[0] && <span className="mono faint feedback-attach-where">{info.sources[0]}</span>}
+      <button type="button" className="attachment-remove" aria-label={isRegion ? S.feedbackRemoveRegion : S.feedbackRemoveElement} onClick={onRemove}>
+        <Close size={12} />
+      </button>
+    </span>
+  );
+}
+
 function FeedbackReport({ text, target, draft, onBack }: { text: string; target: FeedbackTarget | null; draft: FeedbackDraft; onBack: () => void }) {
   const release = useStore((s) => s.release);
   const [title, setTitle] = useState(() => issueTitleFrom(text));
@@ -629,12 +605,15 @@ function FeedbackReport({ text, target, draft, onBack }: { text: string; target:
   const titleRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     titleRef.current?.focus();
-    // macOS 버전은 데몬이 뜬 직후 늦게 채워질 수 있어 열 때 다시 읽는다
     void rpc.call("release.get", {}).then((next) => setState({ release: next }), () => undefined);
   }, []);
-  // 창 스크린샷이 붙어 있으면 그것, 아니면 고른 요소의 스크린샷
-  const shot = draft.shot && draft.shotOn ? { png: draft.shot.png, thumb: draft.shot.thumb } : target?.screenshot ? { png: target.screenshot, thumb: `data:image/png;base64,${target.screenshot}` } : null;
-  const element = target ? `${target.info.component ?? target.info.tag} ${target.info.width}×${target.info.height}` : null;
+  const isRegion = target?.info.kind === "region";
+  const shot = draft.shot && draft.shotOn
+    ? { ...draft.shot, label: S.feedbackScreenshot }
+    : target?.screenshot
+      ? { png: target.screenshot, thumb: `data:image/png;base64,${target.screenshot}`, label: isRegion ? S.feedbackRegionScreenshot : S.feedbackElementScreenshot }
+      : null;
+  const element = target ? `${isRegion ? S.feedbackRegion : target.info.component ?? target.info.tag} ${selectionSize(target.info)}` : null;
   const versions = release ? S.feedbackReportVersionLine(release.installed, release.macos) : null;
 
   const toggleShot = (on: boolean) => {
@@ -654,7 +633,7 @@ function FeedbackReport({ text, target, draft, onBack }: { text: string; target:
     if (!title.trim()) return;
     const lines = [versions ? `Versions: ${versions}` : null];
     if (withPaths && target) {
-      lines.push(`Element: ${element}`);
+      lines.push(isRegion ? `${element}` : `Element: ${element}`);
       if (target.info.sources.length) lines.push(`Files: ${target.info.sources.join(", ")}`);
     }
     const footer = lines.some(Boolean) ? `\n\n${lines.filter(Boolean).join("\n")}` : "";
@@ -716,14 +695,14 @@ function FeedbackReport({ text, target, draft, onBack }: { text: string; target:
                 <label className="feedback-report-option">
                   <Checkbox checked={withShot} onCheckedChange={(v) => toggleShot(v === true)} data-option="screenshot" />
                   <img className="feedback-attach-thumb" src={shot.thumb} alt="" />
-                  <span>{S.feedbackScreenshot}</span>
+                  <span>{shot.label}</span>
                   {withShot && copied && <span className="feedback-report-hint">{S.feedbackReportCopied}</span>}
                 </label>
               )}
               {target && (
                 <label className="feedback-report-option">
                   <Checkbox checked={withPaths} onCheckedChange={(v) => setWithPaths(v === true)} data-option="paths" />
-                  <span>{S.feedbackReportPaths}</span>
+                  <span>{isRegion ? S.feedbackReportRegionPaths : S.feedbackReportPaths}</span>
                   <span className="feedback-report-path mono">
                     {element}
                     {target.info.sources[0] ? ` ${target.info.sources[0]}` : ""}
@@ -749,7 +728,6 @@ function FeedbackReport({ text, target, draft, onBack }: { text: string; target:
   );
 }
 
-// 제목줄의 피드백 버튼. 끝난 피드백을 아직 안 본 게 있으면 점이 뜬다.
 export function FeedbackButton() {
   const mode = useStore((s) => s.feedbackMode);
   const feedbackKey = useCommandKey("feedback");
@@ -774,21 +752,18 @@ export function FeedbackButton() {
   );
 }
 
-// 화면 아래 알림: 반영됨(되돌리기), 재시작 필요, 반영 안 됨. 서버 기록에서 그리므로 창을 다시 읽어도 남아 있다.
 export function FeedbackNotices() {
   const feedbacks = useStore((s) => s.feedbacks);
   const [busy, setBusy] = useState<string | null>(null);
   const items = Object.values(feedbacks)
     .filter((f) => ((f.status !== "running" && f.status !== "checking" && f.status !== "fixing") || f.retrying) && !f.seen)
     .filter((f) => f.status !== "reverted" || f.restartPending)
-    // 이전 실행에서 이미 보여 준 실패는 다시 띄우지 않는다(web/feedbackNoticeMemory.ts). 서버의 seen 은 그대로라 피드백 버튼의 점과 Improvements 는 남는다.
     .filter((f) => f.status !== "failed" || f.retrying || !failureNoticeHidden(f))
     .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
   const shownFailures = items.filter((f) => f.status === "failed" && !f.retrying);
   const shownKey = shownFailures.map((f) => `${f.id}:${f.updatedAt}`).join("|");
   useEffect(() => {
     rememberFailureNotices(shownFailures);
-    // shownKey 가 바뀔 때만 기억을 갱신한다(배열 자체는 렌더마다 새로 만들어진다)
   }, [shownKey]);
   if (!items.length) return null;
 
@@ -813,13 +788,11 @@ export function FeedbackNotices() {
   };
   const noticeActions = (f: Feedback): NoticeAction[] => {
     const actions: NoticeAction[] = [];
-    // FIX3-1 16: 웹 변경은 창을 다시 읽어야 보인다. 데몬 변경(needsRestart)은 아래 Restart Daemon 이 데몬을 띄운 뒤 창까지 다시 읽는다.
     if (f.status === "applied" && !f.needsRestart) actions.push({ label: S.feedbackReload, run: () => void reloadWindow(), primary: true, keepOpen: true });
     if (f.status === "applied") actions.push({ label: S.feedbackRevert, run: () => void revert(f), keepOpen: true, disabled: busy === f.id });
     if ((f.status === "awaitingRestart" || f.restartPending) && !f.restartRequested) actions.push({ label: S.feedbackRestart, run: () => void restart(f), primary: true, keepOpen: true });
     if (f.retrying) actions.push({ label: S.feedbackRetrying, run: () => undefined, keepOpen: true, disabled: true });
     if (canRetryChecks(f)) actions.push({ label: retryLabel(f), run: () => void retryFeedbackChecks(f), primary: true, keepOpen: true });
-    // FBREDO: 이미 다른 길로 해결된 실패 항목은 알림에서 바로 해결됨으로 표시한다(Improvements 에서는 Dismiss 도 된다)
     if (canTidy(f)) actions.push({ label: S.feedbackResolve, run: () => void tidyFeedback(f, "resolve"), keepOpen: true });
     if (canRunAgain(f)) actions.push({ label: S.feedbackRunAgain, run: () => void runFeedbackAgain(f), primary: !canRetryChecks(f), keepOpen: true });
     if (f.status === "needsInput")
@@ -843,7 +816,6 @@ export function FeedbackNotices() {
       });
     return actions;
   };
-  // 같은 문구에 버튼이 없는 알림(No files changed 등)은 쌓지 않고 한 장으로 합친다. 버튼이 있는 것은 피드백마다 따로 둔다.
   const groups: NoticeGroup[] = [];
   for (const f of items) {
     const severity = f.status === "failed" ? "error" : f.status === "applied" || f.status === "noChanges" || f.status === "needsInput" || f.status === "blocked" || f.retrying ? "info" : "warning";
@@ -864,13 +836,10 @@ export function FeedbackNotices() {
 
 type NoticeGroup = { key: string; items: Feedback[]; severity: NoticeSeverity; message: string; actions: NoticeAction[]; retrying?: boolean };
 
-// 시간 규칙은 일반 알림과 같다(web/notices.ts): info 10초, 경고 12초, 오류 15초 뒤 저절로 사라지고 마우스를 올려 두면 멈춘다. 동작 버튼이 있는 오류(Not applied 의 Open)만 남는다.
 function FeedbackNoticeCard({ group, onDismiss }: { group: NoticeGroup; onDismiss: (f: Feedback) => void }) {
   const [held, setHeld] = useState(false);
-  // 부모가 다시 그릴 때마다 제한 시간이 새로 시작하지 않게 최신 값은 ref 로 읽는다.
   const latest = useRef({ group, onDismiss });
   latest.current = { group, onDismiss };
-  // 검사를 다시 돌리는 동안은 끝날 때까지 남는다(몇 분 걸린다).
   const hideMs = group.retrying ? null : defaultHideMs(group.severity, group.actions.length);
   useEffect(() => {
     if (hideMs === null || held) return;
@@ -890,7 +859,6 @@ function FeedbackNoticeCard({ group, onDismiss }: { group: NoticeGroup; onDismis
   );
 }
 
-// 알림 카드에는 질문의 앞부분만 보인다. 전문은 Improvements 상세에 있다.
 function questionPreview(question: string) {
   const line = question.replace(/\s+/g, " ").trim();
   return line.length > 160 ? `${line.slice(0, 159).trimEnd()}…` : line;
@@ -899,10 +867,8 @@ function questionPreview(question: string) {
 function noticeText(f: Feedback) {
   if (f.retrying) return S.feedbackRetryingNotice(f.summary ?? f.text);
   if (f.status === "applied") return S.feedbackApplied(f.summary ?? f.text);
-  // 서버의 실패 문장이 이미 "Not applied: ..." 로 시작하므로 앞 접두를 한 번만 둔다.
   if (f.status === "failed") return S.feedbackFailed((f.failure ?? "").split("\n")[0].replace(/^Not applied:\s*/, ""));
   if (f.status === "noChanges") return S.feedbackNoChanges;
-  // FBBLOCK: 서버가 만든 사람 말 첫 줄(npm 을 못 찾았는지, 로그인이 만료됐는지)
   if (f.status === "blocked") return (f.failure ?? "").split("\n")[0] || S.feedbackBlocked[f.blocked?.reason ?? "environment"];
   if (f.status === "needsInput") return S.feedbackNeedsInput(questionPreview(f.question ?? f.summary ?? ""));
   if (f.status === "awaitingRestart") return f.restartRequested ? S.feedbackRestartWaiting : S.feedbackRestartNeeded;

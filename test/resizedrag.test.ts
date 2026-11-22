@@ -1,4 +1,3 @@
-// 경계 끌개 단독 시험: 크기 계산(web/resizeDrag.ts dragSize), 끄는 동안 표시(beginResize, endResize, onResizeEnd), 붙는 말풍선 재측정 묶기(web/stuckBubble.ts queueRemeasure). 실행: npm test
 import { beginResize, dragSize, endResize, isResizing, onResizeEnd } from "../web/resizeDrag";
 import { queueRemeasure, type Remeasure } from "../web/stuckBubble";
 
@@ -55,8 +54,6 @@ test("짝이 안 맞는 endResize 는 표시를 음수로 만들지 않는다", 
   return expect(on && !isResizing(), `on ${on}`);
 });
 
-// 붙은 말풍선 N개의 재측정은 레이아웃을 두 번만 강제해야 한다(펼친 높이 읽기 한 번, 접은 높이 읽기 한 번).
-// 가짜 말풍선이 속성 쓰기 뒤 첫 높이 읽기를 "레이아웃 강제" 로 센다.
 test("말풍선 재측정은 쓰기와 읽기를 갈라 레이아웃을 두 번만 강제한다", () => {
   const frames: (() => void)[] = [];
   (globalThis as unknown as { requestAnimationFrame: (cb: () => void) => number }).requestAnimationFrame = (cb) => frames.push(cb);

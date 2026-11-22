@@ -17,7 +17,7 @@ import { PaneGrid } from "./PaneGrid";
 import { panesMinWidth, rightRange, sidebarMax } from "./paneFit";
 import { PANE_MIN } from "./paneDrop";
 import { PINNED_EDITOR_MIN } from "./pinnedLayout";
-import { EffortPicker, ModelPicker } from "./Pickers";
+import { EffortPicker, ModelPicker } from "./ModelPopover";
 import { EditorCenter, TabBodies } from "./EditorArea";
 import { EditorStatus } from "./EditorStatus";
 import { DaemonBanner } from "./DaemonBanner";
@@ -51,52 +51,40 @@ export function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const rightOpen = useStore((s) => s.rightOpen);
   const bottomOpen = useStore((s) => s.bottomOpen);
-  // 한 번 연 아래 패널은 닫아도 숨기기만 한다. 언마운트하면 안의 터미널 프로세스가 끊긴다.
   const [bottomEverOpened, setBottomEverOpened] = useState(false);
   useEffect(() => {
     if (bottomOpen) setBottomEverOpened(true);
   }, [bottomOpen]);
   const layout = useStore((s) => s.layout);
   const panelWidth = useStore((s) => s.panelWidths[panelWidthKey(s)] ?? null);
-  // 설정을 읽기 전이거나 숨긴 화면(Board, Slack)이 저장돼 있으면 세션 화면으로 그린다(store 가 설정을 읽은 뒤 상태도 맞춘다).
   const centerView = useStore((s) => visibleCenterView(s.centerView, s.settings));
   const singleColumn = useStore((s) => visibleCenterView(s.centerView, s.settings) !== "sessions" || s.grid.rows.every((r) => r.ids.length <= 1));
-  // Editor 중심에서는 가운데가 에디터라서 오른쪽 패널이 에디터를 EDITOR_FLOOR 까지 줄이며 넓어진다.
   const editorLayout = useStore((s) => s.layoutMode === "editor");
-  // FOCUS: Editor 중심은 앱 사이드바와 오른쪽 패널 대신 왼쪽 Activity Bar 와 사이드바, 오른쪽 대화 패널을 쓴다(web/focusLayout.ts focusShown).
   const focusSideOpen = useStore((s) => s.focusSideOpen);
   const chatDock = useStore((s) => s.chatDock);
   const chatDockOpen = useStore((s) => s.chatDockOpen);
   const chatDockWidth = useStore((s) => s.chatDockWidth);
   const focusSaved = useFocusSideWidth();
   const bodyWidth = useBodyWidth();
-  // Customize Layout: Primary Side Bar 위치와 Panel 정렬이 작업 영역(.body) 격자의 어느 칸에 무엇이 앉는지 정한다(web/layoutConfig.ts gridPlan).
   const layoutConfig = useLayoutConfig();
   const plan = gridPlan(layoutConfig);
-  // 미리보기 패널(SidebarPeek)은 body 밖에 있어서 사이드바 위치를 body 속성으로 알린다
   useLayoutEffect(() => {
     document.body.dataset.sidebarSide = layoutConfig.sideBar;
   }, [layoutConfig.sideBar]);
   const shown = focusShown({ editorLayout, sessionsView: centerView === "sessions", chatDock, sideOpen: focusSideOpen, dockOpen: chatDockOpen });
   const dockPx = shown.dock ? dockWidth(chatDockWidth, bodyWidth) : 0;
-  // --center-w 를 쓰는 요소(오른쪽 패널, 도킹한 대화 패널)가 생기고 사라질 때도 다시 건다.
   useLayoutEffect(() => watchCenterWidth(), [sidebarOpen, focusSideOpen, editorLayout, centerView, layout.sidebarWidth, focusSaved, bodyWidth, layoutConfig.sideBar, rightOpen, chatDock]);
-  // FIXY: Chat 중심에서 에디터 탭이 열려 있으면 대화 칸이 한 열이어도 CHAT_EDITING 아래로 줄지 않는다(대화 > 에디터 > 고정 칸 순). 모자라면 오른쪽 패널이 더 넓어지지 않고 고정 칸이 먼저 줄거나 서랍이 된다.
   const editing = useStore((s) => s.layoutMode !== "editor" && shownTabsOf(s).length > 0);
   const singleReserve = editing ? CHAT_EDITING : CHAT_FLOOR;
   const chatReserve = editorLayout ? EDITOR_FLOOR : singleColumn ? singleReserve : CHAT_MIN;
-  // PANEMIN: 칸이 여러 열이면 오른쪽 패널은 칸 수 x 최소 폭 합까지만 칸 영역을 양보받는다(styles.css 의 --panes-reserve). 그 아래로는 칸 영역이 스크롤된다.
   const rowCols = useStore((s) => s.grid.rows.reduce((most, r) => Math.max(most, r.ids.length), 0));
   const panesReserve = editorLayout ? EDITOR_FLOOR : singleColumn ? singleReserve : panesMinWidth([rowCols]);
-  // 칸이 여러 열이고 에디터 탭이 열려 있으면 오른쪽 패널은 에디터 최소 폭에서 멈춘다(styles.css `.center[data-columns="many"][data-editing] .right` 와 같은 값)
   const rightMin = editing && !editorLayout && !singleColumn ? PINNED_EDITOR_MIN : RIGHT_MIN;
   const centerStyle: Record<string, string> = {};
   if (!singleColumn && !editorLayout) centerStyle["--panes-reserve"] = `${panesReserve}px`;
 
   useEffect(() => {
     document.body.dataset.electron = IN_ELECTRON ? "1" : "";
-    // chord 의 두 번째 키가 에디터가 쓰는 키(Enter, 방향키)여도 에디터보다 먼저 받아야 한다. 에디터(CodeMirror)는 자기 요소에서 keydown 을 먼저 처리해 줄바꿈이나 커서 이동이 같이 일어난다.
-    // chord 를 기다리는 동안만 캡처 단계에서 처리하고, 같은 이벤트를 버블 단계에서 다시 처리하지 않는다.
     const early = new WeakSet<Event>();
     const onKeyDownCapture = (event: globalThis.KeyboardEvent) => {
       if (!isChordPending()) return;
@@ -106,9 +94,7 @@ export function App() {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (!early.has(event)) runShortcut(event);
     };
-    // Electron 메뉴에서 고른 항목은 window 이벤트로 넘어온다.
     const onCommand = (event: Event) => runCommand((event as CustomEvent<string>).detail);
-    // Electron 은 메뉴 가속키와 겹치는 키(⌘\, ⌘W 등)를 페이지에 주지 않고 메인 프로세스가 가로채 이 이벤트로 넘긴다. 같은 표와 chord 상태 기계로 처리한다.
     const onKey = (event: Event) => runShortcut((event as CustomEvent<ShortcutEvent>).detail);
     window.addEventListener("keydown", onKeyDownCapture, true);
     window.addEventListener("keydown", onKeyDown);
@@ -162,7 +148,6 @@ export function App() {
         )}
         <div className="center-and-bottom">
           <div className="center" data-columns={singleColumn ? "one" : "many"} data-layout={editorLayout ? "editor" : "chat"} data-editing={editing || undefined} style={centerStyle}>
-            {/* 보드로 바꿔도 세션 칸은 지우지 않고 숨긴다. 입력창에 쓰던 글과 스크롤이 돌아오면 그대로 있다. */}
             <PaneGrid hidden={centerView !== "sessions"} />
             {shown.dock && (
               <Resizer
@@ -184,9 +169,7 @@ export function App() {
             {centerView === "notion" && <NotionView />}
             {centerView === "notes" && <NotesView />}
             {centerView === "skills" && <SkillsView />}
-            {/* 곁다리 대화는 오른쪽 아래에 떠 있는 창이라 칸과 패널의 폭을 쓰지 않는다. */}
             {side && <SideChat key={side.id} side={side} />}
-            {/* 세션 오른쪽 패널은 세션 화면 것이다. 보드, 멘션, PR 화면에서는 지우지 않고 숨긴다(안의 Browser 탭 webview 가 다시 읽히지 않도록). */}
             {rightOpen && !editorLayout && (
               <>
                 <Resizer
@@ -232,7 +215,6 @@ export function App() {
           {editorLayout && centerView === "sessions" && <EditorStatus />}
         </div>
       </div>
-      {/* 탭 본문은 한 곳에 계속 두어야 Chat 과 Editor 배치를 오가도 에디터가 다시 만들어지지 않는다. 오른쪽 패널이 닫힌 Chat 배치에서는 지금처럼 만들지 않는다. */}
       {(editorLayout || rightOpen) && <TabBodies />}
       {!editorLayout && <SidebarPeek />}
       <Overlays />
@@ -251,7 +233,6 @@ export function App() {
   );
 }
 
-// 대화 패널 경계선 더블클릭: 대화 본문 글자 크기에 맞는 최소 폭으로 맞춘다. 대화 열을 못 찾으면 기본 폭(null)이다.
 function fitDockWidth(): number | null {
   const timeline = document.querySelector<HTMLElement>(".panes .timeline");
   const ctx = document.createElement("canvas").getContext("2d");
@@ -262,17 +243,14 @@ function fitDockWidth(): number | null {
   return dockFitWidth(ctx.measureText("0").width, pad, centerWidth());
 }
 
-// 패널 크기 한계 (HANDOFF-v3 수용 기준: 사이드바 200~400, 오른쪽 320~, 아래는 본문의 60% 까지). 토큰에 없는 값이라 ACCEPTANCE-v3 "변경 제안" 에 적었다.
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 400;
 const RIGHT_MIN = 300;
-const CHAT_MIN = 360; // --size-chat-min
-const CHAT_FLOOR = 300; // --size-chat-floor
-const CHAT_EDITING = 440; // --size-chat-editing
-const EDITOR_FLOOR = 320; // --size-float-min-width
+const CHAT_MIN = 360;
+const CHAT_FLOOR = 300;
+const CHAT_EDITING = 440;
+const EDITOR_FLOOR = 320;
 const BOTTOM_MIN = 120;
-
-// --- 아래 패널: Output | Terminal ---
 
 const NO_TERMINALS: { id: string; name: string; dir?: string }[] = [];
 
@@ -295,7 +273,6 @@ function BottomPanel({ height, hidden }: { height: number | null; hidden: boolea
     const timer = setInterval(load, 2000);
     return () => clearInterval(timer);
   }, [tab]);
-  // 터미널 탭이 보이는데 이 범위에 터미널이 없으면 바로 하나 연다(빈 안내 대신 셸이 기본으로 뜬다). 마지막 터미널을 닫으면 패널이 닫혀 다시 뜨지 않는다.
   const needsTerminal = tab === "terminal" && !hidden && terminals.length === 0;
   useEffect(() => {
     if (needsTerminal) addTerminal(scope.key);

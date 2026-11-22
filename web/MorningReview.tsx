@@ -9,11 +9,8 @@ import { S } from "./strings";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
-// 끌어서 바꾸는 본문 높이의 아래 한계. 위 한계는 보드 높이의 70% (아래 열 영역이 남도록).
 const REVIEW_MIN = 80;
 
-// Board 맨 위의 접을 수 있는 Morning review 영역. 데몬이 만든 리뷰(최근 7일)를 섹션별로 보여 주고, 끝난 것 같은 카드의 이동 제안은 사용자가 Move 나 Apply all 을 눌러야만 적용한다.
-// 데몬이 아직 리뷰를 모르는 옛 버전이면 review 상태가 없어서 영역 자체를 그리지 않는다.
 export function MorningReviewPanel() {
   const state = useStore((s) => s.review);
   const board = useStore((s) => s.board);
@@ -23,7 +20,6 @@ export function MorningReviewPanel() {
   const [picked, setPicked] = useState<string | null>(null);
   const unreadDate = state?.unreadDate ?? null;
 
-  // 안 읽은 자동 리뷰가 있을 때 이 영역이 화면에 있으면 봤다고 표시한다. 접혀 있었으면 펴서 보이게 한다. 창이 가려져 있으면 다시 보일 때 표시한다.
   useEffect(() => {
     if (!unreadDate) return;
     const seen = () => {
@@ -37,7 +33,6 @@ export function MorningReviewPanel() {
     return () => document.removeEventListener("visibilitychange", seen);
   }, [unreadDate]);
 
-  // 새 리뷰를 만들기 시작하면 날짜 선택을 풀어 결과(오늘 것)가 바로 보이게 한다
   const running = state?.running ?? false;
   useEffect(() => {
     if (running) setPicked(null);
@@ -127,7 +122,6 @@ function ReviewSections({ review }: { review: MorningReview }) {
   );
 }
 
-// 항목 하나. 세션 중심 섹션(waiting, unboarded)은 세션을, 카드 중심 섹션은 카드를 연다. 지금 이름이 있으면 그것을 쓰고, 지워졌으면 만들 때의 이름을 눌러지지 않게 보인다.
 function ReviewRow({ review, section, item }: { review: MorningReview; section: ReviewSection; item: ReviewItem }) {
   const board = useStore((s) => s.board);
   const card = useStore((s) => (item.cardId ? s.board?.cards.find((c) => c.id === item.cardId) : undefined));
@@ -138,7 +132,6 @@ function ReviewRow({ review, section, item }: { review: MorningReview; section: 
   const move = item.move;
   const moveState = moveStateOf(item, board);
   const target = board?.columns.find((c) => c.id === move?.toColumnId);
-  // 카드가 지금 있는 열 (카드가 지워졌으면 만들 때의 열 이름)
   const columnName = (card ? board?.columns.find((c) => c.id === card.columnId)?.name : item.column) ?? null;
 
   return (

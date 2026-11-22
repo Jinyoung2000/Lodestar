@@ -1,5 +1,3 @@
-// 통합 검색(⌘K)의 순수 로직: chord 판정, 탭 거르기, 최근 항목 정렬, ←→ 탭 전환 규칙, / 유형 필터. DOM 과 store 없이 확인한다.
-// 실행: npm test
 import type { Agent, BoardCard, InboxItem, Workspace } from "../shared/protocol";
 import type { PrSummary } from "../shared/prTypes";
 import { BINDINGS, CHORD_TIMEOUT_MS, stepKey, type KeyContext, type Pending } from "../web/keymap";
@@ -11,8 +9,6 @@ const expect = (condition: boolean, detail: string) => {
   if (!condition) throw new Error(detail);
   return detail;
 };
-
-// --- 도구 ---
 
 const ctx: KeyContext = { inTerminal: false, inEditor: false };
 const overlayCtx: KeyContext = { ...ctx, inSearchOverlay: true };
@@ -49,9 +45,6 @@ const base = (): SearchData => ({
 
 const titles = (rows: { title: string }[]) => rows.map((r) => r.title);
 
-// --- chord 판정 ---
-
-// BINDINGS 의 chord 를 맥락별로 하나씩 다시 돌려, ⌘K 가 검색창을 연 뒤에도 기존 chord 가 그대로 도는지 표로 확인한다.
 const chordContext = (when: string | undefined): KeyContext => ({ ...ctx, inEditor: when === "editor", inEditorArea: when === "editorArea" || when === "editor", inBrowser: when === "browserTab", inSearch: when === "searchTab", inElectron: when === "electron" });
 
 test("chord 표: ⌘K 로 시작하는 모든 chord 는 검색창이 닫혀 있을 때 예전과 똑같이 실행된다", () => {
@@ -61,7 +54,6 @@ test("chord 표: ⌘K 로 시작하는 모든 chord 는 검색창이 닫혀 있�
     const second2 = b.keys[1] as string;
     const c = chordContext(b.when);
     const second = stepKey(prefix(), second2, c, 100);
-    // 같은 키를 쓰는 에디터 전용 줄이 먼저 맞을 수 있다(표에서 먼저 나온 줄이 이긴다)
     const winner = BINDINGS.find((x) => x.keys.length === 2 && x.keys[1] === second2 && (x.when === undefined || (x.when === "editor" && c.inEditor) || (x.when === "editorArea" && c.inEditorArea)));
     expect(second.kind === "run" && second.command === (winner ?? b).command, `⌘K ${second2} (${b.when ?? "any"}) -> ${b.command}, 실제 ${second.kind === "run" ? second.command : second.kind}`);
   }
@@ -72,11 +64,9 @@ test("⌘K 첫 키: 에디터 밖에서는 검색창을 열고 chord 도 기다�
   const out = stepKey(null, "Meta+KeyK", ctx, 0);
   expect(out.kind === "pending" && out.opens === "search" && out.pending.prefix === "Meta+KeyK", "에디터 밖");
   const terminal = stepKey(null, "Meta+KeyK", { inTerminal: true, inEditor: false }, 0);
-  // C(발견 8): 터미널의 ⌘K 는 지우기이고 chord 를 기다리지 않는다
   expect(terminal.kind === "run" && terminal.command === "terminalClear", "터미널");
   const editor = stepKey(null, "Meta+KeyK", { inTerminal: false, inEditor: true, inEditorArea: true }, 0);
   expect(editor.kind === "pending" && editor.opens === undefined, "에디터는 opens 없음");
-  // 에디터 chord 는 그대로
   const format = stepKey(editor.kind === "pending" ? editor.pending : null, "Meta+KeyF", { inTerminal: false, inEditor: true, inEditorArea: true }, 10);
   expect(format.kind === "run" && format.command === "formatSelection", "⌘K ⌘F");
   const down = stepKey(editor.kind === "pending" ? editor.pending : null, "Meta+Backslash", { inTerminal: false, inEditor: true, inEditorArea: true }, 10);
@@ -99,10 +89,8 @@ test("검색창이 열린 뒤: 수정키가 붙은 chord 키는 실행하고, �
 test("검색창이 열린 채 ⌘K 를 다시 누르면 닫고 chord 를 다시 기다린다(⌘K ⌘K 뒤 W 가 closeAllChats 로 가는 길)", () => {
   const again = stepKey(prefix(), "Meta+KeyK", overlayCtx, 100);
   expect(again.kind === "pending" && again.opens === "search" && again.pending.at === 100, "다시 누름");
-  // 열려 있는 채 대기 시간이 지난 뒤의 ⌘K 도 같은 단계(닫기)다
   const late = stepKey(null, "Meta+KeyK", overlayCtx, 5000);
   expect(late.kind === "pending" && late.opens === "search", "대기 없이 누름");
-  // 닫은 뒤(검색창 없음)에는 예전 정책: W 는 closeAllChats, 방향키는 칸 이동
   const w = stepKey(again.kind === "pending" ? again.pending : null, "KeyW", ctx, 200);
   const left = stepKey(again.kind === "pending" ? again.pending : null, "ArrowLeft", ctx, 200);
   expect(w.kind === "run" && w.command === "closeAllChats" && left.kind === "run" && left.command === "focusPaneLeft", "plain chord");
@@ -124,8 +112,6 @@ test("⌃⌥R 은 그대로 sessions 명령이고 ⇧⌘K 는 보드로 남는�
   expect(board.kind === "run" && board.command === "board", "⇧⌘K");
   return "ok";
 });
-
-// --- ←→ 탭 전환 ---
 
 const tabs: SearchScope[] = ["all", "sessions", "files", "prs"];
 const arrow = (key: string, extra: Partial<{ shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean; isComposing: boolean }> = {}) => ({ key, shiftKey: false, altKey: false, metaKey: false, ctrlKey: false, ...extra });
@@ -157,8 +143,6 @@ test("tabKeyStep: 선택 영역, 수정키, 한글 조합 중, 다른 키는 탭
   return "ok";
 });
 
-// --- / 유형 필터 ---
-
 test("parseSlash: / 만 치면 보이는 모든 유형, 낱말을 치면 그 낱말로 시작하는 유형", () => {
   const all = parseSlash("/", tabs);
   expect(all?.kind === "suggest" && all.tabs.join() === tabs.join(), "전부");
@@ -186,8 +170,6 @@ test("parseSlash: 알려진 낱말 뒤의 공백은 그 유형으로 좁히고 �
   return "ok";
 });
 
-// --- 탭 ---
-
 test("visibleTabs: 데이터가 없는 탭은 숨기고 All 은 늘 있다", () => {
   expect(visibleTabs(base()).join() === "all,sessions,files,workspaces,prs,board,mentions", "전부 있음");
   const empty: SearchData = { ...base(), agents: [], workspaces: [], fileWorkspaceId: null, files: undefined, prs: [], cards: [], mentions: [] };
@@ -198,8 +180,6 @@ test("visibleTabs: 데이터가 없는 탭은 숨기고 All 은 늘 있다", () 
   expect(!visibleTabs({ ...base(), workspaces: [workspaces[2], workspaces[3]] }).includes("workspaces"), "worktree 와 피드백 폴더는 Workspaces 가 아니다");
   return "ok";
 });
-
-// --- 탭별 거르기 ---
 
 test("searchGroups: All 은 입력이 있으면 유형별 묶음으로, 한 묶음은 최대 5개", () => {
   const groups = searchGroups(base(), "all", "login");
@@ -247,8 +227,6 @@ test("searchGroups: Workspaces 는 최상위 폴더만 세고 worktree 세션은
   return "ok";
 });
 
-// --- Recent ---
-
 test("Recent: 입력이 비면 Recent 와 Actions 두 묶음, 최대 8개, 연 시각이 최근인 것부터", () => {
   const data: SearchData = { ...base(), stamps: { "session:a1": NOW - 1000, "file:w1:src/App.tsx": NOW - 5000, "pr:acme/app#8": NOW - 2000, "card:c1": NOW - 9000, "mention:m1": NOW - 500, "session:a2": NOW - 20_000 } };
   const groups = searchGroups(data, "all", "");
@@ -287,8 +265,6 @@ test("noteStamp: 같은 키는 시각만 갱신하고 80개를 넘으면 가장 
   return "ok";
 });
 
-// --- Actions 와 보조 동작 ---
-
 test("Actions: 입력으로 이름을 거르고 단축키 키캡을 붙인다", () => {
   const found = searchGroups(base(), "all", "board").find((g) => g.id === "action");
   const row = found?.rows[0];
@@ -308,8 +284,6 @@ test("altLabel: 행 종류마다 ⌥↵ 의 이름이 다르고 보조 동작이
   expect(label("action") === null, "action");
   return "ok";
 });
-
-// --- 데이터 모으기 ---
 
 test("uniquePrs: 저장소와 번호로 겹침을 없애고 갱신이 최근인 순", () => {
   const a = pr(1, "one", "acme/app", "2026-10-01T00:00:00Z");

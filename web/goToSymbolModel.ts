@@ -59,7 +59,6 @@ export function buildSymbolPicks(list: readonly Flat[], value: string, cursor: n
   return { rows, active: rows.length && !filter && cursor !== null ? activeAt(rows, cursor) : null, empty, byCategory };
 }
 
-// 커서를 품은 마지막 심볼(문서 순서라 가장 안쪽). 없으면 null(첫 심볼 행이 활성이 된다).
 function activeAt(rows: readonly SymbolRow[], cursor: number): number | null {
   for (let i = rows.length - 1; i >= 0; i--) {
     const row = rows[i]!;
@@ -95,7 +94,6 @@ export function symbolTone(kind: number): "class" | "function" | "variable" | "d
   return "default";
 }
 
-// 일치 범위로 글자를 일치한 조각과 아닌 조각으로 나눈다(일치한 글자는 굵게 파랗게 그린다)
 export function splitMatches(text: string, ranges: readonly Range[]): { text: string; hit: boolean }[] {
   const parts: { text: string; hit: boolean }[] = [];
   let at = 0;

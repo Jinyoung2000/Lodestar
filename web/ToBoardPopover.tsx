@@ -9,8 +9,6 @@ import { S } from "./strings";
 import { closeToBoard, rememberColumn, rememberedColumn, useToBoardRequest, type ToBoardRequest } from "./toBoardState";
 import { Button } from "./ui/button";
 
-// 대화의 한 부분(답, 말, 드래그로 고른 글, 할 일)을 Board 카드로 만들기 전에 제목을 고치고 열을 고르는 작은 팝오버. 앱에 하나만 뜨고 App 이 그린다.
-// 같은 부분의 카드가 이미 있으면 새로 만들기 전에 그 카드를 열지 묻는다. 만든 뒤 확인은 알림 카드가 아니라 누른 자리의 말풍선(web/hint.ts)이다.
 export function ToBoardPopover() {
   const request = useToBoardRequest();
   if (!request) return null;
@@ -120,7 +118,6 @@ function NewCardForm({ request, columns }: { request: ToBoardRequest; columns: B
   );
 }
 
-// 열은 5개 안팎이라 드롭다운 대신 한눈에 보이는 알약으로 둔다. 좌우 화살표로 옮기고 Tab 으로는 고른 알약 하나만 지난다.
 function ColumnChoice({ columns, value, onChange }: { columns: BoardColumn[]; value: string; onChange: (id: string) => void }) {
   const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;

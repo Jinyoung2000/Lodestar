@@ -1,10 +1,5 @@
 import { spawn } from "node:child_process";
 
-// LINEAR: Linear 개인 API 키의 저장소. 운영은 맥 키체인(generic password, service lodestar-linear, account api-key)만 쓴다.
-// 키는 프로세스 인자에 올리지 않는다. 저장은 `security -i`(명령을 stdin 에서 읽는 모드)로 명령 줄째 stdin 에 넘기고, 읽기는 -w 출력만 받는다.
-// 시험 전용 환경 변수(AGENT_NAV_LINEAR_KEY, AGENT_NAV_LINEAR_KEYCHAIN_SERVICE)는 AGENT_NAV_LINEAR_API 가 함께 있을 때(= 가짜 서버를 가리킬 때)만 듣는다.
-// 그래서 환경 변수의 키는 실제 api.linear.app 으로는 절대 나가지 않는다.
-
 export const KEYCHAIN_SERVICE = "lodestar-linear";
 export const KEYCHAIN_ACCOUNT = "api-key";
 
@@ -19,7 +14,6 @@ export type SecurityRunner = (args: string[], stdin?: string) => Promise<Securit
 
 export class KeychainError extends Error {}
 
-// Linear 키(lin_api_...)가 쓰는 글자만. 따옴표, 공백, 줄바꿈이 있으면 명령 줄을 깨뜨릴 수 있어 저장 전에 거절한다.
 export function validKeyShape(key: string): boolean {
   return /^[A-Za-z0-9_-]{16,256}$/.test(key);
 }
@@ -76,7 +70,6 @@ export function keychainStore(run: SecurityRunner, service = KEYCHAIN_SERVICE): 
   };
 }
 
-// 시험용 저장소: 환경 변수의 키로 시작하는 메모리 저장소. 쓰기와 지우기는 메모리에서만 일어나 키체인을 건드리지 않는다.
 export function memoryStore(initial: string | null): KeyStore {
   let current = initial;
   return {

@@ -1,5 +1,3 @@
-// Editor 배치 Changes 목록의 키보드 이동(web/changesListNav.ts)과 Checks 구역 상태(web/changesState.ts).
-// 실행: npm test
 import { getChangesView, setChecksOpen } from "../web/changesState";
 import { listNav, parentOf, type NavRow } from "../web/changesListNav";
 
@@ -44,7 +42,6 @@ test("행이 없으면 아무것도 하지 않는다", () => {
   return "ok";
 });
 
-// src(폴더, 펴짐) / a.ts / b.ts, docs(폴더, 접힘), z.md
 const tree: NavRow[] = [folder(0, true), file(1), file(1), folder(0, false), file(0)];
 
 test("트리: 오른쪽은 접힌 폴더를 펴고, 펴진 폴더에서는 첫 자식으로", () => {

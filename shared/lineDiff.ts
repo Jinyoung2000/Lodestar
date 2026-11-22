@@ -1,4 +1,3 @@
-// 줄 단위 추가/삭제 수. 앞뒤 공통 줄을 걷어 낸 가운데를 Myers 로 센다. git diff --numstat 과 같은 값이다.
 export function countLineChanges(before: string, after: string) {
   const a = splitLines(before);
   const b = splitLines(after);
@@ -18,8 +17,6 @@ export function countLineChanges(before: string, after: string) {
   return { additions: (distance + n - m) / 2, deletions: (distance - n + m) / 2 };
 }
 
-// Myers O(ND): 추가 + 삭제 줄 수의 최솟값(D). 경로는 필요 없어 V 배열 하나만 쓴다. git diff 의 줄 수도 같은 최솟값이다.
-// 거의 전부 다른 파일(D 가 한계를 넘음)은 null 을 돌려 호출자가 전부 바뀐 것으로 세게 한다.
 const MAX_EDIT_DISTANCE = 20_000;
 
 function editDistance(a: string[], b: string[], start: number, endA: number, endB: number) {
@@ -43,7 +40,6 @@ function editDistance(a: string[], b: string[], start: number, endA: number, end
   return null;
 }
 
-// 줄 끝 개행이 없는 마지막 줄은 개행이 있는 같은 줄과 다른 줄로 센다(git 이 "\ No newline at end of file" 로 구분하는 것과 같다).
 function splitLines(text: string) {
   if (!text) return [];
   const lines = text.split("\n");

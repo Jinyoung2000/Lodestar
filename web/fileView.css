@@ -1,6 +1,4 @@
-/* Q2: 이미지와 바이너리 미리보기, 저장 충돌과 읽기 전용 배너, 지워진 파일 탭, 대화 안 찾기 강조. 값은 전부 토큰이다. */
 
-/* --- 미리보기 --- */
 .file-preview {
   flex: 1;
   min-height: 0;
@@ -28,7 +26,6 @@
 .file-preview-info {
   margin-right: var(--space-2);
 }
-/* 투명한 그림이 보이도록 바둑판 바탕 */
 .file-preview-view {
   flex: 1;
   min-height: 0;
@@ -71,7 +68,6 @@
   font-size: var(--text-ui);
 }
 
-/* --- 편집기 배너: 한 줄 말줄임, 좁은 열에서는 단추 이름을 숨기고 아이콘과 툴팁만 --- */
 .editor .editor-banner {
   container-type: inline-size;
   min-width: 0;
@@ -103,7 +99,6 @@
   text-decoration: line-through;
 }
 
-/* --- 대화 안 찾기: 일치 강조(CSS Custom Highlight). 색은 편집기 찾기와 같은 토큰 --- */
 ::highlight(chat-find-match) {
   background-color: var(--find-match-bg);
   color: inherit;
@@ -112,28 +107,23 @@
   background-color: var(--find-match-current-bg);
 }
 
-/* --- Changes 패널: 좁은 목록 상태는 머리줄을 숨기지만, 기본이 아닌 범위(칩에서 들어온 Session 등)일 때는 범위 이름이 보이게 둔다 --- */
 .changes-view:not([data-wide]) .changes-head[data-custom-scope] {
   display: flex;
 }
 
-/* 대화 찾기 위젯: 편집기 찾기 위젯과 같은 모양에서 바꾸기 줄과 펼침 단추만 없다 */
 .cm-find[data-chat] {
   padding-left: var(--space-2);
 }
 
-/* 대화 영역은 클릭해도 포커스를 받아(키보드 ⌘F 의 기준) 테두리는 그리지 않는다 */
 .timeline:focus {
   outline: none;
 }
 
-/* 탭 줄 끝의 빈 자리: 활성 탭 때문에 왼쪽 끝에 잘린 탭을 밀어내야 하는데 스크롤 끝에 닿았을 때만 EditorArea 가 폭을 준다 */
 .tabs::after {
   content: "";
   flex: 0 0 var(--tabs-extra, 0px);
 }
 
-/* FIX5-0: Changes 패널의 "Bash 로 바뀐 파일 일부를 세지 못했다" 안내 한 줄. 아이콘은 첫 줄 글자 높이에 맞춘다. */
 .changes-shell-note {
   display: flex;
   align-items: flex-start;
@@ -152,7 +142,6 @@
   align-items: center;
 }
 
-/* 없는 파일 안내(MissingFile). 바이너리 안내와 같은 가운데 정렬 틀을 쓴다. */
 .file-missing-path {
   font-family: var(--editor-font-family);
   font-size: var(--editor-font-size-sm);

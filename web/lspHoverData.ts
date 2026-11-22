@@ -6,7 +6,6 @@ import { loadCodeActions } from "./quickFix";
 import { partsFromHoverMarkdown } from "./hoverParts";
 import { signatureFromParts, typeFromParts, type DisplayPart } from "./typeParts";
 
-// hover 상자 하나를 채우는 서버 응답을 모은다: hover 본문, 그 자리의 진단, quick fix 가 있는지, 붙여넣을 수 있는 타입과 시그니처.
 export type HoverData = {
   html: string | null;
   range?: LspRange;
@@ -41,7 +40,6 @@ export async function loadHoverData(plugin: LSPPlugin, pos: number, workspaceId:
   };
 }
 
-// 커서 위치의 타입과 시그니처만(Copy Type 명령, 우클릭 메뉴)
 export async function loadTypeAt(plugin: LSPPlugin, pos: number) {
   plugin.client.sync();
   const hoverPromise = hoverContent(plugin, { textDocument: { uri: plugin.uri }, position: plugin.toPosition(pos) }).catch(() => null);
@@ -49,8 +47,6 @@ export async function loadTypeAt(plugin: LSPPlugin, pos: number) {
   return { type: parts ? typeFromParts(parts) : null, signature: parts ? signatureFromParts(parts) : null };
 }
 
-// typescript-language-server 는 tsserver 의 quickinfo-full 을 workspace/executeCommand 로 열어 준다. 네이티브 TypeScript(typescript-go) 는 그 명령이 없어
-// 이미 받은 hover 마크다운의 코드 블록에서 같은 조각을 만든다(web/hoverParts.ts).
 async function typeParts(plugin: LSPPlugin, pos: number, hover: Promise<{ markdown: string } | null>): Promise<DisplayPart[] | null> {
   if (hasTsserverRequest(plugin)) return quickInfoParts(plugin, pos).catch(() => null);
   const result = await hover;
@@ -62,8 +58,6 @@ function hasTsserverRequest(plugin: LSPPlugin) {
   return !!provider?.commands?.includes("typescript.tsserverRequest");
 }
 
-// typescript-language-server 의 typescript.tsserverRequest 로 quickinfo-full 을 부른다. displayParts 는 이 요청에만 있다(LSP hover 는 마크다운 문자열뿐).
-// 이 요청의 표시 문자열은 잘리지 않는다(확인: 20개 유니온, 8단계 중첩 객체 모두 전체).
 async function quickInfoParts(plugin: LSPPlugin, pos: number): Promise<DisplayPart[] | null> {
   const position = plugin.toPosition(pos);
   const result = await plugin.client.request<object, { body?: { displayParts?: DisplayPart[] }; displayParts?: DisplayPart[] } | null>("workspace/executeCommand", {
@@ -92,7 +86,6 @@ function hoverHtml(plugin: LSPPlugin, contents: HoverContents) {
   return plugin.docToHTML(hoverMarkdown(contents), "markdown");
 }
 
-// pos 에 걸치는 서버 진단. 범위는 서버가 마지막으로 본 문서 기준이라 아직 보내지 않은 편집만큼 옮긴다(lsp-client 의 진단 처리와 같은 계산).
 export function diagnosticsAt(plugin: LSPPlugin, pos: number): LspDiagnostic[] {
   return diagnosticsOf(plugin.uri).filter((d) => {
     const from = plugin.unsyncedChanges.mapPos(plugin.fromPosition(d.range.start, plugin.syncedDoc));

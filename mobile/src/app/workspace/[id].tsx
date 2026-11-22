@@ -16,8 +16,6 @@ import { Text } from "../../ui/Text";
 import { confirmRemove } from "../../ui/WorkspacesView";
 import { useSessionActions } from "../../ui/sessionActions";
 
-// 워크스페이스(프로젝트) 화면. Paseo 의 프로젝트 안 workspace 목록에 해당: 폴더 자체("Main folder")와 그 아래 worktree 마다 세션을 묶어 보이고,
-// 위치마다 거기서 새 세션을 시작하는 단추가 있다. 완료한 세션은 맨 아래 Done 에 모이고, 맨 끝에서 목록에서 뺄 수 있다(파일은 그대로).
 export default function WorkspaceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -31,12 +29,10 @@ export default function WorkspaceScreen() {
   const actions = useSessionActions();
   const [refreshing, setRefreshing] = useState(false);
   const top = useMemo(() => topWorkspace(workspaces, id), [workspaces, id]);
-  // 세션 순서는 프로젝트(최상위 워크스페이스)마다 따로 고른다. 고른 적이 없으면 전역 기본값.
   const sessionSort = useSessionSort(top?.id ?? id);
   const project = useMemo(() => (top ? buildProject(top, workspaces, agents, sessionSort) : null), [top, workspaces, agents, sessionSort]);
   const info = top ? git[top.id] : undefined;
 
-  // 브랜치와 커밋 안 한 변경은 열 때 한 번 읽는다
   useEffect(() => {
     if (top && conn === "online") void store.refreshGit([top.id]);
   }, [top?.id, conn]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -51,15 +47,12 @@ export default function WorkspaceScreen() {
   const open = useCallback((agentId: string) => router.push({ pathname: "/session/[id]", params: { id: agentId } }), [router]);
 
   if (!project || !top) {
-    // 목록에서 뺀 직후나 잘못된 주소: 목록이 한 번이라도 맞춰졌으면 홈으로 돌아간다
     return loaded && conn === "online" ? <Redirect href="/" /> : <View style={{ flex: 1 }} />;
   }
 
   const startHere = (location: Location) => router.push({ pathname: "/new", params: { workspace: top.id, ...(location.kind === "worktree" ? { location: location.workspace.id } : {}) } });
-  // 위치별 Done 을 모아 같은 기준(고정 먼저, 고른 세션 정렬)으로 다시 정렬한다
   const compare = compareAgents(sessionSort);
   const everyoneDone = [project.main, ...project.worktrees].flatMap((l) => l.done.map((agent) => ({ agent, label: l.kind === "main" ? "Main folder" : l.label }))).sort((a, b) => compare(a.agent, b.agent));
-  // 저장소가 아닌 폴더에는 worktree 를 못 만든다(커밋이 없는 저장소는 새 세션 화면이 이유를 말한다)
   const notGit = info !== undefined && info.repoRoot === null;
 
   return (

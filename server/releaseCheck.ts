@@ -6,11 +6,6 @@ import { version as INSTALLED_VERSION } from "../package.json";
 import { LATEST_RELEASE_API, releaseFromApi, type ReleaseState } from "../shared/release";
 import { HOME } from "./store";
 
-// RELEASE: 설정 notifyNewVersion 이 켜져 있을 때만 GitHub 의 최신 릴리스를 하루에 한 번(그리고 켤 때 한 번) 묻는다.
-// 자격 증명 없이 일반 User-Agent 로 묻고, 실패(저장소가 비공개라 404, 오프라인, 한도 초과, 이상한 답)는 조용히 넘기며 알고 있던 값을 바꾸지 않는다.
-// 꺼져 있으면 요청도 타이머도 없다. 마지막 확인 시각, 알게 된 최신 버전, 닫은 버전은 release-check.json 에 남아 재시작해도 하루 한 번을 지킨다.
-// 시험 인스턴스는 AGENT_NAV_RELEASE_URL 로 묻는 주소를 바꾼다.
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TIMEOUT_MS = 5000;
 
@@ -42,12 +37,10 @@ export class ReleaseCheck {
     return { installed: INSTALLED_VERSION, macos: this.macos, latest: this.saved.latest, dismissed: this.saved.dismissed };
   }
 
-  // 데몬이 뜰 때. 켜져 있으면 마지막 확인에서 하루가 지났을 때 묻고, 아니면 남은 시간 뒤로 잡는다.
   start() {
     this.arm(false);
   }
 
-  // 설정이 바뀌었을 때. 켜면 바로 한 번 묻고, 끄면 타이머를 걷는다.
   settingChanged() {
     this.arm(true);
   }
@@ -82,11 +75,9 @@ export class ReleaseCheck {
       });
       if (response.ok) latest = releaseFromApi(await response.json());
     } catch {
-      // 조용히 넘긴다
     } finally {
       this.checking = false;
     }
-    // 실패해도 시각은 남겨 하루에 한 번을 넘지 않게 한다. 읽은 값이 있을 때만 최신 버전을 바꾼다.
     const changed = latest !== null && (latest.version !== this.saved.latest?.version || latest.url !== this.saved.latest?.url);
     this.saved = { ...this.saved, checkedAt: Date.now(), latest: latest ?? this.saved.latest };
     this.save();

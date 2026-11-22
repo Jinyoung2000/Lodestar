@@ -5,10 +5,6 @@ import { activeAgent, activePane, addAttachment, attachmentsOf, flash, getState,
 import { S } from "./strings";
 import { hint } from "./hint";
 
-// Browser 탭의 Share with Agent 와 채팅 첨부(Add Element, Comment on Elements, Console Logs, Screenshot, Area Screenshot).
-// 공유는 에이전트가 그 탭의 페이지를 읽고 조작하는 도구(server/browserTools.ts)를 쓰게 허락하는 일이다. 첨부는 입력창에 글과 이미지 경로를 넣는 일이다.
-// 페이지를 다루는 일은 메인 프로세스(electron/main.ts 의 agent-nav:browser-*)가 하고, 여기서는 그 결과를 받아 첨부로 바꾼다.
-
 const SKIP_SHARE_PROMPT_KEY = "agent-nav:browserShareNoPrompt";
 const SKIP_UNTRUSTED_KEY = "agent-nav:browserUntrustedNoWarn";
 
@@ -23,11 +19,9 @@ const writeFlag = (key: string) => {
   try {
     localStorage.setItem(key, "1");
   } catch {
-    // 저장이 안 돼도 이번 한 번은 진행한다
   }
 };
 
-// Share with Agent: 확인 창(Deny, Allow, "Don't ask again")을 거쳐 이 탭을 활성 세션에 공유한다. 이미 공유 중이면 공유를 끝낸다.
 export async function toggleShare(tabKey: string, sharedWith: string | null): Promise<void> {
   if (sharedWith) {
     updateBrowserTab(tabKey, { sharedWith: null });
@@ -86,7 +80,6 @@ function needsNative(webContentsId: number | null) {
   return true;
 }
 
-// 페이지에서 요소를 고른다. 고르면 첨부가 붙고 true, Esc 나 이동으로 취소되면 false.
 export async function addElementToChat(webContentsId: number | null, pageUrl: string): Promise<boolean> {
   if (!needsNative(webContentsId) || !(await confirmUntrusted(pageUrl))) return false;
   const image = getState().settings?.browserAttachElementImage ?? true;
@@ -101,7 +94,6 @@ export async function addElementToChat(webContentsId: number | null, pageUrl: st
   return true;
 }
 
-// Comment on Elements: 요소를 누르면 댓글 입력줄이 뜨고, Enter 로 확정할 때마다 그 댓글이 첨부로 붙는다. 입력줄 밖에서 Esc 를 누르면 끝난다. 단 댓글 수를 돌려준다.
 export async function commentOnElements(webContentsId: number | null, pageUrl: string): Promise<number> {
   const native = window.agentNavNative;
   if (!needsNative(webContentsId) || !native?.onBrowserComment || !(await confirmUntrusted(pageUrl))) return 0;
@@ -109,7 +101,6 @@ export async function commentOnElements(webContentsId: number | null, pageUrl: s
   const stop = native.onBrowserComment(({ id, item }) => {
     if (id === webContentsId) void attachComment(paneId, item);
   });
-  // 핀 미리보기의 X 로 지운 댓글은 입력창 칩에서도 뺀다
   const stopRemoved = native.onBrowserCommentRemoved?.(({ id, number }) => {
     if (id !== webContentsId) return;
     const chip = attachmentsOf(getState(), paneId).find((a) => a.browser?.kind === "element" && a.browser.comment?.number === number);
@@ -133,7 +124,6 @@ async function attachComment(paneId: string, item: BrowserComment) {
   hint(S.browserCommentAdded(item.number), undefined, { check: true });
 }
 
-// 지금 페이지의 최근 console 출력을 첨부한다.
 export async function addConsoleLogs(webContentsId: number | null, pageUrl: string): Promise<void> {
   const native = window.agentNavNative;
   if (!native?.browserConsole || webContentsId === null) {
@@ -150,7 +140,6 @@ export async function addConsoleLogs(webContentsId: number | null, pageUrl: stri
   hint(S.browserConsoleAdded, undefined, { check: true });
 }
 
-// 지금 페이지의 주소와 스크린샷을 첨부한다. 웹 접속에서는 스크린샷을 찍을 수 없어 주소만 붙는다.
 export async function addScreenshotToChat(page: { webContentsId: number | null; url: string; title: string }): Promise<void> {
   const native = window.agentNavNative;
   if (native?.browserCapture && page.webContentsId !== null && !(await confirmUntrusted(page.url))) return;
@@ -171,7 +160,6 @@ export async function addScreenshotToChat(page: { webContentsId: number | null; 
   hint(shot ? S.browserPageShared : S.browserPageSharedNoShot, undefined, { check: true });
 }
 
-// 페이지에서 끌어 고른 영역의 스크린샷을 첨부한다.
 export async function addAreaScreenshot(webContentsId: number | null, pageUrl: string): Promise<boolean> {
   if (!needsNative(webContentsId) || !(await confirmUntrusted(pageUrl))) return false;
   const picked = await window.agentNavNative!.browserPick!(webContentsId!, "area").catch((e: Error) => {
@@ -185,7 +173,6 @@ export async function addAreaScreenshot(webContentsId: number | null, pageUrl: s
   return true;
 }
 
-// 스크롤 밖까지 담은 페이지 전체의 스크린샷을 첨부한다(설정 Experimental User Tools 가 켜졌을 때 메뉴에 나온다).
 export async function addFullPageScreenshot(webContentsId: number | null, pageUrl: string): Promise<void> {
   const native = window.agentNavNative;
   if (!native?.browserCaptureFull || webContentsId === null) {

@@ -7,11 +7,6 @@ import { CODE_SELECTOR, codeCellOf, HoverTip, paintHighlight, rangeIn, textOffse
 import { docPosition, type PrDoc } from "./prLspDocs";
 import { S } from "./strings";
 
-// PR diff 의 새 쪽 코드 칸에 언어 기능을 얹는다. 화면은 patch 의 줄을 그린 DOM 이라서 CodeMirror 의 hover, 정의 링크, 키맵이 붙을 곳이 없다.
-// 이 클래스가 마우스와 키 입력을 받아 칸 안 글자 위치를 문서 위치(PrDoc)로 옮기고, 서버 질문은 문서의 LSPPlugin 으로 보내며, 결과는 DOM 상자와 CSS Highlight 로 보인다.
-//   hover: 단어 위에 0.3초 머물면 상자(진단, 타입, 문서)  ⌘ 를 누른 채 올리면 정의가 있는 단어에 밑줄  ⌘클릭 또는 F12: 정의로 이동  ⇧F12: 참조 목록
-// 삭제 줄과 옛 쪽(LEFT)에는 아무것도 붙이지 않는다(diff 의 원본 쪽과 같은 원칙).
-
 export type LspLocation = { uri: string; range: { start: { line: number; character: number }; end: { line: number; character: number } } };
 
 export type ControllerHooks = {
@@ -20,9 +15,7 @@ export type ControllerHooks = {
   definition: (doc: PrDoc, pos: number) => Promise<LspLocation[]>;
   references: (doc: PrDoc, pos: number, word: string) => Promise<void>;
   navigate: (location: LspLocation, from: PrDoc) => void;
-  // 문서의 줄 글이 patch 의 줄 글과 다르다(체크아웃한 폴더의 파일이 PR head 와 다르다). 그 줄에는 기능을 붙이지 않는다.
   mismatch: () => void;
-  // 오른쪽 클릭: 화면 좌표. 메뉴는 호출한 쪽이 띄운다
   contextMenu: (x: number, y: number) => void;
 };
 
@@ -75,16 +68,12 @@ export class PrCodeLsp {
     this.caret = null;
   }
 
-  // --- 위치 ---
-
-  // 칸의 행 번호와 patch 줄. 새 쪽 줄이 아니면 null
   private lineOf(code: HTMLElement) {
     const index = Number(code.dataset.row);
     const row = this.hooks.rows()[index];
     return row?.kind === "line" && row.newLine !== null && row.type !== "del" ? { index, row, newLine: row.newLine } : null;
   }
 
-  // 칸 안 offset 의 문서 위치. 문서의 그 줄이 patch 의 줄과 다르면 null(체크아웃한 파일이 PR head 와 어긋난 곳)
   private position(doc: PrDoc, code: HTMLElement, offset: number): number | null {
     const line = this.lineOf(code);
     if (!line || doc.evicted) return null;
@@ -103,8 +92,6 @@ export class PrCodeLsp {
     const word = wordAtPoint(code, code.textContent ?? "", event.clientX, event.clientY);
     return word ? { code, index: Number(code.dataset.row), word } : null;
   }
-
-  // --- hover 와 ⌘ 링크 ---
 
   private onMove = (event: MouseEvent) => {
     this.pointer = { x: event.clientX, y: event.clientY };
@@ -162,7 +149,6 @@ export class PrCodeLsp {
   };
 
   private onScroll = (event: Event) => {
-    // hover 상자 안을 스크롤하는 건 닫을 이유가 아니다
     if (this.tip.contains(event.target)) return;
     this.stopHover();
     this.tip.hide();
@@ -231,9 +217,6 @@ export class PrCodeLsp {
     this.clearLink();
   }
 
-  // --- 클릭, 캐럿, 키 ---
-
-  // ⌘클릭은 선택을 시작하지 않고 정의로 간다. 캐럿은 클릭한 자리다.
   private onDown = (event: MouseEvent) => {
     this.tip.hide();
     if (event.button !== 0 || !(event.metaKey || event.ctrlKey)) return;
@@ -245,7 +228,6 @@ export class PrCodeLsp {
     void this.goToDefinition();
   };
 
-  // 클릭으로 만들어진 접힌 선택(캐럿)을 기억한다. 드래그로 글을 고르면 캐럿이 아니다.
   private onUp = (event: MouseEvent) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey) return;
     const selection = window.getSelection();
@@ -289,7 +271,6 @@ export class PrCodeLsp {
     else void this.goToDefinition();
   };
 
-  // 캐럿이 있는 자리의 문서 위치와 단어
   private caretTarget() {
     const doc = this.hooks.doc();
     const caret = this.caret;
@@ -321,7 +302,6 @@ export class PrCodeLsp {
     return this.caret !== null;
   }
 
-  // 정의 이동으로 이 화면의 줄에 도착했을 때 그 줄 글자 위치에 캐럿을 둔다
   caretAt(index: number, offset: number) {
     const code = this.root.querySelector<HTMLElement>(`${CODE_SELECTOR}[data-row="${index}"]`);
     if (code) this.setCaret(code, offset);

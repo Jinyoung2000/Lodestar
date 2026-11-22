@@ -7,7 +7,6 @@ export type FeedbackRange = { startLine: number; startColumn: number; endLine: n
 
 const CONTEXT = 3;
 
-// 앞 변경의 끝에서 3줄 안에 다음 변경이 시작하면 한 묶음으로 합친다(yDs).
 export function groupChanges(changes: LineChange[]): LineChange[][] {
   const groups: LineChange[][] = [];
   let current: LineChange[] = [];
@@ -27,14 +26,12 @@ export function groupChanges(changes: LineChange[]): LineChange[][] {
   return groups;
 }
 
-// 선택이 이 줄 범위와 맞는지(IDs). 비어 있는 선택(caret)은 범위가 그 줄을 품으면, 아니면 범위가 선택 줄 안에 통째로 들어갈 때만.
 function selectionCoversChange(range: FeedbackRange, start: number, end: number) {
   const empty = range.startLine === range.endLine && range.startColumn === range.endColumn;
   if (empty) return end > start && start <= range.startLine && range.startLine < end;
   return range.startLine <= start && end <= range.endLine + 1;
 }
 
-// 한 묶음의 unified diff 조각(wDs). 변경 앞뒤 3줄 문맥을 붙인다.
 export function buildHunk(group: LineChange[], orig: string[], mod: string[], origEndsWithNewline: boolean, modEndsWithNewline: boolean): string {
   const first = group[0];
   const last = group[group.length - 1];
@@ -86,7 +83,6 @@ export function buildHunk(group: LineChange[], orig: string[], mod: string[], or
   return out.join("\n");
 }
 
-// 현재 쪽에서 고른 범위가 품는 변경 묶음들의 hunk(bDs). 없으면 undefined.
 export function hunksForRange(range: FeedbackRange, changes: LineChange[], original: string, current: string): string | undefined {
   const groups = groupChanges(changes).filter((group) => {
     const covers = (c: LineChange) => selectionCoversChange(range, c.modStart, c.modEnd);
@@ -111,7 +107,6 @@ export function lineRangeLabel(item: Pick<DiffFeedback, "startLine" | "endLine">
   return item.startLine === item.endLine ? `${item.startLine}` : `${item.startLine}-${item.endLine}`;
 }
 
-// 모델에 가는 본문의 코드 펜스. 코드 안에 ``` 가 있으면 더 길게 감싼다.
 function fence(code: string, info = "") {
   const longest = Math.max(2, ...[...code.matchAll(/`+/g)].map((m) => m[0].length));
   const ticks = "`".repeat(longest + 1);
@@ -121,7 +116,6 @@ function fence(code: string, info = "") {
 export const FEEDBACK_HEADER = "The following comments were made on the code changes:";
 export const FEEDBACK_INSTRUCTION = "Act on the user's feedback on this session's changes below. Understand the intent behind each piece of feedback, make the requested changes to address it, and verify your changes are consistent with the rest of the codebase.";
 
-// 사용자 글(비어 있을 수 있다) + 피드백 본문(ADs). 경로는 세션 작업 폴더 기준이다.
 export function formatFeedbackPrompt(userText: string, items: DiffFeedback[]): string {
   const blocks = items.map((item) => {
     let block = `[${item.rel}:${lineRangeLabel(item)}]`;
@@ -146,7 +140,6 @@ export function chipText(items: DiffFeedback[]) {
 
 type Chunkish = { fromA: number; toA: number; fromB: number; toB: number };
 
-// 변경 덩어리(문자 위치)를 줄 범위로. 줄 번호는 1부터, end 는 포함하지 않는다.
 export function chunksToLineChanges(chunks: readonly Chunkish[], a: Text, b: Text): LineChange[] {
   return chunks.map((c) => {
     const origStart = a.lineAt(c.fromA).number;

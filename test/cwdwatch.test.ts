@@ -1,5 +1,3 @@
-// B2-20: 작업 폴더 감시(server/cwdWatch.ts)를 임시 폴더로 시험한다. 데몬도 모델도 필요 없다.
-// 실행: npm test
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,7 +27,6 @@ try {
   expect(gone === 1, "다시 생겨도 감시는 이미 끝났다(다음 전송이 새로 검사한다)");
   stop();
 
-  // 멈춘 감시는 지워져도 부르지 않는다
   let late = 0;
   const stopped = watchDirectory(dir, () => late++, { intervalMs: 20 });
   stopped();
@@ -37,7 +34,6 @@ try {
   await sleep(80);
   expect(late === 0, "멈춘 감시는 부르지 않는다");
 
-  // 파일이 폴더 자리를 차지해도 사라진 것으로 본다
   let replaced = 0;
   const file = join(root, "was-dir");
   mkdirSync(file);

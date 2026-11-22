@@ -1,8 +1,6 @@
-// 터미널에서 ⌘I 로 여는 명령 질문(Terminal Ask)의 순수 함수. DOM 과 Node 어디서나 돌아서 웹 화면, 데몬, 단위 시험이 같이 쓴다.
-// 맥락 수집(마지막 N줄, 비밀값 가리기), 위험 명령 판정, 응답에서 명령 추출, 직전 오류 판정, 프롬프트 조립이 들어 있다.
 
 export const OUTPUT_LINES = 100;
-const MAX_LINE_CHARS = 300; // 한 줄이 이보다 길면 잘라서 보낸다(진행 막대나 빌드 로그 한 줄이 맥락을 먹지 않게)
+const MAX_LINE_CHARS = 300;
 const MAX_OUTPUT_CHARS = 8000;
 const MAX_SELECTION_CHARS = 4000;
 
@@ -12,19 +10,14 @@ export type TermAskContext = {
   cwd: string;
   shell: string;
   os: string;
-  // 비밀값을 가린 마지막 N줄
   output: string;
-  // xterm 에서 고른 글(비밀값을 가림). 없으면 null
   selection: string | null;
-  // 후속 질문이면 바로 앞 질문과 답
   previous: { question: string; answer: string } | null;
-  // FIXY: 작업 폴더의 프로젝트 표지 파일 요약(projectSummary). 데몬이 폴더를 읽어 채운다. 화면은 보내지 않는다.
   project?: string | null;
 };
 
 const REDACTED = "[redacted]";
 
-// 앞의 규칙이 먼저 먹는다. 값만 가리고 키 이름은 남겨서 모델이 무슨 설정인지는 알 수 있게 한다.
 const SECRET_RULES: [RegExp, string][] = [
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, "[redacted private key]"],
   [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, REDACTED],
@@ -34,13 +27,8 @@ const SECRET_RULES: [RegExp, string][] = [
   [/\bxox[abprs]-[A-Za-z0-9-]{10,}/g, REDACTED],
   [/\bAKIA[0-9A-Z]{16}\b/g, REDACTED],
   [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}/gi, `$1 ${REDACTED}`],
-  // user:password@host
   [/(:\/\/[^\s:/@]+:)[^\s@/]+@/g, `$1${REDACTED}@`],
-  // --password hunter2, --token=abc
   [/(--(?:password|passwd|token|api-key|apikey|secret|access-key)(?:=|\s+))(?:"[^"]*"|'[^']*'|[^\s"']+)/gi, `$1${REDACTED}`],
-  // API_KEY=..., "secret": "...", token: ...
-  // 이름 덩어리의 처음에서만 시작하고 키워드는 앞보기로 찾는다. [A-Za-z0-9_.-]*키워드[A-Za-z0-9_.-]* 를 아무 데서나 시작하면
-  // 긴 한 줄(secretsecret... 같은 고른 글, 압축된 번들)에서 세제곱으로 되짚어 화면이 몇 초씩 멈췄다.
   [/((?<![A-Za-z0-9_.-])["']?(?=[A-Za-z0-9_.-]*?(?:api[_-]?key|secret|token|passw(?:or)?d|pwd|credential|private[_-]?key|access[_-]?key|authorization))[A-Za-z0-9_.-]*["']?\s*[=:]\s*)(?:(?:Bearer|Basic)\s+)?(?:"[^"]*"|'[^']*'|[^\s"',;]+)/gi, `$1${REDACTED}`],
 ];
 
@@ -50,8 +38,6 @@ export function redactSecrets(text: string): string {
   return out;
 }
 
-// 화면 버퍼의 줄에서 맨 아래 빈 줄을 걷고 마지막 max 줄을 비밀값 가린 한 덩어리로 만든다.
-// 글자 상한을 넘으면 오래된(위쪽) 줄부터 버린다.
 export function recentOutput(lines: readonly string[], max = OUTPUT_LINES): string {
   let end = lines.length;
   while (end > 0 && lines[end - 1].trim() === "") end--;
@@ -73,10 +59,6 @@ export function selectionContext(selection: string): string | null {
   return text.length > MAX_SELECTION_CHARS ? `${text.slice(0, MAX_SELECTION_CHARS)}...` : text;
 }
 
-// --- 위험 명령 ---
-
-// 한 칸에 하나씩 이유를 돌려준다. 빈 배열이면 위험 패턴이 없다.
-// 셸 문법을 다 풀지는 않고, 명령어 위치(줄 처음, ; & | ( 뒤)에서 시작하는 흔한 패턴만 본다.
 const CMD = String.raw`(?:^|[;&|(\n]|&&|\|\|)\s*(?:sudo\s+(?:-\S+\s+)*)?`;
 const DANGER_RULES: { reason: string; test: (command: string) => boolean }[] = [
   { reason: "Runs with sudo", test: (c) => /(?:^|[;&|(\n])\s*sudo\b/.test(c) },
@@ -104,14 +86,11 @@ export function isMultiline(command: string): boolean {
   return command.trim().includes("\n");
 }
 
-// Run 을 누르기 전에 한 번 더 확인해야 하는 이유들. 위험 패턴과 여러 줄. 비어 있으면 바로 실행해도 된다.
 export function runConfirmReasons(command: string): string[] {
   const reasons = dangerOf(command);
   if (isMultiline(command)) reasons.push("Has several lines");
   return reasons;
 }
-
-// --- 응답에서 명령 추출 ---
 
 export type ExtractedCommand = { command: string; blocks: number; explanation: string };
 
@@ -124,7 +103,6 @@ export function extractCommand(answer: string): ExtractedCommand | null {
   return { command, blocks: blocks.length, explanation };
 }
 
-// 프롬프트 기호($ )가 모든 줄 앞에 붙어 있으면 뗀다. 앞뒤 빈 줄과 줄 끝 공백도 정리한다.
 function cleanCommand(raw: string): string {
   const lines = raw.replace(/\r/g, "").split("\n").map((line) => line.replace(/\s+$/, ""));
   while (lines.length > 0 && lines[0] === "") lines.shift();
@@ -134,20 +112,14 @@ function cleanCommand(raw: string): string {
   return lines.join("\n");
 }
 
-// --- 직전 오류 ---
-
 const ERROR_LINE = /command not found|no such file or directory|permission denied|not a git repository|\b(?:error|fatal|failed|failure|exception|traceback|panic)\b|npm err!|cannot find|unknown option|invalid option|syntax error|segmentation fault|exit(?:ed with)? (?:code|status) [1-9]/i;
 
-// 화면 맨 아래쪽 몇 줄에 오류처럼 보이는 줄이 있으면 true. 기본 제안(Fix the last error)을 흐리게 보일지 정한다.
 export function looksLikeError(lines: readonly string[], within = 12): boolean {
   let end = lines.length;
   while (end > 0 && lines[end - 1].trim() === "") end--;
   return lines.slice(Math.max(0, end - within), end).some((line) => ERROR_LINE.test(line));
 }
 
-// --- 프로젝트 표지 파일 ---
-
-// 작업 폴더 바로 아래에 있으면 어떤 도구 체인인지 알려 주는 파일. 값은 읽을 글(내용에서 이름만 뽑는다)인지 여부다.
 export const PROJECT_FILES: Record<string, boolean> = {
   "package.json": true,
   "package-lock.json": false,
@@ -209,8 +181,6 @@ function makeTargets(text: string | null): string[] {
   return [...names].slice(0, MAX_NAMES);
 }
 
-// 작업 폴더에서 찾은 표지 파일을 모델이 읽을 짧은 목록으로 만든다. 파일 내용은 이름만 뽑고(스크립트 이름, make 대상, 도구 구역 이름) 값은 보내지 않는다.
-// 하나도 없으면 없다고 알려서 모델이 도구 체인을 추측하지 않게 한다.
 export function projectSummary(files: readonly ProjectFile[]): string {
   const present = new Map(files.map((file) => [file.name, file.text]));
   const has = (...names: string[]) => names.filter((name) => present.has(name));
@@ -243,8 +213,6 @@ export function projectSummary(files: readonly ProjectFile[]): string {
   if (rest.length) lines.push(rest.join(", "));
   return redactSecrets(lines.length ? lines.map((line) => `- ${line}`).join("\n") : "(none of the usual project files: package.json, pyproject.toml, Cargo.toml, go.mod, Makefile and so on)");
 }
-
-// --- 프롬프트 ---
 
 export const TERM_ASK_SYSTEM_PROMPT = [
   "You turn a request into one shell command for the user's terminal.",

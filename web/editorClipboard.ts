@@ -37,8 +37,6 @@ function handleCopy(event: ClipboardEvent, view: EditorView, emptyClipboard: boo
   return true;
 }
 
-// 복사할 글. 선택이 모두 비어 있고 emptySelectionClipboard 가 꺼져 있으면 복사할 것이 없다(null).
-// 커서 줄은 줄바꿈까지 복사하고, 여러 선택이면 선택마다 한 덩어리로 줄바꿈으로 이어 붙인다. 같은 줄의 커서는 한 번만 센다.
 export function copyPayload(state: EditorState, emptyClipboard: boolean): CopyMeta | null {
   const ranges = state.selection.ranges;
   const hasEmpty = ranges.some((r) => r.empty);

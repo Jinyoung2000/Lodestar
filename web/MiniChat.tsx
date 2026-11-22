@@ -71,18 +71,13 @@ function MiniHeader() {
   );
 }
 
-// 패널과 Electron 메인 사이의 연결: 세션이 사라지면 입력 막대로, Esc 로 숨기기.
 function useMiniBridge() {
   const gone = useStore((s) => s.connected && s.settings !== null && s.panes[0]?.kind !== "agent");
 
-  // 묶인 세션이 지워졌으면(스토어가 그 칸을 새 세션 칸으로 바꿨다) 입력 막대로 돌아간다.
   useEffect(() => {
     if (gone) void window.agentNavNative?.quickEntrySwitch?.(null);
   }, [gone]);
 
-  // Esc: 메뉴, 팝업, 입력창 자동완성이 먼저 받으면(defaultPrevented) 그쪽이 닫히고 패널은 그대로 둔다.
-  // 이 화면에는 메인 창의 단축키 표(web/shortcuts.ts)가 없다. 승인 카드, 중단 단추, 모델과 effort 칩이 알리는 키는 여기서 받는다.
-  // ⇧⌘M, ⇧⌘I 는 앱 메뉴 가속키라 keydown 이 오지 않고 Electron 메인이 agent-nav:key 로 넘긴다(shared/quickEntry.ts quickInputPolicy).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
@@ -99,7 +94,6 @@ function useMiniBridge() {
   }, []);
 }
 
-// 처리했으면 true. 메인 창 표와 같은 키와 뜻이다: ⌘Enter 허용, ⌥⌘Enter 건너뛰기, ⇧⌘A 승인 카드로 포커스, ⌃C 중단, ⇧⌘M 모델, ⇧⌘I effort.
 function runMiniKey(input: KeyInput): boolean {
   const stroke = strokeOf(input);
   if ((stroke === "Meta+Enter" || stroke === "Alt+Meta+Enter") && pendingToolApproval()) {

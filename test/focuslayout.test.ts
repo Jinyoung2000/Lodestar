@@ -1,4 +1,3 @@
-// 포커스 모드(Editor 중심)의 순수 로직(web/focusLayout.ts)을 확인한다. 실행: npm test
 import {
   ACTIVITY_BAR,
   DOCK_DEFAULT,
@@ -35,8 +34,6 @@ const same = (actual: unknown, wanted: unknown, label: string) => {
   if (a !== b) throw new Error(`${label}: ${a} != ${b}`);
 };
 
-// --- Settings 값 ---
-
 test("chat dock: only the two known values are accepted and anything else is docked", () => {
   expect(isChatDock("docked") && isChatDock("floating") && !isChatDock("left") && !isChatDock(null), "guards");
   expect(chatDockOf("floating") === "floating", "floating");
@@ -52,8 +49,6 @@ test("chatHiddenInEditor: floating hides by collapsing, docked hides by closing 
   return "ok";
 });
 
-// --- Activity Bar ---
-
 test("pressActivity: a different button switches the view and opens, the same open button closes", () => {
   same(pressActivity(false, "changes", "files"), { open: true, view: "files" }, "closed bar opens on the pressed view");
   same(pressActivity(true, "changes", "files"), { open: true, view: "files" }, "other view while open");
@@ -66,8 +61,6 @@ test("the view order follows the request: Explorer, Changes, Source Control, the
   same([...FOCUS_VIEWS], ["files", "changes", "scm", "search"], "order");
   return "files, changes, scm, search";
 });
-
-// --- 대화 패널 폭 ---
 
 test("dockRange: the editor keeps EDITOR_MIN and the dock never goes below DOCK_MIN", () => {
   same(dockRange(1200), { min: DOCK_MIN, max: 1200 - EDITOR_MIN - 1 }, "wide");
@@ -91,8 +84,6 @@ test("parseDockWidth and parseFocusSideWidth reject junk", () => {
   return "ok";
 });
 
-// --- 왼쪽 사이드바 폭 ---
-
 test("focusSideRange: leaves room for the bar, the dock and the editor", () => {
   const range = focusSideRange(1440, DOCK_DEFAULT);
   expect(range.min === FOCUS_SIDE_MIN, "min");
@@ -111,8 +102,6 @@ test("focusSideWidth: default, saved and shrunk by a narrow window", () => {
   expect(focusSideWidth(123, 0, 0) === 123, "unknown body width keeps the saved value");
   return "ok";
 });
-
-// --- 무엇이 보이는가 ---
 
 test("focusShown: nothing outside the editor layout or outside the sessions view", () => {
   const off = { side: false, dock: false, floating: false };

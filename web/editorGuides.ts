@@ -8,9 +8,6 @@ import { activeGuide, guideCounts, indentColumns, isOffSideLanguage, type Indent
 import { editorMetrics } from "./editorMetrics";
 import { languageIdFor } from "./languageId";
 
-// 들여쓰기 안내선(editor.guides.indentation)과 활성 안내선(editor.guides.highlightActiveIndentation).
-// 줄마다 단 수(--guide-n)와 활성 단(--guide-active)을 CSS 변수로 주고 editorGuides.css 가 배경 그라데이션으로 그린다.
-// 보이는 줄만 계산한다. 빈 줄의 단 수는 위아래 가까운 줄이 정하므로 범위 밖까지 찾아볼 수 있다.
 export function indentGuidesExtension(options: EditorOptions, context: OptionContext): Extension {
   if (!options.indentGuides) return [];
   const offSide = isOffSideLanguage(context.path ? languageIdFor(context.path) : null);
@@ -32,7 +29,6 @@ export function indentGuidesExtension(options: EditorOptions, context: OptionCon
         this.applyStep(indentSize);
         this.decorations = buildGuideDecorations(this.view, indentSize, offSide, highlight);
       }
-      // 한 단의 폭(px). 글자 폭이 바뀌어도 geometryChanged 로 다시 온다.
       private applyStep(indentSize: number) {
         const step = indentSize * this.view.defaultCharacterWidth;
         if (step === this.step) return;
@@ -78,7 +74,6 @@ function buildGuideDecorations(view: EditorView, indentSize: number, offSide: bo
   return Decoration.set(ranges, true);
 }
 
-// 줄별 들여쓰기 칸 수를 필요할 때 재고 기억해 둔다(한 번 그릴 동안만 유효).
 function indentSource(doc: Text, tabSize: number): IndentSource {
   const memo = new Map<number, number>();
   return {

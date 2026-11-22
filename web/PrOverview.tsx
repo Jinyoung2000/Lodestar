@@ -9,11 +9,9 @@ import { usePrActions, usePrView } from "./prStore";
 import { P } from "./prStrings";
 import { relativeTime } from "./sessionList";
 
-// Overview: 설명(마크다운), 오른쪽 열에 라벨, 리뷰어, 담당자, 체크 목록, 그 아래 타임라인(리뷰와 일반 코멘트), 머지 영역(PrMerge), 코멘트 입력창.
 export function PrOverview({ detail }: { detail: PrDetail }) {
   const busy = usePrView((v) => v.busy !== null);
   const actions = usePrActions();
-  // PR 이 바뀌면(가운데 화면에서 다른 PR 을 열었을 때) 입력 중인 코멘트와 머지 확인 단계를 새로 시작한다. 안 그러면 앞 PR 에서 연 확인 단계와 글이 새 PR 에 그대로 남아 그 PR 에 쓰인다.
   return (
     <div className="pr-overview" key={detail.id}>
       <div className="pr-overview-main">

@@ -13,10 +13,6 @@ import { modelName } from "./timelineModel";
 import { Button } from "./ui/button";
 import { S } from "./strings";
 
-// 앱 창(viewport) 기준으로 뜨는 빠른 질문 창. 세션 목록에 남지 않는다.
-// 오른쪽 패널 안에 두면 패널이 낮을 때 답 영역이 0px 로 눌리므로, body 로 포털해 position: fixed 로 놓는다.
-// 위치는 질문한 줄을 따라간다: 창 왼쪽 위 모서리 = 그 줄 왼쪽 위 + rel(처음 열 때 정한 간격, 머리를 끌면 바뀜).
-// 줄이 에디터 밖으로 스크롤되면 창을 숨기고 에디터 위나 아래 가장자리에 칩을 둔다. 다른 탭에 가 있는 동안도 숨기고, 돌아오면 같은 자리에 다시 보인다.
 const GAP = 8; // lint-tokens: allow 선택 영역과 창 사이 간격(space-2)
 const MARGIN = 12; // lint-tokens: allow 창 가장자리 여백(space-3)
 const PREFERRED_HEIGHT = 340; // lint-tokens: allow 아래에 놓기 위해 필요한 높이. 이보다 모자라고 위가 더 넓으면 위에 둔다
@@ -38,7 +34,6 @@ export function QuickAsk({ quick }: { quick: QuickState }) {
   const [size, setSize] = useState<Size | null>(loadSize);
   const [mode, setMode] = useState<Mode>("shown");
   const [chip, setChip] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
-  // 위쪽에 줄이 추가, 삭제돼도 머리와 질문 컨텍스트의 줄 번호가 지금 위치를 가리키게 한다.
   const [lines, setLines] = useState({ start: quick.startLine, end: quick.endLine });
   const [modelOpen, setModelOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -57,14 +52,12 @@ export function QuickAsk({ quick }: { quick: QuickState }) {
     const el = answerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [run?.answer]);
-  // 입력창과 같다: 글이 늘면 높이가 따라 커지고(상한은 CSS) 기본 높이 아래로는 줄지 않는다.
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [question]);
-  // 질문한 탭이 닫히면 창도 닫는다(줄을 따라갈 곳이 없다).
   useEffect(() => {
     if (!tabOpen) close();
   }, [tabOpen]);
@@ -222,8 +215,6 @@ type Placement = {
   reveal: () => void;
 };
 
-// 창을 질문한 줄에 붙이고(스크롤, 문서 변경, 에디터 크기 변화, 탭 전환마다 다시 잡는다), 머리 끌기와 가장자리 크기 조절을 맡는다.
-// 위치는 스크롤마다 React 를 다시 그리지 않도록 DOM 스타일에 바로 쓴다.
 function usePlacement(quick: QuickState, windowRef: React.RefObject<HTMLDivElement | null>, { setMode, setChip, setLines }: Setters, activeTabKey: string | null): Placement {
   const quickRef = useRef(quick);
   quickRef.current = quick;
@@ -248,7 +239,6 @@ function usePlacement(quick: QuickState, windowRef: React.RefObject<HTMLDivEleme
     if (!el) return;
     const view = viewFor(q.tabKey);
     bind(view);
-    // display: none 인 탭의 에디터는 offsetParent 가 없다.
     if (!view || view.dom.offsetParent === null) {
       el.style.visibility = "hidden";
       apply("away");
@@ -288,7 +278,6 @@ function usePlacement(quick: QuickState, windowRef: React.RefObject<HTMLDivEleme
     apply("shown");
   };
 
-  // 같은 틱에 여러 번 불려도 한 번만 잰다. 문서 변경 알림은 CodeMirror 갱신 도중에 오므로 레이아웃을 읽으면 안 된다.
   const schedule = () => {
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(reposition);
@@ -317,7 +306,6 @@ function usePlacement(quick: QuickState, windowRef: React.RefObject<HTMLDivEleme
   useLayoutEffect(() => {
     reposition();
     window.addEventListener("resize", schedule);
-    // 답이 스트리밍으로 길어지면 창이 아래로 자란다. 크기가 바뀔 때마다 다시 잡아 창 아래쪽이 화면 밖으로 잘리지 않게 한다.
     const sizeObserver = new ResizeObserver(schedule);
     if (windowRef.current) sizeObserver.observe(windowRef.current);
     return () => {
@@ -327,8 +315,6 @@ function usePlacement(quick: QuickState, windowRef: React.RefObject<HTMLDivEleme
       const view = bound.current?.view;
       bound.current?.off();
       bound.current = null;
-      // 창이 닫히면 에디터가 더 이상 그 줄을 따라가지 않아도 된다(탭이 이미 닫혔으면 건드리지 않는다).
-      // 질문 뒤 run 이 생길 때도 창이 다시 마운트되므로 quick 이 남아 있으면(이어지는 창) 그대로 둔다.
       if (view && !getState().quick && viewFor(quickRef.current.tabKey) === view) view.dispatch({ effects: setQuickAnchor.of(null) });
     };
   }, []);
@@ -396,7 +382,6 @@ function usePlacement(quick: QuickState, windowRef: React.RefObject<HTMLDivEleme
     view.dispatch({ effects: EditorView.scrollIntoView(anchor?.from ?? quickRef.current.from, { y: "center" }) });
   };
 
-  // 처음 열 때: 선택 영역 아래에 자리가 있으면 아래, 모자라면 더 넓은 쪽(위)에 둔다.
   const firstRel = (top: number, toBottom: number, height: number) => {
     const below = window.innerHeight - toBottom - GAP - MARGIN;
     const above = top - GAP - MARGIN;
@@ -415,7 +400,6 @@ function loadSize(): Size | null {
     const raw = JSON.parse(localStorage.getItem(SIZE_KEY) ?? "null") as Partial<Size> | null;
     if (raw && typeof raw.width === "number" && typeof raw.height === "number" && raw.width >= MIN_WIDTH && raw.height >= MIN_HEIGHT) return { width: raw.width, height: raw.height };
   } catch {
-    // 저장소를 못 읽으면 기본 크기
   }
   return null;
 }
@@ -424,7 +408,6 @@ function saveSize(size: Size) {
   try {
     localStorage.setItem(SIZE_KEY, JSON.stringify(size));
   } catch {
-    // 저장은 편의 기능이라 실패해도 이번 창에서는 크기가 유지된다
   }
 }
 

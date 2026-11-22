@@ -1,8 +1,3 @@
-// JetBrains New UI(Dark, Light) 색을 tokens.json 의 `webstorm-dark` / `webstorm-light` 키로 옮기고 design-system/webstorm-theme.md 를 다시 쓴다.
-// 사용: node scripts/import-webstorm-theme.mjs <원본 폴더>
-// 원본 폴더에는 intellij-community master 의 expUI_dark.theme.json, expUI_light.theme.json, expUI_darkScheme.xml, expUI_lightScheme.xml,
-// DefaultColorSchemesManager.xml(Default, Darcula 스키마)가 있어야 한다. 빌드는 이 폴더에 기대지 않는다. 읽는 쪽은 커밋된 tokens.json 뿐이다.
-// 값이 Lodestar 기본과 같거나 대응하는 JetBrains 키가 없는 토큰은 키를 만들지 않는다(기본 값이 그대로 쓰인다).
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,7 +12,6 @@ function main() {
   const tokens = JSON.parse(readFileSync(TOKENS_FILE, "utf8"));
   const sources = loadSources(dir);
 
-  // 이전 실행이 남긴 키를 지우고 다시 계산한다(재실행해도 같은 결과).
   for (const token of tokens.color.tokens) {
     delete token.value["webstorm-dark"];
     delete token.value["webstorm-light"];
@@ -33,7 +27,6 @@ function main() {
       rows.push({ name, mode, ...resolved });
     }
   }
-  // 스타일 목록 메타데이터. 생성기는 lodestar 가 아닌 스타일마다 [data-style] 블록을 낸다.
   tokens.color.styles = [
     { id: "lodestar", name: "Lodestar" },
     { id: "webstorm", name: "WebStorm" },
@@ -46,14 +39,6 @@ function main() {
   for (const line of contrast.misses) console.log(`대비 미달: ${line}`);
 }
 
-// 토큰 이름 -> 출처. 출처 문자열 문법(대안은 " | " 로 이어 앞에서부터 처음 값이 있는 것):
-//   ui:키          theme.json 의 ui 평탄화 키(`*.background` 는 와일드카드 항목). 값이 팔레트 이름이면 colors 로 푼다
-//   pal:이름       theme.json 의 colors 팔레트
-//   sc:키          에디터 스킴 <colors> 의 항목(스킴, 부모 스킴 순)
-//   at:이름.필드   에디터 스킴 <attributes> 의 항목 필드. baseAttributes 와 부모 스킴을 따라간다
-//   tok:이름       같은 테마에서 그 토큰이 최종으로 갖는 값(덮어썼으면 WebStorm 값, 아니면 기본 값)
-//   a(출처,알파)   출처 색에 알파를 곱한다(기존 토큰이 쓰는 파생과 같은 방식)
-// {d, l} 로 밝기마다 다른 출처를 줄 수 있다.
 const SEL = "ui:*.selectionBackground";
 const SEL_FG = "ui:*.selectionForeground";
 const SEL_INACTIVE = "ui:*.selectionInactiveBackground";
@@ -69,7 +54,6 @@ const SEARCH_HIT = "at:TEXT_SEARCH_RESULT_ATTRIBUTES.BACKGROUND";
 const WRITE_CARET = "at:WRITE_IDENTIFIER_UNDER_CARET_ATTRIBUTES";
 
 const MAPPING = [
-  // 면
   ["surface-base", "ui:*.background"],
   ["surface-raised", { d: "pal:Gray3", l: "pal:Gray14" }],
   ["chrome-bg", "ui:ToolWindow.background | ui:*.background"],
@@ -81,14 +65,12 @@ const MAPPING = [
   ["surface-inset", "ui:List.Tag.background"],
   ["border-subtle", "ui:*.separatorColor"],
   ["border", FIELD_BORDER],
-  // 글자
   ["fg-strong", { d: "pal:Gray13", l: "pal:Gray1" }],
   ["fg", "ui:*.foreground | ui:CompletionPopup.foreground"],
   ["fg-muted", "ui:StatusBar.Widget.foreground"],
   ["fg-subtle", "ui:*.infoForeground"],
   ["activity-fg", "tok:fg"],
   ["activity-fg-muted", "ui:ToolWindow.Button.foreground"],
-  // 강조와 상태
   ["accent", "ui:Button.default.startBackground"],
   ["focus-border", "ui:*.focusColor"],
   ["accent-fg", "ui:Button.default.foreground"],
@@ -97,12 +79,10 @@ const MAPPING = [
   ["success", "ui:Badge.greenOutlineForeground"],
   ["warning", "ui:Label.warningForeground"],
   ["danger", "ui:Label.errorForeground"],
-  // diff
   ["diff-add-bg", "at:DIFF_INSERTED.BACKGROUND"],
   ["diff-add-gutter", "at:DIFF_INSERTED.ERROR_STRIPE_COLOR"],
   ["diff-del-bg", "at:DIFF_DELETED.BACKGROUND"],
   ["diff-del-gutter", "at:DIFF_DELETED.ERROR_STRIPE_COLOR"],
-  // 구문 색
   ["syntax-keyword", "at:DEFAULT_KEYWORD.FOREGROUND"],
   ["syntax-keyword-control", "at:DEFAULT_KEYWORD.FOREGROUND"],
   ["syntax-function", "at:DEFAULT_FUNCTION_DECLARATION.FOREGROUND"],
@@ -121,7 +101,6 @@ const MAPPING = [
   ["syntax-selector", "tok:syntax-tag"],
   ["syntax-value", "at:CSS.COLOR.FOREGROUND | at:DEFAULT_IDENTIFIER.FOREGROUND"],
   ["syntax-json-key", "at:JSON.PROPERTY_KEY.FOREGROUND | at:DEFAULT_INSTANCE_FIELD.FOREGROUND"],
-  // 에디터
   ["editor-bg", TEXT_BG],
   ["editor-fg", "at:TEXT.FOREGROUND"],
   ["editor-line-number", "sc:LINE_NUMBERS_COLOR"],
@@ -149,7 +128,6 @@ const MAPPING = [
   ["search-match-bg", SEARCH_HIT],
   ["scrollbar-slider", "sc:ScrollBar.Mac.thumbColor"],
   ["scrollbar-slider-hover", "sc:ScrollBar.Mac.hoverThumbColor"],
-  // 채팅과 입력창
   ["chat-user-bg", "a(tok:editor-selection,0.3)"],
   ["chat-user-bg-hover", "a(tok:editor-selection,0.6)"],
   ["input-bg", FIELD_BG],
@@ -172,7 +150,6 @@ const MAPPING = [
   ["pick-widget-bg", TOOLTIP_BG],
   ["pick-widget-border", TOOLTIP_BORDER],
   ["search-message-fg", "a(tok:fg,0.65)"],
-  // Go to File
   ["quickinput-bg", "tok:surface-overlay"],
   ["quickinput-border", "ui:Popup.borderColor | ui:Component.borderColor"],
   ["quickinput-input-bg", FIELD_BG],
@@ -185,7 +162,6 @@ const MAPPING = [
   ["quickinput-group-border", "ui:*.separatorColor"],
   ["quickinput-description", "tok:fg-muted"],
   ["quickinput-action-hover", "ui:ActionButton.hoverBackground"],
-  // hover, 자동완성, 찾기, 이름 바꾸기, 코드 액션
   ["hover-bg", "sc:DOCUMENTATION_COLOR"],
   ["hover-fg", "ui:Editor.ToolTip.foreground"],
   ["hover-border", TOOLTIP_BORDER],
@@ -223,7 +199,6 @@ const MAPPING = [
   ["action-widget-desc", "tok:fg-muted"],
   ["action-widget-disabled", "ui:*.disabledForeground"],
   ["action-widget-link", "tok:accent-text"],
-  // 탭, 메뉴, 상태 줄, 이동 경로
   ["tab-drop-border", "ui:DragAndDrop.borderColor"],
   ["tab-strip-bg", "ui:EditorTabs.background"],
   ["tab-strip-border", "ui:EditorTabs.underTabsBorderColor | ui:*.separatorColor"],
@@ -271,7 +246,6 @@ const MAPPING = [
   ["breadcrumb-picker-border", "tok:quickinput-border"],
   ["breadcrumb-picker-hover", HOVER],
   ["sticky-hover-bg", HOVER],
-  // 개요 눈금과 거터
   ["ruler-error", "at:ERRORS_ATTRIBUTES.ERROR_STRIPE_COLOR"],
   ["ruler-added", "a(sc:ADDED_LINES_COLOR,0.6)"],
   ["ruler-modified", "a(sc:MODIFIED_LINES_COLOR,0.6)"],
@@ -281,12 +255,10 @@ const MAPPING = [
   ["editor-gutter-added", "sc:ADDED_LINES_COLOR"],
   ["editor-gutter-modified", "sc:MODIFIED_LINES_COLOR"],
   ["editor-gutter-deleted", "sc:DELETED_LINES_COLOR"],
-  // 빠른 입력창
   ["quick-entry-bg", "a(tok:surface-overlay,0.93)"],
   ["quick-entry-border", "tok:quickinput-border"],
 ];
 
-// 대비를 재는 쌍. [글자 토큰, 바탕 토큰들, 최소 비율]. 본문 글자는 4.5, 보조 글자와 구문 색은 3.
 const CONTRAST_PAIRS = [
   ["fg", ["surface-base", "surface-raised", "chrome-bg", "pane-bg", "aux-bg", "surface-overlay", "input-bg"], 4.5],
   ["fg-strong", ["surface-base", "surface-raised", "chrome-bg", "pane-bg", "aux-bg", "surface-overlay"], 4.5],
@@ -324,7 +296,6 @@ function loadSources(dir) {
   return { dark: mode("dark"), light: mode("light") };
 }
 
-// 최소 XML 파서: <scheme> 마다 <colors>, <attributes> 를 뽑는다. 값에 붙은 deuteranopia 같은 색각 변형 속성은 무시한다.
 function parseSchemes(xml) {
   const schemes = {};
   for (const m of xml.matchAll(/<scheme\b([^>]*)>([\s\S]*?)<\/scheme>/g)) {
@@ -353,7 +324,6 @@ function schemeChain(scheme, defaults) {
   return chain;
 }
 
-// theme.json 의 ui 를 "A.B.c" 키 하나씩으로 편다. `*` 항목은 `*.background` 처럼 남는다.
 function flatten(object, prefix = "", out = {}) {
   for (const [key, value] of Object.entries(object)) {
     const path = prefix ? `${prefix}.${key}` : key;
@@ -363,13 +333,11 @@ function flatten(object, prefix = "", out = {}) {
   return out;
 }
 
-// 한 밝기(dark, light)에서 출처 문자열을 색으로 푸는 함수 묶음
 function makeResolver(mode, source, tokens) {
   const memo = new Map();
   const visiting = new Set();
   const entries = new Map(MAPPING);
 
-  // JetBrains XML 의 16진수는 앞자리 0 을 버린다(33b3 = #0033b3). 6자리(알파가 있으면 8자리)로 왼쪽을 0 으로 채운다.
   const padHex = (raw) => (raw.length > 6 ? raw.padStart(8, "0") : raw.padStart(6, "0"));
 
   const palette = (name) => source.theme.colors[name] ?? null;
@@ -405,7 +373,6 @@ function makeResolver(mode, source, tokens) {
     return parseColor(own ? own.value : base.value[mode]);
   };
 
-  // 출처 하나를 {color, source} 로 푼다. 값이 없으면 null.
   function one(spec) {
     const alpha = /^a\((.+),([0-9.]+)\)$/.exec(spec);
     if (alpha) {
@@ -419,7 +386,6 @@ function makeResolver(mode, source, tokens) {
     return color && { color, source: spec };
   }
 
-  // 토큰 하나의 WebStorm 값. 출처가 없거나 기본 값과 같으면 null(키를 만들지 않는다).
   function override(name) {
     if (memo.has(name)) return memo.get(name);
     if (visiting.has(name)) throw new Error(`토큰 순환 ${name}`);
@@ -445,7 +411,6 @@ function makeResolver(mode, source, tokens) {
   return { override };
 }
 
-// #rgb, #rrggbb, #rrggbbaa, rgb(), rgba() 를 {r,g,b,a(0~1)} 로
 function parseColor(input) {
   if (!input) return null;
   const text = input.trim().toLowerCase();
@@ -477,7 +442,6 @@ function luminance({ r, g, b }) {
   return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
 }
 
-// 글자색(알파가 있으면 바탕 위에 섞는다)과 바탕색의 WCAG 대비
 function contrast(fg, bg) {
   const mixed = { r: fg.r * fg.a + bg.r * (1 - fg.a), g: fg.g * fg.a + bg.g * (1 - fg.a), b: fg.b * fg.a + bg.b * (1 - fg.a) };
   const [hi, lo] = [luminance(mixed), luminance(bg)].sort((x, y) => y - x);

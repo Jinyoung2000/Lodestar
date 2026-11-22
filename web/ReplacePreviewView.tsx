@@ -28,7 +28,6 @@ export function ReplacePreviewView({ tab, active }: { tab: ReplacePreviewTab; ac
     if (original === null) return null;
     const hits = currentModel().files.find((file) => file.path === tab.path)?.hits ?? [];
     return previewTextOf(original, hits, (hit) => replacementOf(hit, searchView, settings.smartCase));
-    // run 과 dismissed 는 currentModel() 의 입력이다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [original, run, dismissed, searchView, settings.smartCase, tab.path]);
 
@@ -67,7 +66,6 @@ function PreviewMerge({ tab, original, modified }: { tab: ReplacePreviewTab; ori
     };
   }, [original, modified, tab.path]);
 
-  // 누른 일치의 줄이 오른쪽(바뀐 글)에서 보이게 한다
   useEffect(() => {
     const merge = mergeRef.current;
     if (!merge || !reveal) return;

@@ -2,9 +2,6 @@ import { EMBED_COLORS, type EmbedTheme } from "../../shared/embed";
 
 export type PanelPage = { nonce: string; origin: string; src: string; theme: EmbedTheme };
 
-// webview 의 문서. Lodestar 웹 화면(?embed=session)을 iframe 으로 띄우고, 확장과 iframe 사이 메시지를 옮겨 주는 일만 한다.
-// iframe 의 출처는 데몬 자신이라 데몬의 Origin 검사가 그대로 통과한다. CSP 는 그 출처의 frame 만 허용한다.
-// 확장 -> iframe 메시지는 {kind: "relay"}, 데몬 상태는 {kind: "daemon"}, 복원 상태는 {kind: "bind"} 로 감싸 오고 iframe -> 확장은 agent-nav: 메시지를 그대로 넘긴다.
 export function panelHtml({ nonce, origin, src, theme }: PanelPage): string {
   const colorVars = Object.fromEntries(Object.entries(EMBED_COLORS).map(([role, { vscode }]) => [role, vscode]));
   return `<!doctype html>
@@ -39,7 +36,7 @@ export function panelHtml({ nonce, origin, src, theme }: PanelPage): string {
   let sentColors = "";
   const queue = [];
   const toFrame = (message) => frame.contentWindow.postMessage(message, ORIGIN);
-  // VS Code 가 <html> 에 깔아 둔 테마 변수에서 필요한 몇 개만 읽어 iframe 에 넘긴다. 값이 안 바뀌었으면 보내지 않는다.
+
   const sendColors = (force) => {
     if (!ready) return;
     const style = getComputedStyle(document.documentElement);
@@ -96,7 +93,6 @@ function escapeAttr(text: string) {
   return text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
-// 세션이면 ?agent=, 새 세션 입력창이면 ?workspace= 를 붙인 단일 세션 화면 주소.
 export function embedUrl(port: number, target: { agentId: string } | { workspaceId: string }, theme: EmbedTheme): string {
   const query = new URLSearchParams({ embed: "session", theme });
   if ("agentId" in target) query.set("agent", target.agentId);
@@ -106,11 +102,7 @@ export function embedUrl(port: number, target: { agentId: string } | { workspace
 
 export type ChatPage = { nonce: string; origin: string; theme: EmbedTheme };
 
-// 사이드바 Chat 뷰의 문서. 이 문서는 뷰가 만들어질 때 한 번만 쓰고 세션을 바꿔도 다시 쓰지 않는다(다시 쓰면 iframe 과 입력창 초안이 사라진다).
-// 확장이 {kind: "frames"} 로 보여 줄 화면 목록과 보이는 화면을 알리면, 여기서 세션마다 iframe 하나를 만들어 두고 하나만 보이게 한다. 숨긴 iframe 은 그대로 살아 있다.
-// 확장 -> 문서: frames(화면 목록), relay(iframe 에 넘길 메시지, frame 이 없으면 전부), daemon(연결 상태). 문서 -> 확장: ready, openApp, command, embed(어느 화면이 보낸 메시지인지 frame 키를 붙임).
 export function chatHtml({ nonce, origin, theme }: ChatPage): string {
-  // 사이드바는 에디터가 아니라서 바탕을 사이드바 색으로 맞춘다.
   const colorVars = Object.fromEntries(Object.entries(EMBED_COLORS).map(([role, { vscode }]) => [role, role === "editorBackground" ? "--vscode-sideBar-background" : vscode]));
   return `<!doctype html>
 <html lang="en">
@@ -142,7 +134,7 @@ export function chatHtml({ nonce, origin, theme }: ChatPage): string {
   let theme = ${JSON.stringify(theme)};
   let online = true;
   let active = null;
-  // key -> { el, src, ready, sent, queue, stale }. src 는 다시 불러올 때 쓰는 주소이고, 만든 뒤에는 iframe 을 건드리지 않는다.
+
   const frames = new Map();
   const toFrame = (frame, message) => frame.el.contentWindow.postMessage(message, ORIGIN);
   const readColors = () => {
@@ -195,7 +187,7 @@ export function chatHtml({ nonce, origin, theme }: ChatPage): string {
     active = frames.has(activeKey) ? activeKey : null;
     for (const [key, frame] of frames) frame.el.hidden = key !== active;
     const current = active && frames.get(active);
-    // 데몬이 없던 동안 숨어 있던 화면은 보이게 될 때 다시 불러온다.
+
     if (current && current.stale && online) load(current);
     empty.hidden = !!current;
   };

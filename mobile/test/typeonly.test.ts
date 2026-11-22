@@ -1,4 +1,3 @@
-// 모바일 번들(Metro)은 앱 폴더 밖의 shared/ 를 읽지 못한다. src/ 에서 shared 를 가져오는 줄은 전부 `import type` 이어야 한다(Babel 이 지운다).
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { expect, run, test } from "./harness";

@@ -6,10 +6,8 @@ import { setLayout, useStore, type Layout } from "./store";
 import { S } from "./strings";
 import { Button } from "./ui/button";
 
-// 보드와 멘션 화면이 자기 목록 옆에 두는 상세 칸. 세션 오른쪽 패널과 폭이 따로 저장되고, 경계는 세션 화면의 오른쪽 패널 경계와 같은 Resizer 다.
-// 상세는 DETAIL_MIN 아래로 줄지 않고, 목록은 창이 넉넉할 때 LIST_MIN 아래로 줄지 않는다(styles.css 의 .split-detail 이 같은 값을 토큰으로 쓴다).
-const DETAIL_MIN = 300; // --size-panel-narrow
-const LIST_MIN = 300; // --size-chat-floor
+const DETAIL_MIN = 300;
+const LIST_MIN = 300;
 
 type WidthKey = "inboxDetailWidth" | "boardDetailWidth" | "improvementsDetailWidth" | "notionChatWidth";
 

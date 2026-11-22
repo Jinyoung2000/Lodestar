@@ -1,6 +1,3 @@
-// run_playwright_code 의 `page` 객체. 별도의 숨은 샌드박스 창(electron/pwRunner.ts)의 페이지 안에서 돈다. 그 창에는 Node 도 데몬 주소도 없고, 메인 프로세스와는 `__pwHost.call(op, args)` 하나로만 통한다.
-// 에이전트가 쓴 코드는 여기서 실행되고, 공유 페이지에 닿는 일은 모두 메인 프로세스가 그 페이지 하나에만 하는 연산(locate, mouse, key, goto, evaluate, ...)으로 바뀐다.
-// 이 함수는 문자열로 바뀌어 샌드박스 창에 들어가므로 자기 안의 것과 인자로 받은 것만 쓴다. 쓰는 쪽은 `(${runtimeMain})(code, parseSelector, describeChain)` 로 부른다.
 import type { ChainStep } from "./pwEngine";
 
 type Host = { call(op: string, args?: unknown): Promise<unknown> };
@@ -9,7 +6,6 @@ export async function runtimeMain(code: string, parseSelector: (input: string) =
   const host = (window as unknown as { __pwHost: Host }).__pwHost;
   const ACTION_TIMEOUT = 10_000;
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  // page.url() 은 Playwright 에서 동기 함수라서, 이동할 수 있는 연산 뒤마다 주소를 읽어 둔다.
   let currentUrl = "";
   const MOVES = new Set(["goto", "nav", "mouse", "key", "typeChars", "waitLoad", "drag"]);
   const op = async (name: string, args?: unknown) => {
@@ -352,7 +348,6 @@ export async function runtimeMain(code: string, parseSelector: (input: string) =
       await this.locator(source).dragTo(this.locator(target));
     }
   }
-  // 선택자를 받는 지름길(page.click("a") 등)은 locator 로 넘긴다.
   const page = new Page() as Page & Record<string, unknown>;
   for (const name of ["click", "dblclick", "hover", "fill", "type", "press", "check", "uncheck", "selectOption", "textContent", "innerText", "innerHTML", "getAttribute", "inputValue", "isVisible", "isChecked", "isEnabled", "isDisabled", "focus"] as const) {
     page[name] = (selector: string, ...rest: unknown[]) => (page.locator(selector).first() as unknown as Record<string, (...a: unknown[]) => unknown>)[name === "type" ? "pressSequentially" : name](...rest);

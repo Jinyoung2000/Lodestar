@@ -66,13 +66,11 @@ test("새 세션 worktree 규칙은 데스크톱과 같다: 저장소이고 브�
   return "ok";
 });
 
-// ---- 정렬 ----
 const names = (projects: { workspace: Workspace }[]) => projects.map((p) => p.workspace.name).join();
 const memoryCache = (initial: Record<string, string> = {}): Cache & { data: Record<string, string> } => {
   const data = { ...initial };
   return { data, get: async (key) => data[key] ?? null, set: async (key, value) => void (data[key] = value), remove: async (keys) => void keys.forEach((key) => delete data[key]) };
 };
-// 이름 순으로는 alpha < Beta < empty < zed, 최근 활동 순으로는 zed(가장 최근) > Beta > alpha > empty(세션 없음)
 const SORT_W = [ws("a", "alpha"), ws("b", "Beta"), ws("c", "empty"), ws("z", "zed"), ws("f", "fb", { feedback: true })];
 const SORT_AGENTS = [agent("1", "a", "2026-10-20T09:00:00Z"), agent("2", "b", "2026-10-20T10:00:00Z"), agent("3", "z", "2026-10-20T12:00:00Z")];
 
@@ -85,7 +83,6 @@ test("프로젝트 정렬 activity: 기본값과 같다(최근 활동, 세션 �
 test("프로젝트 정렬 name: 이름 순(대소문자 무시), 피드백 폴더는 빠진다, 검색과 같이 쓴다", () => {
   expect(names(buildProjects(SORT_W, SORT_AGENTS, "", "name")) === "alpha,Beta,empty,zed", names(buildProjects(SORT_W, SORT_AGENTS, "", "name")));
   expect(names(buildProjects(SORT_W, SORT_AGENTS, "t", "name")) === "Beta,empty", "query filters then name sorts");
-  // 같은 이름은 경로로 순서를 고정한다(렌더마다 뒤바뀌지 않는다)
   const twins = [ws("t2", "same", { dir: "/b/same" }), ws("t1", "same", { dir: "/a/same" })];
   expect(buildProjects(twins, [], "", "name").map((p) => p.workspace.id).join() === "t1,t2", "tie broken by dir");
   return "ok";
@@ -94,15 +91,12 @@ test("프로젝트 정렬 name: 이름 순(대소문자 무시), 피드백 폴�
 test("프로젝트 정렬 manual: 저장된 순서를 따르고, 새 프로젝트는 맨 아래(최근 활동 순), 사라진 id 는 조용히 빠진다", () => {
   const saved = ["z", "gone", "a", "also-gone"];
   const list = buildProjects(SORT_W, SORT_AGENTS, "", "manual", saved);
-  // b(Beta, 세션 있음)와 c(empty)는 순서에 없는 새 프로젝트: 맨 아래에 최근 활동 순으로 Beta, empty
   expect(names(list) === "zed,alpha,Beta,empty", names(list));
   expect(list.length === 4 && !list.some((p) => p.workspace.id === "gone"), "vanished ids are skipped, not rendered");
   expect(names(buildProjects(SORT_W, SORT_AGENTS, "", "manual", [])) === names(buildProjects(SORT_W, SORT_AGENTS, "", "activity")), "no saved order: everything is new, so activity order");
   expect(names(buildProjects(SORT_W, SORT_AGENTS, "", "manual", ["a", "a", "z"])) === "alpha,zed,Beta,empty", "duplicate ids are ignored");
-  // 활동이 바뀌어도 수동 순서는 그대로
   const later = [...SORT_AGENTS, agent("4", "c", "2026-10-21T00:00:00Z")];
   expect(names(buildProjects(SORT_W, later, "", "manual", ["a", "b", "c", "z"])) === "alpha,Beta,empty,zed", "activity does not reorder manual");
-  // 검색은 순서를 건드리지 않고 거르기만 한다
   expect(names(buildProjects(SORT_W, SORT_AGENTS, "t", "manual", ["z", "c", "b", "a"])) === "empty,Beta", "query keeps manual order");
   return names(list);
 });
@@ -113,7 +107,6 @@ test("수동 순서 옮기기: 한 칸, 맨 위와 맨 아래, 끝에서는 그�
   expect(moveInOrder(order, "d", "top").join() === "d,a,b,c" && moveInOrder(order, "a", "bottom").join() === "b,c,d,a", "top and bottom");
   expect(moveInOrder(order, "a", "up").join() === "a,b,c,d" && moveInOrder(order, "d", "down").join() === "a,b,c,d" && moveInOrder(order, "a", "top").join() === "a,b,c,d", "ends stay");
   expect(moveInOrder(order, "x", "up").join() === "a,b,c,d" && moveInOrder(order, "a", "down") !== order, "unknown id, and a copy is returned");
-  // 화면의 흐름: manual 목록에서 옮기면 새 프로젝트와 사라진 id 가 정리된 전체 순서가 저장된다
   const shown = orderOf(buildProjects(SORT_W, SORT_AGENTS, "", "manual", ["z", "gone", "a"]));
   expect(shown.join() === "z,a,b,c", shown.join());
   expect(moveInOrder(shown, "c", "up").join() === "z,a,c,b", "saved order has no vanished ids and includes the new ones");
@@ -137,12 +130,9 @@ test("세션 정렬: 고정이 먼저, 그 안에서 updated 는 마지막 수�
   expect(ids(created.sessions) === "pinned-oldest,new-quiet,mid,old-busy", "created: " + ids(created.sessions));
   expect(ids(updated.done) === "done-old,done-new" && ids(created.done) === "done-new,done-old", "done follows the sort");
   expect(ids(buildProject(W[0], W, agents).main.sessions) === ids(updated.sessions) && DEFAULT_SESSION_SORT === "updated", "default is updated");
-  // 고정 안에서도 같은 기준: 고정 둘은 created 로는 만든 순서, updated 로는 수정 순서
   const twoPinned = [mk("p-old-created-new-updated", "2026-09-01T00:00:00Z", "2026-10-20T00:00:00Z", { pinned: true }), mk("p-new-created-old-updated", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z", { pinned: true })];
   expect(ids([...twoPinned].sort(compareAgents("updated"))) === "p-old-created-new-updated,p-new-created-old-updated" && ids([...twoPinned].sort(compareAgents("created"))) === "p-new-created-old-updated,p-old-created-new-updated", "pinned ordered by the sort too");
-  // 프로젝트의 lastActivity 는 세션 정렬과 상관없다
   expect(buildProject(W[0], W, agents, "created").lastActivity === buildProject(W[0], W, agents, "updated").lastActivity, "lastActivity unaffected");
-  // worktree 위치도 같은 정렬을 따른다
   const wt = [agent("w1", "a1", "2026-10-20T00:00:00Z", { createdAt: "2026-10-01T00:00:00Z" }), agent("w2", "a1", "2026-10-10T00:00:00Z", { createdAt: "2026-10-15T00:00:00Z" })];
   expect(ids(buildProject(W[0], W, wt, "created").worktrees[0].sessions) === "w2,w1" && ids(buildProject(W[0], W, wt, "updated").worktrees[0].sessions) === "w1,w2", "worktree locations too");
   return "ok";
@@ -163,7 +153,6 @@ test("저장 모양: 읽고 쓰기가 왕복하고, 깨진 값은 기본으로, 
   first.setSessionSort("b", "updated");
   await sleep(20);
   expect(JSON.parse(cache.data["pref:sort"]).v === 1, "stored under one key: " + cache.data["pref:sort"]);
-  // 앱을 다시 켠 것처럼 새 저장소가 같은 캐시에서 읽는다
   const second = new SortPrefsStore(cache);
   let notified = 0;
   second.subscribe(() => notified++);
@@ -171,11 +160,9 @@ test("저장 모양: 읽고 쓰기가 왕복하고, 깨진 값은 기본으로, 
   expect(second.getState().projects.sort === "manual" && second.getState().projects.order.join() === "c,a,b", "project sort and order survive a restart");
   expect(second.getState().sessions.a === "created" && second.getState().sessions.b === "updated" && second.getState().sessions.zzz === undefined, "per-project session sort survives, others have none");
   expect(notified === 1, "load notifies subscribers once");
-  // 빠르게 연달아 바꿔도 마지막 값이 남는다
   for (const id of ["1", "2", "3", "4", "5"]) second.setProjectOrder([id]);
   await sleep(30);
   expect(parseSortPrefs(cache.data["pref:sort"]).projects.order.join() === "5", "last write wins");
-  // 깨진 저장값
   const mixed = JSON.stringify({ projects: { sort: "weird", order: [1, "ok", "ok", null] }, sessions: { a: "created", b: "oldest", c: 3 } });
   for (const bad of ["not json", "[]", "null", mixed]) {
     const parsed = parseSortPrefs(bad);
@@ -183,7 +170,6 @@ test("저장 모양: 읽고 쓰기가 왕복하고, 깨진 값은 기본으로, 
     expect(Object.values(parsed.sessions).every((v) => v === "created" || v === "updated"), "only valid session sorts survive");
   }
   expect(parseSortPrefs(mixed).projects.order.join() === "ok" && parseSortPrefs(mixed).sessions.a === "created" && parseSortPrefs(mixed).sessions.b === undefined, "non-string and duplicate ids dropped, valid session sort kept");
-  // 읽기가 실패해도 기본값으로 시작한다
   const broken = new SortPrefsStore({ ...memoryCache(), get: async () => { throw new Error("disk"); } });
   await broken.load();
   expect(broken.getState().projects.sort === "activity", "read failure falls back");

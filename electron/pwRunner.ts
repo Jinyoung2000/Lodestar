@@ -57,7 +57,6 @@ async function start(guest: WebContents, code: string, canOpen: (url: string) =>
     },
   });
   const contents = win.webContents;
-  // 이 창은 어디에도 연결하지 않는다: 시작 페이지(data:)밖의 모든 요청 거절, 권한 거절, 이동과 새 창 거절
   contents.session.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith("data:") }));
   contents.session.setPermissionRequestHandler((_c, _p, callback) => callback(false));
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -91,7 +90,6 @@ export function closeRunners() {
   for (const run of [...byRunner.values()]) dispose(run);
 }
 
-// 이 guest 에서 돌던 코드 실행을 모두 끝낸다(탭이 닫히거나 공유가 끝날 때).
 export function closeRunnersFor(guestId: number) {
   for (const run of [...byRunner.values()]) if (run.guest.id === guestId) dispose(run);
 }
@@ -113,7 +111,6 @@ const point = (value: unknown): Point => {
   return { x: num(p.x), y: num(p.y) };
 };
 
-// 코드가 쓸 수 있는 연산의 전부. 새 연산은 여기에만 더한다.
 async function pwOp(run: Run, op: string, args: Record<string, unknown>): Promise<unknown> {
   const guest = run.guest;
   const dialog = pendingDialog(guest);
@@ -150,7 +147,6 @@ async function pwOp(run: Run, op: string, args: Record<string, unknown>): Promis
     }
     case "goto": {
       const url = String(args.url ?? "");
-      // 코드에서는 file: 을 열지 않는다(허락된 폴더 확인은 도구 호출 단계에서만 한다). 스킴은 해석한 주소로 본다: " file:///..." 도 loadURL 은 file: 로 읽는다.
       const href = run.canOpen(url) ? new URL(url).href : "";
       if (!href || href.startsWith("file:")) throw new Error("Only http and https addresses can be opened from code, and not Lodestar itself.");
       await guest.loadURL(href).catch((error: Error) => {
@@ -180,7 +176,6 @@ async function pwOp(run: Run, op: string, args: Record<string, unknown>): Promis
       await settle(guest);
       return null;
     case "evaluate": {
-      // 페이지 자신의 세계(main world)에서 돈다. 반환값은 JSON 으로 옮긴다.
       const source = String(args.source ?? "");
       const raw = (await guest.executeJavaScript(`(async () => { const fn = (${source}); const value = await fn(${JSON.stringify(args.arg ?? null)}); return value === undefined ? null : JSON.stringify(value); })()`)) as string | null;
       return raw === null ? null : JSON.parse(raw);

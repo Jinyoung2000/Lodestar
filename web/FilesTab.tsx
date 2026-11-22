@@ -8,34 +8,34 @@ import { ChevronRight, Codicon } from "./icons";
 import { FileTypeIcon, FolderTypeIcon } from "./FileTypeIcon";
 import { toTarget } from "./lsp";
 import { OpenFolderDialog } from "./OpenFolderDialog";
+import { canPickFolder, openFolderInNewSession } from "./folderOpen";
 import { ensureFiles, openFile, startDraft, useStore } from "./store";
+import { useWorkspaceChanges } from "./workspaceChanges";
 import { S } from "./strings";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 type Node = { name: string; path: string; children: Node[]; file: boolean };
 type Status = "A" | "M" | "D" | "R";
-// 새 파일, 폴더 이름을 받는 중인 입력: 어느 폴더 아래(빈 문자열은 맨 위)에 무엇을 만드는지
 type Creating = { dir: string; kind: "file" | "folder" };
 type Selected = FilesSelected;
-// path 는 우클릭한 행의 작업 폴더 기준 경로(루트 행은 빈 문자열), kind 는 그 행의 종류
 type RowMenu = { path: string; kind: FilesRowKind; x: number; y: number };
 
-// 오른쪽 패널의 Files 탭: 작업 폴더의 전체 파일 트리(폴더가 하나뿐이라 폴더 이름 행은 두지 않는다). 바뀐 파일은 이름 색이 상태를 따르고, 바뀐 파일이 든 폴더 이름은 녹색이다.
-// 머리줄의 New File..., New Folder... 와 행 우클릭 메뉴가 고른 폴더(파일이면 그 파일이 든 폴더) 아래에 이름 입력 줄을 열고, Enter 로 만든다.
-// 파일을 한 번 누르면 미리보기 탭으로, 더블클릭하면 고정 탭으로 열린다. 행 우클릭 메뉴와 F2(이름 바꾸기) 같은 행 키는 filesMenu.ts, 동작은 filesActions.ts 에 있다.
-// 세션이 없는 새 세션 화면에서는 agentId 가 null 이고 고른 폴더의 트리만 보인다.
-export function FilesTab({ workspaceId, agentId }: { workspaceId: string; agentId: string | null }) {
+export type FilesRoot = { label: string; missing: boolean; header: boolean; onRemove: (() => void) | null };
+
+export function FilesTab({ workspaceId, agentId, root = null }: { workspaceId: string; agentId: string | null; root?: FilesRoot | null }) {
   const files = useStore((s) => s.files[workspaceId]);
   const emptyDirs = useStore((s) => s.emptyDirs[workspaceId]);
-  const changed = useStore((s) => (agentId ? s.gitChanges[agentId] : undefined));
-  const { open, selected } = useFilesView(workspaceId);
+  const agentChanged = useStore((s) => (agentId ? s.gitChanges[agentId] : undefined));
+  const folderChanged = useWorkspaceChanges(root && !agentId && !root.missing ? workspaceId : null);
+  const changed = agentId ? agentChanged : folderChanged ? { files: folderChanged } : undefined;
+  const { open, selected, rootOpen } = useFilesView(workspaceId);
+  const base = root ? 1 : 0;
+  const [rootMenu, setRootMenu] = useState<{ x: number; y: number } | null>(null);
   const setSelected = (next: Selected) => setFilesView(workspaceId, { selected: next });
   const [creating, setCreating] = useState<Creating | null>(null);
   const [menu, setMenu] = useState<RowMenu | null>(null);
-  // FBREDO: 머리줄의 Open Folder... 가 여는 경로 입력 창
   const [openFolder, setOpenFolder] = useState(false);
-  // 이름을 바꾸는 중인 행의 경로
   const [renaming, setRenaming] = useState<string | null>(null);
   const canAttach = useStore((s) => !!s.activePaneId);
   const treeRef = useRef<HTMLDivElement>(null);
@@ -43,11 +43,11 @@ export function FilesTab({ workspaceId, agentId }: { workspaceId: string; agentI
   useLayoutEffect(() => {
     setHeadSlot(treeRef.current?.closest(".focus-side")?.querySelector<HTMLElement>('.focus-side-actions[data-slot="files"]') ?? null);
   }, []);
+  const missing = root?.missing === true;
   useEffect(() => {
-    ensureFiles(workspaceId);
-  }, [workspaceId]);
+    if (!missing) ensureFiles(workspaceId).catch(() => undefined);
+  }, [workspaceId, missing]);
   const tree = useMemo(() => buildTree(files ?? [], emptyDirs ?? []), [files, emptyDirs]);
-  // 변경 파일을 작업 폴더 기준 경로로 바꾼다. 작업 폴더 밖 파일(../ 로 시작)은 트리에 없으니 뺀다.
   const { statuses, dirtyDirs } = useMemo(() => {
     const statuses = new Map<string, Status>();
     const dirtyDirs = new Set<string>();
@@ -63,7 +63,6 @@ export function FilesTab({ workspaceId, agentId }: { workspaceId: string; agentI
 
   const toggle = (path: string) => toggleFolder(workspaceId, path);
 
-  // 새로 만들 곳: 고른 폴더, 파일을 골랐으면 그 파일이 든 폴더, 아무것도 안 골랐으면 맨 위
   const targetDir = (from: Selected) => (!from ? "" : from.file ? from.path.slice(0, Math.max(from.path.lastIndexOf("/"), 0)) : from.path);
   const startCreate = (kind: "file" | "folder", dir = targetDir(selected)) => {
     setFilesView(workspaceId, { rootOpen: true });
@@ -71,13 +70,11 @@ export function FilesTab({ workspaceId, agentId }: { workspaceId: string; agentI
     setCreating({ dir, kind });
   };
 
-  // 메뉴 항목과 행 키가 같은 길로 들어온다. 트리 안 입력줄을 여는 셋은 여기서, 나머지는 filesActions 가 한다.
   const act = (action: FilesMenuAction, target: FilesTarget) => {
     if (action === "newFile" || action === "newFolder") startCreate(action === "newFile" ? "file" : "folder", target.kind === "file" ? target.path.slice(0, Math.max(target.path.lastIndexOf("/"), 0)) : target.path);
     else if (action === "rename") setRenaming(target.path);
     else runFilesAction(action, target);
   };
-  // 이름 바꾸기가 끝나면 고른 행과 펼친 폴더를 새 경로로 옮긴다
   const renamed = (from: string, to: string, isFile: boolean) => {
     setRenaming(null);
     if (from === to) return;
@@ -86,14 +83,81 @@ export function FilesTab({ workspaceId, agentId }: { workspaceId: string; agentI
   };
 
   const rowProps = { open, statuses, dirtyDirs, onToggle: toggle, workspaceId, selected, creating, renaming, onSelect: setSelected, onCreateDone: () => setCreating(null), onMenu: setMenu, onAction: act, onRenameDone: () => setRenaming(null), onRenamed: renamed };
+  const showHeader = !root || root.header;
+  const body = (
+    <>
+      {!missing && !files && <div className="empty-hint">{S.filesLoading}</div>}
+      {files && files.length === 0 && !emptyDirs?.length && !creating && <div className="empty-hint">{S.filesTabEmpty}</div>}
+      {creating?.dir === "" && <NewEntryRow workspaceId={workspaceId} dir="" kind={creating.kind} depth={base} onDone={() => setCreating(null)} />}
+      {tree.children.map((node) => <TreeRow key={node.path} node={node} depth={base} {...rowProps} />)}
+    </>
+  );
+  if (root) {
+    const expanded = rootOpen && !missing;
+    return (
+      <>
+        {showHeader &&
+          (headSlot ? (
+            createPortal(<FilesHeaderActions onOpenFolder={() => (canPickFolder() ? void openFolderInNewSession() : setOpenFolder(true))} onCreate={startCreate} onRefresh={() => void refreshFileList(workspaceId)} />, headSlot)
+          ) : (
+            <div className="files-header" role="toolbar" aria-label={S.filesHeaderAria}>
+              <span className="spacer" />
+              <FilesHeaderActions onOpenFolder={() => (canPickFolder() ? void openFolderInNewSession() : setOpenFolder(true))} onCreate={startCreate} onRefresh={() => void refreshFileList(workspaceId)} />
+            </div>
+          ))}
+        <div ref={treeRef} className="files-tab files-tab-root" role="tree" aria-label={root.label}>
+          <div role="group">
+            <div className="files-root-wrap">
+            <button
+              type="button"
+              role="treeitem"
+              aria-expanded={expanded}
+              className="tree-node files-root"
+              data-missing={missing || undefined}
+              onClick={() => !missing && setFilesView(workspaceId, { rootOpen: !rootOpen })}
+              onContextMenu={(e) => {
+                if (!root.onRemove) return;
+                e.preventDefault();
+                setRootMenu({ x: e.clientX, y: e.clientY });
+              }}
+            >
+              <span className="chev" data-collapsed={!expanded || undefined}>
+                <ChevronRight size={14} />
+              </span>
+              <span className="name">{root.label}</span>
+              {missing && <span className="files-root-note">{S.folderNotFound}</span>}
+            </button>
+            {!missing && (
+              <span className="files-root-actions">
+                <Button size="icon" aria-label={S.filesNewFile} title={S.filesNewFile} onClick={() => startCreate("file", "")}>
+                  <Codicon name="new-file" />
+                </Button>
+                <Button size="icon" aria-label={S.filesNewFolder} title={S.filesNewFolder} onClick={() => startCreate("folder", "")}>
+                  <Codicon name="new-folder" />
+                </Button>
+                <Button size="icon" aria-label={S.filesCollapse} title={S.filesCollapse} onClick={() => setFilesView(workspaceId, { open: new Set() })}>
+                  <Codicon name="collapse-all" />
+                </Button>
+              </span>
+            )}
+            </div>
+            {expanded && body}
+          </div>
+        </div>
+        {rootMenu && root.onRemove && <RootMenu at={rootMenu} onRemove={root.onRemove} onClose={() => setRootMenu(null)} />}
+        {openFolder && <OpenFolderDialog onClose={() => setOpenFolder(false)} onOpened={(id) => startDraft(id)} />}
+        <TreeMenu menu={menu} canAttach={canAttach} onClose={() => setMenu(null)} onAction={(action) => menu && act(action, { workspaceId, path: menu.path, kind: menu.kind })} />
+      </>
+    );
+  }
   return (
     <>
       {headSlot ? (
-        createPortal(<FilesHeaderActions onOpenFolder={() => setOpenFolder(true)} onCreate={startCreate} onRefresh={() => void refreshFileList(workspaceId)} />, headSlot)
+        createPortal(<FilesHeaderActions onOpenFolder={() => (canPickFolder() ? void openFolderInNewSession() : setOpenFolder(true))} onCreate={startCreate} onRefresh={() => void refreshFileList(workspaceId)} />, headSlot)
       ) : (
         <div className="files-header" role="toolbar" aria-label={S.filesHeaderAria}>
           <span className="spacer" />
-          <FilesHeaderActions onOpenFolder={() => setOpenFolder(true)} onCreate={startCreate} onRefresh={() => void refreshFileList(workspaceId)} />
+          <FilesHeaderActions onOpenFolder={() => (canPickFolder() ? void openFolderInNewSession() : setOpenFolder(true))} onCreate={startCreate} onRefresh={() => void refreshFileList(workspaceId)} />
         </div>
       )}
       <div ref={treeRef} className="files-tab" role="tree" aria-label={S.filesTreeAria}>
@@ -105,6 +169,19 @@ export function FilesTab({ workspaceId, agentId }: { workspaceId: string; agentI
       {openFolder && <OpenFolderDialog onClose={() => setOpenFolder(false)} onOpened={(id) => startDraft(id)} />}
       <TreeMenu menu={menu} canAttach={canAttach} onClose={() => setMenu(null)} onAction={(action) => menu && act(action, { workspaceId, path: menu.path, kind: menu.kind })} />
     </>
+  );
+}
+
+function RootMenu({ at, onRemove, onClose }: { at: { x: number; y: number }; onRemove: () => void; onClose: () => void }) {
+  return (
+    <DropdownMenu open onOpenChange={(open) => !open && onClose()}>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className="menu-anchor" style={{ left: at.x, top: at.y }} tabIndex={-1} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DropdownMenuItem onSelect={onRemove}>{S.removeFromSession}</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -155,7 +232,6 @@ function TreeRow({ node, depth, open, statuses, dirtyDirs, onToggle, workspaceId
     onSelect({ path: node.path, file: node.file });
     onMenu({ path: node.path, kind, x: e.clientX, y: e.clientY });
   };
-  // 행에 포커스가 있을 때 F2, ⌘⌫, ⌥⌘R, ⌥⌘C, ⇧⌥⌘C 를 앱 전역 키보다 먼저 받는다
   const rowKey = (e: ReactKeyboardEvent) => {
     const action = filesKeyAction(e, kind);
     if (!action) return;
@@ -228,14 +304,12 @@ function TreeRow({ node, depth, open, statuses, dirtyDirs, onToggle, workspaceId
   );
 }
 
-// 행 자리에서 이름을 바꾸는 입력줄(F2, 메뉴의 Rename...). 확장자 앞까지 골라 둔다. Enter 로 바꾸고 Esc 나 포커스를 잃으면 취소한다. 이미 있는 이름이면 입력 아래에 오류를 보이고 바꾸지 않는다.
 function RenameRow({ workspaceId, node, depth, expanded, onDone, onRenamed }: { workspaceId: string; node: Node; depth: number; expanded: boolean; onDone: () => void; onRenamed: (from: string, to: string, isFile: boolean) => void }) {
   const [value, setValue] = useState(node.name);
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
   const requests = useRef(0);
   const input = useRef<HTMLInputElement>(null);
-  // 우클릭 메뉴(Radix)가 닫히는 동안은 포커스를 메뉴 안에 가두고 있어 autoFocus 가 먹지 않는다. 메뉴가 사라진 뒤에 포커스를 주고 이름을 고른다.
   useEffect(() => {
     const timer = setTimeout(() => {
       input.current?.focus();
@@ -288,7 +362,6 @@ function RenameRow({ workspaceId, node, depth, expanded, onDone, onRenamed }: { 
           onChange={(e) => {
             const next = e.target.value;
             setValue(next);
-            // 입력하는 동안에도 이미 있는 이름인지 바로 알린다(늦게 온 이전 응답은 버린다)
             const request = ++requests.current;
             void problemOf(next).then((problem) => request === requests.current && setError(problem));
           }}
@@ -307,14 +380,12 @@ function RenameRow({ workspaceId, node, depth, expanded, onDone, onRenamed }: { 
   );
 }
 
-// 트리 안 인라인 이름 입력. Enter 로 만들고 Esc 나 포커스를 잃으면 취소한다. 이미 있는 이름이면 입력 아래에 오류를 보이고 만들지 않는다.
 function NewEntryRow({ workspaceId, dir, kind, depth, onDone }: { workspaceId: string; dir: string; kind: "file" | "folder"; depth: number; onDone: () => void }) {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
   const requests = useRef(0);
   const input = useRef<HTMLInputElement>(null);
-  // 우클릭 메뉴(Radix)가 닫히는 동안은 포커스를 메뉴 안에 가두고 있어 autoFocus 가 먹지 않는다. 메뉴가 사라진 뒤에 포커스를 준다.
   useEffect(() => {
     const timer = setTimeout(() => input.current?.focus(), 0);
     return () => clearTimeout(timer);
@@ -359,7 +430,6 @@ function NewEntryRow({ workspaceId, dir, kind, depth, onDone }: { workspaceId: s
           onChange={(e) => {
             const next = e.target.value;
             setValue(next);
-            // 입력하는 동안에도 이미 있는 이름인지 바로 알린다(늦게 온 이전 응답은 버린다)
             const request = ++requests.current;
             if (!next.trim()) setError(null);
             else void check(next).then((problem) => request === requests.current && setError(problem));
@@ -414,7 +484,6 @@ function TreeMenu({ menu, canAttach, onClose, onAction }: { menu: RowMenu | null
   );
 }
 
-// 폴더가 먼저, 이름순. 목록은 git ls-files 라 폴더 항목이 따로 없어서 경로에서 만들고, 파일이 없는 폴더는 emptyDirs 로 더한다.
 function buildTree(paths: string[], emptyDirs: string[]): Node {
   const root: Node = { name: "", path: "", children: [], file: false };
   const dirs = new Map<string, Node>([["", root]]);

@@ -19,9 +19,6 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
-// BOARDUX: 카드 우클릭 메뉴(상태, 우선순위, 라벨, 삭제). 메뉴는 보드에 하나만 두고 카드가 좌표와 함께 연다.
-// only 가 "priority" 면 카드의 우선순위 아이콘을 눌렀을 때처럼 우선순위 항목만 보인다.
-
 export type CardMenuState = { cardId: string; x: number; y: number; only: "priority" | null };
 
 export function CardContextMenu({ board, state, onClose, onAnnounce }: { board: Board; state: CardMenuState; onClose: () => void; onAnnounce: (text: string) => void }) {
@@ -61,7 +58,6 @@ export function CardContextMenu({ board, state, onClose, onAnnounce }: { board: 
         aria-label={S.cardMenu}
         onEscapeKeyDown={stopEscape}
         onCloseAutoFocus={(event) => {
-          // 메뉴를 닫으면 사라지는 앵커가 아니라 카드로 포커스를 돌려 키보드 흐름이 이어지게 한다.
           event.preventDefault();
           document.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(card.id)}"]`)?.focus();
         }}
@@ -118,7 +114,6 @@ export function CardContextMenu({ board, state, onClose, onAnnounce }: { board: 
   );
 }
 
-// 우선순위 다섯 단계. 오른쪽의 숫자는 보드에서 카드에 마우스를 올리거나 포커스한 채 누르는 단축키다.
 function PriorityItems({ value, onChange }: { value: BoardPriority; onChange: (value: string) => void }) {
   return (
     <DropdownMenuRadioGroup value={String(value)} onValueChange={onChange}>

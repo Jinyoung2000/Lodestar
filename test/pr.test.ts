@@ -1,5 +1,3 @@
-// PR: GitHub Pull Requests 의 서버 로직과 diff 모델을 확인한다. GitHub 에는 닿지 않는다: gh 는 test/fixtures/pr/bin/gh (가짜)가 대신한다.
-// 실행: npm test
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
@@ -15,14 +13,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const data = JSON.parse(readFileSync(join(here, "fixtures/pr/data.json"), "utf8"));
 const tmp = mkdtempSync(join(tmpdir(), "agent-nav-pr-"));
 const logFile = join(tmp, "gh.log");
-// 가짜 gh 를 PATH 맨 앞에 둔다. 이 시험 프로세스에서만 유효하다.
 process.env.PATH = `${resolve(here, "fixtures/pr/bin")}:${process.env.PATH}`;
 process.env.FAKE_GH_LOG = logFile;
 const calls = () => (existsSync(logFile) ? readFileSync(logFile, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as { args: string[]; stdin: string | null }) : []);
 const reset = () => rmSync(logFile, { force: true });
 
 try {
-  // 원격 주소 읽기
   assert.equal(parseRemoteUrl("https://github.com/acme/widgets.git"), "acme/widgets");
   assert.equal(parseRemoteUrl("https://github.com/acme/widgets"), "acme/widgets");
   assert.equal(parseRemoteUrl("git@github.com:acme/wid.gets.git"), "acme/wid.gets");
@@ -32,7 +28,6 @@ try {
   assert.equal(parseRemoteUrl("/tmp/bare.git"), null);
   const remotes = parseRemotes("remote.origin.url git@github.com:me/widgets.git\nremote.upstream.url https://github.com/acme/widgets.git\nremote.lab.url https://gitlab.com/a/b.git");
   assert.deepEqual(remotes, [{ name: "origin", repo: "me/widgets" }, { name: "upstream", repo: "acme/widgets" }]);
-  // fork 의 부모(upstream)는 원격에 없어도 저장소 목록에 들어간다. 같은 저장소는 폴더를 모은다.
   const repos = mergeRepos([{ dir: "/a", remotes }, { dir: "/b", remotes: [{ name: "origin", repo: "me/widgets" }] }], { "me/widgets": "acme/widgets", "acme/widgets": null });
   assert.deepEqual(repos.map((r) => r.fullName), ["me/widgets", "acme/widgets"]);
   assert.deepEqual(repos[0].dirs, ["/a", "/b"]);
@@ -40,7 +35,6 @@ try {
   const forkOnly = mergeRepos([{ dir: "/c", remotes: [{ name: "origin", repo: "me/tool" }] }], { "me/tool": "org/tool" });
   assert.deepEqual(forkOnly.map((r) => [r.fullName, r.upstreamOf, r.remote]), [["me/tool", null, "origin"], ["org/tool", "me/tool", "origin"]]);
 
-  // 목록 변환
   assert.match(listVariables("acme/widgets").waiting, /repo:acme\/widgets is:pr is:open .*review-requested:@me/);
   const list = parseList("acme/widgets", data.list);
   assert.deepEqual([list.waiting.length, list.assigned.length, list.created.length, list.all.length], [2, 1, 1, 4]);
@@ -51,7 +45,6 @@ try {
   assert.equal(list.created[0].checks, "FAILURE");
   assert.equal(list.waiting[1].checks, null, "체크 정보가 없는 PR");
 
-  // 상세 변환
   const detail = parseDetail("acme/widgets", data.detail);
   assert.equal(detail.id, "PR_node_42");
   assert.equal(detail.headSha, "abc1234def5678");
@@ -67,7 +60,6 @@ try {
   assert.equal(detail.threads[0].comments[2].viewerCanDelete, true);
   assert.equal(detail.threads[2].line, null);
   assert.equal(detail.pendingReview, null);
-  // PRLINK: 주소의 #discussion_r, #issuecomment-, #pullrequestreview- 번호와 커밋 목록
   assert.deepEqual(detail.threads[0].comments.map((c) => c.anchorId), ["9001", "9002", "9003"]);
   assert.equal(detail.timeline.flatMap((e) => (e.kind === "comment" ? [e.comment.anchorId] : [])).join(), "5001");
   assert.equal(detail.timeline.flatMap((e) => (e.kind === "review" ? [e.anchorId] : [])).join(), "7001");
@@ -79,19 +71,16 @@ try {
   const fork = parseDetail("acme/widgets", { ...data.detail, repository: { pullRequest: { ...data.detail.repository.pullRequest, headRepository: { nameWithOwner: "me/widgets" } } } });
   assert.equal(fork.headRepo, "me/widgets");
 
-  // Checks 구역: 실패, 진행 중을 위로, 상태별 요약, 걸린 시간
   assert.deepEqual(sortChecks(detail.checkList).map((c) => c.name), ["lint", "e2e", "build", "license/check"]);
   assert.equal(summarizeChecks(detail.checkList), "1 failing, 1 pending, 2 passing");
   assert.equal(summarizeChecks([]), "");
   assert.equal(summarizeChecks([{ name: "a", state: "neutral", detail: "", url: null, durationMs: null }]), "1 skipped");
   assert.deepEqual([formatDuration(133_000), formatDuration(41_000), formatDuration(400), formatDuration(3_780_000), formatDuration(null)], ["2m 13s", "41s", "<1s", "1h 3m", ""]);
 
-  // 파일 목록: REST 항목과 viewed 상태 합치기
   const files = parseFiles(data.files, data.viewed);
   assert.deepEqual(files.map((f) => [f.path, f.viewed, f.patch !== null]), [["src/greet.ts", false, true], ["src/list.tsx", true, true], ["docs/logo.png", false, false], ["src/new-name.ts", false, false]]);
   assert.equal(files[3].previousPath, "src/old-name.ts");
 
-  // patch 파싱과 줄 번호 매핑
   const rows = parsePatch(files[0].patch ?? "");
   assert.equal(rows[0].kind, "hunk");
   const lines = rows.filter((r): r is DiffLine => r.kind === "line");
@@ -106,7 +95,6 @@ try {
   assert.equal(findRow(rows, "RIGHT", 99), -1);
   assert.equal(parsePatch("@@ -1 +1 @@\n-a\n+b\n\\ No newline at end of file").filter((r) => r.kind === "line").some((r) => (r as DiffLine).noNewline), true);
 
-  // 스레드를 줄에 붙이기: RT_1 은 RIGHT 3, RT_2 는 8~9 범위(끝줄 9), RT_3 은 낡음, RT_4 는 다른 파일
   const greetThreads = detail.threads.filter((t) => t.path === "src/greet.ts");
   const placed = placeThreads(rows, greetThreads);
   assert.deepEqual([...placed.byRow.entries()].map(([row, ts]) => [row, ts.map((t) => t.id)]), [[5, ["RT_1"]], [11, ["RT_2"]]]);
@@ -119,7 +107,6 @@ try {
   assert.equal(rangeRows(rows, { line: 77, side: "RIGHT" }), null);
   assert.deepEqual(rightText(rows, 3, 4), ["export function greet(user: string, loud = false) {", "  const text = `Hello ${user}`;"]);
 
-  // 제안 블록
   const parts = splitSuggestions("Try this\n\n```suggestion\nconst a = 1;\n  indented\n```\nAnd done");
   assert.deepEqual(parts.map((p) => p.kind), ["text", "suggestion", "text"]);
   assert.equal(parts[1].kind === "suggestion" && parts[1].code, "const a = 1;\n  indented");
@@ -128,12 +115,10 @@ try {
   assert.equal(suggestionTemplate(["a", "b"]), "```suggestion\na\nb\n```");
   assert.equal(splitSuggestions(suggestionTemplate(["x = 1"]))[0].kind, "suggestion");
 
-  // Split 짝짓기: 삭제 2, 추가 3 은 앞에서부터 짝짓고 모자란 쪽은 비운다
   const split = toSplit(rows);
   const pairs = split.filter((r): r is Exclude<typeof r, { hunk: unknown }> => "left" in r);
   assert.deepEqual(pairs.slice(2, 5).map((p) => [p.left?.type ?? null, p.right?.type ?? null]), [["del", "add"], ["del", "add"], [null, "add"]]);
 
-  // 서버: 읽기
   const { prHandlers, requireConfirmed } = await import("../server/pr");
   const deps = { workspaces: () => [], addWorkspace: () => { throw new Error("unused"); }, workspaceOfDir: () => undefined, announce: () => undefined };
   const handlers = prHandlers(deps as never);
@@ -148,7 +133,6 @@ try {
   assert.deepEqual(JSON.parse(calls()[0].stdin ?? "{}").variables.waiting.includes("review-requested:@me"), true);
   await assert.rejects(() => handlers["pr.list"]({ repo: "acme/widgets; rm -rf" }), /Not a GitHub repository/);
 
-  // 서버: 쓰기는 confirmed 없이는 gh 를 부르지 않고 거절한다
   assert.throws(() => requireConfirmed({}), /explicit confirmation/);
   assert.throws(() => requireConfirmed({ confirmed: "true" }), /explicit confirmation/);
   reset();
@@ -167,7 +151,6 @@ try {
   for (const [name, run] of unconfirmed) await assert.rejects(run, /explicit confirmation/, name);
   assert.equal(calls().length, 0, "확인 없는 쓰기 요청은 gh 를 부르지 않는다");
 
-  // 서버: 확인된 쓰기가 gh 에 싣는 내용
   const ok = { confirmed: true as const };
   const ref = { repo: "acme/widgets", number: 42 };
   await handlers["pr.createThread"]({ ...ref, ...ok, prId: "PR_node_42", headSha: "abc", path: "src/greet.ts", line: 9, side: "RIGHT", startLine: 8, startSide: "RIGHT", body: "single @file.txt", mode: "single", pendingReviewId: null });
@@ -200,7 +183,6 @@ try {
   await handlers["pr.setViewed"]({ ...ok, ...ref, prId: "PR_node_42", path: "src/greet.ts", viewed: true });
   assert.deepEqual(calls().map((c) => /mutation (\w+)/.exec(JSON.parse(c.stdin ?? "").query)?.[1]), ["PrEditReviewComment", "PrDeleteIssueComment", "PrMarkViewed"]);
 
-  // 체크아웃: 임시 저장소 + 로컬 bare 원격. 워크스페이스의 지금 브랜치는 그대로이고 새 worktree 가 생긴다.
   const run = (cwd: string, ...args: string[]) => execFileSync("git", args, { cwd, stdio: "pipe" }).toString().trim();
   const bare = join(tmp, "origin.git");
   run(tmp, "init", "-q", "--bare", "-b", "main", bare);
@@ -250,7 +232,6 @@ try {
   rmSync(result.dir, { recursive: true, force: true });
   rmSync(dirname(result.dir), { recursive: true, force: true });
 
-  // 방패 gh: 쓰기로 보이는 호출은 진짜 gh 를 부르지 않고 거절한다
   const guardLog = join(tmp, "guard.log");
   const guard = (args: string[], stdin: string) => {
     try {

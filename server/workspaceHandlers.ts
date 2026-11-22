@@ -1,16 +1,16 @@
-import { existsSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, statSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { WebSocket } from "ws";
 import type { ServerEvent } from "../shared/protocol";
-import { worktreeParentDir } from "../shared/openPath"; // OPENFOLDER
+import { worktreeParentDir } from "../shared/openPath";
 import type { AgentRunner } from "./agents";
 import { openFolderInVSCode } from "./files";
 import type { ReviewCheckouts } from "./folderTrust";
 import * as gitOps from "./git";
-import { realDir } from "./paths";
+import { realDir, realPathLoose } from "./paths";
 import { busyAgents } from "./removedFolders";
 import { revealInFileManager } from "./reveal";
-import type { Store } from "./store";
+import { HOME, type Store } from "./store";
 import { T } from "./strings";
 import { detectWorktree } from "./vscodeImport";
 import type { HandlersFor, MethodsIn } from "./rpcHandlers";
@@ -24,6 +24,11 @@ export type WorkspaceHandlerDeps = {
   pruneBoard: () => void;
 };
 
+const isInside = (root: string, path: string) => {
+  const rel = relative(root, path);
+  return !rel.startsWith("..") && !isAbsolute(rel);
+};
+
 const expandHome = (dir: string) => resolve(dir.replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
 
 function requireFolder(absolute: string) {
@@ -31,12 +36,24 @@ function requireFolder(absolute: string) {
   return absolute;
 }
 
-export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<MethodsIn<"workspaces"> | MethodsIn<"sessionOrder">> {
+export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<MethodsIn<"workspaces"> | MethodsIn<"sessionOrder"> | "agents.moveToFolder"> {
   const { store, runner, broadcast, reviewCheckouts, workspaceWatch, pruneBoard } = deps;
   const announceWorkspaces = () => broadcast({ type: "workspaces", workspaces: store.workspaces });
+  const openFolder = async (absolute: string, trust: boolean) => {
+    let workspace = store.workspaces.find((w) => w.dir === absolute);
+    if (!workspace) {
+      const tree = await detectWorktree(absolute);
+      if (tree) {
+        const parent = store.addWorkspace(worktreeParentDir(absolute, tree));
+        workspace = store.addWorkspace(absolute, parent.id, `${parent.name} (${tree.branch})`);
+      } else workspace = store.addWorkspace(absolute);
+    }
+    if (trust) reviewCheckouts.forget(workspace.dir);
+    announceWorkspaces();
+    return workspace;
+  };
   return {
     "workspaces.list": () => store.workspaces,
-    // SESSIONORDER: 사이드바 세션 순서. 바꾸면 모든 화면(다른 창 포함)에 새 목록을 보낸다. 모바일 허용 목록에는 없다.
     "sessionOrder.list": () => store.sessionOrders,
     "sessionOrder.set": ({ scope, ids }) => {
       const orders = store.setSessionOrder(scope, ids);
@@ -51,26 +68,42 @@ export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<Metho
     "workspaces.add": ({ dir }) => {
       const absolute = requireFolder(expandHome(dir));
       const workspace = store.addWorkspace(absolute);
-      // 사용자가 직접 추가한 폴더는 PR 리뷰 체크아웃이었더라도 이제 신뢰한다
       reviewCheckouts.forget(workspace.dir);
       announceWorkspaces();
       return workspace;
     },
-    "workspaces.open": async ({ dir }) => {
-      const absolute = requireFolder(realDir(expandHome(dir)));
-      let workspace = store.workspaces.find((w) => w.dir === absolute);
-      if (!workspace) {
-        const tree = await detectWorktree(absolute);
-        if (tree) {
-          const parent = store.addWorkspace(worktreeParentDir(absolute, tree));
-          workspace = store.addWorkspace(absolute, parent.id, `${parent.name} (${tree.branch})`);
-        } else workspace = store.addWorkspace(absolute);
+    "workspaces.create": async ({ parent, name, git }) => {
+      const folderName = typeof name === "string" ? name.trim() : "";
+      if (!folderName || folderName.includes("/") || folderName === "." || folderName === "..") throw new Error(T.errFolderName);
+      const base = expandHome(typeof parent === "string" && parent.trim() ? parent.trim() : "~/Repository");
+      if (isInside(realDir(HOME), realPathLoose(base))) throw new Error(T.errMoveDataFolder);
+      const wanted = resolve(base, folderName);
+      if (existsSync(wanted)) throw new Error(T.errFolderExists(wanted));
+      mkdirSync(wanted, { recursive: true });
+      const absolute = requireFolder(realDir(wanted));
+      if (git === true) await gitOps.git(absolute, ["init", "--quiet"]);
+      const workspace = store.addWorkspace(absolute);
+      announceWorkspaces();
+      return workspace;
+    },
+    "agents.moveToFolder": async ({ agentId, dir, create }) => {
+      const agent = store.agent(agentId);
+      if (agent.workspaceId !== null) throw new Error(T.errMoveHasFolder);
+      if (agent.feedbackId || agent.imported) throw new Error(T.errMoveUnsupported);
+      if (typeof dir !== "string" || !dir.trim()) throw new Error(T.errFolderNotFound(String(dir)));
+      const wanted = expandHome(dir.trim());
+      if (isInside(realDir(HOME), realPathLoose(wanted))) throw new Error(T.errMoveDataFolder);
+      if (create === true) {
+        if (existsSync(wanted)) throw new Error(T.errFolderExists(wanted));
+        mkdirSync(wanted, { recursive: true });
       }
-      reviewCheckouts.forget(workspace.dir);
-      announceWorkspaces();
-      return workspace;
+      const absolute = requireFolder(realDir(wanted));
+      if (isInside(realDir(HOME), absolute)) throw new Error(T.errMoveDataFolder);
+      if (create === true) runner.notice(agentId, T.createdFolder(absolute.replace(/^\/private(?=\/(?:tmp|var)(?:\/|$))/, "").replace(/^\/Users\/[^/]+(?=\/|$)/, "~")));
+      const workspace = await openFolder(absolute, false);
+      return runner.moveToFolder(agentId, workspace.id);
     },
-    // fix5-3: 사라진 폴더를 새 경로에 다시 잇는다. 폴더를 지금 쓰는 세션이 돌고 있으면 그 작업 폴더가 바뀌므로 거절한다.
+    "workspaces.open": async ({ dir }) => openFolder(requireFolder(realDir(expandHome(dir))), true),
     "workspaces.relocate": ({ id, dir }) => {
       const absolute = requireFolder(expandHome(String(dir).trim()));
       const running = busyAgents(store.agents.filter((a) => a.workspaceId === id && !a.worktree));
@@ -83,7 +116,6 @@ export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<Metho
       announceWorkspaces();
       return workspace;
     },
-    // WSMENU: 세션은 지우지 않고 숨긴다. 열려 있던 화면은 agentRemoved 로 그 세션 칸을 비우고, 폴더를 다시 추가하면 store.onRestored 가 돌려준다.
     "workspaces.remove": ({ id }) => {
       const { hidden, agents } = store.removeFolderFromList(id);
       for (const agent of agents) runner.closeIdle(agent.id);

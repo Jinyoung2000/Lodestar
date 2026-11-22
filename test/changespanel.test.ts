@@ -1,5 +1,3 @@
-// 변경 패널 `...` 메뉴의 상태(web/changesState.ts)와 Diff View 의 Automatic(web/diffMode.ts).
-// 실행: npm test
 import { DIFF_VIEWS } from "../shared/protocol";
 import { getChangesView, setAllDiffsCollapsed, setChangesWide, setTreeView, setWordWrap } from "../web/changesState";
 import { chooseDiffMode, SPLIT_GAP, SPLIT_MIN_PANE } from "../web/diffWidth";

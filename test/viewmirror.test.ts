@@ -1,6 +1,3 @@
-// 같은 파일의 두 보기가 변경을 서로 흘려 넣고 되돌리기 기록을 owner 하나만 갖는 규칙(web/viewMirror.ts). EditorView 대신 EditorState 를 감싼 가짜 보기로 확인한다.
-// 확인: 변경 전달, 기록은 owner 만, 다른 보기에서 친 글도 owner 에 기록, 타자 묶음이 한 번의 undo, 다른 보기의 undo 가 owner 를 되돌리고 두 보기의 글이 같아짐, 커서 위치, owner 교체.
-// 실행: npm test
 import { history, redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import { EditorSelection, EditorState, Transaction, type ChangeSet, type TransactionSpec } from "@codemirror/state";
 import { cursorAfterChange, forwardUpdate, ownerOnlyHistory, runOwnerHistory, shouldForward, skipMirror, type MirrorHost, type MirrorUpdate } from "../web/viewMirror";
@@ -42,7 +39,6 @@ class FakeView implements MirrorHost {
   }
 }
 
-// owner 는 group[0]. 둘째 보기는 owner 가 아니다.
 function pair(doc = "") {
   const group: FakeView[] = [];
   const a: FakeView = new FakeView(doc, group, () => group[0] === a);
@@ -102,7 +98,6 @@ function pair(doc = "") {
 }
 
 {
-  // 주인이 닫혀 둘째 보기가 이어받는다: 기록은 비어 있고 그때부터 자기 입력을 기록한다
   const group: FakeView[] = [];
   const a: FakeView = new FakeView("x", group, () => group[0] === a);
   const b: FakeView = new FakeView("x", group, () => group[0] === b);
@@ -116,7 +111,6 @@ function pair(doc = "") {
 }
 
 {
-  // 가짜 보기와 달리 글 길이가 어긋나 있으면 통째로 맞추고 기록하지 않는다
   const { a, b } = pair("abc");
   b.state = EditorState.create({ doc: "different length", extensions: [history()] });
   a.type(3, "d", 1000);

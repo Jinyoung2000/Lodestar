@@ -1,5 +1,3 @@
-// PERFDAEMON: 쉬는 세션의 CLI 프로세스를 몇 개까지 데워 둘지 고르는 규칙(server/warmCap.ts) 단독 시험.
-// 실행: npm test
 import { selectWarmEvictions, type WarmCandidate } from "../server/warmCap";
 
 let failed = 0;

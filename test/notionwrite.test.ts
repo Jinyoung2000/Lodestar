@@ -1,5 +1,3 @@
-// Notion 쓰기 경로의 승인 보장을 확인한다: 도구 분류(읽기 목록에 없으면 쓰기), 제안 인자 거르기, 미리보기, gatedWrite, 제안 도구 핸들러, 데몬의 승인 카드 흐름.
-// 승인 없이는 MCP 쓰기 호출(host.write)이 나가지 않는다는 것이 핵심이고, 모델과 Notion 은 부르지 않는다. 실행: npm test
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -166,8 +164,6 @@ test("rejectionMessage: 사용자가 쓴 이유가 있으면 그대로 싣고 �
   expect(rejectionMessage(" drop the second bullet ").includes("drop the second bullet"), "이유");
 });
 
-// ---- gatedWrite: 승인 없이는 run 이 불리지 않는다 ----
-
 const writeOk = async (..._args: unknown[]) => ({ sent: true, text: '{"updated":true}', isError: false, costUsd: 0.001 });
 
 test("gatedWrite: 거절하면 run 이 불리지 않는다", async () => {
@@ -204,7 +200,7 @@ test("gatedWrite: 승인하면 run 이 한 번, 승인 시점 인자의 사본�
     tool: "notion-update-page",
     args,
     ask: async () => {
-      args.nested.v = 2; // 묻는 동안 원본이 바뀌어도
+      args.nested.v = 2;
       return { allowed: true };
     },
     run: async (tool, given) => (seen.push({ tool, given }), writeOk()),
@@ -218,8 +214,6 @@ test("writeResultText: 적용됨, Notion 거절, 승인 거절을 모델이 구�
   expect(writeResultText({ sent: true, text: "bad", isError: true, costUsd: 0 }).startsWith("Notion rejected the change"), "notion error");
   expect(writeResultText({ sent: false, text: rejectionMessage(), reason: "rejected" }).includes("nothing was sent"), "rejected");
 });
-
-// ---- 제안 도구 핸들러 ----
 
 function host(overrides: Partial<NotionToolHost> & { current?: NotionPageData | null } = {}) {
   const calls = { ask: [] as { tool: string; summary: string }[], write: [] as { tool: string; args: Record<string, unknown> }[], changed: [] as string[], read: 0 };
@@ -284,8 +278,6 @@ test("create 핸들러: 거절하면 쓰기 없음, 승인하면 정리된 인�
   expect(result.isError === true && invalid.calls.ask.length === 0 && invalid.calls.write.length === 0, "부모 없음");
 });
 
-// ---- 데몬의 승인 카드 흐름 (가짜 프로세스 없이 askNotionWrite 와 respond 계열) ----
-
 const store = new Store();
 const initialBypassWrites = store.settings.notionBypassWrites;
 const events: ServerEvent[] = [];
@@ -298,7 +290,6 @@ const makeAgent = (id: string, mode: string, extra: Record<string, unknown> = {}
   store.addAgent(a);
   return a;
 };
-// 아래 카드 시험은 설정이 "Always ask" 인 Bypass Permissions 세션에서 돈다 (기본값 "apply" 는 NOTION3 시험이 따로 다룬다)
 store.updateSettings({ notionBypassWrites: "ask" });
 const agent = makeAgent("n-1", "bypassPermissions");
 const lastPermission = () => store.timeline(agent.id).filter((i) => i.kind === "permission").at(-1) as Extract<import("../shared/protocol").TimelineItem, { kind: "permission" }>;
@@ -376,8 +367,6 @@ test("respondNotionWrite: Notion 제안이 아닌 항목이나 이미 처리된 
   }
   expect(threw === 1, "없는 항목");
 });
-
-// ---- NOTION3: Bypass Permissions 에서 카드 없이 바로 반영 ----
 
 const permissionsOf = (id: string) => store.timeline(id).filter((i) => i.kind === "permission") as Extract<import("../shared/protocol").TimelineItem, { kind: "permission" }>[];
 const wait = (ms = 30) => new Promise((r) => setTimeout(r, ms));

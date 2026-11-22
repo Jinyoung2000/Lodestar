@@ -1,4 +1,3 @@
-// 미리보기 탭의 상태 전이(web/previewTabs.ts)와 Changes 탭 개수 배지 글자(web/countBadge.ts)를 본다. 실행: npm test
 import { countBadge } from "../web/countBadge";
 import { isPreview, pinTab, planOpen } from "../web/previewTabs";
 

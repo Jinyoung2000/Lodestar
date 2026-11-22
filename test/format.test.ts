@@ -17,7 +17,6 @@ const write = (path: string, text: string) => {
   writeFileSync(path, text);
 };
 
-// 입력 앞에 "[표식 인자]" 를 붙여 돌려준다. 표식으로 어떤 도구가 불렸는지 가린다.
 const echo = (mark: string) => `#!/usr/bin/env node\nlet t="";process.stdin.on("data",d=>t+=d);process.stdin.on("end",()=>{process.stdout.write("[${mark} "+process.argv.slice(2).join(" ")+"]"+t)});\n`;
 
 function fakeBin(dir: string, name: string, mark: string) {
@@ -126,32 +125,27 @@ test("설정한 확장이 안 깔려 있으면 unavailable, 깔렸지만 agent-n
 
 test("oxfmt 를 찾는 순서: 지정 경로, 작업 폴더 .bin, 하위 패키지, 상위 폴더 모듈, 전역, PATH", async () => {
   const env = envFor(extensionsWith("ext-order", ["oxc"]));
-  // 상위 폴더 모듈
   const parent = join(base, "order-parent");
   fakeBin(parent, "oxfmt", "parent");
   const ws = join(parent, "app");
   mkdirSync(join(ws, "src"), { recursive: true });
   let found = await resolveOxfmt({ workspaceDir: ws, file: join(ws, "src/a.ts"), flat: {}, env });
   expect(found.tool?.origin === "module" && found.tool.path.includes("order-parent/node_modules/oxfmt"), `parent module: ${JSON.stringify(found.tool)}`);
-  // 전역
   const globalRoot = join(base, "order-global", "node_modules");
   fakeBin(join(base, "order-global"), "oxfmt", "global");
   const ws2 = join(base, "order-solo");
   mkdirSync(ws2, { recursive: true });
   found = await resolveOxfmt({ workspaceDir: ws2, file: join(ws2, "a.ts"), flat: {}, env: { ...env, globalRoots: async () => [globalRoot] } });
   expect(found.tool?.origin === "global", `global: ${JSON.stringify(found.tool)}`);
-  // 하위 패키지: 작업 폴더 루트에는 없고 packages/web 안에 있음
   const mono = join(base, "order-mono");
   fakeBin(join(mono, "packages/web"), "oxfmt", "nested");
   write(join(mono, "packages/web/package.json"), "{}");
   mkdirSync(join(mono, "packages/web/src"), { recursive: true });
   found = await resolveOxfmt({ workspaceDir: mono, file: join(mono, "packages/web/src/a.ts"), flat: {}, env });
   expect(found.tool?.origin === "package", `nested package: ${JSON.stringify(found.tool)}`);
-  // 작업 폴더 .bin 이 하위 패키지보다 앞
   fakeBin(mono, "oxfmt", "root");
   found = await resolveOxfmt({ workspaceDir: mono, file: join(mono, "packages/web/src/a.ts"), flat: {}, env });
   expect(found.tool?.origin === "workspace", "workspace bin first");
-  // 지정 경로가 가장 앞이고, 지정했는데 없으면 다른 데서 찾지 않는다
   const custom = join(base, "custom-oxfmt.js");
   write(custom, echo("custom"));
   found = await resolveOxfmt({ workspaceDir: mono, file: join(mono, "a.ts"), flat: { "oxc.path.oxfmt": custom }, env });
@@ -160,7 +154,6 @@ test("oxfmt 를 찾는 순서: 지정 경로, 작업 폴더 .bin, 하위 패키�
   expect(found.tool === null && /does not exist/.test(found.why), `configured but missing: ${found.why}`);
   found = await resolveOxfmt({ workspaceDir: mono, file: join(mono, "a.ts"), flat: { "oxc.path.oxfmt": "${userHome}/x;rm" }, env });
   expect(found.tool === null && /rejects/.test(found.why), "shell characters rejected");
-  // PATH 의 네이티브 바이너리
   const bin = join(base, "pathbin");
   write(join(bin, "oxfmt"), "#!/bin/sh\ncat\n");
   chmodSync(join(bin, "oxfmt"), 0o755);
@@ -241,7 +234,6 @@ test("기본 포맷터를 안 골랐으면 후보가 하나일 때만 쓰고, �
   const both = envFor(extensionsWith("ext-both", ["prettier", "oxc"]));
   const many = await runFormat({ dir, absolute: join(dir, "a.md"), text: "x", settings: settingsOf({}), env: both });
   expect(many.text === null && many.problem?.kind === "ambiguous" && many.alternatives?.length === 2, `ambiguous: ${JSON.stringify(many)}`);
-  // 저장소가 Oxc 설정 파일만 둔 경우는 묻지 않고 Oxc, Prettier 설정까지 둘 다 있으면 그대로 ambiguous
   const configured = join(base, "nodefault-config");
   fakeBin(configured, "oxfmt", "oxfmt");
   write(join(configured, ".oxfmtrc.json"), "{}");

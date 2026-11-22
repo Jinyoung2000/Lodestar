@@ -31,7 +31,6 @@ const blinkClasses = EditorView.editorAttributes.compute([cursorConfig, blinkPha
   return { class: `cm-vsc-blink-${blinking} cm-vsc-phase-${state.field(blinkPhase) ? "b" : "a"}` };
 });
 
-// 브라우저 기본 선택 색과 커서를 숨긴다(CodeMirror hideNativeSelection 과 같은 규칙). 선택은 우리 레이어가 그린다.
 const hideNativeSelection = Prec.highest(
   EditorView.theme({
     ".cm-line": {
@@ -120,7 +119,6 @@ function cursorMarkers(view: EditorView): readonly LayerMarker[] {
     const className = `cm-vsc-cursor cm-vsc-cursor-${style} ${kind}`;
     if (style === "line" || style === "line-thin") {
       const piece = linePiece({ style, widthSetting, charWidth, pixelRatio, left });
-      // 폭이 2px 보다 넓은 세로선 안에는 그 자리 글자가 비쳐 보이게 같이 그린다(번들 ViewCursor)
       markers.push(new CursorMarker(className, piece.left, top, piece.width, lineHeight, style === "line" && piece.width > 2 ? char : ""));
       continue;
     }

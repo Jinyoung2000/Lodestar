@@ -20,7 +20,6 @@ export function activate(context: vscode.ExtensionContext) {
   panels.onSessionBound((agentId) => void view.reveal(agentId));
   chat.onSessionBound((agentId) => void view.reveal(agentId));
 
-  // 행 메뉴에서는 그 행이 인자로 오고, 팔레트와 단축키에서는 트리에서 고른 행을 쓴다.
   const agentOf = (node?: Node) => {
     const target = node ?? view.view.selection[0];
     return target?.kind === "session" ? target.agent : undefined;
@@ -37,16 +36,13 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand("lodestar.refresh", () => daemon.reconnect()),
     vscode.commands.registerCommand("lodestar.openApp", () => launchApp(log)),
-    // 설정 lodestar.openSessionIn 이 정한 곳에 연다(기본은 사이드바 Chat 뷰).
     vscode.commands.registerCommand("lodestar.openSession", async (node?: Node) => {
       const agent = agentOf(node);
       if (!agent) return;
       if (readOpenIn() === "editor") panels.open(agent.id);
       else await chat.openAgent(agent.id);
     }),
-    // 행 메뉴에서는 그 행의 세션을, Chat 뷰 머리에서는 지금 보는 화면을 에디터 탭으로 옮긴다. 같은 세션 입력창이 둘이 되지 않게 사이드바 쪽 화면은 지운다.
     vscode.commands.registerCommand("lodestar.openInEditor", (node?: Node) => {
-      // view/title 에서 오면 인자가 트리 행이 아닐 수 있으므로 행(kind: session)일 때만 행으로 본다.
       const fromTree = node?.kind === "session" ? node : undefined;
       const fromChat = fromTree ? null : chat.current();
       const agentId = fromTree?.agent.id ?? fromChat?.agentId ?? agentOf()?.id;
@@ -60,7 +56,6 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("lodestar.openInApp", async (node?: Node) => {
       const agent = agentOf(node);
       if (!agent) return;
-      // 떠 있는 Lodestar 창이 그 세션을 보이게 하고, 앱을 앞으로 가져온다. 구버전 데몬은 이 요청을 모른다.
       await daemon.call("app.showAgent", { agentId: agent.id }).catch((error: Error) => log(`app.showAgent failed: ${error.message}`));
       launchApp(log);
     }),
@@ -105,7 +100,6 @@ async function run(action: () => Promise<unknown>) {
   }
 }
 
-// New Session 을 열 폴더의 워크스페이스 id. 폴더가 여럿이면 고르게 하고, Lodestar 에 등록돼 있지 않으면 등록한다(새 세션을 만들려는 명시적 동작이다).
 async function workspaceFor(daemon: Daemon): Promise<string | null> {
   if (daemon.state !== "online") {
     void vscode.window.showWarningMessage("Lodestar is not running.", "Open Lodestar").then((pick) => pick && vscode.commands.executeCommand("lodestar.openApp"));

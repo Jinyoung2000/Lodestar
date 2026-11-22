@@ -1,37 +1,25 @@
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { applyContentChanges, expandItemDefaults, isEmptyResult, mergeCapabilities, mergeDiagnostics, mergeHover, mergeLocations, textDocumentSyncOf, uriOf, type SyncInfo } from "./lspMerge";
 
-// 브라우저의 LSP 연결 하나를 받아 여러 언어 서버(자식)에 나눠 보내고, 응답과 알림을 하나의 서버처럼 합쳐 돌려주는 멀티플렉서.
-// 자식 프로세스는 직접 띄우지 않는다. 레지스트리(server/lspRegistry.ts)가 만든 ChildDef.start 가 연결(ChildLink)을 준다.
-// @codemirror/lsp-client 는 에디터 뷰마다 LSPPlugin 하나만 붙여서, 같은 .tsx 에 TypeScript 와 Relay 를 함께 붙이려면 서버 쪽에서 합쳐야 한다.
-
 export type Msg = { jsonrpc?: "2.0"; id?: number | string; method?: string; params?: any; result?: any; error?: any };
 
 export type LinkCallbacks = {
   message(text: string): void;
-  // 자식이 끝났다. 시작 실패와 죽음 모두 이 한 가지로 알린다.
   exit(reason: string): void;
 };
 
 export type ChildLink = { send(text: string): void; stop(): void };
 
 export type ChildDef = {
-  // 같은 레지스트리 항목의 자식이 여럿일 수 있어(Relay 는 relay config 폴더마다) 자식마다 고유한 키.
   key: string;
   serverId: string;
   label: string;
-  // 브라우저에 돌려줄 initialize 결과의 기준이 되는 서버. 이 서버가 죽으면 연결을 닫는다.
   primary?: boolean;
-  // true 면 연결 직후 시작한다. false 면 담당 문서가 처음 열릴 때 시작한다.
   eager?: boolean;
-  // 담당 문서의 languageId 와 경로 범위(null 이면 모든 경로).
   languages: readonly string[];
   dir: string | null;
-  // 지연 시작 서버의 initialize rootUri 로 쓸 폴더.
   rootDir: string | null;
-  // 지연 시작 서버가 뜨기 전에도 라우팅이 알 수 있는 기능(initialize 결과와 같은 모양의 일부).
   staticCapabilities?: Record<string, unknown>;
-  // initialize 응답 뒤에도 서버가 준비를 끝내기 전에는 요청을 못 받는 서버(Relay)의 준비 신호. 없으면 initialize 응답이 곧 준비다.
   isReadySignal?: (message: Msg) => boolean;
   readyTimeoutMs?: number;
   start(callbacks: LinkCallbacks): ChildLink;
@@ -43,9 +31,7 @@ export type ServerStatus = { key: string; id: string; label: string; primary: bo
 export type MuxOptions = {
   toBrowser(text: string): void;
   closeBrowser(code: number, reason: string): void;
-  // 내용이 있는 응답이 하나 온 뒤 나머지 서버를 더 기다려 주는 시간.
   graceMs?: number;
-  // 요청 하나가 서버를 기다리는 최대 시간.
   requestTimeoutMs?: number;
 };
 
@@ -146,7 +132,6 @@ export class LspMultiplexer {
     for (const child of this.children) if (child.def.eager) this.openLink(child);
   }
 
-  // 브라우저가 보낸 메시지 하나.
   fromBrowser(text: string) {
     if (this.disposed) return;
     let message: Msg;
@@ -188,8 +173,6 @@ export class LspMultiplexer {
     }));
   }
 
-  // --- 브라우저에서 온 요청 ---
-
   private onBrowserRequest(message: Msg) {
     const method = message.method!;
     if (method === "initialize") return this.initialize(message);
@@ -207,14 +190,12 @@ export class LspMultiplexer {
     for (const child of this.children) if (child.def.eager) this.sendInitialize(child);
   }
 
-  // completionItem/resolve 와 codeAction/resolve 는 그 항목을 만든 서버로 간다(항목의 data 에 서버 키를 감싸 두었다).
   private resolveRequest(message: Msg) {
     const item = message.params ?? {};
     const key = item.data?.__mux;
     const child = this.children.find((c) => c.def.key === key) ?? this.children.find((c) => c.def.primary);
     const unwrapped = key ? withData(item, item.data.data) : item;
     const capability = message.method === "codeAction/resolve" ? "codeActionProvider" : "completionProvider";
-    // 죽었거나 resolve 를 못 하는 서버의 항목은 받은 그대로(data 만 되돌려) 돌려준다.
     if (!child || child.state === "dead" || (child.capabilities && !child.capabilities[capability]?.resolveProvider)) return this.reply(message.id!, unwrapped);
     this.startFan({ ...message, params: unwrapped }, "resolve", [child]);
   }
@@ -232,7 +213,6 @@ export class LspMultiplexer {
     const uri = uriOf(params);
     const doc = uri ? this.docs.get(uri) : undefined;
     const languageId = doc?.languageId ?? (uri ? NO_DOC_LANGUAGES[uri.slice(uri.lastIndexOf(".") + 1).toLowerCase()] : undefined);
-    // 어느 언어인지 모르는 문서(모르는 확장자)는 예전처럼 주 서버가 받는다.
     if (uri && !languageId) return this.primaryTargets();
     return this.children.filter((child) => {
       if (child.state === "dead") return false;
@@ -274,8 +254,6 @@ export class LspMultiplexer {
     part.state = "sent";
     child.link!.send(JSON.stringify({ jsonrpc: "2.0", id: part.childId, method: fan.method, params: part.params }));
   }
-
-  // --- 브라우저에서 온 알림 ---
 
   private onBrowserNotification(message: Msg) {
     switch (message.method) {
@@ -322,8 +300,6 @@ export class LspMultiplexer {
     doc.text = applyContentChanges(doc.text, contentChanges ?? []);
     for (const child of this.children) {
       if (!canSync(child) || !doc.opened.has(child.def.key)) continue;
-      // 주 서버는 브라우저가 보낸 그대로 받는다(브라우저는 이 서버의 동기화 종류에 맞춰 변경을 만든다).
-      // 다른 서버가 전체 동기화(1)만 받으면 우리가 들고 있는 전체 글을 보낸다. 증분(2)을 받는 서버는 받은 변경을 그대로 받는다(전체 글 변경도 증분 모드에서 유효하다). 동기화를 안 받는 서버(0)는 건너뛴다.
       if (!child.def.primary && child.sync.kind === 0) continue;
       const params = !child.def.primary && child.sync.kind === 1 ? { textDocument, contentChanges: [{ text: doc.text }] } : message.params;
       child.link!.send(JSON.stringify({ jsonrpc: "2.0", method: "textDocument/didChange", params }));
@@ -359,8 +335,6 @@ export class LspMultiplexer {
     if (pending.child.state === "dead") return;
     pending.child.link?.send(JSON.stringify({ jsonrpc: "2.0", id: pending.id, ...(message.error ? { error: message.error } : { result: message.result ?? null }) }));
   }
-
-  // --- 자식 시작과 준비 ---
 
   private openLink(child: Child) {
     if (child.link) return;
@@ -399,12 +373,10 @@ export class LspMultiplexer {
       this.emitStatus();
       return;
     }
-    // 지연 시작 서버: 브라우저가 아닌 우리가 initialized 를 보낸다.
     child.link!.send(JSON.stringify({ jsonrpc: "2.0", method: "initialized", params: {} }));
     if (!child.def.isReadySignal) return this.becomeReady(child);
     child.state = "warming";
     child.warmTimer = setTimeout(() => this.childExited(child, "did not become ready in time"), child.def.readyTimeoutMs ?? 45_000);
-    // Relay 는 첫 문서를 받아야 소스와 스키마를 읽기 시작하고 준비 신호를 보낸다. 문서는 준비 전에 열어 주고, 요청만 준비될 때까지 붙든다.
     this.catchUp(child);
     this.emitStatus();
   }
@@ -420,7 +392,6 @@ export class LspMultiplexer {
     this.emitStatus();
   }
 
-  // 따라잡기: 서버가 뜨는 동안 열린 문서를 현재 글로 연다.
   private catchUp(child: Child) {
     for (const doc of this.docs.values()) if (this.handles(child, doc.uri, doc.languageId)) this.openOn(child, doc);
   }
@@ -451,8 +422,6 @@ export class LspMultiplexer {
     this.dropDiagnosticsOf(child);
     this.emitStatus();
   }
-
-  // --- 자식에서 온 메시지 ---
 
   private fromChild(child: Child, text: string) {
     if (this.disposed) return;
@@ -507,9 +476,6 @@ export class LspMultiplexer {
     this.options.toBrowser(text);
   }
 
-  // --- 진단 ---
-  // publishDiagnostics 는 uri 단위 덮어쓰기라, 두 서버가 같은 파일에 보내면 마지막 것만 남는다. (uri, 서버)로 들고 합쳐서 다시 낸다.
-
   private onDiagnostics(child: Child, message: Msg) {
     const { uri, version, diagnostics } = message.params;
     const byChild = this.diagnostics.get(uri) ?? new Map();
@@ -534,14 +500,11 @@ export class LspMultiplexer {
     }
   }
 
-  // --- 팬아웃 응답 합치기 ---
-
   private evaluate(fan: Fan) {
     if (fan.finished) return;
     const parts = fan.parts;
     const settled = (part: Part) => part.state === "done" || part.state === "failed";
     if (fan.merge === "first") {
-      // 우선순위 순서로 훑어 처음으로 내용이 있는 결과를 낸다. 앞선 서버가 아직 답하지 않았으면 기다린다.
       for (const part of parts) {
         if (!settled(part)) return;
         if (part.state === "done" && !isEmptyResult(part.result)) return this.finish(fan);
@@ -551,7 +514,6 @@ export class LspMultiplexer {
     if (parts.every(settled)) return this.finish(fan);
     const hasContent = parts.some((part) => part.state === "done" && !isEmptyResult(part.result));
     if (!hasContent) return;
-    // 준비 중인 서버(뜨는 중, 워밍업)는 이미 나온 내용을 막지 않는다. 준비된 서버가 늦으면 grace 만큼만 더 기다린다.
     if (parts.filter((part) => !settled(part)).every((part) => part.child.state !== "ready")) return this.finish(fan);
     if (!fan.graceTimer) fan.graceTimer = setTimeout(() => this.finish(fan), this.graceMs);
   }
@@ -569,7 +531,6 @@ export class LspMultiplexer {
     const done = fan.parts.filter((part) => part.state === "done");
     const failed = fan.parts.find((part) => part.state === "failed" && part.error && part.error !== SERVER_EXITED) ?? fan.parts.find((part) => part.state === "failed");
     if (done.length === 0) return failed ? this.reply(fan.browserId, undefined, failed.error) : this.reply(fan.browserId, null);
-    // 내용이 있는 결과가 없을 때, 주 서버가 오류로 답했다면(예: 이름을 바꿀 수 없는 자리) 그 오류를 돌려준다. 다른 서버의 빈 응답이 가리지 않게.
     if (done.every((part) => isEmptyResult(part.result)) && failed?.child.def.primary && failed.error !== SERVER_EXITED) return this.reply(fan.browserId, undefined, failed.error);
     this.reply(fan.browserId, this.combine(fan, done));
   }
@@ -608,8 +569,6 @@ export class LspMultiplexer {
     this.options.toBrowser(JSON.stringify(error !== undefined ? { jsonrpc: "2.0", id, error } : { jsonrpc: "2.0", id, result: result ?? null }));
   }
 
-  // --- 상태 표시 ---
-
   private emitStatus() {
     if (this.disposed || !this.initParams) return;
     const servers = this.statuses();
@@ -620,7 +579,6 @@ export class LspMultiplexer {
   }
 }
 
-// 문서 동기화를 받을 수 있는 상태. 준비 신호를 기다리는 서버도 문서는 받는다.
 function canSync(child: Child) {
   return child.state === "ready" || child.state === "warming";
 }
@@ -642,7 +600,6 @@ function wrap(key: string, data: unknown) {
   return { __mux: key, data };
 }
 
-// data 가 undefined 면 속성을 두지 않는다.
 function withData<T extends Record<string, unknown>>(item: T, data: unknown): T {
   const { data: _old, ...rest } = item;
   return (data === undefined ? rest : { ...rest, data }) as T;

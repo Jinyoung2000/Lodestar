@@ -1,15 +1,11 @@
 import { useSyncExternalStore } from "react";
 import { activeAgentOf } from "./activeAgentOf";
 import { EMBED } from "./embed";
+import { chatPaneWorkspace, chatProject } from "./editorChat";
 import { openSwitcher, reduceSwitcher, switcherSessions, type SwitcherAction, type SwitcherEvent, type SwitcherState } from "./sessionSwitcherModel";
 import { getState, rememberRecentAgent, subscribe, switchToSession } from "./store";
 import { closeTabSwitcher } from "./tabSwitcher";
 
-// ⌃Tab 세션 전환 창(macOS ⌘Tab 과 같다). 에디터 안의 ⌃Tab 은 탭 전환(web/tabSwitcher.ts)이고, 그 밖의 ⌃Tab 이 이쪽이다.
-// ⌃ 를 누른 채 Tab 을 누를 때마다 한 칸씩 가고 ⌃ 를 떼면 고른 세션으로 간다. 빨리 눌렀다 떼면 창이 뜨기 전에 직전 세션으로 간다.
-// 목록과 키 규칙은 web/sessionSwitcherModel.ts, 화면은 web/SessionSwitcherView.tsx.
-
-// 창이 뜨기까지 기다리는 시간. 이보다 빨리 ⌃ 를 떼면 창을 보이지 않고 바로 간다.
 export const SESSION_SWITCHER_SHOW_MS = 200;
 
 let current: SwitcherState | null = null;
@@ -31,17 +27,21 @@ export function useSessionSwitcher() {
   );
 }
 
-// 열려 있지 않으면 열고(앞으로는 직전 세션, 뒤로는 가장 오래된 세션을 고른다), 열려 있으면 delta 만큼 고른 행을 옮긴다. hold 는 ⌃Tab 처럼 키를 누른 채 쓰는 호출이다.
 export function cycleSessionSwitcher(delta: 1 | -1, hold = true) {
   if (current) {
     dispatch({ type: "step", delta });
     return;
   }
   const s = getState();
-  // 다른 빠른 선택창이 떠 있으면 그 창이 키를 쓴다
   if (s.overlay) return;
   const openIds = s.panes.flatMap((p) => (p.kind === "agent" ? [p.agentId] : []));
-  const rows = switcherSessions({ agents: s.agents, workspaces: s.workspaces, recentIds: s.recentAgentIds, openIds, activeAgentId: activeAgentOf(s.panes, s.activePaneId, s.agents)?.id ?? null });
+  const active = s.panes.find((pane) => pane.id === s.activePaneId);
+  const project = chatProject(chatPaneWorkspace(active, s.agents), s.workspaces);
+  const agents = s.layoutMode === "editor" ? s.agents.filter((agent) => chatProject(agent.workspaceId, s.workspaces) === project) : s.agents;
+  const recentIds = s.layoutMode === "editor"
+    ? [...s.recentAgentIds.filter((id) => openIds.includes(id)), ...openIds, ...s.recentAgentIds]
+    : s.recentAgentIds;
+  const rows = switcherSessions({ agents, workspaces: s.workspaces, recentIds, openIds, activeAgentId: activeAgentOf(s.panes, s.activePaneId, s.agents)?.id ?? null });
   const opened = openSwitcher(rows, delta, hold);
   if (!opened) return;
   closeTabSwitcher();
@@ -95,7 +95,6 @@ function onPointerDown(event: PointerEvent) {
 
 function onKeyDown(event: KeyboardEvent) {
   if (!current) return;
-  // 열려 있는 동안 키는 입력창과 에디터에 들어가지 않는다. Tab 은 단축키 표(⌃Tab, ⌃⇧Tab)가 받아 다음, 이전으로 옮긴다.
   const swallow = () => {
     event.preventDefault();
     event.stopPropagation();
@@ -113,18 +112,14 @@ function onKeyDown(event: KeyboardEvent) {
   } else if (event.key === "Tab" && event.ctrlKey) {
     return;
   } else if (event.metaKey || event.altKey) {
-    // ⌘ 나 ⌥ 를 쓴 단축키는 창을 닫고 평소대로 동작한다
     dispatch({ type: "escape" });
   } else if (current.hold && !event.ctrlKey) {
-    // ⌃ 를 이미 뗐는데 keyup 을 놓친 경우의 보험
     dispatch({ type: "keyDown", ctrlKey: false });
   } else {
     swallow();
   }
 }
 
-// 세션에 포커스가 갈 때마다 최근 순서(store 의 recentAgentIds)를 갱신한다. 사이드바 클릭, 검색, 칸 클릭, ⌃⌘←→, 단축키 어느 길로 가든 활성 칸의 세션이 바뀌는 순간을 듣는다.
-// openAgent 는 스스로 기록하지만 칸을 눌러 옮기거나 칸 이동 키로 가는 길은 기록하지 않아서, 이 구독이 막는다.
 let tracking = false;
 export function startSessionTracking() {
   if (tracking || EMBED) return;

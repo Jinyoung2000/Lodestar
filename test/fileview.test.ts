@@ -1,5 +1,3 @@
-// Q2: 바이너리 판별과 읽기 전용 알림(server/files.ts), 이미지 판별, 확대 단계, 변경 칩 툴팁. 데몬도 모델도 필요 없다.
-// 실행: npm test
 import { chmodSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,7 +17,6 @@ execFileSync("git", ["init", "-q", "-b", "main"], { cwd: base });
 writeFileSync(join(base, "text.txt"), "hello\n");
 writeFileSync(join(base, "blob.bin"), Buffer.from([0, 1, 2, 3, 255]));
 writeFileSync(join(base, "pic.png"), Buffer.from([137, 80, 78, 71, 0, 0, 0]));
-// 2MB 를 넘는 바이너리도 크기와 binary 로 답한다(텍스트처럼 too large 로 죽지 않는다)
 writeFileSync(join(base, "big.bin"), Buffer.alloc(3 * 1024 * 1024));
 writeFileSync(join(base, "ro.txt"), "locked\n");
 chmodSync(join(base, "ro.txt"), 0o444);

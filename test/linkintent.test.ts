@@ -1,4 +1,3 @@
-// CMDT: ⌘T 입력창의 링크 판정(shared/linkIntent.ts)과 실행 줄 모델(web/linkRows.ts) 시험. 실행: npm test
 import { linkActions, simulatorUrlOk, webviewUrl, type LinkAction } from "../shared/linkIntent";
 import { linkRows, needsSimulator } from "../web/linkRows";
 
@@ -11,7 +10,6 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const kinds = (input: string) => linkActions(input).map((a) => a.kind);
 const first = (input: string): LinkAction | undefined => linkActions(input)[0];
 
-// http, https
 check("https 는 Browser 한 줄", same(linkActions("https://example.com/a"), [{ kind: "browser", url: "https://example.com/a" }]));
 check("http 도 Browser 한 줄", same(kinds("http://example.com"), ["browser"]));
 check("scheme 은 대소문자 무시하고 소문자로, 경로 대소문자는 그대로", same(first("HTTPS://Example.com/Path/CaseKept"), { kind: "browser", url: "https://example.com/Path/CaseKept" }));
@@ -20,7 +18,6 @@ check("쿼리의 한글은 percent-encoding", first("https://example.com/s?q=한
 check("이미 인코딩된 쿼리는 다시 인코딩하지 않는다", first("https://example.com/s?q=a%20b&r=%2F")?.url === "https://example.com/s?q=a%20b&r=%2F");
 check("호스트 없는 https:// 는 링크가 아니다", same(linkActions("https://"), []));
 
-// karrot, karrot.alpha
 check("karrot:// 는 Simulator 한 줄", same(linkActions("karrot://home"), [{ kind: "simulator", url: "karrot://home" }]));
 check("karrot.alpha:// 홈", same(linkActions("karrot.alpha://"), [{ kind: "simulator", url: "karrot.alpha://" }]));
 check("scheme 대소문자: KARROT.Alpha:// 는 소문자로, 나머지는 그대로", same(first("KARROT.Alpha://MiniKarrot/Router?x=Y"), { kind: "simulator", url: "karrot.alpha://MiniKarrot/Router?x=Y" }));
@@ -28,7 +25,6 @@ check("karrot 주소의 공백 앞뒤는 잘라 낸다", first("  karrot://home 
 check("허용 밖 scheme 은 링크가 아니다", same(linkActions("javascript://alert(1)"), []) && same(linkActions("file:///etc/passwd"), []) && same(linkActions("ftp://example.com"), []) && same(linkActions("tel://123"), []) && same(linkActions("karrotx://a"), []) && same(linkActions("mykarrot://a"), []));
 check("// 없는 karrot: 는 링크가 아니다", same(linkActions("karrot:home"), []));
 
-// localhost
 const wv = (remote: string) => `karrot.alpha://minikarrot/router?remote=${encodeURIComponent(remote)}&navbar=false&scrollable=false`;
 check("localhost:포트 는 Browser 와 Simulator Webview 두 줄", same(linkActions("localhost:3000/me"), [
   { kind: "browser", url: "http://localhost:3000/me" },
@@ -48,21 +44,17 @@ check("localhost 가 아닌 호스트의 포트만 있는 글은 링크가 아�
 check("http://example.com 은 Webview 줄이 없다", same(kinds("http://example.com:3000"), ["browser"]));
 check("localhost 를 닮은 호스트는 Webview 줄이 없다", same(kinds("http://localhost.evil.com:3000/"), ["browser"]) && same(kinds("http://notlocalhost:3000/"), ["browser"]));
 
-// webviewUrl
 check("webviewUrl: remote 전체를 percent-encoding", webviewUrl("http://localhost:3000/me?a=1&b=한글#x") === "karrot.alpha://minikarrot/router?remote=http%3A%2F%2Flocalhost%3A3000%2Fme%3Fa%3D1%26b%3D%ED%95%9C%EA%B8%80%23x&navbar=false&scrollable=false");
 check("webviewUrl: 뒤따르는 파라미터는 remote 안으로 들어가지 않는다", webviewUrl("http://localhost:3000/?navbar=true").endsWith("&navbar=false&scrollable=false") && webviewUrl("http://localhost:3000/?navbar=true").includes("%3Fnavbar%3Dtrue"));
 
-// 링크가 아닌 글
 for (const text of ["", "   ", "useState", "MyClass.method", "Foo::bar", "https", "http:", "http:/x", "https:/example.com", "example.com", "www.example.com", "a b", "https://a b.com", "karrot://a b", "foo://bar", "localhost 3000", "localhost:3000 x", "한글심볼", "//example.com", "https://x\u0000y", "$(open -a Calculator)", "karrot://a;rm -rf"]) {
   check(`링크 아님: ${JSON.stringify(text)}`, same(linkActions(text), []));
 }
 check("4096자를 넘는 주소는 링크가 아니다", same(linkActions(`https://example.com/${"a".repeat(5000)}`), []));
 
-// 데몬 쪽 재검사
 check("simulatorUrlOk: 허용 scheme 만", simulatorUrlOk("karrot://home") && simulatorUrlOk("karrot.alpha://") && simulatorUrlOk("KARROT.ALPHA://x"));
 check("simulatorUrlOk: 그 밖은 거절", !simulatorUrlOk("https://example.com") && !simulatorUrlOk("file:///etc/passwd") && !simulatorUrlOk("") && !simulatorUrlOk(" karrot://x") && !simulatorUrlOk("karrot://x y") && !simulatorUrlOk("-karrot://x") && !simulatorUrlOk(undefined) && !simulatorUrlOk(7) && !simulatorUrlOk("karrot://x\n--flag"));
 
-// 실행 줄 모델
 const sim = (names: string[]) => ({ status: "ready" as const, devices: names.map((name, i) => ({ udid: `0000000${i}-0000-0000-0000-000000000000`, name })) });
 const title = (rows: { title: string }[]) => rows.map((r) => r.title);
 check("needsSimulator: karrot 과 localhost 는 true, https 는 false", needsSimulator(linkActions("karrot://home")) && needsSimulator(linkActions("localhost:3000")) && !needsSimulator(linkActions("https://example.com")) && !needsSimulator([]));

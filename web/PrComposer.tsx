@@ -11,7 +11,6 @@ type Props = {
   initial?: string;
   actions: ComposerAction[];
   onCancel?: () => void;
-  // 있으면 "Insert suggestion" 버튼이 이 줄들을 채운 ```suggestion 틀을 넣는다 (diff 줄에 다는 코멘트)
   suggestLines?: string[];
   busy: boolean;
   autoFocus?: boolean;
@@ -19,7 +18,6 @@ type Props = {
   label: string;
 };
 
-// 마크다운 입력창: Write 와 Preview 탭, 제안 틀 삽입, 동작 버튼들. 버튼을 누르기 전에는 아무것도 보내지 않는다.
 export function PrComposer({ placeholder, initial = "", actions, onCancel, suggestLines, busy, autoFocus, allowEmpty, label }: Props) {
   const [body, setBody] = useState(initial);
   const [preview, setPreview] = useState(false);

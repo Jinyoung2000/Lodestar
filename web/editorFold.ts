@@ -10,8 +10,6 @@ import { regionMarkersFor } from "./editorFoldModel";
 import { isOffSideLanguage } from "./editorGuidesModel";
 import { languageIdFor } from "./languageId";
 
-// 접기 확장(editor.folding, showFoldingControls, foldingStrategy, foldingHighlight). 구간 계산은 editorFoldRegions.ts, 이 파일은 화면 쪽이다:
-// 접기 화살표 열, 접힌 줄 뒤의 생략 표시, 접힌 줄 배경, 명령 등록.
 export function foldExtension(options: EditorOptions, context: OptionContext): Extension {
   const layout = gutterLayout(options);
   if (!options.folding) return layout;
@@ -30,19 +28,16 @@ export function foldExtension(options: EditorOptions, context: OptionContext): E
       return region ? rangeOf(state.doc, region) : null;
     }),
     EditorView.editorAttributes.of({ class: controls === "never" ? "cm-vsc-fold-never" : controls === "always" ? "cm-vsc-fold-always" : "cm-vsc-fold-mouseover" }),
-    // 접기 화살표 열은 변경 거터(quick diff) 오른쪽에 둔다. 변경 거터는 기본 우선순위라 이쪽을 낮춘다.
     controls === "never" ? [] : Prec.low([markerPlugin, foldGutter]),
     options.foldingHighlight ? EditorView.decorations.compute([foldState], foldedLineDecorations) : [],
   ];
 }
 
-// 거터 배치 규칙(editorFold.css)을 켜는 루트 클래스. 접기 화살표 열이 있으면 변경 거터가 그 열 위에 겹쳐 앉는다.
 function gutterLayout(options: EditorOptions): Extension {
   const hasFoldColumn = options.folding && options.showFoldingControls !== "never";
   return EditorView.editorAttributes.of({ class: hasFoldColumn ? "cm-vsc-layout cm-vsc-layout-fold" : "cm-vsc-layout" });
 }
 
-// 키는 web/keymap.ts 의 BINDINGS(command "editor:<id>")가 건다. 여기서 올린 명령은 팔레트에도 이름으로 뜬다.
 registerEditorCommands(
   FOLD_COMMANDS.map((command) => ({
     id: command.id,
@@ -55,8 +50,6 @@ registerEditorCommands(
     },
   })),
 );
-
-// --- 접기 화살표 열 ---
 
 class FoldMarker extends GutterMarker {
   constructor(readonly open: boolean) {
@@ -124,7 +117,6 @@ function toggleFromGutter(view: EditorView, pos: number, modifier: "plain" | "re
   return true;
 }
 
-// 접힌 줄 뒤의 생략 표시(번들 .inline-folded:after). 누르면 펼친다.
 function placeholderDOM(_view: EditorView, onclick: (event: Event) => void): HTMLElement {
   const element = document.createElement("span");
   element.className = "cm-vsc-folded";
@@ -133,7 +125,6 @@ function placeholderDOM(_view: EditorView, onclick: (event: Event) => void): HTM
   return element;
 }
 
-// 접힌 줄 전체 배경(editor.foldingHighlight, editor.foldBackground)
 const foldedLine = Decoration.line({ class: "cm-vsc-folded-line" });
 
 function foldedLineDecorations(state: EditorState): DecorationSet {

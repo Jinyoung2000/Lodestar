@@ -1,5 +1,3 @@
-// peek 판정과 결과 묶기의 순수 계산(web/peekModel.ts): 하나면 바로 이동, 여럿이면 peek, 선언 위의 정의 이동은 참조로, 정렬과 묶기, 가장 가까운 결과, 줄 미리보기.
-// 실행: npm test
 import { decide, groupRefs, nearestIndex, noResultMessage, peekMeta, previewLine, stepIndex, type PeekRef } from "../web/peekModel";
 
 const cases: { name: string; run: () => string }[] = [];

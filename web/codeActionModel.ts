@@ -23,7 +23,6 @@ export function groupOf(kind: string | undefined): ActionGroup {
   return ACTION_GROUPS.find((group) => kindContains(group.kind, value)) ?? ACTION_GROUPS[ACTION_GROUPS.length - 1]!;
 }
 
-// 자동 트리거(전구)와 ⌘. 는 Source Action 을 요청 필터에서 뺀다(includeSourceActions 가 거짓). 그래서 organizeImports 같은 제안은 목록에 안 나온다.
 export function isSourceAction(action: ActionLike) {
   return kindContains("source", action.kind ?? "@@none@@");
 }
@@ -47,8 +46,6 @@ function hintOf(action: ActionLike) {
   return action.kind && kindContains("refactor", action.kind) ? REFACTOR_KEY_LABEL : null;
 }
 
-// 번들 Z2o. showHeaders 가 켜져 있으면(editor.codeActionWidget.showHeaders 기본 켬) 그룹 머리줄 + 제안들, 꺼져 있으면 평평한 목록.
-// 사용 불가(disabled) 제안은 showDisabled 일 때만 들어가고, 그 줄의 글자는 제목이 아니라 사유다.
 export function buildRows<T extends ActionLike>(actions: readonly T[], options: { showHeaders: boolean; showDisabled: boolean }): MenuRow<T>[] {
   const sorted = sortActions(actions).filter((action) => !action.disabled || options.showDisabled);
   const rowOf = (action: T, group: ActionGroup): MenuRow<T> => ({
@@ -77,7 +74,6 @@ export function canPreview(action: ActionLike) {
   return action.edit !== undefined && action.edit !== null;
 }
 
-// 키보드로 갈 수 있는 줄(사용 불가와 머리줄은 건너뛴다)
 export function focusableIndexes(rows: readonly MenuRow[]) {
   const indexes: number[] = [];
   rows.forEach((row, index) => {
@@ -105,8 +101,6 @@ export const MENU_TEXT = {
 
 export const MAC_KEYS = { quickFix: "⌘.", autoFix: "⌥⌘.", accept: "Enter", preview: "⌘Enter" };
 
-// ---- 전구 ----
-
 export type LightbulbMode = "off" | "onCode" | "on";
 
 export function shouldRequestLightbulb(mode: LightbulbMode, selectionEmpty: boolean, lineText: string, column: number) {
@@ -131,13 +125,13 @@ export function indentColumns(text: string, tabSize: number) {
 export type LightbulbPlacement = { kind: "none" } | { kind: "gutter"; line: number } | { kind: "widget"; line: number; column: number };
 
 export type PlacementInput = {
-  line: number; // 커서 줄(1부터)
-  column: number; // 커서 열(1부터)
+  line: number;
+  column: number;
   lineCount: number;
   lineText: (line: number) => string;
-  indentWidth: number; // 커서 줄의 앞 공백 칸 수
-  spaceWidth: number; // 공백 한 칸의 px 폭
-  hidden?: (line: number) => boolean; // 접힌 줄
+  indentWidth: number;
+  spaceWidth: number;
+  hidden?: (line: number) => boolean;
 };
 
 export function placeLightbulb(input: PlacementInput): LightbulbPlacement {
@@ -176,8 +170,6 @@ export function lightbulbInfo(actions: readonly ActionLike[], labels: { autoFix:
   return { icon: autoFix ? ("lightbulb-autofix" as const) : ("light-bulb" as const), autoFix, title };
 }
 
-// ---- 메뉴 놓는 자리 ----
-// 번들 컨텍스트 뷰 규칙: 기준점 아래에 놓고, 아래가 모자라고 위가 더 넓으면 위로 뒤집는다. 가로로 넘치면 왼쪽으로 민다. 어느 쪽에도 안 들어가면 넓은 쪽에 놓고 높이를 줄인다.
 export type MenuAnchor = { x: number; top: number; bottom: number };
 export type MenuPlacement = { left: number; top: number; maxHeight: number; above: boolean };
 

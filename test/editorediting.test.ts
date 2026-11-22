@@ -1,5 +1,3 @@
-// 에디터 편집 동작(블록 주석 Enter, trimAutoWhitespace, 복사와 붙여넣기, 줄 합치기, 선택 확장 등)의 순수 로직 시험.
-// 실행: npm test
 import { insertNewlineAndIndent } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
 import { EditorSelection, EditorState, Text, type Extension, type Transaction } from "@codemirror/state";
@@ -40,7 +38,6 @@ function stateOf(doc: string, anchor: number, head = anchor, extensions: Extensi
   return EditorState.create({ doc, selection: EditorSelection.single(anchor, head), extensions: [javascript({ typescript: true }), ...SESSION_FIELDS, ...extensions] });
 }
 
-// 명령을 한 번 실행해 바뀐 상태를 돌려준다. EditorView 없이 {state, dispatch} 만으로 돈다.
 function run(command: (target: never) => boolean, state: EditorState): { ok: boolean; state: EditorState } {
   let current = state;
   const target: Target = {
@@ -58,7 +55,6 @@ function run(command: (target: never) => boolean, state: EditorState): { ok: boo
 const text = (state: EditorState) => state.doc.toString();
 const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor, r.head]);
 
-// 1. 블록 주석 안의 Enter
 {
   const enter = enterWithRules("typescript") as unknown as (target: never) => boolean;
   const doc = "/** */";
@@ -92,7 +88,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   check("java 도 같은 규칙", enterRulesFor("java").length > 0 && enterRulesFor("go").length === 1);
 }
 
-// 2. trimAutoWhitespace
 {
   const trimExt = trimAutoWhitespace({ ...EDITOR_OPTION_DEFAULTS, trimAutoWhitespace: true });
   const base = "function f() {\n  return 1;\n}";
@@ -108,7 +103,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   eq("다른 곳에서 다음 편집을 하면 공백만 있던 줄이 비워진다", text(typed), "function f() {\n\n  return 1;\n}z");
   eq("지운 뒤에는 추적이 비어 있다", typed.field(autoWhitespaceLines).length, 0);
 
-  // 자동 들여쓰기 줄 끝에서 줄바꿈만 끼워 넣는 Enter(기본 Enter 처럼 앞 공백을 대체하지 않는 구현)
   const head = state.selection.main.head;
   const plainEnter = state.update({ changes: { from: head, insert: "\n  " }, selection: { anchor: head + 3 }, userEvent: "input" }).state;
   eq("줄 끝에 줄바꿈을 끼우는 Enter 도 이전 자동 공백 줄을 비운다", text(plainEnter), "function f() {\n\n  \n  return 1;\n}");
@@ -124,19 +118,16 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   const offTyped = type(moveTo(offBase, offBase.doc.length), offBase.doc.length, "z");
   eq("설정이 꺼지면 공백을 지우지 않는다", text(offTyped), "function f() {\n  \n  return 1;\n}z");
 
-  // 사용자가 직접 친 공백
   let typedSpaces = stateOf("a\n\nb", 2, 2, [trimExt]);
   typedSpaces = type(typedSpaces, 2, "  ");
   typedSpaces = moveTo(typedSpaces, typedSpaces.doc.length);
   typedSpaces = type(typedSpaces, typedSpaces.doc.length, "c");
   eq("직접 친 공백은 지우지 않는다", text(typedSpaces), "a\n  \nbc");
 
-  // 커서에서 먼 곳의 편집은 건드리지 않는다
   const far = state.update({ changes: { from: 0, insert: "// " }, selection: { anchor: state.doc.length }, userEvent: "input.type" }).state;
   check("커서와 상관없는 곳의 편집이면 공백을 남긴다", text(far).split("\n")[1] === "  ", JSON.stringify(text(far)));
 }
 
-// 3. 복사, 잘라내기, 붙여넣기
 {
   const doc = "one\ntwo\nthree";
   const copy = copyPayload(stateOf(doc, 5), true);
@@ -167,7 +158,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   eq("복사할 때 선택마다 담은 글은 줄 수와 상관없이 나눠 넣는다", text(cursors.update(pasteSpec(cursors, "p\nq\nr\ns", meta, true)).state), "ap\nq\nbr\ncs");
 }
 
-// 4. 줄 합치기
 {
   eq("커서만 있으면 다음 줄을 한 칸 띄워 잇고 커서는 이은 자리", (() => {
     const r = run(joinLines, stateOf("a\n  b\nc", 0)).state;
@@ -186,7 +176,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   })(), "a b\n\nc d");
 }
 
-// 5. 줄 주석 추가와 제거, 끝 공백 제거
 {
   let state = run(addCommentLine, stateOf("  foo\n  bar", 0, 11)).state;
   eq("줄 주석 추가는 가장 얕은 들여쓰기에 붙인다", text(state), "  // foo\n  // bar");
@@ -197,7 +186,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   eq("끝 공백이 없으면 아무것도 안 한다", run(trimTrailingWhitespace, stateOf("a\nb", 0)).ok, false);
 }
 
-// 6. 줄 정렬, 중복 제거, 복제, 줄 선택
 {
   eq("선택 줄 오름차순 정렬", text(run(sortLines(false), stateOf("c\nb\na\nz", 0, 5)).state), "a\nb\nc\nz");
   eq("선택이 한 줄이면 문서 전체를 내림차순 정렬", text(run(sortLines(true), stateOf("b\nc\na", 0)).state), "c\nb\na");
@@ -217,7 +205,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   eq("마지막 줄 선택 확장은 줄 끝까지", sel(run(expandLineSelection, stateOf("one\ntwo", 5)).state), [[4, 7]]);
 }
 
-// 7. 글자 모양 바꾸기
 {
   eq("대문자", transformText("uppercase", "foo Bar"), "FOO BAR");
   eq("제목 형식", transformText("titlecase", "hello wORLD it's"), "Hello World It's");
@@ -228,7 +215,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   eq("선택이 없으면 커서 아래 낱말만 바꾼다", text(run(transformSelection("uppercase"), stateOf("foo bar", 5)).state), "foo BAR");
 }
 
-// 8. 같은 글 전부 선택, 마지막 선택 옮기기
 {
   let result = run(selectAllOccurrences, stateOf("foo bar foo foobar", 1));
   eq("커서 아래 낱말은 낱말 단위로 전부 선택", sel(result.state), [[0, 3], [8, 11]]);
@@ -252,7 +238,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   check("선택이 없으면 아무것도 안 한다", run(addCursorsToLineEnds, stateOf("abc", 1)).ok === false);
 }
 
-// 9. 괄호 제거, 선택 앵커
 {
   eq("커서를 감싼 괄호 쌍을 지운다", text(run(removeBrackets, stateOf("foo(a, b)", 6)).state), "fooa, b");
   eq("커서에 붙은 괄호의 쌍을 지운다", text(run(removeBrackets, stateOf("x[1] + (2)", 4)).state), "x1 + (2)");
@@ -272,7 +257,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   check("Esc 로 앵커를 취소", run(cancelSelectionAnchor, anchored).state.field(selectionAnchor) === null);
 }
 
-// 10. 선택 확장과 축소
 {
   const doc = "foo(barBaz, qux);";
   let state = stateOf(doc, 7);
@@ -295,7 +279,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   eq("처음 선택으로 돌아간다", sel(run(shrinkSelection, run(expandSelection, stateOf(doc, 7)).state).state), [[7, 7]]);
 }
 
-// 11. 단어 부분 이동과 삭제
 {
   const doc = Text.of(["fooBar_baz-qux HTTPServer"]);
   const forward: number[] = [];
@@ -320,7 +303,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   eq("공백이 둘 이상이면 공백 전체를 지운다", text(run(deleteWordPart(false), stateOf("foo    bar", 7)).state), "foobar");
 }
 
-// 12. 열 선택
 {
   const grid = "abcdef\nabcdef\nabcdef";
   let state = stateOf(grid, 1);
@@ -339,7 +321,6 @@ const sel = (state: EditorState) => state.selection.ranges.map((r) => [r.anchor,
   eq("위로도 같다", sel(upward), [[8, 8], [15, 15]]);
 }
 
-// 13. 단축키 표
 {
   const editor: KeyContext = { inTerminal: false, inEditor: true };
   const outside: KeyContext = { inTerminal: false, inEditor: false };

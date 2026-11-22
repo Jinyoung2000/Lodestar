@@ -1,6 +1,3 @@
-// CODEX: Codex 세션 실행기(server/codex/)를 가짜 앱 서버(test/fixtures/codex/app-server.mjs)로 시험한다.
-// 스트리밍, 명령 실행과 파일 변경의 승인(허용과 거절), 중단, 오류, 큐, 데몬 재시작 뒤 thread/resume, 앱 서버 비정상 종료, 모델 목록과 로그인 상태, Codex 에 없는 기능의 거절을 본다.
-// 실제 Codex 는 부르지 않는다. 실행: npm test
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,10 +12,16 @@ process.env.AGENT_NAV_HOME = home;
 process.env.AGENT_NAV_CODEX = resolve("test/fixtures/codex/app-server.mjs");
 process.env.FAKE_CODEX_LOG = logFile;
 process.env.FAKE_CODEX_STATE = fakeState;
+const agyState = join(root, "agy-state");
+const agyLog = join(root, "agy-requests.jsonl");
+process.env.AGENT_NAV_ANTIGRAVITY = resolve("test/fixtures/antigravity/agy.mjs");
+process.env.FAKE_AGY_LOG = agyLog;
+process.env.FAKE_AGY_STATE = agyState;
 
 const { Store } = await import("../server/store");
 const { AgentRunner } = await import("../server/agents");
 const { AppServer } = await import("../server/codex/appServer");
+const { AcpConnection } = await import("../server/antigravity/acp");
 type Item = import("../shared/protocol").TimelineItem;
 type ServerEvent = import("../shared/protocol").ServerEvent;
 
@@ -69,7 +72,6 @@ test("새 Codex 세션: 스트리밍 글, 추론, 턴 요약(토큰과 시간), 
   expect(now.activeModel === "gpt-fixture-config", `activeModel ${now.activeModel}`);
   const assistant = find(agent.id, "assistant");
   expect(assistant?.text === "This is a streamed answer from the fixture app server." && assistant.streaming === false, `확정 글 ${assistant?.text}`);
-  // 스트리밍 도중에 스트리밍 표시의 같은 항목이 갱신됐다
   const streams = events.filter((e) => e.type === "timelineUpsert" && e.agentId === agent.id && e.item.kind === "assistant" && e.item.streaming);
   expect(streams.length >= 2, `스트리밍 갱신 ${streams.length}회`);
   expect(find(agent.id, "thinking")?.text === "Checking the request", "추론");
@@ -278,11 +280,9 @@ test("Codex 에 없는 기능: Plan 모드, 갈래, 체크포인트, 곁다리, 
   const plan = await create("hi", "plan");
   expect(plan.permissionMode === "default", "plan 으로 시작하면 default 로 바뀐다");
   await idle(plan.id);
-  // Claude 세션(harness 없음): 같은 진입점이 Codex 쪽으로 새지 않는다
   const claude = { ...agent, id: "claude-1", harness: undefined, codexThreadId: undefined, sessionId: "s1", status: "idle" as const };
   delete (claude as { harness?: unknown }).harness;
   store.addAgent(claude);
-  expect(runner.willQueue("claude-1", false) === false, "Claude willQueue");
   expect(runner.isLive("claude-1") === false, "Claude isLive");
   runner.assertClaude("claude-1", "Fork");
 });
@@ -339,6 +339,248 @@ test("Codex 실행 파일이 없으면 ENOENT 로 실패한다(installed 판단 
     code = (error as NodeJS.ErrnoException).code ?? "";
   }
   expect(code === "ENOENT", `코드 ${code}`);
+});
+
+const agyRequests = () => (existsSync(agyLog) ? readFileSync(agyLog, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { method: string; params: Record<string, any> }) : []);
+const createAgy = (prompt: string, permissionMode: "default" | "acceptEdits" | "auto" | "bypassPermissions" | "plan" = "acceptEdits", extra: Record<string, unknown> = {}) =>
+  runner.create({ workspaceId: workspace.id, prompt, permissionMode, model: null, effort: null, worktree: null, harness: "antigravity", ...extra });
+const configSets = (sessionId: string) => agyRequests().filter((r) => r.method === "session/set_config_option" && r.params.sessionId === sessionId).map((r) => `${r.params.configId}=${r.params.value}`);
+
+test("Antigravity: new session streams text and thinking, ends with a token summary, keeps the ACP session id and context usage", async () => {
+  const agent = await createAgy("hello agy");
+  expect(agent.harness === "antigravity" && agent.antigravitySessionId === null && agent.sessionId === null, "fields right after create");
+  await idle(agent.id);
+  const now = store.agent(agent.id);
+  expect(now.antigravitySessionId?.startsWith("agy-session-") === true, `session id ${now.antigravitySessionId}`);
+  expect(now.activeModel === "fake-pro" && now.activeEffort === "high", `active ${now.activeModel} ${now.activeEffort}`);
+  const assistant = find(agent.id, "assistant");
+  expect(assistant?.text === "Hello from the fixture agent. You said: hello agy" && assistant.streaming === false && assistant.model === "fake-pro", JSON.stringify(assistant));
+  expect(find(agent.id, "thinking")?.text === "Thinking about it", "thinking");
+  const result = find(agent.id, "result");
+  expect(result?.isError === false && result.tokens === 321 && result.costUsd === null, JSON.stringify(result));
+  expect(now.contextUsage?.used === 4096 && now.contextUsage.limit === 1048576, JSON.stringify(now.contextUsage));
+  const created = agyRequests().find((r) => r.method === "session/new" && r.params.cwd === repo);
+  expect(!!created && JSON.stringify(created.params.mcpServers) === "[]", "session/new with cwd");
+  expect(configSets(now.antigravitySessionId!).join() === "mode=accept-edits", configSets(now.antigravitySessionId!).join());
+  expect(now.status === "idle" && now.unread === true, "idle and unread");
+});
+
+test("Antigravity: model and effort go through session/set_config_option, and a full model id is split into model and level", async () => {
+  const picked = await createAgy("hi", "default", { model: "fake-flash", effort: "low" });
+  await idle(picked.id);
+  expect(configSets(store.agent(picked.id).antigravitySessionId!).join() === "model=fake-flash,thought_level=low", configSets(store.agent(picked.id).antigravitySessionId!).join());
+  expect(store.agent(picked.id).activeModel === "fake-flash" && store.agent(picked.id).activeEffort === "low", "active values");
+  const full = await createAgy("hi", "default", { model: "fake-pro-medium" });
+  await idle(full.id);
+  expect(configSets(store.agent(full.id).antigravitySessionId!).join() === "model=fake-pro,thought_level=medium", configSets(store.agent(full.id).antigravitySessionId!).join());
+  await runner.setEffort(full.id, "low");
+  await runner.send(full.id, "again");
+  await idle(full.id);
+  expect(configSets(store.agent(full.id).antigravitySessionId!).at(-1) === "thought_level=low", "changed effort is applied on the next turn");
+});
+
+test("Antigravity: a permission request becomes an Edit card from the diff; allowing writes the file", async () => {
+  const agent = await createAgy("[edit] change a file", "default");
+  await until(() => pendingCard(agent.id) !== undefined, "approval card");
+  const card = pendingCard(agent.id)!;
+  expect(card.toolName === "Edit" && card.input.file_path === join(repo, "fixture-note.txt") && card.input.old_string === "existing line\n" && card.input.new_string === "existing line\nmade by agy\n" && card.toolUseId === "call-edit", JSON.stringify(card));
+  expect(find(agent.id, "tool", (t) => t.id === "call-edit")?.status === "running", "tool row waits while the card is open");
+  expect(store.agent(agent.id).status === "waiting" && runner.activeCount() >= 2, "waiting");
+  runner.respondPermission(agent.id, card.id, "allow");
+  await idle(agent.id);
+  expect(readFileSync(join(repo, "fixture-note.txt"), "utf8") === "existing line\nmade by agy\n", "file written");
+  const tool = find(agent.id, "tool", (t) => t.id === "call-edit")!;
+  expect(tool.status === "done" && tool.name === "Edit" && tool.output === "File updated successfully", JSON.stringify(tool));
+  expect(find(agent.id, "permission")?.status === "allowed", "card allowed");
+  const answer = agyRequests().filter((r) => r.method === "permission-answer").at(-1);
+  expect(answer?.params.outcome.optionId === "allow", JSON.stringify(answer?.params));
+  expect(find(agent.id, "result")?.isError === false, "turn summary");
+  git("checkout", "--", "fixture-note.txt");
+});
+
+test("Antigravity: denying a permission leaves the file alone and the tool ends cancelled", async () => {
+  const agent = await createAgy("[edit] change a file", "default");
+  await until(() => pendingCard(agent.id) !== undefined, "approval card");
+  runner.respondPermission(agent.id, pendingCard(agent.id)!.id, "deny");
+  await idle(agent.id);
+  expect(readFileSync(join(repo, "fixture-note.txt"), "utf8") === "existing line\n", "file unchanged");
+  expect(find(agent.id, "tool", (t) => t.id === "call-edit")?.status === "error", "tool failed");
+  expect(agyRequests().filter((r) => r.method === "permission-answer").at(-1)?.params.outcome.optionId === "deny", "deny option sent");
+});
+
+test("Antigravity: Bypass Permissions approves requests without a card and runs in auto mode", async () => {
+  const agent = await createAgy("[edit] change a file", "bypassPermissions");
+  await idle(agent.id);
+  expect(find(agent.id, "permission") === undefined, "no card");
+  expect(configSets(store.agent(agent.id).antigravitySessionId!).includes("mode=auto"), "auto mode");
+  expect(readFileSync(join(repo, "fixture-note.txt"), "utf8") === "existing line\nmade by agy\n", "file written");
+  git("checkout", "--", "fixture-note.txt");
+});
+
+test("Antigravity: command output drops the header lines and a non-zero exit is an error with its code", async () => {
+  const agent = await createAgy("[cmd] run");
+  await idle(agent.id);
+  const ls = find(agent.id, "tool", (t) => t.id === "call-ls")!;
+  expect(ls.name === "Bash" && ls.input.command === "ls" && ls.input.description === "List files" && ls.status === "done" && ls.output === "fixture-note.txt\n", JSON.stringify(ls));
+  const bad = find(agent.id, "tool", (t) => t.id === "call-false")!;
+  expect(bad.status === "error" && bad.output === "Exit code 1", JSON.stringify(bad));
+});
+
+test("Antigravity: plan updates become a TodoWrite list", async () => {
+  const agent = await createAgy("[plan] go");
+  await idle(agent.id);
+  const plan = find(agent.id, "tool", (t) => t.name === "TodoWrite")!;
+  expect(JSON.stringify(plan.input.todos) === JSON.stringify([{ content: "Read code", activeForm: "Read code", status: "completed" }, { content: "Write fix", activeForm: "Write fix", status: "in_progress" }]), JSON.stringify(plan.input));
+});
+
+test("Antigravity: stopping sends session/cancel, leaves Stopped, cancels the running tool and keeps the queue", async () => {
+  const agent = await createAgy("[slow] go");
+  await until(() => find(agent.id, "tool", (t) => t.id === "call-slow") !== undefined, "slow tool");
+  await runner.send(agent.id, "queued while running");
+  expect(store.agent(agent.id).queue?.length === 1, "queued");
+  await runner.interrupt(agent.id);
+  await idle(agent.id);
+  expect(agyRequests().some((r) => r.method === "session/cancel" && r.params.sessionId === store.agent(agent.id).antigravitySessionId), "session/cancel sent");
+  expect(find(agent.id, "notice", (n) => n.text === "Stopped") !== undefined, "Stopped");
+  const tool = find(agent.id, "tool", (t) => t.id === "call-slow")!;
+  expect(tool.status === "error" && tool.cancelled === true, JSON.stringify(tool));
+  expect(store.agent(agent.id).queue?.length === 1 && runner.activeCount() === 0 && find(agent.id, "result") === undefined, "queue kept, no summary");
+});
+
+test("Antigravity: a failed prompt shows one error and the session ends in error", async () => {
+  const agent = await createAgy("[fail] go");
+  await idle(agent.id);
+  const errors = timeline(agent.id).filter((i) => i.kind === "error");
+  expect(errors.length === 1 && (errors[0] as { text: string }).text === "Internal error: model overloaded" && store.agent(agent.id).status === "error", JSON.stringify(errors));
+});
+
+test("Antigravity: messages sent while running are queued and sent after the turn", async () => {
+  const agent = await createAgy("first");
+  await runner.send(agent.id, "second message");
+  expect(store.agent(agent.id).queue?.length === 1, "queued");
+  await until(() => timeline(agent.id).filter((i) => i.kind === "result").length === 2, "two turns");
+  await idle(agent.id);
+  expect(timeline(agent.id).filter((i) => i.kind === "user").map((i) => (i as { text: string }).text).join("|") === "first|second message", "order");
+  const prompts = agyRequests().filter((r) => r.method === "session/prompt" && r.params.sessionId === store.agent(agent.id).antigravitySessionId);
+  expect(prompts.length === 2, "same session");
+});
+
+test("Antigravity: after a daemon restart the stored session is resumed and keeps its history", async () => {
+  const agent = await createAgy("before restart", "acceptEdits", { model: "fake-flash" });
+  await idle(agent.id);
+  const sessionId = store.agent(agent.id).antigravitySessionId!;
+  runner.closeAll();
+  await sleep(100);
+  runner = new AgentRunner(store, emit);
+  await runner.send(agent.id, "[recall] how many");
+  await idle(agent.id);
+  const resume = agyRequests().filter((r) => r.method === "session/resume").at(-1);
+  expect(resume?.params.sessionId === sessionId && resume.params.cwd === repo, JSON.stringify(resume?.params));
+  expect(store.agent(agent.id).antigravitySessionId === sessionId, "same session");
+  expect(find(agent.id, "assistant", (a) => a.text === "I have seen 2 prompts in this conversation.") !== undefined, "history kept");
+  expect(configSets(sessionId).filter((c) => c === "model=fake-flash").length === 2, "model applied again after resume");
+});
+
+test("Antigravity: when resume fails a new session starts with a notice", async () => {
+  const agent = await createAgy("first");
+  await idle(agent.id);
+  const old = store.agent(agent.id).antigravitySessionId!;
+  runner.closeAll();
+  await sleep(100);
+  rmSync(join(agyState, "sessions.json"));
+  runner = new AgentRunner(store, emit);
+  await runner.send(agent.id, "again");
+  await idle(agent.id);
+  expect(store.agent(agent.id).antigravitySessionId !== old && store.agent(agent.id).status === "idle", "new session");
+  expect(find(agent.id, "notice", (n) => n.text.includes("could not resume")) !== undefined, "notice");
+});
+
+test("Antigravity: if the agent process dies mid-turn the turn ends in error and the next send starts a new process", async () => {
+  runner.closeAll();
+  await sleep(100);
+  process.env.FAKE_AGY_CRASH = "1";
+  const agent = await createAgy("crash me");
+  await idle(agent.id);
+  delete process.env.FAKE_AGY_CRASH;
+  expect(store.agent(agent.id).status === "error" && find(agent.id, "error")?.text.includes("ended unexpectedly") === true, `status ${store.agent(agent.id).status}`);
+  await runner.send(agent.id, "try again");
+  await idle(agent.id);
+  expect(store.agent(agent.id).status === "idle" && find(agent.id, "assistant", (a) => a.text.includes("try again")) !== undefined, "runs again");
+});
+
+test("Antigravity: switching Antigravity -> Codex -> Antigravity carries the earlier turns and labels them by tool", async () => {
+  const agent = await createAgy("remember the word kiwi");
+  await idle(agent.id);
+  await runner.switchHarness(agent.id, "codex", "gpt-fixture-mini", "low");
+  const toCodex = timeline(agent.id).find((i) => i.kind === "notice" && i.switched === "codex") as Extract<Item, { kind: "notice" }>;
+  expect(toCodex?.switchedFrom === "antigravity" && toCodex.text === "Switched to Codex · gpt-fixture-mini", JSON.stringify(toCodex));
+  const codexNow = store.agent(agent.id);
+  expect(codexNow.harness === "codex" && codexNow.model === "gpt-fixture-mini" && codexNow.effort === "low" && codexNow.carryPending === true, JSON.stringify(codexNow));
+  await runner.send(agent.id, "what was the word");
+  await idle(agent.id);
+  const turn = requests().filter((r) => r.method === "turn/start").at(-1)!;
+  const sent = String(turn.params.input[0].text);
+  expect(sent.includes("<earlier-conversation>") && sent.includes("You are Codex.") && sent.includes("User:\nremember the word kiwi") && sent.includes("Antigravity:\nHello from the fixture agent."), sent.slice(0, 600));
+  await runner.switchHarness(agent.id, "antigravity", "fake-pro", "medium");
+  const back = store.agent(agent.id);
+  expect(back.harness === "antigravity" && back.antigravitySessionId === null && back.permissionMode === "acceptEdits", JSON.stringify(back));
+  await runner.send(agent.id, "and now");
+  await idle(agent.id);
+  const prompt = agyRequests().filter((r) => r.method === "session/prompt").at(-1)!;
+  const text = String(prompt.params.prompt[0].text);
+  expect(text.includes("You are Antigravity.") && text.includes("Codex:\n") && text.endsWith("and now"), text.slice(0, 600));
+  expect(configSets(prompt.params.sessionId).join() === "model=fake-pro,thought_level=medium,mode=accept-edits", configSets(prompt.params.sessionId).join());
+});
+
+test("Antigravity: Claude-only features are refused with the tool name, and every permission mode is allowed", async () => {
+  const agent = await createAgy("hi");
+  await idle(agent.id);
+  const rejects = async (fn: () => Promise<unknown>, part: string) => {
+    try {
+      await fn();
+    } catch (error) {
+      return (error as Error).message.includes(part);
+    }
+    return false;
+  };
+  expect(await rejects(() => runner.fork(agent.id), "not available for Antigravity"), "fork");
+  expect(await rejects(() => runner.restoreCheckpoint(agent.id, "x"), "not available for Antigravity"), "checkpoint");
+  await runner.setPermissionMode(agent.id, "plan");
+  expect(store.agent(agent.id).permissionMode === "plan", "plan allowed");
+  const result = await runner.send(agent.id, "again", { steer: true });
+  await idle(agent.id);
+  expect(configSets(store.agent(agent.id).antigravitySessionId!).at(-1) === "mode=plan", "plan mode applied");
+  expect(result.queued === false, "starts a new turn when idle");
+});
+
+test("Antigravity: removing a session closes it on the agent side", async () => {
+  const agent = await createAgy("hi");
+  await idle(agent.id);
+  const sessionId = store.agent(agent.id).antigravitySessionId!;
+  await runner.remove(agent.id, false);
+  expect(!store.agents.some((a) => a.id === agent.id), "removed");
+  await until(() => agyRequests().some((r) => r.method === "session/close" && r.params.sessionId === sessionId), "session/close");
+});
+
+test("antigravity.meta: models are grouped by level suffix, single-level models keep their id, and login state comes from agy models", async () => {
+  const meta = await runner.antigravityMeta(true);
+  expect(meta.installed && meta.loggedIn && meta.error === null, JSON.stringify(meta));
+  expect(JSON.stringify(meta.models.map((m) => [m.value, m.displayName, m.supportedEffortLevels.join("/"), m.isDefault])) === JSON.stringify([["fake-pro", "Fake Pro", "low/medium/high", true], ["fake-flash", "Fake Flash", "low/xhigh", false], ["fake-oss-medium", "Fake OSS (Medium)", "", false]]), JSON.stringify(meta.models));
+  expect(meta.defaultModel === "fake-pro" && meta.defaultEffort === "high", `${meta.defaultModel} ${meta.defaultEffort}`);
+  process.env.FAKE_AGY_LOGGED_OUT = "1";
+  const out = await runner.antigravityMeta(true);
+  delete process.env.FAKE_AGY_LOGGED_OUT;
+  expect(out.loggedIn === false && out.models.length === 0 && out.error?.includes("not signed in") === true, JSON.stringify(out));
+});
+
+test("Antigravity CLI missing: the ACP start fails with ENOENT", async () => {
+  let code = "";
+  try {
+    await AcpConnection.start({ onNotification: () => undefined, onRequest: async () => ({}), onExit: () => undefined }, join(root, "no-such-agy"));
+  } catch (error) {
+    code = (error as NodeJS.ErrnoException).code ?? "";
+  }
+  expect(code === "ENOENT", `code ${code}`);
 });
 
 let failed = 0;

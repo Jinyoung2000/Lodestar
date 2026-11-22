@@ -1,4 +1,3 @@
-// 세션 칸 최소 폭과 가운데 영역 폭 계산의 순수 로직(web/paneFit.ts)을 확인한다. 실행: npm test
 import { PANE_MIN } from "../web/paneDrop";
 import { paneMin, panesFit, panesMinWidth, RIGHT_FLOOR, rightRange, rowMinWidth, sidebarMax, stretchedMin } from "../web/paneFit";
 

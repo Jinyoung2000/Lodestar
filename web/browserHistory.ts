@@ -4,21 +4,18 @@ export type Visit = { url: string; title: string; at: number };
 export type Favorite = { url: string; title: string };
 
 export const HISTORY_MAX = 200;
-// 설정 Max History Entries(web/main.tsx 가 설정이 바뀔 때마다 알려 준다)
 let historyMax = HISTORY_MAX;
 export const setHistoryMax = (max: number) => {
   historyMax = max;
 };
 export const FAVORITES_MAX = 100;
 
-// 같은 주소는 한 줄이다. 다시 방문하면 맨 위로 올리고 제목을 새로 받는다.
 export function addVisit(list: Visit[], visit: Visit, max = HISTORY_MAX): Visit[] {
   const previous = list.find((v) => v.url === visit.url);
   const title = visit.title.trim() || previous?.title || "";
   return [{ ...visit, title }, ...list.filter((v) => v.url !== visit.url)].slice(0, max);
 }
 
-// 페이지 제목이 나중에 도착했을 때 그 주소의 제목만 바꾼다.
 export function retitleVisit(list: Visit[], url: string, title: string): Visit[] {
   if (!title.trim() || !list.some((v) => v.url === url && v.title !== title)) return list;
   return list.map((v) => (v.url === url ? { ...v, title } : v));
@@ -29,7 +26,6 @@ export function toggleFavorite(list: Favorite[], favorite: Favorite): Favorite[]
   return [{ url: favorite.url, title: favorite.title.trim() }, ...list].slice(0, FAVORITES_MAX);
 }
 
-// 입력의 낱말이 모두 제목이나 주소에 든 항목.
 export function matchesQuery(item: { url: string; title: string }, query: string): boolean {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const haystack = `${item.title} ${item.url}`.toLowerCase();
@@ -68,7 +64,6 @@ function write(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // 저장이 막혀도 이번 실행 동안은 메모리 값으로 동작한다
   }
 }
 
@@ -84,7 +79,6 @@ const subscribe = (listener: () => void) => {
 export const useHistory = () => useSyncExternalStore(subscribe, () => history);
 export const useFavorites = () => useSyncExternalStore(subscribe, () => favorites);
 
-// 주소가 바뀌어 새로 연 페이지. 같은 주소를 다시 열면 맨 위로 올라온다.
 export function recordVisit(url: string, title: string) {
   if (!url) return;
   history = addVisit(history, { url, title, at: Date.now() }, historyMax);
@@ -92,7 +86,6 @@ export function recordVisit(url: string, title: string) {
   emit();
 }
 
-// 같은 페이지의 제목이 나중에 도착했을 때.
 export function recordTitle(url: string, title: string) {
   const next = retitleVisit(history, url, title);
   if (next === history) return;

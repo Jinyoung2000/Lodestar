@@ -23,7 +23,6 @@ const file = (path: string, content = "") => {
   writeFileSync(path, content);
 };
 
-// 활성 조건
 for (const name of RELAY_CONFIG_NAMES) {
   const folder = dir("cfg", name);
   file(join(folder, name), "module.exports = {}");
@@ -40,7 +39,6 @@ for (const name of RELAY_CONFIG_NAMES) {
   check("활성 조건: relay 항목이 없거나 package.json 이 깨졌으면 아님", !hasRelayConfig(without) && !hasRelayConfig(broken) && !hasRelayConfig(dir("pkg", "empty")));
 }
 
-// 서버를 띄울 폴더
 {
   const mono = dir("mono");
   file(join(mono, "app", "relay.config.js"));
@@ -60,7 +58,6 @@ for (const name of RELAY_CONFIG_NAMES) {
   check("폴더 찾기: 어디에도 없으면 빈 목록", json(await findRelayDirs(dir("none", "a"))) === "[]");
 }
 
-// 실행 파일 규칙
 check("바이너리: darwin arm64", platformBinaryPath("darwin", "arm64") === join("macos-arm64", "relay"));
 check("바이너리: darwin x64, linux x64, win32 x64", platformBinaryPath("darwin", "x64") === join("macos-x64", "relay") && platformBinaryPath("linux", "x64") === join("linux-x64", "relay") && platformBinaryPath("win32", "x64") === join("win-x64", "relay.exe"));
 check("바이너리: 모르는 플랫폼은 null", platformBinaryPath("freebsd", "x64") === null);
@@ -100,12 +97,10 @@ check("바이너리: 모르는 플랫폼은 null", platformBinaryPath("freebsd",
   check("실행 불가: 14 미만 relay-compiler 는 이유", "problem" in tooOld && /too old/.test(tooOld.problem));
 }
 
-// 준비 신호
 check("준비 신호: window/showStatus 의 ready", isRelayReady({ method: "window/showStatus", id: 1, params: { message: "The Relay extension is ready", shortMessage: "Relay: ready", type: 3 } }));
 check("준비 신호: 진행 중 상태는 아님", !isRelayReady({ method: "window/showStatus", id: 1, params: { message: "Building schemas and source programs for LSP", shortMessage: "Relay: creating state...", type: 2 } }));
 check("준비 신호: 다른 메서드는 아님", !isRelayReady({ method: "window/logMessage", params: { message: "ready" } }));
 
-// 레지스트리
 check("레지스트리: TypeScript 가 첫 항목, Relay 가 두 번째", json(LANGUAGE_SERVERS.map((server) => server.id)) === json(["typescript", "relay"]));
 check("레지스트리: Relay 의 담당 언어에 graphql 과 JS 계열", ["graphql", "typescript", "typescriptreact", "javascript", "javascriptreact"].every((id) => LANGUAGE_SERVERS[1]!.languages.includes(id)));
 {
@@ -132,7 +127,6 @@ check("레지스트리: Relay 의 담당 언어에 graphql 과 JS 계열", ["gra
   check("레지스트리: 한 항목의 활성화 실패는 다른 항목을 막지 않음", isolated.length === 3 && isolated[0]!.key === "typescript");
 }
 
-// 사용자가 추가하지 않은 폴더의 코드는 돌리지 않는다(server/folderTrust.ts)
 {
   const w = (id: string, path: string, parentId: string | null = null) => ({ id, dir: path, parentId });
   const repo = dir("trust", "repo");

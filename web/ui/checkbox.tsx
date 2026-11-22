@@ -3,7 +3,6 @@ import { Check } from "../icons";
 import { forwardRef, type ComponentPropsWithoutRef } from "react";
 import { cn } from "../lib/utils";
 
-// shadcn/ui Checkbox. 16px(space-4) 상자, 체크 시 accent.
 export const Checkbox = forwardRef<HTMLButtonElement, ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>>(function Checkbox({ className, ...props }, ref) {
   return (
     <CheckboxPrimitive.Root

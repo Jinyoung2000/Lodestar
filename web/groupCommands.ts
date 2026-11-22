@@ -5,14 +5,12 @@ import { getState, pinEditorTab, shownTabsOf } from "./store";
 import { closeSessionSwitcher } from "./sessionSwitcher";
 import { cycleTabSwitcher as openTabSwitcher } from "./tabSwitcher";
 
-// CTRLTAB: 세션 전환 창(⌃Tab)과 에디터 탭 전환 창이 동시에 열려 있지 않게 한다. 두 창이 키를 나눠 받으면 ⌃ 를 뗄 때 둘 다 확정된다.
 function cycleTabSwitcher(...args: Parameters<typeof openTabSwitcher>) {
   closeSessionSwitcher();
   openTabSwitcher(...args);
 }
 
 
-// 그룹 명령이면 실행하고 true. 아니면 false(호출한 쪽이 이어서 처리한다).
 export function runGroupCommand(command: string): boolean {
   if (command.startsWith("focusEditorGroup:")) {
     focusGroupAt(Number(command.slice("focusEditorGroup:".length)));
@@ -91,7 +89,6 @@ export function runGroupCommand(command: string): boolean {
     case "cycleRecentEditorBack":
       cycleTabSwitcher(-1);
       return true;
-    // 키가 없는 명령(명령 팔레트): 팔레트가 닫힌 뒤에 열어야 목록이 키 입력을 받는다. 모든 그룹의 에디터를 최근 순으로 보인다.
     case "quickOpenRecentEditor":
       setTimeout(() => cycleTabSwitcher(1, "all", false), 0);
       return true;

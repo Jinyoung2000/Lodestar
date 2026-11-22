@@ -1,7 +1,5 @@
 @import "@vscode/codicons/dist/codicon.css";
 
-/* Geist, Geist Mono 선언. B7-05 부터 글꼴 토큰(--font-sans, --font-mono)이 시스템 글꼴을 가리켜 화면에서는 쓰지 않는다. 되돌릴 때를 위해 선언만 남긴다.
-   Fontsource 패키지의 index.css 는 family 이름이 "Geist Variable" 이라 토큰의 "Geist" 와 안 맞아, 같은 woff2 파일을 토큰 이름으로 직접 선언한다. */
 @font-face {
   font-family: "Geist";
   font-style: normal;

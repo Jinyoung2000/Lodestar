@@ -6,7 +6,6 @@ import { openEditorPick, type PickItem } from "./EditorPick";
 import { focusLater } from "./GoToLine";
 
 
-// "Select Action": change view 묶음 셋, convert file 묶음 넷. 크기를 고르는 셋은 명령이 두 번째 선택 목록(1부터 8)을 연다.
 const INDENT_ACTIONS: { id: string; label: string; group?: string }[] = [
   { id: "indentUsingSpaces", label: "Indent Using Spaces", group: "change view" },
   { id: "indentUsingTabs", label: "Indent Using Tabs" },
@@ -25,7 +24,6 @@ export async function pickIndentationAction(view: EditorView) {
     return;
   }
   runEditorCommand(picked, view);
-  // 크기 선택 목록을 여는 명령은 그 목록이 끝나면 스스로 포커스를 돌려준다
   if (!["indentUsingSpaces", "indentUsingTabs", "changeTabDisplaySize"].includes(picked)) focusLater(view);
 }
 

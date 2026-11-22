@@ -30,7 +30,6 @@ export const folderKey = (path: string) => `folder:${path}`;
 const dirOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
 const nameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
 
-// 서버 결과를 파일별 일치 목록으로. 일치 구간이 없는 줄(옛 데몬)은 줄 전체가 아니라 첫 글자 한 칸짜리 일치로 둔다.
 export function filesOf(result: Result): FileResult[] {
   const files: FileResult[] = [];
   for (const file of result.files) {
@@ -58,7 +57,6 @@ export function compareFileNames(a: string, b: string): number {
   return result !== 0 ? result : a < b ? -1 : a > b ? 1 : 0;
 }
 
-// 경로를 세그먼트별로 비교한다. 한쪽이 먼저 끝나면(더 얕은 파일) 그쪽이 앞이다. 중간 세그먼트는 소문자로 바꿔 코드 순서로 비교한다.
 export function comparePaths(a: string, b: string): number {
   const left = a.split("/");
   const right = b.split("/");
@@ -91,15 +89,12 @@ export function compareFiles(a: FileResult, b: FileResult, order: SearchSettings
     case "fileNames":
       return compareFileNames(a.name, b.name);
     default:
-      // modified 는 파일 수정 시각을 서버가 주지 않아 default 로 대신한다
       return byDefault();
   }
 }
 
-// --- 트리 만들기 ---
-
-// 목록 보기는 파일이 최상위, 트리 보기는 폴더 아래에 파일이 놓인다. 작업 폴더 하나이므로 루트 폴더 행은 없다.
-export function buildNodes(files: readonly FileResult[], mode: ViewMode, order: SearchSettings["sortOrder"] = "default"): (FolderNode | FileNode)[] {
+export function buildNodes(files: readonly FileResult[], mode: ViewMode, order: SearchSettings["sortOrder"] = "default", roots?: readonly string[]): (FolderNode | FileNode)[] {
+  if (roots) return rootNodes(files, mode, order, roots);
   const sorted = [...files].sort((a, b) => compareFiles(a, b, order));
   const fileNodes = sorted.map<FileNode>((file) => ({ kind: "file", key: fileKey(file.path), file, hitCount: file.hits.length, children: file.hits.map((hit) => ({ kind: "hit", key: hit.key, hit })) }));
   if (mode === "list") return fileNodes;
@@ -118,6 +113,21 @@ export function buildNodes(files: readonly FileResult[], mode: ViewMode, order: 
     at.files.push(node);
   });
   return foldersOf(root, 0, order);
+}
+
+function rootNodes(files: readonly FileResult[], mode: ViewMode, order: SearchSettings["sortOrder"], roots: readonly string[]): FolderNode[] {
+  return roots.flatMap((label) => {
+    const mine = files.filter((file) => file.path.startsWith(`${label}/`));
+    if (mine.length === 0) return [];
+    const children = buildNodes(mine, mode, order).map((node) => withRootPrefix(node, label));
+    return [{ kind: "folder" as const, key: folderKey(label), path: label, label, children, hitCount: children.reduce((sum, child) => sum + child.hitCount, 0), fileCount: mine.length }];
+  });
+}
+
+function withRootPrefix(node: FolderNode | FileNode, label: string): FolderNode | FileNode {
+  if (node.kind === "file") return node;
+  const path = `${label}/${node.path}`;
+  return { ...node, key: folderKey(path), path, children: node.children.map((child) => withRootPrefix(child, label)) };
 }
 
 type DirBuilder = { name: string; path: string; dirs: Map<string, DirBuilder>; files: FileNode[] };
@@ -148,8 +158,6 @@ function folderNode(dir: DirBuilder, depth: number, order: SearchSettings["sortO
   };
 }
 
-// --- 펼침과 접힘 ---
-
 export function initialCollapsed(nodes: readonly TreeNode[], setting: SearchSettings["collapseResults"]): Set<string> {
   const collapsed = new Set<string>();
   const visit = (node: TreeNode) => {
@@ -159,7 +167,6 @@ export function initialCollapsed(nodes: readonly TreeNode[], setting: SearchSett
     node.children.forEach(visit);
   };
   nodes.forEach(visit);
-  // 결과가 파일 하나뿐이면 alwaysCollapse 가 아닌 한 펼친다(expandIfSingularResult, 일치 50개 미만)
   if (setting !== "alwaysCollapse" && nodes.length === 1 && nodes[0].kind === "file" && nodes[0].hitCount < 50) collapsed.delete(nodes[0].key);
   return collapsed;
 }
@@ -183,19 +190,14 @@ export function visibleRows(nodes: readonly TreeNode[], collapsed: ReadonlySet<s
   return rows;
 }
 
-// Collapse All 이 보이는 조건(viewHasSomeCollapsibleResult): 펼쳐진 노드가 하나라도 있다
 export const hasExpanded = (nodes: readonly TreeNode[], collapsed: ReadonlySet<string>) => collapsibleKeys(nodes).some((key) => !collapsed.has(key));
 
-// 모든 일치를 화면 순서로(F4 와 ⇧F4 가 이 순서로 다닌다). 접혀 있어도 포함한다.
 export function orderedHits(nodes: readonly TreeNode[]): SearchHit[] {
   return nodes.flatMap((node): SearchHit[] => (node.kind === "hit" ? [node.hit] : orderedHits(node.children)));
 }
 
 export const hitsUnder = (node: TreeNode): SearchHit[] => (node.kind === "hit" ? [node.hit] : orderedHits(node.children));
 
-// --- 지우기(Dismiss) ---
-
-// 키가 가리키는 일치를 빼고, 일치가 없어진 파일도 뺀다.
 export function dismissHits(files: readonly FileResult[], dismissed: ReadonlySet<string>): FileResult[] {
   if (dismissed.size === 0) return files as FileResult[];
   return files.flatMap((file) => {
@@ -203,8 +205,6 @@ export function dismissHits(files: readonly FileResult[], dismissed: ReadonlySet
     return hits.length === 0 ? [] : [hits.length === file.hits.length ? file : { ...file, hits }];
   });
 }
-
-// --- 일치 행 미리보기 ---
 
 const MAX_PREVIEW_CHARS = 250;
 const LEAD_CHARS = 26;
@@ -233,7 +233,6 @@ export function previewOf(hit: SearchHit): HitPreview {
   return { before, inside, after, fullBefore };
 }
 
-// 일치 행 앞의 줄 번호(search.showLineNumbers). 한 줄 일치라 "12:" 형태다.
 export const lineLabel = (hit: SearchHit) => `${hit.line}:`;
 
 export const hitTooltip = (hit: SearchHit, replacement: string | null) => {

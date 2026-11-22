@@ -5,9 +5,6 @@ import { rpc } from "./rpc";
 import { S } from "./strings";
 import { Button } from "./ui/button";
 
-// MOBILE: Settings 의 Mobile access 아래 카드. 서버 상태, 페어링 QR 과 수동 입력 문자열, 페어링된 장치와 해제.
-// 페어링 코드는 5분짜리 일회용이다. 만료되면 QR 을 지우고, 다시 누르면 새로 만든다.
-
 export function MobileAccess() {
   const enabled = useEnabled();
   const [status, setStatus] = useState<MobileStatus | null>(null);
@@ -17,7 +14,6 @@ export function MobileAccess() {
   const refresh = useCallback(() => {
     void rpc.call("mobile.status", {}).then(setStatus).catch((error: Error) => setProblem(error.message));
   }, []);
-  // 켜고 끄는 스위치가 바뀌면 데몬이 포트를 열고 닫은 뒤의 상태를 다시 읽는다. 폰이 붙거나 떨어지는 것은 이벤트가 없어 몇 초마다 읽는다.
   useEffect(() => {
     refresh();
     const timer = setInterval(refresh, 4000);
@@ -118,7 +114,6 @@ function PairingCard({ offer, onExpired }: { offer: PairingOffer; onExpired: () 
   );
 }
 
-// QR 은 어두운 테마에서도 스캔되게 흰 바탕에 검은 모듈로 그린다(조용한 영역 4칸 포함).
 function QrCode({ text }: { text: string }) {
   const qr = qrcode(0, "M");
   qr.addData(text);

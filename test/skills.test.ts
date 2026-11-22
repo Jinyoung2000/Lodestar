@@ -1,4 +1,3 @@
-// SKILLS: 스킬 목록 화면의 순수 함수(shared/skills.ts)와 디스크 훑기(server/skillCatalog.ts), 워크스페이스 밖 SKILL.md 읽기 허용(server/files.ts) 시험. 실행: npx tsx test/skills.test.ts
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,8 +15,6 @@ const check = (name: string, ok: boolean, detail = "") => {
 };
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-// --- frontmatter ---
-
 const md = (front: string, body = "# Title\n\nBody line.") => `---\n${front}\n---\n${body}`;
 {
   const plain = parseSkillMarkdown(md("name: alpha\ndescription: Use when you need alpha."));
@@ -33,14 +30,11 @@ const md = (front: string, body = "# Title\n\nBody line.") => `---\n${front}\n--
   check("description 이 없으면 본문 첫 비어 있지 않은 줄", parseSkillMarkdown(md("name: x", "\n\nFirst real line\nSecond")).description === "First real line");
   check("frontmatter 가 없으면 본문 첫 줄, name 은 null", same(parseSkillMarkdown("\n# Heading\nbody"), { name: null, description: "# Heading" }));
   check("닫는 --- 가 없으면 frontmatter 가 아니다", parseSkillMarkdown("---\nname: x\nno end").name === null);
-  // 실제 ~/.claude/skills/add-raycast-script 가 이 모양이고, Claude Code 는 description 을 전부 받는다(init 의 commands 로 확인)
   const colon = parseSkillMarkdown(md("name: raycast\ndescription: Use when asked. Common use: wrapping a call, or: more", "Body"));
   check("평문 description 안의 ': ' 도 전부 받는다", same(colon, { name: "raycast", description: "Use when asked. Common use: wrapping a call, or: more" }));
   check("닫히지 않은 따옴표는 끝까지 받는다", parseSkillMarkdown(md('description: "never closed', "Body")).description === "never closed");
   check("name 이 비어 있으면 null", parseSkillMarkdown(md("name:\ndescription: d")).name === null);
 }
-
-// --- 이름 충돌 ---
 
 const entry = (over: Partial<SkillEntry> & Pick<SkillEntry, "id" | "name" | "source">): SkillEntry => ({ description: "", kind: "skill", path: over.id, realPath: null, override: null, shadow: null, ...over });
 const WS = { kind: "project", workspaceId: "w1", workspaceName: "app", dir: "/r/app" } as const;
@@ -65,8 +59,6 @@ const WS2 = { kind: "project", workspaceId: "w2", workspaceName: "other", dir: "
   check("이름이 달라도 같은 실제 파일이면 한 번만 로드(개인 쪽)", same(by("/r/app/.claude/skills/c/SKILL.md").shadow, { id: "/h/.claude/skills/c/SKILL.md", reason: "same-file" }));
 }
 
-// --- 화면 모델 ---
-
 {
   const a = entry({ id: "1", name: "zeta", description: "Deploy the Thing", source: { kind: "user" } });
   const b = entry({ id: "2", name: "alpha", description: "Review", source: WS });
@@ -86,15 +78,11 @@ const WS2 = { kind: "project", workspaceId: "w2", workspaceName: "other", dir: "
   check("워크스페이스가 하나도 없으면 열 수 없다", skillOpenTarget(a, [], null) === null);
 }
 
-// --- 화면 연결 ---
-
 {
   const skills = paletteCommands().find((c) => c.command === "skills");
   check("명령 팔레트에 Skills: Open, 키는 없다", skills?.title === "Skills: Open" && skills.keycaps.length === 0, JSON.stringify(skills));
   check("스킬 화면에서는 세션 오른쪽 패널을 보이지도 여닫지도 않고, 카드는 보드로 보낸다", !sessionPanelShown("skills", true) && !sessionPanelToggleable("skills") && !cardOpensInSessionPanel("skills"));
 }
-
-// --- 디스크 훑기 ---
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), "skills-test-")));
 const put = (path: string, text: string) => {
@@ -107,7 +95,6 @@ const repo = join(base, "repo");
 const ws = join(repo, "packages", "app");
 const cache = join(home, ".claude", "plugins", "cache");
 try {
-  // 사용자: 폴더 하나, 링크로 가는 폴더 하나, 폴더가 아닌 항목, 폴더 이름과 다른 name, 깨진 frontmatter, 옛 명령
   put(join(home, ".claude", "skills", "alpha", "SKILL.md"), md("description: Alpha user skill"));
   put(join(agents, "beta", "SKILL.md"), md("description: Beta through a link"));
   mkdirSync(join(home, ".claude", "skills"), { recursive: true });
@@ -118,17 +105,13 @@ try {
   put(join(home, ".claude", "skills", "empty-dir", "readme.txt"), "no SKILL.md here");
   put(join(home, ".claude", "commands", "ship.md"), md("description: Ship it"));
   put(join(home, ".claude", "commands", "frontend", "component.md"), "Make a component");
-  // 계정 동기화
   put(join(home, ".claude", "skills", "synced", "bucket-1", "docx", "SKILL.md"), md("name: docx\ndescription: Word files"));
-  // 프로젝트: 저장소 루트(.git)와 워크스페이스(하위 폴더) 둘 다에 있고, 하나는 개인 스킬과 이름이 같다
   mkdirSync(join(repo, ".git"), { recursive: true });
   put(join(repo, ".claude", "skills", "alpha", "SKILL.md"), md("description: Alpha project skill"));
   put(join(ws, ".claude", "skills", "gamma", "SKILL.md"), md("description: Gamma"));
   put(join(ws, ".claude", "commands", "gamma.md"), "Gamma as a command");
   put(join(ws, ".claude", "settings.local.json"), JSON.stringify({ skillOverrides: { gamma: "name-only" } }));
-  // 하위 폴더의 .claude/skills 는 시작 때 로드되지 않는다
   put(join(ws, "deeper", ".claude", "skills", "lazy", "SKILL.md"), md("description: Lazy"));
-  // 플러그인: 켜짐(manifest 이름이 폴더 이름과 다름), 꺼짐, 프로젝트 범위(워크스페이스 안), 프로젝트 범위(워크스페이스 밖)
   const plugin = (dir: string, name: string, skill: string) => {
     put(join(dir, ".claude-plugin", "plugin.json"), JSON.stringify({ name }));
     put(join(dir, "skills", skill, "SKILL.md"), md(`description: ${name} ${skill}`));
@@ -153,7 +136,6 @@ try {
       },
     }),
   );
-  // 계정 동기화 플러그인
   const synced = join(home, ".claude", "plugins", "synced", "bucket-1", "cowork~g2");
   put(join(synced, "skills", "manage", "SKILL.md"), md("description: synced plugin skill"));
 
@@ -183,7 +165,6 @@ try {
   check("계정 동기화 플러그인은 폴더 이름의 ~ 앞이 이름", (find("cowork:manage").source as { scope: string }).scope === "synced");
   check("id 가 모두 다르다", new Set(skills.map((e) => e.id)).size === skills.length);
 
-  // --- RPC 와 워크스페이스 밖 읽기 허용 ---
   const handlers = skillCatalogHandlers(() => roots);
   const catalog = handlers["skills.list"]({});
   check("skills.list: home 과 같은 목록", catalog.home === home && catalog.skills.length === skills.length);
@@ -207,7 +188,6 @@ try {
   }
   check("목록에 없는 워크스페이스 밖 파일은 여전히 거절", refused !== "", refused);
 
-  // 새로 만든 스킬은 3초 안에는 못 읽고 목록을 다시 받으면(또는 3초 뒤) 읽는다
   put(join(home, ".claude", "skills", "fresh", "SKILL.md"), md("description: Fresh"));
   handlers["skills.list"]({});
   check("목록을 다시 받은 뒤 새 스킬은 허용 목록에도 오른다(3초 한도 지난 뒤 한 번 더 훑는다)", skillFileRealPath(join(home, ".claude", "skills", "fresh", "SKILL.md"), Date.now() + 60_000) !== null);

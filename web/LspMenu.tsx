@@ -6,8 +6,6 @@ import { findAllReferences, goToDefinition, goToImplementation, goToReferences, 
 import { S } from "./strings";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
-// 코드 보기의 오른쪽 클릭 메뉴 중 LSP 항목(Go to Definition ... Copy Signature). 일반 에디터(web/Editor.tsx)와 diff 의 수정본 쪽(DiffContextMenu)이 같은 항목을 쓴다.
-// view 는 누르는 순간의 보기를 돌려주는 함수다(에디터를 다시 만들어도 최신 보기를 쓴다).
 export function LspMenuItems({ view, workspaceId }: { view: () => EditorView | null; workspaceId: string }) {
   const run = (action: (view: EditorView) => unknown) => () => {
     const target = view();
@@ -66,7 +64,6 @@ export function DiffContextMenu({ host, lspView, workspaceId }: { host: RefObjec
     };
     element.addEventListener("contextmenu", onContextMenu);
     return () => element.removeEventListener("contextmenu", onContextMenu);
-    // host 와 lspView 는 호출한 쪽의 ref 를 읽는 함수라 바뀌지 않는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (!menu) return null;

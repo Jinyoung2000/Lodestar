@@ -7,8 +7,6 @@ import { S } from "./strings";
 import { Button, type ButtonProps } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
-// 제목줄의 작은 칩: 지금 보고 있지 않은 세션 중 사람 차례인 것(승인, 질문, 계획 확인, 개선 세션의 답 대기)이 몇 개인지.
-// 하나면 누르는 순간 그 세션으로 가고, 여럿이면 목록에서 고른다. 없으면 아무것도 그리지 않는다. 창이 포커스일 때 OS 알림이 안 나오는 대신 이 칩이 알려 준다.
 export function AttentionChip() {
   const agents = useStore((s) => s.agents);
   const feedbacks = useStore((s) => s.feedbacks);

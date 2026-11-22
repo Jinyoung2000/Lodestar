@@ -8,10 +8,6 @@ import { fileUri, goBack, goForward, lspClient } from "./lsp";
 import { findAllReferences, goToDefinition, goToImplementation, goToReferences, peekDefinition, peekImplementation } from "./peekCommands";
 import { peekExtension } from "./peekView";
 
-// 파일 하나를 보여 주는 CodeMirror 보기에 LSP 탐색을 붙이는 묶음. 일반 에디터(web/Editor.tsx)와 diff 의 수정본 쪽(web/diffLsp.ts)이 같은 것을 쓴다.
-// hover 와 ⌘ 정의 링크(definitionLink), peek 띠, 정의, 참조 키, 자동완성과 시그니처 키, ⌘클릭 정의 이동.
-// 서버와의 문서 연결은 lspDocument 가 따로 맡는다. 이 보기의 글이 서버가 가진 글과 같아야 한다.
-
 export function lspKeys(workspaceId: string): KeyBinding[] {
   return [
     { key: "F12", run: (view) => (void goToDefinition(view, workspaceId), true) },
@@ -40,12 +36,10 @@ export function cmdClickDefinition(workspaceId: string): Extension {
   });
 }
 
-// previewTheme 은 peek 안의 미리보기 에디터가 쓰는 테마(Editor.tsx 의 editorTheme). 이 모듈이 Editor.tsx 를 가져오면 순환이 되어 받는다.
 export function lspViewExtensions(workspaceId: string, previewTheme: Extension): Extension[] {
   return [definitionLink(workspaceId), hoverSpace(), peekExtension({ workspaceId, previewExtensions: (previewPath) => [previewTheme, languageFor(previewPath)] })];
 }
 
-// 서버에 이 URI 의 문서를 열고 변경을 동기화하는 플러그인(진단, semantic 색, 자동완성 소스도 이 클라이언트의 확장이 같이 붙는다)
 export function lspDocument(workspaceId: string, absolutePath: string, languageId: string): Extension {
   return lspClient(workspaceId).plugin(fileUri(absolutePath), languageId);
 }

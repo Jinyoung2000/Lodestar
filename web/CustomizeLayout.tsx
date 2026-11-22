@@ -26,7 +26,6 @@ export function CustomizeLayout() {
         className="palette-quickpick layout-dialog"
         overlayClassName="bg-transparent"
         onOpenAutoFocus={(event) => {
-          // 첫 항목에 포커스를 둔다(화살표 키로 바로 고를 수 있다)
           event.preventDefault();
           document.querySelector<HTMLElement>("[data-layout-row]")?.focus();
         }}
@@ -42,7 +41,6 @@ export function CustomizeLayout() {
         </div>
         <div className="layout-list" role="menu" aria-label={S.customizeLayoutTitle} onKeyDown={moveFocus}>
           <Section label={S.layoutVisibility}>
-            {/* Activity Bar 는 Editor 중심에만 있다. Chat 중심에는 막대가 없어 항목도 없다. */}
             {editorLayout && <ToggleRow icon={config.sideBar === "left" ? "layout-activitybar-left" : "layout-activitybar-right"} label={S.layoutActivityBar} checked={config.activityBar} onSelect={() => setLayoutConfig({ activityBar: !config.activityBar })} />}
             <ToggleRow icon={primaryIcon} label={S.layoutPrimarySideBar} checked={primaryOn} keys="toggleSidebar" onSelect={() => runCommand("toggleSidebar")} />
             <ToggleRow icon={secondaryIcon} label={S.layoutSecondarySideBar} checked={secondaryOn} keys="toggleRight" onSelect={() => runCommand("toggleRight")} />
@@ -67,7 +65,6 @@ export function CustomizeLayout() {
 const positionLabel = (position: SideBarPosition) => (position === "left" ? S.layoutLeft : S.layoutRight);
 const alignmentLabel = (alignment: PanelAlignment) => ({ left: S.layoutLeft, right: S.layoutRight, center: S.layoutCenter, justify: S.layoutJustify })[alignment];
 
-// ↑↓ 로 항목 사이를 옮긴다. 구역 경계는 건너뛰지 않고 한 줄로 이어 본다.
 function moveFocus(event: KeyboardEvent<HTMLDivElement>) {
   if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
   const rows = [...event.currentTarget.querySelectorAll<HTMLElement>("[data-layout-row]")];
@@ -86,12 +83,10 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-// 보임 항목: 켜져 있으면 오른쪽에 체크. 단축키가 있으면 키캡을 보인다.
 function ToggleRow({ icon, label, checked, keys, onSelect }: { icon: string; label: string; checked: boolean; keys?: string; onSelect: () => void }) {
   return <Row role="menuitemcheckbox" icon={icon} label={label} checked={checked} keys={keys} onSelect={onSelect} />;
 }
 
-// 하나만 고르는 항목(위치, 정렬)
 function RadioRow({ icon, label, checked, onSelect }: { icon: string; label: string; checked: boolean; onSelect: () => void }) {
   return <Row role="menuitemradio" icon={icon} label={label} checked={checked} onSelect={onSelect} />;
 }

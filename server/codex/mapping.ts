@@ -2,19 +2,11 @@ import { isAbsolute, join } from "node:path";
 import type { TimelineItem, TurnChanges } from "../../shared/protocol";
 import type { CodexFileChange, CodexPlanStep, CodexThreadItem, CodexTurn } from "./types";
 
-// CODEX: Codex 앱 서버의 항목과 알림을 Lodestar 타임라인 항목으로 옮기는 순수 함수들. 시험: test/codexmapping.test.ts
-// 새 항목 종류는 만들지 않고 기존 도구 항목의 이름과 입력 모양을 빌려서 타임라인, 승인 카드, 변경 요약이 그대로 그리게 한다.
-//   commandExecution -> tool Bash {command}           fileChange -> tool Write | Edit | MultiEdit {file_path, ...}
-//   mcpToolCall      -> tool mcp__서버__도구          plan 갱신   -> tool TodoWrite {todos}
-//   webSearch        -> tool WebSearch {query}        reasoning   -> thinking          agentMessage -> assistant
-
 type ToolItem = Extract<TimelineItem, { kind: "tool" }>;
 type PermissionTimelineItem = Extract<TimelineItem, { kind: "permission" }>;
 
 export type MapContext = {
-  // 앱 서버가 보여 주는 경로는 작업 폴더 기준일 수 있어서 절대 경로로 맞출 때 쓴다
   cwd: string;
-  // 사용자가 중단한 턴이면 끝나지 못한 항목은 실패가 아니라 취소로 보인다
   interrupted?: boolean;
   at?: string;
 };
@@ -24,7 +16,6 @@ const MAX_OUTPUT = 20_000;
 
 export const absolutePath = (cwd: string, path: string) => (isAbsolute(path) ? path : join(cwd, path));
 
-// 앱 서버가 주는 명령은 `/bin/zsh -lc "git status"` 처럼 셸로 감싼 한 줄이다. 타임라인에는 안쪽 명령만 보인다.
 export function displayCommand(command: string): string {
   const wrapped = /^(?:\S*\/)?(?:ba|z|da|k)?sh\s+-l?c\s+(['"])([\s\S]*)\1\s*$/.exec(command.trim());
   if (!wrapped) return command;
@@ -32,8 +23,6 @@ export function displayCommand(command: string): string {
   return wrapped[1] === '"' ? inner.replace(/\\(["\\$`])/g, "$1") : inner;
 }
 
-// unified diff 한 덩어리(hunk)에서 지워진 줄 쪽 글과 추가된 줄 쪽 글을 만든다. 문맥 줄은 양쪽에 들어가서 파일에 그대로 찾아진다.
-// 줄마다 끝 개행을 붙인다(변경 줄 수 계산이 마지막 줄을 개행 없는 줄로 달리 세지 않게, 그리고 파일에서 그대로 찾아지게). 개행 없는 파일 끝(\ No newline)을 만난 덩어리만 뺀다.
 export function diffHunks(diff: string): { oldString: string; newString: string }[] {
   const hunks: { oldLines: string[]; newLines: string[]; noEol: boolean }[] = [];
   let current: { oldLines: string[]; newLines: string[]; noEol: boolean } | null = null;
@@ -61,7 +50,6 @@ export function diffHunks(diff: string): { oldString: string; newString: string 
 
 const looksUnified = (diff: string) => /^(@@|---|diff --git)/m.test(diff);
 
-// 파일 하나의 변경을 기존 편집 도구 항목의 이름과 입력으로 옮긴다.
 // add 의 diff 는 파일 내용이고, update 의 diff 는 unified diff 다(앱 서버 0.163.0). 모양이 다르면 가능한 만큼만 보인다.
 export function editToolOf(change: CodexFileChange, cwd: string): { name: "Write" | "Edit" | "MultiEdit"; input: Record<string, unknown> } {
   const file_path = absolutePath(cwd, change.path);
@@ -81,7 +69,6 @@ export function editToolOf(change: CodexFileChange, cwd: string): { name: "Write
   return { name: "MultiEdit", input: { file_path, edits: hunks.map((h) => ({ old_string: h.oldString, new_string: h.newString })), ...move } };
 }
 
-// fileChange 항목 하나가 파일 여러 개를 바꿀 수 있다. 파일마다 도구 항목 하나로 펼치고, 하나뿐이면 항목 id 를 그대로 쓴다.
 export function fileChangeToolIds(item: CodexThreadItem): string[] {
   const changes = (item.changes as CodexFileChange[] | undefined) ?? [];
   return changes.length <= 1 ? [item.id] : changes.map((_, index) => `${item.id}:${index}`);
@@ -106,8 +93,6 @@ export function mcpResultText(result: unknown, error: unknown): string {
     .join("\n");
 }
 
-// 앱 서버 항목 하나를 타임라인 항목들로. phase 는 item/started 인지 item/completed 인지.
-// 사용자 메시지는 보낼 때 이미 타임라인에 넣었으므로 여기서는 만들지 않는다.
 export function itemToTimeline(item: CodexThreadItem, phase: "started" | "completed", ctx: MapContext): TimelineItem[] {
   switch (item.type) {
     case "agentMessage": {
@@ -180,13 +165,11 @@ export function itemToTimeline(item: CodexThreadItem, phase: "started" | "comple
   }
 }
 
-// turn/plan/updated -> 기존 TodoWrite 항목(할 일 목록 표시가 그대로 읽는다). 한 턴에 하나를 갱신한다.
 export function planToTool(turnId: string, steps: CodexPlanStep[]): ToolItem {
   const todos = steps.map((s) => ({ content: s.step, activeForm: s.step, status: s.status === "inProgress" ? "in_progress" : s.status }));
   return { id: `plan:${turnId}`, kind: "tool", name: "TodoWrite", input: { todos }, status: "done", output: null };
 }
 
-// 명령 승인 요청 -> Bash 승인 카드. 승인 카드는 command 를 대상 줄에 보이고 나머지 입력(reason, cwd)을 접힌 입력으로 보인다.
 export function commandApproval(requestId: string | number, params: Record<string, unknown>, itemId: string): PermissionTimelineItem {
   const command = displayCommand(str(params.command) ?? "");
   const reason = str(params.reason);
@@ -202,7 +185,6 @@ export function commandApproval(requestId: string | number, params: Record<strin
 }
 
 // 파일 변경 승인 요청 -> Edit, Write, MultiEdit 승인 카드. 요청은 itemId 만 알려 주므로 item/started 때 받아 둔 변경에서 카드 내용을 만든다.
-// 파일이 여럿이면 카드는 첫 파일의 변경을 보이고 나머지 파일 경로를 입력에 적는다.
 export function fileChangeApproval(requestId: string | number, params: Record<string, unknown>, item: CodexThreadItem | undefined, cwd: string): PermissionTimelineItem {
   const changes = (item?.changes as CodexFileChange[] | undefined) ?? [];
   const reason = str(params.reason);
@@ -221,7 +203,6 @@ export function fileChangeApproval(requestId: string | number, params: Record<st
 
 const diffPath = (raw: string) => raw.replace(/^[ab]\//, "").replace(/\t.*$/, "");
 
-// 턴 전체 unified diff(turn/diff/updated)에서 바뀐 파일과 줄 수를 센다. 변경 장부가 비어 있을 때 턴 끝 요약의 대체다.
 export function summarizeDiff(diff: string, cwd: string): TurnChanges | undefined {
   const files = new Map<string, { additions: number; deletions: number }>();
   let current: { additions: number; deletions: number } | null = null;
@@ -249,7 +230,6 @@ export function summarizeDiff(diff: string, cwd: string): TurnChanges | undefine
   return { files: list.length, additions: list.reduce((n, f) => n + f.additions, 0), deletions: list.reduce((n, f) => n + f.deletions, 0), list };
 }
 
-// 턴 오류 문구. 앱 서버의 codexErrorInfo 가 인증 문제를 가리키면 auth 로 표시해 화면이 로그인 안내를 보인다.
 // 모델 API 오류는 {"type":"error","status":400,"error":{"message":...}} 같은 JSON 글로 오므로 안쪽 message 만 꺼내 보인다(실제 Codex 0.163.0 에서 확인).
 export function turnErrorOf(error: CodexTurn["error"] | undefined): { text: string; auth: boolean } {
   const message = unwrapApiError(error?.message?.trim() || "") || "Codex turn failed";

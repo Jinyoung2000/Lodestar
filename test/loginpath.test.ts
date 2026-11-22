@@ -1,5 +1,3 @@
-// 로그인 셸 PATH 읽기: 실패하면 캐시하지 않고 다시 읽는지, 후보 폴더가 합쳐지는지, 실행 파일을 PATH 에서 찾는지 단독 시험(실제 셸을 부르지 않는다).
-// 실행: npm test
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,7 +20,6 @@ const dir = (...parts: string[]) => {
 };
 const out = (path: string) => `Last login: Mon\nwelcome banner from .zshrc\n\n__LODESTAR_PATH__${path}\n`;
 
-// 1. 로그인 셸 읽기가 실패하면 캐시하지 않고, 대기 시간이 지나면 다시 읽는다
 {
   const home = dir("home1");
   const calls: string[] = [];
@@ -56,7 +53,6 @@ const out = (path: string) => `Last login: Mon\nwelcome banner from .zshrc\n\n__
   check("a forced read bypasses the cache and the backoff", (await login.loginShellPath(true)) === "/Users/x/.local/bin:/usr/bin" && calls.length > 6);
 }
 
-// 2. 두 호출이 겹치면 셸은 한 번만 뜬다
 {
   let spawned = 0;
   const login = createLoginPath({
@@ -71,7 +67,6 @@ const out = (path: string) => `Last login: Mon\nwelcome banner from .zshrc\n\n__
   check("concurrent reads share one shell", spawned === 1, String(spawned));
 }
 
-// 3. 후보 폴더: 존재하는 폴더만, 우선순위 순서로
 {
   const home = dir("home3");
   dir("home3", ".local/bin");
@@ -107,7 +102,6 @@ const out = (path: string) => `Last login: Mon\nwelcome banner from .zshrc\n\n__
   check("fnm default alias wins when it exists", candidateDirs(fnmHome).some((d) => d.endsWith("aliases/default/bin")) && !candidateDirs(fnmHome).some((d) => d.endsWith("v22.1.0/installation/bin")));
 }
 
-// 4. 읽기 전이거나 실패한 동안에도 sessions 가 쓰는 PATH 에 후보가 붙는다 (GUI 로 뜬 데몬의 /usr/bin:/bin)
 {
   const home = dir("home5");
   const local = dir("home5", ".local/bin");
@@ -120,7 +114,6 @@ const out = (path: string) => `Last login: Mon\nwelcome banner from .zshrc\n\n__
   check("after the read, the login PATH comes first and nothing is duplicated", after.startsWith("/login/bin:/usr/bin:/bin") && after.split(":").length === new Set(after.split(":")).size, after);
 }
 
-// 5. findExecutable: 실행할 수 있는 파일만, PATH 순서대로
 {
   const bin1 = dir("bin1");
   const bin2 = dir("bin2");

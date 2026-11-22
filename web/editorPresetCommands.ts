@@ -24,7 +24,6 @@ export function insertLineAbove(view: EditorView) {
   return true;
 }
 
-// peekCommands.ts 의 같은 이름 도우미와 같다. 열린 탭의 워크스페이스를 못 찾으면 할 일이 없다.
 function withWorkspace(run: (view: EditorView, workspaceId: string) => Promise<void>) {
   return (view: EditorView) => {
     const workspaceId = workspaceIdOfView(view);
@@ -44,7 +43,6 @@ registerEditorCommands([
   { id: "insertLineAfter", title: "Insert Line Below", run: insertBlankLine },
   { id: "insertLineBefore", title: "Insert Line Above", run: insertLineAbove },
   { id: "startFindReplace", title: "Replace", run: (view) => openFind(view, { replace: true }) },
-  // 이름은 Declaration 이지만 요청은 textDocument/definition 이다(F12 와 같은 동작).
   { id: "goToDeclaration", title: "Go to Declaration", run: withWorkspace(goToDefinition) },
   { id: "goToImplementation", title: "Go to Implementation", run: withWorkspace(goToImplementation) },
   { id: "peekDefinition", title: "Peek Definition", run: withWorkspace(peekDefinition) },

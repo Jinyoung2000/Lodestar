@@ -1,5 +1,3 @@
-// 피드백 요약을 뽑을 답을 고르는 규칙 단독 시험(shared/feedbackSummary.ts). 사고 사례: 2744382d 는 다시 검사로 반영됐는데 요약이 자동 수정 턴의 "npm 이 없어서 고칠 수 없습니다" 로 남았다.
-// 실행: npm test
 import type { TimelineItem } from "../shared/protocol";
 import { summarySource } from "../shared/feedbackSummary";
 import { T } from "../server/strings";
@@ -17,11 +15,9 @@ const tool = (): TimelineItem => ({ id: `t${seq++}`, kind: "tool" }) as unknown 
 const notice = (text: string): TimelineItem => ({ id: `n${seq++}`, kind: "notice", text }) as unknown as TimelineItem;
 const fix = (attempt: number) => user("The check \"npm run build\" failed after your changes. ...long prompt...", T.fbFixShown("npm run build", attempt, 2));
 
-// 1. 문구 판정: 자동 수정 턴의 화면용 문구만 참
 check("the auto-fix shown text is recognised", T.fbIsFixShown(T.fbFixShown("npm run build", 1, 2)) && T.fbIsFixShown(T.fbFixShown("npx tsc --noEmit", 2, 2)));
 check("a feedback request and a resume line are not auto-fix", !T.fbIsFixShown("Feedback: the text overlaps the buttons") && !T.fbIsFixShown(T.fbResumeShown));
 
-// 2. 2744382d 와 같은 모양: 첫 턴의 답이 요약이고, 자동 수정 턴의 답은 건너뛴다
 {
   const items = [
     user("Feedback: overlap", "the text overlaps the buttons"),
@@ -42,13 +38,11 @@ check("a feedback request and a resume line are not auto-fix", !T.fbIsFixShown("
   check("picks the last reply of the first turn, not the auto-fix replies", picked?.startsWith("제목 오른쪽 여백을") === true, String(picked));
 }
 
-// 3. 사람이 보낸 후속 턴의 답은 대상이다(가장 마지막 것)
 {
   const items = [user("first", "first"), assistant("Moved the badge."), user("also make it bigger", "also make it bigger"), assistant("Made the badge bigger too."), fix(1), assistant("Cannot fix npm.")];
   check("a human follow-up turn counts, the later reply wins", summarySource(items, T.fbIsFixShown) === "Made the badge bigger too.");
 }
 
-// 4. 대상 답이 없으면 null(호출한 쪽이 피드백 문장으로 대신한다)
 {
   check("no reply at all", summarySource([user("x", "x")], T.fbIsFixShown) === null);
   check("only auto-fix replies", summarySource([user("x", "x"), fix(1), assistant("no npm")], T.fbIsFixShown) === null);

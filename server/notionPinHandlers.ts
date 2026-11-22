@@ -8,7 +8,6 @@ export function notionPinHandlers(deps: NotionPinHandlerDeps): HandlersFor<Metho
   const { notionPins, broadcast } = deps;
   const publishPins = () => broadcast({ type: "notionPins", pins: notionPins.list() });
   return {
-    // NOTION: 사이드바 고정 페이지. 바뀔 때마다 목록 전체를 모든 화면에 보낸다.
     "notion.pins.list": () => notionPins.list(),
     "notion.pins.add": (params) => {
       const result = notionPins.add(params);

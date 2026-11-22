@@ -1,5 +1,3 @@
-// 앱 종료 순서와 상한 단독 시험(electron/quitFlow.ts): 단계 순서, 5초 상한, 종료 중 데몬 재시작 금지, 취소 복구.
-// 실행: npm test
 import { CANCEL_WATCH_MS, QUIT_LIMIT_MS, QuitFlow, WINDOW_CLOSE_MS } from "../electron/quitFlow";
 
 let failed = 0;
@@ -8,7 +6,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 
-// 가짜 시계와 타이머
 function harness(options: { daemon?: boolean; windows?: "closes" | "hangs" } = {}) {
   let clock = 0;
   const timers = new Map<number, { at: number; fn: () => void }>();
@@ -61,7 +58,6 @@ const flush = async () => {
 };
 const events = (log: string[]) => log.map((l) => l.replace(/^\[electron\] quit: /, "").replace(/ \+\d+ms.*/, ""));
 
-// 1. 정상 순서: before-quit, 창 닫기, 데몬 종료 요청, flush, 데몬 exit, app.quit, will-quit, quit
 {
   const h = harness();
   check("first before-quit starts the flow and blocks the event", h.flow.onBeforeQuit() === "run");
@@ -85,7 +81,6 @@ const events = (log: string[]) => log.map((l) => l.replace(/^\[electron\] quit: 
   check("the limit still fires after quit if Chromium teardown hangs", h.calls.at(-1) === "forceExit", h.calls.join(","));
 }
 
-// 2. 상한: 데몬이 끝나지 않으면 5초에 건너뛰고 app.exit
 {
   const h = harness();
   h.flow.onBeforeQuit();
@@ -98,7 +93,6 @@ const events = (log: string[]) => log.map((l) => l.replace(/^\[electron\] quit: 
   check("app.quit is never called after the limit", !h.calls.includes("finishQuit"));
 }
 
-// 3. 상한: 창이 닫히지 않을 때는 창 대기만 건너뛰고 데몬 종료는 계속한다
 {
   const h = harness({ windows: "hangs" });
   h.flow.onBeforeQuit();
@@ -112,7 +106,6 @@ const events = (log: string[]) => log.map((l) => l.replace(/^\[electron\] quit: 
   check("the flow still finishes with app.quit", h.calls.at(-1) === "finishQuit");
 }
 
-// 4. 데몬이 없으면(AGENT_NAV_NO_DAEMON=1 등) 바로 app.quit
 {
   const h = harness({ daemon: false });
   h.flow.onBeforeQuit();
@@ -120,7 +113,6 @@ const events = (log: string[]) => log.map((l) => l.replace(/^\[electron\] quit: 
   check("without a daemon the flow goes straight to app.quit", h.calls.at(-1) === "finishQuit" && h.log.some((l) => l.includes("daemon-shutdown-skipped")), h.calls.join(","));
 }
 
-// 5. 종료 중 데몬 재시작 금지
 {
   const h = harness();
   check("before quitting, a daemon may be started", h.flow.mayStartDaemon() && !h.flow.quitting);
@@ -132,7 +124,6 @@ const events = (log: string[]) => log.map((l) => l.replace(/^\[electron\] quit: 
   check("still blocked after the daemon exits, through app.quit", !h.flow.mayStartDaemon());
 }
 
-// 6. 종료 전에는 데몬 이벤트가 종료 로그를 오염시키지 않는다
 {
   const h = harness();
   h.flow.onDaemonExit(1);
@@ -140,7 +131,6 @@ const events = (log: string[]) => log.map((l) => l.replace(/^\[electron\] quit: 
   check("daemon events before quitting write no quit lines", h.log.length === 0, h.log.join("|"));
 }
 
-// 7. 취소 복구: app.quit 뒤 will-quit 이 안 오면 상태를 되돌린다
 {
   const h = harness();
   h.flow.onBeforeQuit();
@@ -156,7 +146,6 @@ const events = (log: string[]) => log.map((l) => l.replace(/^\[electron\] quit: 
   check("a new quit after the cancel starts a fresh flow", h.flow.onBeforeQuit() === "run");
 }
 
-// 8. will-quit 이 오면 취소 감시를 끈다
 {
   const h = harness();
   h.flow.onBeforeQuit();
@@ -168,7 +157,6 @@ const events = (log: string[]) => log.map((l) => l.replace(/^\[electron\] quit: 
   check("will-quit arrival disables the cancel watch", !h.calls.includes("restoreAfterCancel"));
 }
 
-// 9. 데몬이 창 닫기 중에 끝나도 막히지 않는다
 {
   const h = harness({ windows: "hangs" });
   h.flow.onBeforeQuit();

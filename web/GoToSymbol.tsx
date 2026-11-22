@@ -14,7 +14,6 @@ export function GoToSymbol({ tabKey }: { tabKey: string | null }) {
   const view = tabKey ? viewFor(tabKey) : null;
   const [value, setValue] = useState("@");
   const [index, setIndex] = useState<number | null>(null);
-  // undefined 는 읽는 중, null 은 심볼 정보를 주는 서버가 없음
   const [tree, setTree] = useState<SymbolNode[] | null | undefined>(undefined);
   const startScroll = useRef(view?.scrollDOM.scrollTop ?? 0);
   const cursor = useRef(view?.state.selection.main.head ?? null);
@@ -35,7 +34,6 @@ export function GoToSymbol({ tabKey }: { tabKey: string | null }) {
   const active = Math.min(index ?? firstActive, Math.max(entries.length - 1, 0));
   const current = entries[active]?.row ?? null;
 
-  // 미리보기: 커서는 그대로 두고 심볼 이름을 가운데로 보이고 심볼 범위 줄 전체를 칠한다
   useEffect(() => {
     if (!view || !current) return;
     showRangeHighlight(view, current.node.from, current.node.to);
@@ -71,7 +69,6 @@ export function GoToSymbol({ tabKey }: { tabKey: string | null }) {
       placeholder="Type the name of a symbol to go to."
       query={value}
       onQuery={(next) => {
-        // "@" 를 지우면 파일 열기로 바뀐다
         if (!next.startsWith("@")) {
           setState({ overlay: { kind: "quickOpen" }, quickOpenQuery: next });
           return;
@@ -110,7 +107,6 @@ export function GoToSymbol({ tabKey }: { tabKey: string | null }) {
 
 type Entry = { row: Extract<SymbolRow, { type: "symbol" }>; group: string | null; separated: boolean };
 
-// 심볼 행만 모으고, 앞선 구분 줄의 이름은 그 아래 첫 행에 붙인다(둘째 묶음부터 위에 가로선)
 function entriesOf(rows: readonly SymbolRow[]): Entry[] {
   const entries: Entry[] = [];
   let group: string | null = null;

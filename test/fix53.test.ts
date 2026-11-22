@@ -1,4 +1,3 @@
-// 5회차 묶음 3(발견 7, 8, 9, 12, 13, 14, 18, 21)의 순수 로직. 실행: npm test
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -26,7 +25,6 @@ const session = (workspaceId: string, updatedAt: string): Agent => ({ id: `${wor
 const names = (list: Workspace[]) => list.map((w) => w.name).join(",");
 const top = (id: string | null) => id;
 
-// --- 발견 12: 폴더 묶음 순서 ---
 test("12: recent 는 가장 최근 세션 활동이 있는 폴더가 위, 세션 없는 폴더는 맨 아래(이름순)", () => {
   const folders = [ws("a", "api"), ws("g", "gone"), ws("n", "notes"), ws("p", "practice"), ws("e", "empty")];
   const sessions = [session("p", "2026-10-16T01:00:00Z"), session("p", "2026-10-16T05:00:00Z"), session("n", "2026-10-16T09:00:00Z"), session("a", "2026-10-16T03:00:00Z")];
@@ -48,7 +46,6 @@ test("12: 기본 보기는 recent 이고, name 으로 바꾸면 기본이 아니
   return "ok";
 });
 
-// --- 발견 13: 대화 스크롤 기준 메시지 ---
 test("13: pickAnchor 는 화면 맨 위를 지나는 가장 안쪽 요소와 그 안 오프셋", () => {
   const c = [
     { turn: "t1", child: -1, top: 0 },
@@ -65,9 +62,7 @@ test("13: pickAnchor 는 화면 맨 위를 지나는 가장 안쪽 요소와 그
 });
 
 test("13: 높이가 나중에 늘어도 같은 메시지 위치가 나온다(픽셀 저장은 어긋나는 경우)", () => {
-  // 저장 당시: t2 의 둘째 행이 top 1100, 화면 맨 위는 1150(오프셋 50)
   const saved = pickAnchor([{ turn: "t2", child: 1, top: 1100 }], 1150)!;
-  // 복원 직후 t2 위의 코드 블록 높이가 120 늘어 그 행이 1220 으로 밀렸다. 픽셀 1150 이면 70 만큼 위 내용을 보여 주지만, 기준 메시지는 1270 을 돌려준다.
   expect(restoredScrollTop(1220, saved.offset, 5000) === 1270, "밀린 만큼 따라감");
   expect(restoredScrollTop(1220, saved.offset, 1200) === 1200, "아직 짧은 내용은 끝으로 맞춤");
   return expect(restoredScrollTop(10, -40, 5000) === 0, "0 아래로는 안 내려감");
@@ -80,7 +75,6 @@ test("13: 저장본의 anchor 는 모양이 맞을 때만 남고 옛 저장본(t
   return expect(e.chatScroll.c.top === 3 && e.chatScroll.c.anchor === undefined, "옛 저장본");
 });
 
-// --- 발견 14: 워크트리 메뉴 ---
 test("14: 합칠 커밋이 0 이면 Merge 와 Create 가 꺼지고 이유가 붙는다", () => {
   const state = worktreeMenuState({ branch: "feat/x", target: "main", unmerged: 0, prs: [] });
   expect(state.merge.disabled && /Nothing to merge/.test(state.merge.reason ?? ""), `merge ${state.merge.reason}`);
@@ -99,7 +93,6 @@ test("14: 커밋이 있으면 켜지고, 열린 PR 이 있으면 Create 대신 O
   return expect(!unknown.merge.disabled && unknown.pr.kind === "create" && !unknown.pr.disabled, "모르면 켜 둔다(서버가 다시 확인)");
 });
 
-// --- 발견 21: 사라진 폴더 다시 잇기 ---
 test("21: relocateWorkspace 는 폴더와 안의 세션 cwd 접두만 바꾸고 worktree 세션은 둔다", () => {
   const store = new Store();
   const dirA = join(home, "old"), dirB = join(home, "new");

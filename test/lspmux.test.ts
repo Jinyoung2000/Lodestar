@@ -1,7 +1,3 @@
-// server/lspMux.ts 시험. 가짜 자식 언어 서버 둘(TypeScript 역할의 주 서버, Relay 역할의 지연 시작 서버)을 프로세스 없이 붙여
-// 확인한다: 요청 id 재매핑 양방향, initialize 기능 병합, 동기화 종류 변환, 진단 병합, completion 의 data 감싸기와 resolve 라우팅,
-// 한 서버 오류와 무응답, 지연 시작과 준비 신호, 자식 하나의 죽음, 주 서버의 죽음, 연결 정리.
-// 실행: npm test
 import { LspMultiplexer, type ChildDef, type ChildLink, type LinkCallbacks, type Msg } from "../server/lspMux";
 
 let failed = 0;
@@ -14,7 +10,6 @@ const json = (value: unknown) => JSON.stringify(value);
 
 type Handler = (message: Msg, server: FakeServer) => void;
 
-// 프로세스 없는 자식 서버. 받은 메시지를 모으고, 요청에는 handler 가 답한다.
 class FakeServer {
   received: Msg[] = [];
   stopped = false;
@@ -122,7 +117,6 @@ const GQL = "file:///ws/app/q.graphql";
 const open = (browser: Browser, uri: string, text: string, languageId = "typescriptreact") =>
   browser.send({ method: "textDocument/didOpen", params: { textDocument: { uri, languageId, version: 1, text } } });
 
-// Relay 역할: 첫 문서를 받은 뒤 일정 시간이 지나야 준비 신호(window/showStatus 요청)를 보낸다.
 function relayHandler(caps: Record<string, unknown>, answers: Record<string, (message: Msg) => unknown> = {}, readyAfterMs = 40): Handler {
   const base = tsHandler(caps, answers);
   let signaled = false;
@@ -149,7 +143,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   return { ts, relay, browser: new Browser(defs, options.muxOptions) };
 }
 
-// 1. initialize: 주 서버의 기능에 Relay 의 정적 기능을 더하고, 동기화 종류와 triggerCharacters 는 주 서버 것
 {
   const { ts, relay, browser } = setup();
   const response = await browser.init();
@@ -164,7 +157,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 2. 요청 id 재매핑 (브라우저 -> 서버): 서로 다른 id 공간, 순서가 뒤바뀐 응답
 {
   const delayed: Msg[] = [];
   const { ts, relay, browser } = setup({
@@ -180,7 +172,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   await browser.until(() => delayed.length === 2, "ts 가 두 요청을 받음");
   const relayIds = relay.methods("textDocument/hover").map((m) => m.id);
   check("id 재매핑: 자식은 브라우저 id 를 모르고 자기 번호를 받음", relayIds.every((id) => typeof id === "number" && id !== 500 && id !== 501) && relayIds.length === 2, json(relayIds));
-  // TS 가 501 을 먼저, 500 을 나중에 답한다
   ts.reply(delayed[1]!.id, { contents: "ts second" });
   ts.reply(delayed[0]!.id, { contents: "ts first" });
   await browser.until(() => !!browser.response(500) && !!browser.response(501), "두 응답");
@@ -191,7 +182,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 3. 서버 -> 브라우저 요청의 id 재매핑 (workspace/configuration, client/registerCapability, window/workDoneProgress/create)
 {
   const { ts, relay, browser } = setup();
   await browser.init();
@@ -216,7 +206,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 4. 동기화 종류 변환: 주 서버(증분)는 브라우저가 보낸 그대로, Relay(전체)는 데몬이 들고 있는 글, 동기화 안 받는 서버는 건너뜀
 {
   const ts = new FakeServer("typescript", tsHandler(TS_CAPS));
   const full = new FakeServer("relay", relayHandler(RELAY_CAPS));
@@ -238,14 +227,12 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   const last = full.methods("textDocument/didChange")[1]!.params;
   check("동기화: 전체 동기화 서버는 변경이 쌓인 전체 글을 받음", last.contentChanges.length === 1 && !last.contentChanges[0].range && last.contentChanges[0].text === "// line one\nline TWO\n" && last.textDocument.version === 3, json(last));
   check("동기화: 동기화 안 받는 서버(0)에는 didChange 없음", none.methods("textDocument/didChange").length === 0);
-  // 닫으면 모두에게 didClose, 이후 변경은 무시
   browser.send({ method: "textDocument/didClose", params: { textDocument: { uri: URI } } });
   await browser.until(() => full.methods("textDocument/didClose").length === 1, "didClose");
   check("동기화: didClose 는 연 서버 모두에게", ts.methods("textDocument/didClose").length === 1 && none.methods("textDocument/didClose").length === 1);
   browser.mux.dispose();
 }
 
-// 5. 담당 문서: 경로 범위 밖과 담당 언어가 아닌 문서는 해당 서버에 가지 않음
 {
   const { ts, relay, browser } = setup();
   await browser.init();
@@ -257,13 +244,11 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   check("담당: css 는 어느 서버도 받지 않음", ts.methods("textDocument/didOpen").every((m) => !String(m.params.textDocument.uri).endsWith(".css")) && relay.methods("textDocument/didOpen").every((m) => !String(m.params.textDocument.uri).endsWith(".css")));
   await browser.until(() => relay.methods("textDocument/didOpen").length === 1, "relay graphql didOpen");
   check("담당: graphql 문서는 Relay 만 받음", relay.methods("textDocument/didOpen")[0]!.params.textDocument.uri === GQL && ts.methods("textDocument/didOpen").every((m) => m.params.textDocument.uri !== GQL));
-  // 범위 밖 TS 문서의 hover 는 주 서버에만
   const hover = await browser.request(20, "textDocument/hover", { textDocument: { uri: OUTSIDE }, position: { line: 0, character: 0 } });
   check("담당: 범위 밖 문서의 요청은 Relay 에 안 감", relay.methods("textDocument/hover").length === 0 && hover.id === 20);
   browser.mux.dispose();
 }
 
-// 6. 지연 시작과 준비 신호: 첫 문서에 서버를 띄우고, 문서는 준비 전에 열어 주되 요청은 준비될 때까지 붙든다
 {
   const { relay, browser } = setup({ relayAnswers: { "textDocument/hover": () => ({ contents: "relay hover" }) }, readyAfterMs: 150 });
   await browser.init();
@@ -281,10 +266,8 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 7. 따라잡기: 서버가 초기화되는 동안 열고 고친 문서는 최신 글로 열린다
 {
   const { relay, browser } = setup({ readyAfterMs: 20 });
-  // 첫 initialize 응답을 늦춘다
   const original = relay.handler;
   relay.handler = (message, server) => {
     if (message.method === "initialize") return void setTimeout(() => original(message, server), 120);
@@ -302,7 +285,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 8. 진단: (uri, 서버)로 들고 합쳐 다시 발행
 {
   const { ts, relay, browser } = setup();
   await browser.init();
@@ -321,7 +303,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 9. completion: isIncomplete OR, data 를 서버 키로 감싸고 resolve 를 맞는 서버로 보내 원래 data 로 풀어서 전달
 {
   const { ts, relay, browser } = setup({
     tsCaps: { ...TS_CAPS, completionProvider: { triggerCharacters: ["."], resolveProvider: true } },
@@ -352,12 +333,10 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   check("resolve: TS 항목은 TS 로, data 는 원래 객체", ts.methods("completionItem/resolve").length === 1 && json(ts.methods("completionItem/resolve")[0]!.params.data) === '{"file":"a.ts","n":1}' && resolvedTs.result.documentation === "from ts");
   const resolvedNoData = await browser.request(43, "completionItem/resolve", items[1]);
   check("resolve: data 가 없던 항목은 data 속성 없이 전달", !("data" in ts.methods("completionItem/resolve")[1]!.params) && resolvedNoData.result.documentation === "from ts");
-  // 감싸이지 않은 항목(예: 예전 캐시)은 주 서버로
   await browser.request(44, "completionItem/resolve", { label: "raw", data: { x: 1 } });
   check("resolve: 감싸이지 않은 항목은 주 서버로", ts.methods("completionItem/resolve").length === 3);
   browser.mux.dispose();
 }
-// 9b. resolve 를 못 하는 서버의 항목은 서버에 묻지 않고 받은 그대로(data 만 되돌려) 돌려줌
 {
   const { ts, browser } = setup({ tsAnswers: { "textDocument/completion": () => ({ items: [{ label: "plain", data: 7 }] }) } });
   await browser.init();
@@ -368,7 +347,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 10. 한 서버가 오류이거나 답하지 않아도 나머지 결과는 돌려줌
 {
   const { ts, relay, browser } = setup({
     tsAnswers: { "textDocument/definition": () => [{ uri: "file:///ws/app/def.ts", range: { start: { line: 1, character: 0 }, end: { line: 1, character: 3 } } }] },
@@ -383,7 +361,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   check("무응답: 내용이 있는 결과 뒤 grace 만 더 기다리고 나머지 결과를 돌려줌", json(definition.result).includes("def.ts") && Date.now() - started < 300, `${Date.now() - started}ms`);
   await browser.until(() => relay.methods("$/cancelRequest").length >= 1, "무응답 서버에 취소 전달");
   check("무응답: 답하지 않은 서버에 $/cancelRequest", relay.methods("$/cancelRequest").length >= 1);
-  // 오류 응답
   relay.handler = (message, server) => {
     if (message.method === "textDocument/references") server.push({ id: message.id, error: { code: -32001, message: "schema is missing" } });
     else if (message.method === "textDocument/hover") server.push({ id: message.id, error: { code: -32001, message: "schema is missing" } });
@@ -396,7 +373,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   check("오류: 한 서버가 오류여도 나머지 hover 를 돌려줌", hover.error === undefined && json(hover.result).includes("ts only"), json(hover));
   const refs = await browser.request(52, "textDocument/references", { textDocument: { uri: URI }, position: { line: 0, character: 0 }, context: { includeDeclaration: true } });
   check("오류: references 도 나머지 결과", json(refs.result).includes("ref.ts"));
-  // 모두 답이 없으면 데드라인에 null
   ts.handler = () => {};
   relay.handler = () => {};
   const t0 = Date.now();
@@ -405,7 +381,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 11. 위치 결과 병합: 같은 위치는 한 번만
 {
   const same = { uri: "file:///ws/app/same.ts", range: { start: { line: 3, character: 0 }, end: { line: 3, character: 4 } } };
   const { browser } = setup({
@@ -420,7 +395,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 12. 자식 하나(Relay)가 죽어도 나머지 유지
 {
   const { ts, relay, browser } = setup({ relayAnswers: { "textDocument/hover": () => NO_ANSWER } });
   ts.handler = tsHandler(TS_CAPS, { "textDocument/hover": () => ({ contents: "ts alive" }), "textDocument/definition": () => [{ uri: "file:///ws/app/d.ts", range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } }] });
@@ -442,7 +416,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 13. 시작 실패(프로세스 없이 곧바로 exit)와 준비 시간 초과
 {
   const { browser, relay } = setup({ relayExtra: { readyTimeoutMs: 120 }, readyAfterMs: 5000 });
   await browser.init();
@@ -483,7 +456,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   browser.mux.dispose();
 }
 
-// 14. 주 서버가 죽으면 연결을 닫고 모든 자식을 정리, dispose 도 모든 자식을 정리
 {
   const { ts, relay, browser } = setup();
   await browser.init();
@@ -505,7 +477,6 @@ function setup(options: { tsCaps?: Record<string, unknown>; tsAnswers?: Record<s
   check("연결 종료: 이후 메시지는 무시", ts.received.length === before);
 }
 
-// 15. shutdown 은 떠 있는 서버 모두에게, 아직 안 뜬 서버는 띄우지 않음
 {
   const { ts, relay, browser } = setup({ tsAnswers: { shutdown: () => null } });
   await browser.init();

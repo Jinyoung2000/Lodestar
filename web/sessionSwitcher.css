@@ -1,5 +1,3 @@
-/* ⌃Tab 세션 전환 창. 통합 검색(⌘K)과 같은 자리(위에서 10vh, 가운데)에 같은 상자 모양으로 뜨고, 뒤를 어둡게 하지 않는다(macOS ⌘Tab 처럼 가볍게 떴다 사라진다).
-   행은 통합 검색 행(.gs-row)과 같은 높이, 반경, 선택 색이다. 토큰만 쓴다. */
 .session-switcher {
   position: fixed;
   top: 10vh; /* lint-tokens: allow 통합 검색 상자(Dialog)와 같은 위치. 뷰포트 비율 */
@@ -50,7 +48,6 @@
   width: var(--size-icon);
   height: var(--size-icon);
 }
-/* 제목이 먼저 자리를 차지하고, 모자라면 흐린 폴더와 브랜치가 먼저 말줄임 된다(통합 검색 행과 같다) */
 .session-switcher-title {
   flex: 0 1 auto;
   min-width: 0;

@@ -1,4 +1,3 @@
-// 응답 완료 알림 본문(shared/notificationPreview.ts): 마지막 답의 마크다운을 한 줄 글로 줄인다. 실행: npm test
 import { notificationPreview } from "../shared/notificationPreview";
 
 const cases: { name: string; input: string; max?: number; want: string | null }[] = [

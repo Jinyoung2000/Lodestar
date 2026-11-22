@@ -1,4 +1,3 @@
-// 대화 속 파일 링크가 가리키는 경로의 존재 여부 캐시. 순수 자료구조라 rpc 와 store 를 모른다(test/filerefresolve.test.ts).
 
 export class ExistCache {
   private byWorkspace = new Map<string, Map<string, boolean>>();
@@ -19,14 +18,12 @@ export class ExistCache {
     (this.known(workspaceId) as Map<string, boolean>).set(path, exists);
   }
 
-  // 파일 목록 배열이 바뀌었으면(refreshFileList 가 새 배열을 넣는다) 그 폴더의 캐시를 버린다. 처음 보는 목록은 버릴 것이 없다.
   syncList(workspaceId: string, list: readonly string[]) {
     const before = this.lists.get(workspaceId);
     this.lists.set(workspaceId, list);
     if (before && before !== list) this.invalidate(workspaceId);
   }
 
-  // 캐시에 든 것이 있었을 때만 버전을 올려 구독자를 깨운다. workspaceId 가 없으면 전부.
   invalidate(workspaceId?: string): boolean {
     const keys = workspaceId === undefined ? [...this.byWorkspace.keys()] : [workspaceId];
     let dropped = false;

@@ -1,11 +1,8 @@
-// tsserver 의 quickinfo-full 이 주는 displayParts(종류별 조각)에서 붙여넣어 쓸 수 있는 타입 식과 시그니처를 만든다.
-// 문자열을 앞에서 잘라 내지 않고 조각의 종류(키워드, 이름, 구두점, 줄바꿈)와 괄호 깊이로 위치를 찾는다. DOM 과 LSP 가 없어 단위 시험이 읽는다.
 
 export type DisplayPart = { text: string; kind: string };
 
 type Category = "variable" | "function" | "named" | "unknown";
 
-// 값(변수, 프로퍼티, 매개변수)의 타입. 함수 선언이면 반환 타입. 이름이 있는 타입(별칭, 인터페이스, 클래스, 열거형)이면 그 이름.
 export function typeFromParts(parts: DisplayPart[]): string | null {
   const head = headOf(parts);
   switch (head.category) {
@@ -20,7 +17,6 @@ export function typeFromParts(parts: DisplayPart[]): string | null {
   }
 }
 
-// 함수의 시그니처를 화살표 타입으로. 함수 선언은 `<T>(a: T) => R`, 함수 타입 값은 그 타입 그대로. 함수가 아니면 null.
 export function signatureFromParts(parts: DisplayPart[]): string | null {
   const head = headOf(parts);
   if (head.category === "function") {
@@ -41,7 +37,6 @@ export function signatureFromParts(parts: DisplayPart[]): string | null {
   return null;
 }
 
-// 조각이 함수 모양의 타입인지: 최상위(괄호 밖)에 `=>` 가 있고 `(` 나 `<` 로 시작한다.
 export function isFunctionType(type: string) {
   if (!/^[(<]/.test(type)) return false;
   let depth = 0;
@@ -53,8 +48,6 @@ export function isFunctionType(type: string) {
   }
   return false;
 }
-
-// --- 머리: `(alias) function f(): T` 의 앞 접두사, 수정자, 종류 키워드를 읽어 본문(이름부터)을 돌려준다 ---
 
 const MODIFIERS = new Set(["export", "declare", "default", "abstract", "async", "readonly", "static", "public", "private", "protected", "override"]);
 const VARIABLE_WORDS = new Set(["const", "let", "var", "using"]);
@@ -80,7 +73,6 @@ function headOf(all: DisplayPart[]): { category: Category; body: DisplayPart[] }
   return { category: "unknown", body: [] };
 }
 
-// import 별칭의 hover 는 `(alias) function f(): T` 뒤에 줄바꿈과 `import f` 줄이 붙는다. 그 줄부터 버린다.
 function cutAfterAlias(parts: DisplayPart[]) {
   for (let i = 0; i + 1 < parts.length; i++) {
     if (parts[i]!.kind === "lineBreak" && parts[i + 1]!.kind === "keyword" && parts[i + 1]!.text === "import") return parts.slice(0, i);
@@ -95,7 +87,6 @@ const skipSpaces = (parts: DisplayPart[], from: number) => {
   return parts.slice(i);
 };
 
-// 이름 조각의 끝(이름과 `.` 로 이은 한정자 뒤)
 function nameEnd(body: DisplayPart[]) {
   let i = 0;
   while (body[i] && (isNameKind(body[i]!.kind) || (body[i]!.kind === "punctuation" && body[i]!.text === "." && body[i + 1] && isNameKind(body[i + 1]!.kind)))) i++;
@@ -111,7 +102,6 @@ function nameOf(body: DisplayPart[]) {
   return end > 0 ? body.slice(0, end).map((p) => p.text).join("") : null;
 }
 
-// 변수형: 이름 뒤 최상위 `:` 다음부터 끝까지(옵셔널 `?` 가 이름 뒤에 있어도 건너뛴다)
 function afterNameColon(body: DisplayPart[]) {
   let i = nameEnd(body);
   if (body[i]?.text === "?" && body[i]?.kind === "punctuation") i++;
@@ -119,7 +109,6 @@ function afterNameColon(body: DisplayPart[]) {
   return skipSpaces(body, i + 1);
 }
 
-// 함수형: 매개변수 괄호 앞의 타입 매개변수 `<...>` 를 건너뛴 첫 `(`
 function firstParamsOpen(body: DisplayPart[]) {
   let i = nameEnd(body);
   if (body[i]?.text === "<") {
@@ -138,7 +127,6 @@ function returnTypeOf(body: DisplayPart[]) {
   return stripOverloadTail(skipSpaces(body, close + 2));
 }
 
-// 열린 괄호 조각의 짝 위치. 문자열 리터럴 조각은 건드리지 않는다(구두점 조각만 센다).
 function matching(parts: DisplayPart[], open: number) {
   const pairs: Record<string, string> = { "(": ")", "[": "]", "{": "}", "<": ">" };
   const stack: string[] = [];
@@ -154,7 +142,6 @@ function matching(parts: DisplayPart[], open: number) {
   return -1;
 }
 
-// 오버로드가 있으면 끝에 ` (+1 overload)` 가 붙는다.
 function stripOverloadTail(parts: DisplayPart[]) {
   const last = parts.length - 1;
   if (parts[last]?.text !== ")") return parts;
@@ -171,9 +158,6 @@ function stripOverloadTail(parts: DisplayPart[]) {
   }
   return parts;
 }
-
-// --- 한 줄로 ---
-// 줄바꿈과 들여쓰기는 공백 하나로 합치고, `}` 바로 앞의 `;` 는 뺀다. 문자열 리터럴 조각은 그대로 둔다.
 
 function render(parts: DisplayPart[]): string | null {
   if (!parts.length) return null;

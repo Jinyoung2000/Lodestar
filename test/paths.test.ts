@@ -1,5 +1,3 @@
-// /tmp 처럼 심볼릭 링크가 낀 폴더에서 경로 검사와 저장이 실제 경로로 맞는지 확인한다. 데몬도 모델도 필요 없다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,7 +13,6 @@ const expect = (condition: boolean, detail: string) => {
   if (!condition) throw new Error(detail);
 };
 
-// real 이 실제 폴더이고 link 가 그 폴더를 가리키는 링크다(macOS 의 /tmp -> /private/tmp 와 같은 모양)
 const base = realpathSync(mkdtempSync(join(tmpdir(), "agent-nav-paths-")));
 const real = join(base, "real");
 const link = join(base, "link");
@@ -27,7 +24,6 @@ execFileSync("git", ["-c", "user.email=t@e.com", "-c", "user.name=t", "add", "."
 execFileSync("git", ["-c", "user.email=t@e.com", "-c", "user.name=t", "commit", "-q", "-m", "init"], { cwd: real });
 
 try {
-  // git 은 링크로 들어가도 실제 경로를 준다. 링크로 등록된 폴더에서 이 경로가 거절되던 것이 원래 문제였다.
   const root = await gitOps.repoRoot(link);
   expect(root === real, `git 이 실제 경로를 돌려준다: ${root}`);
   expect(resolveInside(link, join(real, "src/a.ts")) === join(real, "src/a.ts"), "링크 폴더 기준으로 실제 경로를 받아들인다");
@@ -35,7 +31,6 @@ try {
   expect(resolveInside(real, join(link, "src/a.ts")) === join(real, "src/a.ts"), "반대로 실제 폴더 기준에 링크 경로를 줘도 실제 경로로 돌려준다");
   expect(resolveInside(link, "src/a.ts") === join(link, "src/a.ts"), "상대 경로는 입력한 폴더 기준 그대로");
 
-  // 밖으로 나가는 경로는 여전히 거절한다
   for (const bad of ["../outside.txt", join(base, "outside.txt"), "/etc/passwd", join(link, "../outside.txt")]) {
     let rejected = false;
     try {
@@ -45,8 +40,6 @@ try {
     }
     expect(rejected, `거절돼야 함: ${bad}`);
   }
-  // 작업 폴더 안의 링크가 밖을 가리키면, 글자로는 안이지만 실제로는 밖이다. 글자 검사가 통과시키던 기존 동작은 그대로다(밖으로 읽는 링크는 사용자가 만든 것).
-  // 여기서는 링크 폴더가 아닌 밖의 형제 폴더로 가는 경로를 실제 경로 검사가 막는지만 본다.
   mkdirSync(join(base, "sibling"));
   let siblingRejected = false;
   try {
@@ -56,7 +49,6 @@ try {
   }
   expect(siblingRejected, "형제 폴더는 거절");
 
-  // 저장된 폴더 경로는 읽을 때 실제 경로로 맞춘다. 링크로 등록된 같은 폴더 두 개는 하나로 합쳐 세션을 옮긴다.
   writeFileSync(
     join(home, "state.json"),
     JSON.stringify({

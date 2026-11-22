@@ -2,9 +2,6 @@ import { RangeSetBuilder, type Extension, type Text } from "@codemirror/state";
 import { gutter, GutterMarker, type EditorView } from "@codemirror/view";
 import type { ScmHunkInfo } from "../shared/scm";
 
-// FIX6B: diff 편집기 왼쪽 열에 hunk 마다 Stage Block 또는 Unstage Block 단추를 놓는다.
-// hunk 경계는 git 이 정한 것이라 @codemirror/merge 의 덩어리와 다를 수 있다. 그래서 덩어리 인덱스가 아니라 git hunk 의 새 쪽 줄 번호로 자리를 잡는다.
-
 export type HunkButton = { label: string; icon: string; act: (hunk: ScmHunkInfo) => void };
 
 export function hunkActionButton(button: HunkButton, hunk: () => ScmHunkInfo | null): HTMLButtonElement {
@@ -57,7 +54,6 @@ class HunkMarker extends GutterMarker {
   }
 }
 
-// 빈 칸이어도 열 폭이 정해지게 하는 자리 표시
 class Spacer extends GutterMarker {
   toDOM() {
     const spacer = document.createElement("span");
@@ -66,7 +62,6 @@ class Spacer extends GutterMarker {
   }
 }
 
-// 단추를 놓을 줄(1부터): 새 쪽에 줄이 있으면 그 첫 줄, 줄이 없는 삭제 hunk 는 지워진 자리 바로 다음 줄이다. 문서 끝을 넘으면 마지막 줄.
 export function hunkLine(hunk: ScmHunkInfo, lineCount: number): number {
   const wanted = hunk.newLines > 0 ? hunk.newStart : hunk.newStart + 1;
   return Math.min(Math.max(wanted, 1), Math.max(lineCount, 1));

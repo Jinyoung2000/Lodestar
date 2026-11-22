@@ -1,5 +1,3 @@
-// 데몬 재시작 합류점 단독 시험(shared/restartGate.ts): 쿨다운 판단, 합치기, 대기 중 취소.
-// 실행: npm test
 import { CLIENT_SETTLE_MS, RESTART_MAX_MS, RESTART_MIN_MS, RestartScheduler, restartWaitMs } from "../shared/restartGate";
 
 let failed = 0;
@@ -8,7 +6,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 
-// 1. 판단: 시작 뒤 최소 시간, 첫 창 연결, 창 없이 도는 데몬의 상한
 check("just started: waits out the minimum", restartWaitMs({ now: 5_000, startedAt: 0, firstClientAt: 1_000 }) === RESTART_MIN_MS - 5_000);
 check("no window yet after the minimum: polls every second", restartWaitMs({ now: RESTART_MIN_MS, startedAt: 0, firstClientAt: null }) === 1000);
 check("no window for the max time: stops waiting for one", restartWaitMs({ now: RESTART_MAX_MS, startedAt: 0, firstClientAt: null }) === 0);
@@ -16,7 +13,6 @@ check("window connected just now: waits for it to settle", restartWaitMs({ now: 
 check("settled window after the minimum: go", restartWaitMs({ now: 40_000, startedAt: 0, firstClientAt: 5_000 }) === 0);
 check("main process (no client check): only the minimum", restartWaitMs({ now: 10_000, startedAt: 0 }) === RESTART_MIN_MS - 10_000 && restartWaitMs({ now: RESTART_MIN_MS, startedAt: 0 }) === 0);
 
-// 가짜 시계와 타이머
 function harness(waits: () => number) {
   let clock = 0;
   const timers = new Map<number, { at: number; fn: () => void }>();
@@ -47,7 +43,6 @@ function harness(waits: () => number) {
   return { scheduler, advance, runs, timers, now: () => clock };
 }
 
-// 2. 쿨다운이 지났으면 바로 실행
 {
   const h = harness(() => 0);
   const out = h.scheduler.request();
@@ -56,7 +51,6 @@ function harness(waits: () => number) {
   check("a second request after it started is not run twice", again.deferred === true && h.runs.length === 1);
 }
 
-// 3. 쿨다운 안이면 미루고, 그 사이 온 요청은 하나로 합친다
 {
   let wait = 12_000;
   const h = harness(() => wait);
@@ -73,7 +67,6 @@ function harness(waits: () => number) {
   check("nothing is left pending", !h.scheduler.pending() && h.timers.size === 0);
 }
 
-// 4. 기다리는 동안 조건이 바뀌면(도는 세션이 생김) 끝날 때까지 더 기다린다
 {
   let wait = 5_000;
   const h = harness(() => wait);
@@ -88,7 +81,6 @@ function harness(waits: () => number) {
   check("runs once idle", h.runs.length === 1 && !h.scheduler.pending());
 }
 
-// 5. 취소와 초기화
 {
   const h = harness(() => 10_000);
   h.scheduler.request();

@@ -1,0 +1,181 @@
+.pill-extra {
+  color: var(--fg-muted);
+}
+
+.popup-folder .popup-check {
+  width: var(--space-4);
+}
+.folder-row .folder-row-where {
+  text-align: left;
+}
+.folder-row-tag {
+  flex: none;
+  color: var(--fg);
+  font-size: var(--text-caption);
+}
+
+.quickpick-separator {
+  flex: none;
+  height: 1px;
+  margin: var(--space-1) var(--space-2);
+  background: var(--border-subtle);
+}
+.quickpick-row[data-inline] {
+  height: var(--size-row);
+  padding-block: 0;
+}
+.quickpick-row[data-inline] .quickpick-text {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.quickpick-row[data-inline] .quickpick-title {
+  flex: 0 1 auto;
+}
+.quickpick-row[data-inline] .quickpick-detail {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip.folders-chip {
+  gap: var(--space-1);
+}
+.folders-chip .chip-extra {
+  color: var(--fg-muted);
+}
+.popup-folders {
+  width: var(--size-popup-folder);
+}
+.popup-folders .popup-title {
+  padding-top: var(--space-1);
+}
+.folders-row {
+  cursor: default;
+}
+.folders-row .popup-row-detail {
+  text-align: left;
+}
+.folders-row .folders-row-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.folders-row[data-missing] .popup-row-title {
+  color: var(--fg-subtle);
+}
+
+.session-detail-folders {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.files-root {
+  font-weight: var(--weight-ui-strong);
+}
+.files-root[data-missing] .name {
+  color: var(--fg-subtle);
+  font-weight: normal;
+}
+.files-root .files-root-note {
+  margin-left: var(--space-2);
+  color: var(--fg-muted);
+  font-weight: normal;
+  font-size: var(--text-caption);
+}
+.files-root-wrap {
+  position: relative;
+}
+.files-root-actions {
+  position: absolute;
+  top: 0;
+  right: var(--space-1);
+  display: none;
+  align-items: center;
+  height: var(--size-row);
+}
+.files-root-wrap:hover > .files-root-actions,
+.files-root-wrap:focus-within > .files-root-actions {
+  display: inline-flex;
+}
+
+.scm-root {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  height: var(--size-row);
+  padding: 0 var(--space-2);
+  font-weight: var(--weight-ui-strong);
+  cursor: pointer;
+}
+.scm-root:hover {
+  background: var(--surface-hover);
+}
+.scm-root:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+.scm-root-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scm-root-branch {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: var(--space-0_5);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-weight: normal;
+  white-space: nowrap;
+}
+.scm-root-count {
+  flex: none;
+  color: var(--fg-muted);
+  font-weight: normal;
+  font-size: var(--text-caption);
+}
+.scm-multi {
+  display: block;
+  overflow-y: auto;
+  height: 100%;
+}
+.scm-multi .scm-view {
+  height: auto;
+}
+
+.quickopen-root {
+  color: var(--fg);
+}
+
+.files-roots {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: var(--space-1) 0;
+}
+.files-roots .files-tab {
+  flex: none;
+  overflow: visible;
+  padding: 0;
+}
+.scm-multi .scm-view {
+  flex: none;
+  height: auto;
+}
+.scm-multi .scm-body {
+  flex: none;
+  overflow: visible;
+}

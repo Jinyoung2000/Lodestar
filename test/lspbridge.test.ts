@@ -1,7 +1,3 @@
-// server/lsp.ts 의 서버 선택과 되돌리기 시험. 가짜 네이티브 실행 파일(node 스크립트)과 진짜 typescript-language-server 를 /tmp 의 가짜 워크스페이스에서 돌린다.
-// 확인: 네이티브 시작과 진단 pull 을 publishDiagnostics 로 바꿔 줌, 초기화 전 실패와 초기화 오류와 초기화 후 종료의 되돌리기(워크스페이스당 한 번 기억),
-// "provides no tsserver.js" 경고가 브라우저에 가지 않음, TS5 워크스페이스는 그대로 typescript-language-server.
-// 실행: npm test
 import { EventEmitter } from "node:events";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -82,7 +78,6 @@ process.stdin.on("data", (c) => {
 });
 `;
 
-// 가짜 TypeScript 7 워크스페이스: tsserver.js 가 없고 플랫폼 패키지에 가짜 tsc 가 있다.
 function fakeNativeWorkspace(name: string, mode: "ok" | "die" | "initerror" | "diepost") {
   const base = join(root, name);
   const nodeModules = join(base, "node_modules");
@@ -102,7 +97,6 @@ function fakeNativeWorkspace(name: string, mode: "ok" | "die" | "initerror" | "d
 function connect(project: string) {
   const socket = new FakeSocket();
   bridgeLsp(socket as unknown as WebSocket, project);
-  // 브라우저는 열리자마자 initialize 를 보낸다(서버 선택이 끝나기 전).
   socket.toServer({ jsonrpc: "2.0", id: 1, method: "initialize", params: { processId: null, rootUri: `file://${project}`, capabilities: { textDocument: { diagnostic: {}, publishDiagnostics: {} } }, workspaceFolders: null } });
   return socket;
 }
@@ -172,7 +166,6 @@ async function nativeDiesAfterInitialize() {
 }
 
 async function ts5StaysOnLanguageServer() {
-  // 이 레포의 TypeScript 5.9.3 을 워크스페이스 TypeScript 로 건다: 번들이 아닌 워크스페이스 tsserver 로 돌고 되돌림 표시가 없다.
   const base = join(root, "ts5");
   mkdirSync(join(base, "node_modules"), { recursive: true });
   symlinkSync(join(dirname(fileURLToPath(import.meta.url)), "../node_modules/typescript"), join(base, "node_modules/typescript"));

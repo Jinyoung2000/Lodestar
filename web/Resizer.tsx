@@ -12,15 +12,12 @@ export function Resizer({ axis, label, target, direction, min, max, onSize, hidd
     const startPos = axis === "x" ? event.clientX : event.clientY;
     const limit = max();
     const property = axis === "x" ? "width" : "height";
-    // React 가 준 인라인 값. 놓을 때 이 값으로 되돌리고 최종 크기는 onSize 가 store 를 거쳐 다시 그리게 한다.
     const before = el.style[property];
-    // flex 아이템이 flex-basis 로 크기를 받으면(예: `flex: 0 0 var(--pinned-w)`) 인라인 width 는 무시되므로 flex-basis 도 같이 쓴다.
     const basis = usesFlexBasis(el, axis);
     const basisBefore = el.style.flexBasis;
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
-      // 합성 PointerEvent(검증 창구)는 활성 포인터가 아니라 캡처가 거절된다. window 리스너로 끝까지 따라가므로 없어도 된다.
     }
     setActive(true);
     beginResize();
@@ -61,7 +58,6 @@ export function Resizer({ axis, label, target, direction, min, max, onSize, hidd
   return <div className={className ? `resizer ${className}` : "resizer"} role="separator" aria-label={label} aria-orientation={axis === "x" ? "vertical" : "horizontal"} data-axis={axis} data-active={active || undefined} hidden={hidden} onPointerDown={onPointerDown} onDoubleClick={() => onSize(null)} />;
 }
 
-// 대상이 flex 컨테이너의 아이템이고 flex-basis 가 auto 가 아니며 컨테이너 방향이 끄는 축과 같으면 true. 이때 크기는 flex-basis 가 정한다.
 function usesFlexBasis(el: HTMLElement, axis: "x" | "y"): boolean {
   const parent = el.parentElement;
   if (!parent) return false;

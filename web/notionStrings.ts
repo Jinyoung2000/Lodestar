@@ -1,4 +1,3 @@
-// NOTION: Notion 연동 화면의 UI 문구
 export const N = {
   pinToSidebar: "Pin to Sidebar",
   unpinFromSidebar: "Unpin from Sidebar",
@@ -9,10 +8,8 @@ export const N = {
   openInTab: "Open in Browser Tab",
   openInView: "Open in Notion View",
   openInNotion: "Open in Notion App",
-  // Browser 탭
   addPageToChat: "Add Page to Chat",
   addPageToChatNotion: "Add Notion Page to Chat",
-  // 입력창
   attachRow: "Notion Page...",
   attachNone: "No pinned or open Notion pages",
   attachOpenTab: "Open tab",
@@ -22,12 +19,10 @@ export const N = {
   added: "Notion page added to the message",
   needLogin: "Sign in to Notion in a Browser tab first",
   cantRead: "Could not read this Notion page. Open it in a Browser tab and try again.",
-  // 설정
   linkTargetLodestar: "Lodestar Notion view",
   linkTargetApp: "Lodestar Browser tab",
   linkTargetNotion: "Notion app",
   linkTargetBrowser: "Browser",
-  // NOTION2: 앱 안 Notion 화면
   viewName: "Notion",
   moreActions: "More actions",
   viewAria: "Notion page",
@@ -44,7 +39,6 @@ export const N = {
   truncated: "Notion returned only part of this page.",
   emptyPage: "This page is empty.",
   properties: "Properties",
-  // 페이지 전용 대화
   chatTitle: "Page chat",
   chatAria: "Chat about this Notion page",
   chatNew: "Start a new chat for this page",
@@ -59,7 +53,6 @@ export const N = {
   suggestPromptTasks: "List the action items on this page, with owners and dates if they are written down.",
   suggestPromptEdit: "Read this page and suggest edits to make it clearer. Show me the change as a diff before anything is written.",
   suggestPromptCode: "Find the decisions on this page that need code changes and start a work session draft for them.",
-  // Notion 쓰기 승인 카드
   writeApply: "Apply to Notion",
   writeReject: "Reject",
   writeRejectWithNote: "Reject with a note",

@@ -1,14 +1,9 @@
-// 0 부터, UTF-16 단위. endLine/endCol 은 포함하지 않는 끝이다.
 export type ReplaceRange = { startLine: number; startCol: number; endLine: number; endCol: number };
-// expected: 검색 때 본 원문(range 위치에 지금 있어야 하는 글)
 export type ReplaceEdit = { range: ReplaceRange; expected: string; replacement: string };
-// 워크스페이스 기준 상대 경로
 export type ReplaceFileRequest = { path: string; edits: ReplaceEdit[] };
 export type ReplaceFileResult = { path: string; status: "applied" | "conflict" | "outsideWorkspace" | "notFound" | "error"; applied: number; message?: string };
-// RPC "search.replace": { workspaceId: string; files: ReplaceFileRequest[] } -> { results: ReplaceFileResult[] }
 export type ReplaceQuery = { pattern: string; isRegex: boolean; matchCase: boolean; wholeWord: boolean };
 
-// 한 요청의 상한. 넘으면 서버가 요청 전체를 거절한다.
 export const REPLACE_MAX_FILES = 10_000;
 export const REPLACE_MAX_EDITS_PER_FILE = 50_000;
 
@@ -16,7 +11,6 @@ export function replacementFor(matchText: string, query: ReplaceQuery, replaceTe
   return replacementInContext(matchText, null, query, replaceText, preserveCase);
 }
 
-// replacementFor 에 3단계용 contextText 를 더한 것. 화면은 일치한 줄들의 전체 글을 알면 이쪽을 쓴다.
 export function replacementInContext(matchText: string, contextText: string | null, query: ReplaceQuery, replaceText: string, preserveCase: boolean): string {
   const replacePattern = patternFor(query, replaceText);
   for (const text of contextText === null ? [matchText] : [matchText, contextText]) {
@@ -31,7 +25,6 @@ export function replacementInContext(matchText: string, contextText: string | nu
   return replacePattern.pattern;
 }
 
-// 정규식을 매 일치마다 새로 만들면 수천 건 치환이 느려서 마지막 하나를 들고 있는다.
 let lastPattern: { key: string; pattern: ReplacePattern } | null = null;
 
 function patternFor(query: ReplaceQuery, replaceText: string): ReplacePattern {
@@ -48,12 +41,10 @@ function patternFor(query: ReplaceQuery, replaceText: string): ReplacePattern {
   return pattern;
 }
 
-// queryBuilder.ts 의 isMultiline: 패턴에 줄바꿈이 있거나, 정규식이면 \n \r \W 가 있다.
 function isMultilinePattern(query: ReplaceQuery) {
   return query.pattern.includes("\n") || (query.isRegex && isMultilineRegexSource(query.pattern));
 }
 
-// editor/common/model/textModelSearch.ts 의 isMultilineRegexSource
 function isMultilineRegexSource(source: string) {
   for (let i = 0; i < source.length; i++) {
     const code = source.charCodeAt(i);
@@ -120,7 +111,6 @@ export class ReplacePattern {
     return this.expression;
   }
 
-  // text 에서 첫 일치가 바뀔 글. 일치가 없으면 null.
   getReplaceString(text: string, preserveCase?: boolean): string | null {
     this.expression.lastIndex = 0;
     const match = this.expression.exec(text);
@@ -128,11 +118,9 @@ export class ReplacePattern {
     if (!this.hasParameters) return this.buildReplaceString(match, preserveCase);
     const replaced = this.replaceWithCaseOperations(text, this.expression, this.buildReplaceString(match, preserveCase));
     if (match[0] === text) return replaced;
-    // substr 의 두 번째 인자는 길이다(음수면 빈 글). substring 으로 바꾸면 인자가 뒤집혀 결과가 달라진다.
     return replaced.substr(match.index, match[0].length - (text.length - replaced.length));
   }
 
-  // \u \U \l \L 을 $N 앞에 붙인 것만 여기서 처리하고, 나머지 $N 은 String.replace 에 맡긴다.
   private replaceWithCaseOperations(text: string, regex: RegExp, replaceString: string): string {
     if (!/\\[uUlL]/.test(replaceString)) return text.replace(regex, replaceString);
     const firstMatch = regex.exec(text);
@@ -255,7 +243,6 @@ function between(value: number, from: number, to: number) {
 
 type RegExpOptions = { matchCase?: boolean; wholeWord?: boolean; multiline?: boolean; global?: boolean; unicode?: boolean };
 
-// base/common/strings.ts 의 createRegExp
 function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions): RegExp {
   if (!searchString) throw new Error("Cannot create regex from empty string");
   let source = searchString;
@@ -272,7 +259,6 @@ function createRegExp(searchString: string, isRegex: boolean, options: RegExpOpt
   return new RegExp(source, modifiers);
 }
 
-// base/common/search.ts 의 buildReplaceStringWithCasePreserved. 모두 대문자, 모두 소문자, 첫 글자 대문자, 하이픈이나 밑줄로 나뉜 단어별.
 export function buildReplaceStringWithCasePreserved(matches: string[] | null, pattern: string): string {
   if (!matches || matches[0] === "") return pattern;
   const containsHyphens = hasSeparator(matches, pattern, "-");

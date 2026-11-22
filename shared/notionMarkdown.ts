@@ -1,14 +1,11 @@
-// Notion 페이지 본문(페이지 안 스크립트가 만든 블록 트리)을 마크다운으로 바꾼다. DOM 을 건드리지 않아 단위 시험이 그대로 부른다.
 
 export type NotionBlock = {
-  // heading, text, bullet, number, todo, toggle, quote, callout, code, divider, table, image, link, page, database, embed. 모르는 종류는 글 단락으로 쓴다.
   type: string;
   text?: string;
   level?: number;
   checked?: boolean;
   lang?: string;
   href?: string;
-  // table 의 행(셀 글의 배열)
   rows?: string[][];
   children?: NotionBlock[];
 };
@@ -17,7 +14,6 @@ export const MAX_NOTION_CHARS = 20000;
 
 export type NotionPageText = { markdown: string; truncated: boolean; chars: number };
 
-// 제목은 첨부 머리에 따로 있어서 본문 마크다운에는 넣지 않는다. 길면 줄 경계에서 자르고 truncated 로 알린다(chars 는 자르기 전 길이).
 export function notionPageText(blocks: NotionBlock[], max = MAX_NOTION_CHARS): NotionPageText {
   const full = renderBlocks(blocks, "").join("\n").replace(/\n{3,}/g, "\n\n").trim();
   if (full.length <= max) return { markdown: full, truncated: false, chars: full.length };
@@ -26,7 +22,6 @@ export function notionPageText(blocks: NotionBlock[], max = MAX_NOTION_CHARS): N
   return { markdown: (lineEnd > max * 0.5 ? cut.slice(0, lineEnd) : cut).trimEnd(), truncated: true, chars: full.length };
 }
 
-// 블록 목록을 줄로. indent 는 부모 목록 항목 때문에 앞에 붙는 공백이다. 문단 사이에는 빈 줄을 두고, 이어지는 목록 항목은 붙인다.
 function renderBlocks(blocks: NotionBlock[], indent: string): string[] {
   const lines: string[] = [];
   let numbered = 0;
@@ -42,7 +37,6 @@ function renderBlocks(blocks: NotionBlock[], indent: string): string[] {
   return lines;
 }
 
-// 이어지는 같은 계열의 목록 항목은 빈 줄 없이 붙인다. 번호 목록과 글머리 목록은 서로 다른 목록이다.
 const listFamily = (type: string) => (type === "number" ? "number" : type === "bullet" || type === "todo" || type === "toggle" ? "bullet" : null);
 
 function renderBlock(block: NotionBlock, indent: string, index: number): string[] {

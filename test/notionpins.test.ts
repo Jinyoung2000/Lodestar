@@ -1,4 +1,3 @@
-// 사이드바 Notion 고정 목록의 데몬 저장소 시험. 임시 폴더에만 쓰고 Notion 에는 접속하지 않는다. 실행: npm test
 import { mkdtempSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

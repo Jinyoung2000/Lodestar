@@ -5,16 +5,12 @@ import { S } from "./strings";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
-// BOARDUX: 보드 머리의 Filter 메뉴(우선순위, 라벨)와 켜진 필터 칩 줄. 한 항목 안에서는 하나라도 맞으면(any of), 항목끼리는 모두 맞아야 한다.
-// 라벨은 소문자로 저장한다(카드 라벨은 대소문자가 달라도 한 라벨로 본다).
-
 export type Filters = { priorities: number[]; labels: string[] };
 
 export const hasFilters = (filters: Filters) => filters.priorities.length > 0 || filters.labels.length > 0;
 
 const toggle = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
 
-// 보드 안 라벨 전부(대소문자 무시로 한 번씩, 처음 본 표기, 이름순)
 export function boardLabels(board: Board): string[] {
   const seen = new Map<string, string>();
   for (const card of board.cards) for (const label of card.labels) if (!seen.has(label.toLowerCase())) seen.set(label.toLowerCase(), label);

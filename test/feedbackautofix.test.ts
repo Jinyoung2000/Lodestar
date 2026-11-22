@@ -1,6 +1,3 @@
-// FBFIX: 검사가 이 피드백 탓의 새 실패로 떨어지면 개선 세션에 후속 메시지를 보내 고치게 하는 흐름 단독 시험(임시 git 저장소와 임시 홈, 모델 호출 없음).
-// 가짜 개선 세션: send 가 불리면 정해 둔 동작을 worktree 에 하고, 잠시 뒤 턴이 끝난 것처럼 afterTurn 을 부른다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,7 +15,6 @@ const check = (name: string, ok: boolean, detail = "") => {
 const { FeedbackRunner } = await import("../server/feedback");
 type Runner = InstanceType<typeof FeedbackRunner>;
 
-// 피드백이 ui.txt 를 고쳤을 때만 시험 데이터를 본다(기준선에서는 통과 = 이 실패는 피드백 탓). ALWAYS 파일이 있으면 기준선에서도 같은 이유로 떨어진다.
 const VERIFY = `import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 const bad = readFileSync("test/data.txt", "utf8").trim() !== "ok";
 mkdirSync("dist", { recursive: true });
@@ -44,7 +40,6 @@ function sourceRepo(name: string, always: boolean) {
   return dir;
 }
 
-// fixes: 몇 번째 후속 메시지에서 고치는가(0 이면 끝내 안 고친다)
 function harness(src: string, fixesOn: number) {
   const notices: string[] = [];
   const sent: { prompt: string; display: string | undefined }[] = [];
@@ -53,11 +48,9 @@ function harness(src: string, fixesOn: number) {
   const agents = {
     adopt: () => undefined,
     send: async (_id: string, prompt: string, options: { display?: string } = {}) => {
-      // create 가 보내는 첫 요청은 worktree 가 정해지기 전이다. 자동 수정 메시지만 센다.
       if (!holder.worktree) return { queued: false };
       sent.push({ prompt, display: options.display });
       if (sent.length === fixesOn) writeFileSync(join(holder.worktree, "test/data.txt"), "ok");
-      // 이 파이프라인이 끝난 뒤에 턴이 끝난다.
       setTimeout(() => holder.runner?.afterTurn(holder.agentId), 100);
       return { queued: false };
     },
@@ -99,7 +92,6 @@ async function start(h: ReturnType<typeof harness>) {
   return feedback.id;
 }
 
-// 1. 새 실패 -> 개선 세션에 후속 메시지 -> 고쳐져서 반영
 {
   const src = sourceRepo("fix-once", false);
   const h = harness(src, 1);
@@ -117,7 +109,6 @@ async function start(h: ReturnType<typeof harness>) {
   check("main folder got the fix", readFileSync(join(src, "test/data.txt"), "utf8") === "ok" && readFileSync(join(src, "web/ui.txt"), "utf8") === "after\n");
 }
 
-// 2. 두 번 고치게 해도 안 고쳐지면 Not applied 로 두고 "Tried to fix 2 times"
 {
   const src = sourceRepo("fix-never", false);
   const h = harness(src, 0);
@@ -129,13 +120,11 @@ async function start(h: ReturnType<typeof harness>) {
   check("the failure says it tried to fix twice", (done.failure ?? "").split("\n")[0] === "Not applied: verify failed. Tried to fix 2 times", done.failure ?? "");
   check("the second message says it is the second", h.sent[1].prompt.includes("automatic fix 2 of 2"));
   check("main folder is untouched", readFileSync(join(src, "web/ui.txt"), "utf8") === "before\n");
-  // Retry 는 횟수를 0부터 다시 센다.
   h.runner.retryChecks(id);
   await until(h.runner, id, (s) => s === "failed");
   check("Retry starts counting again: two more follow-ups", h.sent.length === 4 && h.runner.get(id).fixAttempts === 2);
 }
 
-// 3. 두 번째 시도에서 고쳐지면 반영된다.
 {
   const src = sourceRepo("fix-twice", false);
   const h = harness(src, 2);
@@ -144,7 +133,6 @@ async function start(h: ReturnType<typeof harness>) {
   check("fixed on the second try: applied after two follow-ups", h.runner.get(id).status === "applied" && h.sent.length === 2);
 }
 
-// 4. 기준선에도 있던 실패만 남으면 후속 메시지 없이 무시하고 반영
 {
   const src = sourceRepo("pre-existing", true);
   const h = harness(src, 1);
@@ -155,7 +143,6 @@ async function start(h: ReturnType<typeof harness>) {
   check("the failure is marked ignored", done.checks.some((c) => c.ignored === 1));
 }
 
-// 5. 검사는 데몬 전체에서 한 번에 하나: 두 피드백이 동시에 검사에 들어가도 시작과 끝이 겹치지 않는다.
 {
   const src = sourceRepo("lane", false);
   const log = join(root, "lane.log");

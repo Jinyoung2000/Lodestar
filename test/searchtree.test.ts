@@ -1,4 +1,3 @@
-// 사이드바 Search 뷰의 결과 트리 모델(web/searchTree.ts), 기록(web/searchHistory.ts), 메뉴(web/searchMenu.ts), 바꾸기 규칙(web/searchReplaceModel.ts), 문구(web/searchViewStrings.ts), 입력 지연(web/searchViewModel.ts). 실행: npm test
 import { searchSettingsDefaults } from "./searchSettingsDefaults";
 import { SearchHistory } from "../web/searchHistory";
 import { appendPattern, fileTypePattern, hoverActions, searchMenuItems } from "../web/searchMenu";

@@ -13,10 +13,6 @@ import { S } from "./strings";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
-// 가운데 영역에 세션 격자 대신 보이는 Slack 화면. 사용자를 멘션한 메시지와 사용자가 참여한 스레드의 새 답글을 최신순으로 보이고(종류 탭: All, Mentions, Threads),
-// 항목을 누르면 이 화면 안의 오른쪽 상세 칸에 열린다(세션 오른쪽 패널은 쓰지 않는다).
-// 요청으로 판단된 멘션은 분석(대기, 분석 중, 완료, 실패)을 거쳐 보드 카드가 되고, 목록 줄에 그 상태와 카드로 가는 버튼이 있다.
-// 보낸 사람, 채널, 본문 노드에는 data-sensitive 를 달아 두었다 (화면 검증 때 이 속성으로 가린다).
 type Show = InboxShow;
 const KIND_TABS: InboxKindFilter[] = ["all", "mention", "thread"];
 
@@ -28,11 +24,9 @@ export function InboxView() {
   const listRef = useRef<HTMLDivElement>(null);
   const focusAfter = useRef<string | null>(null);
 
-  // 열린 항목은 필터와 맞지 않게 되어도(열면서 읽음 처리) 고른 동안 목록에 남는다.
   const rows = useMemo(() => inboxRows(inbox?.items ?? [], show, selectedId, kind), [inbox, show, selectedId, kind]);
   const counts = useMemo(() => inboxKindCounts(inbox?.items ?? [], show), [inbox, show]);
 
-  // 필터를 바꿀 때 열린 항목이 새 필터에 안 맞으면 목록에서 빠지므로 상세도 닫는다.
   const changeShow = (next: Show) => {
     setShow(next);
     const open = inbox?.items.find((i) => i.id === selectedId);
@@ -44,7 +38,6 @@ export function InboxView() {
     if (open && !(matchesShow(open, show) && matchesKind(open, next))) closeInboxItem();
   };
 
-  // 목록에서 ↑ ↓ 를 누르면 다음 항목을 열고 그 행으로 포커스를 옮긴다.
   const onListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     if (!(event.target as HTMLElement).classList.contains("inbox-row")) return;
@@ -54,7 +47,6 @@ export function InboxView() {
     focusAfter.current = next;
     openInboxItem(next);
   };
-  // 옛 행이 목록에서 빠지며 포커스를 잃으니, 목록이 바뀐 직후 새로 연 행에 포커스를 되돌린다.
   useLayoutEffect(() => {
     const id = focusAfter.current;
     if (!id) return;
@@ -73,7 +65,6 @@ export function InboxView() {
     );
   }
 
-  // Mark all read 는 지금 고른 종류 탭의 안 읽은 항목만 읽음으로 바꾼다.
   const unreadIds = inbox.items.filter((i) => !i.read && !i.archived && matchesKind(i, kind)).map((i) => i.id);
   const last = inbox.lastFetch;
   const empty = S.inboxEmptyOf(show, kind);
@@ -134,7 +125,6 @@ export function InboxView() {
   );
 }
 
-// 처음 쓰는 사람에게 보이는 안내. 자동 수집과 분석은 기본이 꺼져 있고, 켜기 전에 무엇이 비용을 쓰는지 알린다. 한 번이라도 가져오면 사라진다.
 function MentionSetupHint() {
   const neverFetched = useStore((s) => s.inbox?.lastFetch == null);
   const off = useStore((s) => !s.settings?.inboxIntervalMinutes || !s.settings?.autoAddRequests);
@@ -150,14 +140,11 @@ function MentionSetupHint() {
   );
 }
 
-// Slack MCP 서버가 연결돼 있지 않으면 가져오기가 실패한다. 상태를 다시 확인하고, 연결되면 곧바로 다시 가져온다.
-// 가져오기는 매번 새 CLI 프로세스로 하므로, 로그인을 마쳤다면 이 확인이 연결로 돌아오는 순간 다음 가져오기가 성공한다.
 function SlackConnection() {
   const slack = useStore((s) => s.meta?.mcp.find((m) => m.name === SLACK_SERVER_NAME) ?? null);
   const lastError = useStore((s) => s.inbox?.lastFetch?.error ?? null);
   const fetching = useStore((s) => s.inbox?.fetching ?? false);
   const busy = useStore((s) => !!s.mcpBusy[SLACK_SERVER_NAME]);
-  // 이 확인에서 꺼 둔(disabled) 서버는 가져오기에 영향이 없다. 가져오기는 매번 설정을 새로 읽는 별도 CLI 프로세스라서다.
   const down = slack !== null && slack.status !== "connected" && slack.status !== "disabled";
   const failedAsDown = lastError?.startsWith(SLACK_NOT_CONNECTED_PREFIX) ?? false;
   if (!down && !failedAsDown) return null;
@@ -182,7 +169,6 @@ function SlackConnection() {
   );
 }
 
-// 항목의 카드. cardId 의 카드가 있으면 그것, 없으면 같은 Slack 링크를 가진 카드 (이 기능 이전에 수동으로 만든 카드).
 export function mentionCardOf(board: Board | null, item: InboxItem): BoardCard | null {
   if (!board) return null;
   return board.cards.find((c) => c.id === item.cardId) ?? (item.permalink ? board.cards.find((c) => c.links.some((l) => l.url === item.permalink)) : undefined) ?? null;
@@ -194,7 +180,6 @@ export function useMentionStatus(item: InboxItem) {
   return { board, card, status: mentionStatus(item, !!card) };
 }
 
-// 상태 칩. 분석이 실패했으면 이유를 툴팁으로 달고 칩을 하나 더 보인다.
 export function MentionChips({ item, status }: { item: InboxItem; status: MentionStatus }) {
   const analysis = item.analysis;
   return (
@@ -213,7 +198,6 @@ export function MentionChips({ item, status }: { item: InboxItem; status: Mentio
   );
 }
 
-// 카드가 있으면 카드 열기와 Not a request, 없으면 Add to Board. 대기 중이거나 분석 중이면 Not a request 로 멈출 수 있다.
 export function MentionActions({ item, card, status, board }: { item: InboxItem; card: BoardCard | null; status: MentionStatus; board: Board | null }) {
   const working = status === "queued" || status === "analyzing";
   return (

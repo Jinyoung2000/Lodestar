@@ -1,6 +1,3 @@
-// FIX6B: hunk 단위 stage 와 unstage(shared/hunkPatch.ts, server/scm.ts)를 /tmp 임시 저장소에서 진짜 git 으로 시험한다.
-// 줄바꿈 없는 파일 끝, 새 파일, 지운 파일, 이름 바뀐 파일, 공백과 한글 경로, 파일이 바뀐 뒤의 오래된 hunk 를 확인한다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -45,7 +42,6 @@ const indexText = (dir: string, rel: string) => run(dir, "show", `:${rel}`);
 const cached = (dir: string) => run(dir, "diff", "--cached", "--no-color", "-U0");
 
 try {
-  // --- 순수 함수: git diff 출력 나누기 ---
   {
     const diff = ["diff --git a/f b/f", "index 1..2 100644", "--- a/f", "+++ b/f", "@@ -2 +2 @@", "-b", "+B", "@@ -9,0 +10,2 @@ ctx", "+x", "+y", "@@ -20,2 +0,0 @@", "-p", "-q", ""].join("\n");
     const parsed = hunkPatch.parseGitDiff(diff);
@@ -64,7 +60,6 @@ try {
     expect(patch.startsWith("diff --git a/a b.txt b/a b.txt\n--- a/a b.txt\n+++ b/a b.txt\n@@ -2 +2 @@\n"), "patch header");
   }
 
-  // --- 한 파일의 여러 hunk 를 하나씩 stage, unstage ---
   {
     const dir = repo({ "f.txt": lines(30) });
     const edited = lines(30)
@@ -75,23 +70,19 @@ try {
     const before = await scm.fileDiff(dir, "f.txt", "changes");
     expect(before.hunks.length === 3, `three hunks ${before.hunks.length}`);
     expect(before.original === lines(30) && before.modified === edited, "both sides");
-    // 가운데 hunk(15 뒤에 추가)만 stage
     await scm.stageHunk(dir, "f.txt", "changes", 1, before.hunks[1].hash);
     expect(cached(dir).includes("+added after 15") && !cached(dir).includes("line 3 changed") && !cached(dir).includes("-line 25"), `only middle staged: ${cached(dir)}`);
     const after = await scm.fileDiff(dir, "f.txt", "changes");
     expect(after.hunks.length === 2, `two left ${after.hunks.length}`);
     expect(indexText(dir, "f.txt") === lines(30).replace("line 15\n", "line 15\nadded after 15\n"), "index content has only the middle hunk");
-    // 처음 hunk 도 stage 하면 staged 에 두 개
     await scm.stageHunk(dir, "f.txt", "changes", 0, after.hunks[0].hash);
     const staged = await scm.fileDiff(dir, "f.txt", "staged");
     expect(staged.hunks.length === 2 && staged.original === lines(30), `staged hunks ${staged.hunks.length}`);
-    // staged 의 첫 hunk 를 unstage 하면 다시 changes 로
     await scm.stageHunk(dir, "f.txt", "staged", 0, staged.hunks[0].hash);
     const staged2 = await scm.fileDiff(dir, "f.txt", "staged");
     expect(staged2.hunks.length === 1 && cached(dir).includes("+added after 15") && !cached(dir).includes("line 3 changed"), "one unstaged");
     const changes2 = await scm.fileDiff(dir, "f.txt", "changes");
     expect(changes2.hunks.length === 2, `back in changes ${changes2.hunks.length}`);
-    // 남은 것도 모두 stage 하면 작업 트리와 인덱스가 같다
     for (let i = 0; i < 2; i++) {
       const d = await scm.fileDiff(dir, "f.txt", "changes");
       await scm.stageHunk(dir, "f.txt", "changes", 0, d.hunks[0].hash);
@@ -99,7 +90,6 @@ try {
     expect(indexText(dir, "f.txt") === edited && run(dir, "diff", "--stat") === "", "all staged equals worktree");
   }
 
-  // --- 오래된 hunk: 파일이 바뀐 뒤에는 거절 ---
   {
     const dir = repo({ "f.txt": lines(10) });
     write(dir, "f.txt", lines(10).replace("line 2\n", "two\n"));
@@ -128,32 +118,26 @@ try {
     expect(!!message && /changed since/.test(message), `stale discard refused: ${message}`);
   }
 
-  // --- 줄바꿈 없는 파일 끝 ---
   {
-    // 끝 줄 내용이 바뀜: 둘 다 줄바꿈 없음
     const dir = repo({ "a.txt": "one\ntwo", "b.txt": "one\ntwo", "c.txt": "one\ntwo\n" });
     write(dir, "a.txt", "one\nTWO");
     const a = await scm.fileDiff(dir, "a.txt", "changes");
     expect(a.hunks.length === 1, "a has a hunk");
     await scm.stageHunk(dir, "a.txt", "changes", 0, a.hunks[0].hash);
     expect(indexText(dir, "a.txt") === "one\nTWO", `no-eol content kept: ${JSON.stringify(indexText(dir, "a.txt"))}`);
-    // 줄바꿈만 추가
     write(dir, "b.txt", "one\ntwo\n");
     const b = await scm.fileDiff(dir, "b.txt", "changes");
     await scm.stageHunk(dir, "b.txt", "changes", 0, b.hunks[0].hash);
     expect(indexText(dir, "b.txt") === "one\ntwo\n", "newline added");
-    // 줄바꿈 제거
     write(dir, "c.txt", "one\ntwo");
     const c = await scm.fileDiff(dir, "c.txt", "changes");
     await scm.stageHunk(dir, "c.txt", "changes", 0, c.hunks[0].hash);
     expect(indexText(dir, "c.txt") === "one\ntwo", "newline removed");
-    // unstage 하면 HEAD 로 돌아간다
     const cs = await scm.fileDiff(dir, "c.txt", "staged");
     await scm.stageHunk(dir, "c.txt", "staged", 0, cs.hunks[0].hash);
     expect(indexText(dir, "c.txt") === "one\ntwo\n" && cached(dir).includes("a.txt"), "unstaged no-eol change");
   }
 
-  // --- 새 파일 ---
   {
     const dir = repo({ "keep.txt": "k\n" });
     write(dir, "new file.txt", "x\ny\n");
@@ -173,7 +157,6 @@ try {
     await scm.stageHunk(dir, "한글/새 파일.txt", "changes", 0, k.hunks[0].hash);
     expect(indexText(dir, "한글/새 파일.txt") === "안녕\n", "korean path with space");
     expect((await scm.fileDiff(dir, "empty.txt", "changes")).hunks.length === 0, "empty new file has no hunk");
-    // 새 파일을 unstage
     const staged = await scm.fileDiff(dir, "new file.txt", "staged");
     expect(staged.hunks.length === 1 && staged.original === null, "staged new file");
     await scm.stageHunk(dir, "new file.txt", "staged", 0, staged.hunks[0].hash);
@@ -181,7 +164,6 @@ try {
     expect(/\?\? .*new file\.txt/.test(run(dir, "status", "--porcelain")), "file still on disk, untracked again");
   }
 
-  // --- git add -N 으로 의도만 등록한 새 파일도 hunk 로 stage 된다 ---
   {
     const dir = repo({ "keep.txt": "k\n" });
     write(dir, "intent.txt", "p\nq\n");
@@ -192,7 +174,6 @@ try {
     expect(indexText(dir, "intent.txt") === "p\nq\n", "intent-to-add file staged by hunk");
   }
 
-  // --- 지운 파일 ---
   {
     const dir = repo({ "gone.txt": lines(4), "edit.txt": lines(4) });
     rmSync(join(dir, "gone.txt"));
@@ -200,14 +181,12 @@ try {
     expect(d.hunks.length === 1 && d.modified === null && d.original === lines(4), "deleted file diff");
     await scm.stageHunk(dir, "gone.txt", "changes", 0, d.hunks[0].hash);
     expect(!run(dir, "ls-files").includes("gone.txt") && run(dir, "status", "--porcelain").includes("D  gone.txt"), "deletion staged");
-    // unstage 하면 인덱스에 다시 생긴다
     const s = await scm.fileDiff(dir, "gone.txt", "staged");
     expect(s.hunks.length === 1 && s.modified === null, "staged deletion diff");
     await scm.stageHunk(dir, "gone.txt", "staged", 0, s.hunks[0].hash);
     expect(run(dir, "ls-files").includes("gone.txt") && run(dir, "status", "--porcelain").trim() === "D gone.txt", `deletion unstaged: ${run(dir, "status", "--porcelain")}`);
   }
 
-  // --- 이름 바뀐 파일 ---
   {
     const dir = repo({ "old.txt": lines(30) });
     run(dir, "mv", "old.txt", "renamed.txt");
@@ -216,7 +195,6 @@ try {
     const staged = await scm.fileDiff(dir, "renamed.txt", "staged");
     expect(staged.original === lines(30), "original comes from the old name");
     expect(staged.hunks.length === 2, `rename carries two hunks ${staged.hunks.length}`);
-    // 첫 hunk 만 unstage: 이름 바뀜은 유지되고 내용만 일부 되돌아간다
     await scm.stageHunk(dir, "renamed.txt", "staged", 0, staged.hunks[0].hash);
     expect(run(dir, "ls-files").trim() === "renamed.txt", "still renamed in the index");
     expect(indexText(dir, "renamed.txt") === lines(30).replace("line 27\n", "line 27 edit\n"), "only the second hunk stays staged");
@@ -227,7 +205,6 @@ try {
     expect(indexText(dir, "renamed.txt") === lines(30).replace("line 3\n", "line 3 edit\n").replace("line 27\n", "line 27 edit\n"), "re-staged");
   }
 
-  // --- CRLF 파일 ---
   {
     const crlf = ["a", "b", "c", "d", "e", "f", "g", "h"].map((l) => `${l}\r\n`).join("");
     const dir = repo({ "w.txt": crlf });
@@ -239,7 +216,6 @@ try {
     expect(indexText(dir, "w.txt") === crlf.replace("g\r\n", "G\r\n"), "crlf staged exactly");
   }
 
-  // --- 바이너리와 경로 문자 ---
   {
     const dir = repo({ "img.bin": "a\u0000b" });
     write(dir, "img.bin", "a\u0000c");
@@ -250,7 +226,6 @@ try {
     expect(!!message && /whole file/.test(message), `quoted path refused: ${message}`);
   }
 
-  // --- 항목이 없는 파일, 커밋 없는 저장소 ---
   {
     const dir = repo({ "a.txt": "a\n" });
     const none = await scm.fileDiff(dir, "a.txt", "staged");

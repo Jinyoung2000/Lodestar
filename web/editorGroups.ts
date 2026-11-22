@@ -10,14 +10,12 @@ export function groupIdsOf(layout: EditorLayout): string[] {
   return layout.type === "group" ? [layout.id] : layout.children.flatMap(groupIdsOf);
 }
 
-// 화면 순서(왼쪽 위에서 오른쪽 아래)로 이전, 다음 그룹. 끝에서 끝으로 이어지지는 않는다.
 export function adjacentGroup(layout: EditorLayout, id: string, step: 1 | -1): string | null {
   const ids = groupIdsOf(layout);
   const index = ids.indexOf(id);
   return index === -1 ? null : (ids[index + step] ?? null);
 }
 
-// target 그룹을 dir 방향으로 나누고 새 그룹을 뒤(오른쪽, 아래)에 둔다. before 면 앞(왼쪽, 위)에 둔다. 부모가 같은 방향이면 형제로 끼워 넣어 같은 줄이 늘어난다.
 export function splitGroup(layout: EditorLayout, target: string, dir: "row" | "column", newId: string, splitId: string, before = false): EditorLayout {
   const fresh: EditorLayout = { type: "group", id: newId };
   if (layout.type === "group") {
@@ -35,7 +33,6 @@ export function splitGroup(layout: EditorLayout, target: string, dir: "row" | "c
   return { ...layout, children: layout.children.map((c) => splitGroup(c, target, dir, newId, splitId, before)) };
 }
 
-// 그룹을 지운다. 그 몫의 크기는 이웃이 가져가고, 자식이 하나 남은 분할은 그 자식으로 접는다. 마지막 그룹은 지우지 않는다.
 export function removeGroup(layout: EditorLayout, id: string): EditorLayout {
   if (layout.type === "group") return layout;
   const index = layout.children.findIndex((c) => c.type === "group" && c.id === id);
@@ -52,7 +49,6 @@ export function removeGroup(layout: EditorLayout, id: string): EditorLayout {
   return flat;
 }
 
-// 같은 방향의 분할이 겹쳐 있으면 하나로 편다(자식 분할의 크기는 부모 몫만큼 줄여 이어 붙인다).
 export function normalizeLayout(layout: EditorLayout): EditorLayout {
   if (layout.type === "group") return layout;
   const children: EditorLayout[] = [];
@@ -82,8 +78,6 @@ export function hasGroup(layout: EditorLayout, id: string): boolean {
   return groupIdsOf(layout).includes(id);
 }
 
-// --- 탭 배치 ---
-
 export type GroupedTab = { key: string; group?: string };
 export type TabState<T extends GroupedTab> = TabSlots<T>;
 
@@ -91,8 +85,6 @@ export const groupOf = (tab: GroupedTab | undefined) => tab?.group ?? MAIN_GROUP
 export const mainTabs = <T extends GroupedTab>(tabs: readonly T[]) => tabs.filter((t) => !t.group);
 export const tabsOfGroup = <T extends GroupedTab>(tabs: readonly T[], group: string) => tabs.filter((t) => groupOf(t) === group);
 
-// 탭을 다른 그룹(또는 같은 그룹 안 다른 자리)으로 옮긴다. filesIndex 는 main 그룹 탭 목록 기준이다.
-// 반환하는 tabs 는 main 그룹 탭이 앞, 나머지가 뒤다(그룹 사이의 전체 순서는 뜻이 없고 그룹 안 상대 순서만 뜻이 있다).
 export function moveToGroup<T extends GroupedTab>(state: TabState<T>, key: string, group: string, beforeKey: string | null): TabState<T> {
   const tab = state.tabs.find((t) => t.key === key);
   if (!tab) return state;
@@ -120,7 +112,6 @@ function withoutGroup<T extends GroupedTab>(tab: T): T {
   return rest as T;
 }
 
-// 그룹 안에서 키 하나를 닫을 때 다음에 활성이 될 탭: 닫힌 자리의 오른쪽, 없으면 왼쪽. 그룹에 남은 게 없으면 null.
 export function neighborAfterClose(groupKeys: readonly string[], closedKey: string): string | null {
   const index = groupKeys.indexOf(closedKey);
   const rest = groupKeys.filter((k) => k !== closedKey);

@@ -31,11 +31,8 @@ export function Palette({
   count?: string | null;
   customButton?: { label: string; onClick: () => void } | null;
   title?: string | null;
-  // 기다리는 중이면 위에 진행 막대를 보인다(기기 요청처럼 목록이 아직 바뀔 수 있을 때)
   busy?: boolean;
-  // 닫힐 때(Esc, 바깥 누르기) 할 일. 없으면 overlay 를 비운다.
   onClose?: () => void;
-  // 목록이 listbox 일 때: 입력이 combobox 로 그 목록과 활성 행을 가리킨다(낭독기가 고른 행을 읽는다)
   listboxId?: string;
   activeOptionId?: string;
   dialogClassName?: string;

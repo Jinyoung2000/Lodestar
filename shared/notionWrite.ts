@@ -1,5 +1,3 @@
-// Notion 에 쓰는 요청(페이지 고치기, 페이지나 데이터베이스 행 만들기)의 미리보기와 검증. 순수 함수라 데몬, 화면, 시험이 같이 쓴다.
-// 에이전트는 Notion 쓰기 도구를 직접 못 부르고, 이 요청을 만드는 제안 도구만 부른다. 사용자가 이 미리보기를 보고 승인해야 데몬이 같은 인자로 Notion 도구를 한 번 부른다.
 
 import type { NotionPageData } from "./notionFetch";
 
@@ -7,7 +5,6 @@ export type UpdateCommand = "update_properties" | "update_content" | "replace_co
 
 export type ContentUpdate = { old_str: string; new_str: string; replace_all_matches?: boolean };
 
-// notion-update-page 인자 중 제안 도구가 받는 부분. 승인한 값이 그대로 Notion 도구에 간다.
 export type NotionUpdateArgs = {
   page_id: string;
   command: UpdateCommand;
@@ -23,24 +20,17 @@ export type NotionCreateParent = { type: "page_id"; page_id: string } | { type: 
 
 export type NotionCreatePage = { properties?: Record<string, string | number | string[] | null>; content?: string; icon?: string };
 
-// notion-create-pages 인자 중 제안 도구가 받는 부분
 export type NotionCreateArgs = { parent?: NotionCreateParent; creation_mode?: "draft"; pages: NotionCreatePage[] };
 
 export type PropertyChange = { name: string; before: string | null; after: string | null };
 
-// 승인 카드에 보이는 미리보기. 데몬이 만들어 타임라인의 승인 항목에 싣는다.
 export type NotionWritePreview = {
   kind: "update" | "create";
-  // 카드 머리 문구에 쓰는 한 줄 요약
   summary: string;
-  // 바뀌는 페이지(만드는 경우는 부모). 모르면 null.
   target: { title: string; url: string | null } | null;
-  // 본문 변경. 있으면 before 에서 after 로 바뀐다. 만드는 경우 before 는 빈 글이다.
   diff: { before: string; after: string; exact: boolean } | null;
   properties: PropertyChange[];
-  // 이 변경을 승인했을 때 일어나는 일에 대한 경고 (바뀔 글을 페이지에서 못 찾음 등)
   warnings: string[];
-  // 새로 만드는 페이지의 수와 제목들 (만들기에서만)
   creates?: { title: string }[];
 };
 
@@ -51,7 +41,6 @@ const UPDATE_COMMANDS: readonly string[] = ["update_properties", "update_content
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const str = (value: unknown) => (typeof value === "string" ? value : "");
 
-// 모델이 준 인자를 제안 도구가 받는 모양으로 거른다. 모르는 필드는 버리므로, 승인 카드에 안 보인 필드가 Notion 으로 새어 나가지 않는다.
 export function cleanUpdateArgs(raw: unknown): { ok: true; args: NotionUpdateArgs } | { ok: false; error: string } {
   if (!isObject(raw)) return { ok: false, error: "Arguments must be an object" };
   const page_id = str(raw.page_id).trim();
@@ -129,7 +118,6 @@ export function cleanCreateArgs(raw: unknown): { ok: true; args: NotionCreateArg
 
 const show = (value: unknown): string | null => (value === null || value === undefined ? null : typeof value === "string" ? value : Array.isArray(value) ? value.map(String).join(", ") : String(value));
 
-// 고치는 요청의 미리보기. current 는 승인을 묻는 지금 읽은 페이지(못 읽었으면 null).
 export function previewUpdate(args: NotionUpdateArgs, current: NotionPageData | null): PreviewResult {
   const warnings: string[] = [];
   const target = current ? { title: current.title, url: current.url } : null;
@@ -161,7 +149,6 @@ export function previewUpdate(args: NotionUpdateArgs, current: NotionPageData | 
   return { ok: true, preview: { kind: "update", summary: what, target, diff, properties, warnings } };
 }
 
-// content_updates 를 차례로 적용한 글. 각 old_str 은 한 번만 나와야 하고(replace_all_matches 가 아니면), 못 찾으면 이유를 돌려준다.
 export function applyUpdates(text: string, updates: ContentUpdate[]): { ok: true; text: string } | { ok: false; reason: string } {
   let result = text;
   for (const [index, update] of updates.entries()) {
@@ -190,13 +177,11 @@ export function previewCreate(args: NotionCreateArgs, parentTitle: string | null
       diff: content ? { before: "", after: content, exact: true } : null,
       properties,
       warnings: [],
-      // 페이지 하나는 속성 표와 본문이 이미 제목을 보이므로 여러 개일 때만 목록을 쓴다
       ...(args.pages.length > 1 ? { creates } : {}),
     },
   };
 }
 
-// 모델에게 돌려주는 거절 글. 사용자가 이유를 적었으면 그대로 싣는다.
 export function rejectionMessage(feedback?: string): string {
   const base = "The user rejected this Notion change, so nothing was sent to Notion. Ask what to change instead of retrying the same edit.";
   const text = feedback?.trim();

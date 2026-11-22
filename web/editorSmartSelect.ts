@@ -48,7 +48,6 @@ function move(list: Span[], index: number, forward: boolean): number {
 const contains = (outer: Span, inner: Span) => outer.from <= inner.from && inner.to <= outer.to;
 const same = (a: Span, b: Span) => a.from === b.from && a.to === b.to;
 
-// 커서 위치를 품은 범위들을 안쪽에서 바깥쪽 순서로, 서로 포함하는 사슬로 돌려준다.
 export function smartSelectCandidates(state: EditorState, pos: number): Span[] {
   const doc = state.doc;
   const found: Span[] = [];
@@ -123,7 +122,6 @@ function addSubword(state: EditorState, pos: number, out: Span[]) {
   if (start < end) out.push({ from: word.from + start, to: word.from + end });
 }
 
-// 커서를 감싼 괄호 쌍들: 괄호 안, 괄호 포함, 여러 줄이면 괄호가 시작한 줄의 앞부분까지 넓힌 두 단계
 function addBrackets(state: EditorState, pos: number, out: Span[]) {
   let at = pos;
   for (let level = 0; level < 20; level++) {
@@ -157,7 +155,6 @@ function addBracketLeading(state: EditorState, outer: Span, out: Span[]) {
 
 const BRACKET_PAIRS: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
 
-// 구문 트리의 조상 노드들과, 괄호로 감싼 노드의 괄호 안쪽 범위
 function addSyntax(state: EditorState, pos: number, out: Span[]) {
   const tree = syntaxTree(state);
   for (const side of [-1, 1] as const) {

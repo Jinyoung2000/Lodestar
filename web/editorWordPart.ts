@@ -23,7 +23,6 @@ const isDigit = (code: number) => code >= 48 && code <= 57;
 
 type Pos = { line: number; col: number };
 
-// 단어 부분 왼쪽 이동의 도착 오프셋: 후보 셋 중 커서에 가장 가까운 것
 export function wordPartLeft(doc: Text, offset: number): number {
   const pos = posOf(doc, offset);
   const candidates = [moveWordLeft(doc, pos, 0), moveWordLeft(doc, pos, 2), partLeft(doc, pos)];
@@ -45,7 +44,6 @@ export function deleteWordPartLeftRange(doc: Text, offset: number): { from: numb
   while (lastNonSpace >= 0 && (text.charCodeAt(lastNonSpace) === 32 || text.charCodeAt(lastNonSpace) === 9)) lastNonSpace--;
   const spaces: Pos | null = lastNonSpace + 1 < index ? { line: pos.line, col: lastNonSpace + 2 } : null;
   const candidates = [spaces ?? deleteWordLeft(doc, pos, 0), spaces ?? deleteWordLeft(doc, pos, 2), partLeft(doc, pos)];
-  // 지울 범위는 모두 커서에서 왼쪽으로 뻗는다. 시작이 커서에 가장 가까운 것이 가장 짧다.
   const start = candidates.reduce((best, next) => (before(best, next) ? next : best));
   return { from: offsetOf(doc, start), to: offset };
 }
@@ -127,7 +125,6 @@ function nextWordOnLine(text: string, col: number): Word | null {
   return wordType !== WORD_NONE ? { start: findStartOfWord(text, wordType, length - 1), end: length, wordType, nextCharClass: WHITESPACE } : null;
 }
 
-// 낱말 시작(type 0)과 낱말 끝(type 2)으로 가는 왼쪽 이동
 function moveWordLeft(doc: Text, pos: Pos, type: 0 | 2): Pos {
   let { line, col } = pos;
   if (col === 1 && line > 1) {

@@ -1,5 +1,3 @@
-// ⌃Tab 세션 전환 창의 목록, 첫 선택, 키 상태 기계(web/sessionSwitcherModel.ts)와 ⌃Tab 의 맥락별 분기(web/keymap.ts)를 DOM 없이 확인한다.
-// 실행: npm test
 import type { Agent, Workspace } from "../shared/protocol";
 import { BINDINGS, INTERCEPT_STROKES, stepKey, type KeyContext } from "../web/keymap";
 import { SESSION_SWITCHER_MAX, openSwitcher, pushRecent, reduceSwitcher, switcherSessions, type SwitcherEvent, type SwitcherState } from "../web/sessionSwitcherModel";
@@ -44,10 +42,8 @@ test("목록: 한 번도 연 적 없는 세션은 기록 뒤에 최근 활동(up
   const many = Array.from({ length: 20 }, (_, i) => agent(`s${String(i).padStart(2, "0")}`, { updatedAt: `2026-10-${String(i + 1).padStart(2, "0")}T00:00:00Z` }));
   const rows = rowsOf(many, ["s03", "s01"], "s05", ["s07"]);
   expect(ids(rows) === "s05,s03,s01,s07,s19,s18,s17,s16,s15,s14,s13,s12", ids(rows));
-  // 기록이 하나도 없어도(앱을 새로 깔았을 때) 최근 활동 순으로 보인다
   const fresh = rowsOf(many.slice(0, 4), [], null);
   expect(ids(fresh) === "s03,s02,s01,s00", ids(fresh));
-  // 채울 때도 보관, 피드백 개선 세션은 빠진다
   const skipped = rowsOf([agent("a", { updatedAt: "2026-10-01" }), agent("b", { updatedAt: "2026-10-03", done: true }), agent("c", { updatedAt: "2026-10-04", feedbackId: "f1" }), agent("d", { updatedAt: "2026-10-02" })], ["a"], "a");
   expect(ids(skipped) === "a,d", ids(skipped));
   return "채움";

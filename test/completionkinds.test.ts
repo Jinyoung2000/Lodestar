@@ -1,4 +1,3 @@
-// 제안 목록의 종류별 아이콘 이름(web/completionResolve.ts lspTypeOf): LSP CompletionItemKind 마다 다른 이름이 나와야 아이콘과 색이 갈린다.
 import { kindFromDetail, lspTypeOf } from "../web/completionResolve";
 
 let failed = 0;

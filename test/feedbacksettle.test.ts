@@ -1,6 +1,3 @@
-// 데몬 시작 때 재시작 대기 정리, 재시작 쿨다운 미룸, 다시 검사 뒤 요약 단독 시험(임시 git 저장소와 임시 홈, 모델 호출 없음).
-// 사고(2026-10-19): 코디네이터가 daemon.restartIfIdle 로 재시작했는데 awaitingRestart 가 그대로 남았다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -49,7 +46,6 @@ const save = (runner: Runner, id: string, patch: Record<string, unknown>) => {
 const secs = (ms: number) => new Date(ms);
 const touch = (file: string, atMs: number) => utimesSync(file, secs(atMs), secs(atMs));
 
-// 개선 세션이 server/x.ts 를 v2 로 고쳤고, 검사는 통과해 재시작을 기다리는 상태를 디스크에 만든다.
 async function awaitingFeedback(name: string) {
   const src = sourceRepo(name, { "server/x.ts": "v1\n", "web/ui.txt": "before\n" });
   const { runner } = harness(src.dir);
@@ -59,7 +55,6 @@ async function awaitingFeedback(name: string) {
   return { src, id: feedback.id, worktree: feedback.worktree };
 }
 
-// 새 데몬(= 새 FeedbackRunner)이 뜬 것처럼 디스크에서 다시 읽고 정리를 돈다.
 async function restartedWith(src: string, id: string, daemon: Deps["daemon"], extra: Partial<Deps> = {}) {
   const { runner, notices } = harness(src, { daemon, ...extra });
   await runner.settleOnStart();
@@ -71,7 +66,6 @@ const START = 1_800_000_000_000;
 const home = process.env.AGENT_NAV_HOME!;
 const retire = (src: string, id: string) => save(harness(src).runner, id, { status: "dismissed" });
 
-// 1. 변경이 본 작업 폴더에 그대로 들어 있고 번들이 그 뒤에 만들어졌으면, 어떤 길로 재시작했든 applied
 {
   const { src, id } = await awaitingFeedback("landed");
   src.put("server/x.ts", "v2\n");
@@ -87,7 +81,6 @@ const retire = (src: string, id: string) => save(harness(src).runner, id, { stat
   retire(src.dir, id);
 }
 
-// 2. 번들이 변경보다 먼저 만들어졌으면(옛 번들로 뜸) 그대로 기다린다
 {
   const { src, id } = await awaitingFeedback("oldbundle");
   src.put("server/x.ts", "v2\n");
@@ -98,7 +91,6 @@ const retire = (src: string, id: string) => save(harness(src).runner, id, { stat
   retire(src.dir, id);
 }
 
-// 3. 번들이 데몬 시작보다 늦게 바뀌었으면 이 프로세스가 읽은 번들이 아니다
 {
   const { src, id } = await awaitingFeedback("rebuilt");
   src.put("server/x.ts", "v2\n");
@@ -108,7 +100,6 @@ const retire = (src: string, id: string) => save(harness(src).runner, id, { stat
   retire(src.dir, id);
 }
 
-// 4. 본 작업 폴더의 파일이 피드백의 것과 다르면(들어가지 않았거나 다시 바뀜) 그대로 기다린다
 {
   const { src, id } = await awaitingFeedback("different");
   src.put("server/x.ts", "v3 someone else\n");
@@ -122,7 +113,6 @@ const retire = (src: string, id: string) => save(harness(src).runner, id, { stat
   retire(src2.dir, id2);
 }
 
-// 5. 소스로 뜬 데몬(tsx): 변경이 데몬 시작보다 앞서야 한다
 {
   const early = await awaitingFeedback("tsx-early");
   early.src.put("server/x.ts", "v2\n");
@@ -136,7 +126,6 @@ const retire = (src: string, id: string) => save(harness(src).runner, id, { stat
   retire(late.src.dir, late.id);
 }
 
-// 6. 반영이 manifest 를 쓴 뒤 상태를 바꾸기 전에 데몬이 끊긴 경우: manifest.appliedAt 으로 판단한다
 {
   const { src, id } = await awaitingFeedback("manifest");
   const manifestFile = join(home, "feedback", id, "manifest.json");
@@ -148,7 +137,6 @@ const retire = (src: string, id: string) => save(harness(src).runner, id, { stat
   retire(src.dir, id);
 }
 
-// 7. 되돌린 뒤 재시작 대기(reverted + restartPending): 되돌린 시각이 데몬 시작보다 앞서면 이미 되돌린 빌드로 떴다
 {
   const { src, id } = await awaitingFeedback("reverted");
   save(harness(src.dir).runner, id, { status: "reverted", restartPending: true, needsRestart: true, updatedAt: new Date(START - 5_000).toISOString() });
@@ -160,7 +148,6 @@ const retire = (src: string, id: string) => save(harness(src).runner, id, { stat
   retire(src.dir, id);
 }
 
-// 8. 데몬 빌드 정보가 없으면 아무것도 바꾸지 않는다
 {
   const { src, id } = await awaitingFeedback("nobuild");
   src.put("server/x.ts", "v2\n");
@@ -170,7 +157,6 @@ const retire = (src: string, id: string) => save(harness(src).runner, id, { stat
   retire(src.dir, id);
 }
 
-// 9. 재시작 요청: 쿨다운에 걸리면 재시작 대기 표시를 유지하고, 바로 했으면 지운다
 {
   const { src, id } = await awaitingFeedback("restart-deferred");
   let calls = 0;
@@ -190,7 +176,6 @@ const retire = (src: string, id: string) => save(harness(src).runner, id, { stat
   retire(now.src.dir, now.id);
 }
 
-// 10. 다시 검사로 반영될 때 요약은 자동 수정 턴의 답이 아니라 첫 턴의 답이다(2744382d)
 {
   const verify = `import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 if (readFileSync("web/ui.txt", "utf8") === "after\\n" && readFileSync("test/data.txt", "utf8").trim() !== "ok") {

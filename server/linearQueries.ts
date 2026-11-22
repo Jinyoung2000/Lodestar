@@ -29,7 +29,6 @@ export const UPDATE_ISSUE_MUTATION = `mutation LodestarIssueUpdate($id: String!,
   issueUpdate(id: $id, input: $input) { success issue { ${ISSUE_FIELDS} } }
 }`;
 
-// 메타는 중첩 대신 평평한 질의 넷으로 읽는다(복잡도는 중첩 연결의 곱으로 늘어난다). 모두 커서로 끝까지 읽는다.
 export const META_QUERIES = {
   teams: `query LodestarTeams($after: String) { teams(first: 100, after: $after) { nodes { id key name cyclesEnabled } pageInfo { hasNextPage endCursor } } }`,
   states: `query LodestarStates($after: String) { workflowStates(first: 250, after: $after) { nodes { id name type color position team { id } } pageInfo { hasNextPage endCursor } } }`,
@@ -45,7 +44,6 @@ const num = (v: unknown, fallback = 0): number => (typeof v === "number" && Numb
 const stateType = (v: unknown): LinearStateType => ((LINEAR_STATE_TYPES as readonly unknown[]).includes(v) ? (v as LinearStateType) : "unstarted");
 const priorityOf = (v: unknown): LinearPriority => ((LINEAR_PRIORITIES as readonly unknown[]).includes(v) ? (v as LinearPriority) : 0);
 
-// full 이면 설명을 자르지 않는다(linear.issue).
 export function parseIssue(raw: unknown, full = false): LinearIssue | null {
   const r = obj(raw);
   if (!r || typeof r.id !== "string" || typeof r.identifier !== "string") return null;

@@ -22,10 +22,8 @@ export function findWidget(): Extension {
   return [findField, findPlugin, findKeymap, readOnlyFocusable];
 }
 
-// 읽기 전용 보기(diff)의 본문은 contenteditable 이 아니라 포커스를 못 받아서 ⌘F 가 편집기까지 오지 않는다. 포커스를 받게 해 둔다.
 const readOnlyFocusable = EditorView.contentAttributes.of((view) => (view.state.facet(EditorView.editable) ? null : { tabindex: "0" }));
 
-// 개요 눈금자(web/editorRuler.ts)가 일치 위치를 칠하려고 읽는 찾기 상태. 위젯이 열려 있고 검색어가 있을 때만 값이 있다.
 export function findStateOf(state: EditorState): { search: string; options: FindOptions; scope: Scope } | null {
   const value = state.field(findField, false);
   return value?.open && value.search ? { search: value.search, options: value.options, scope: value.scope } : null;
@@ -36,7 +34,6 @@ type FindState = { open: boolean; replaceOpen: boolean; search: string; replace:
 const shared = { search: "", replace: "", options: { caseSensitive: false, wholeWord: false, regexp: false, preserveCase: false } as FindOptions };
 
 const setFind = StateEffect.define<Partial<FindState>>();
-// 입력 중에 자동으로 고른 일치. 입력을 시작한 자리(anchor)를 옮기지 않으려고 표시한다.
 const incremental = Annotation.define<boolean>();
 
 const findField = StateField.define<FindState>({
@@ -71,11 +68,9 @@ const TIPS = {
   replacePlaceholder: "Replace",
 } as const;
 
-// 큰 파일에서는 글자마다 전체를 다시 세지 않도록 늦춘다.
 const LARGE_DOC = 100_000;
 const RECOUNT_DELAY = 120;
 const REDUCED_WIDTH = 411;
-// 화면에 보이는 일치만 칠하지만 한 화면에 이만큼이 넘으면 더 칠하지 않는다.
 const MAX_MARKS = 5000;
 
 const isReadOnly = (view: EditorView) => view.state.readOnly || !view.state.facet(EditorView.editable);
@@ -84,9 +79,6 @@ function optionKey(options: FindOptions) {
   return `${options.caseSensitive ? 1 : 0}${options.wholeWord ? 1 : 0}${options.regexp ? 1 : 0}${options.preserveCase ? 1 : 0}`;
 }
 
-// --- 명령 ---
-
-// ⌘F, ⌥⌘F. 한 줄 선택이나 커서 아래 낱말을 검색어로 쓰고 입력칸에 포커스를 준다(위젯 안에서 누르면 입력칸 글만 전체 선택).
 export function openFind(view: EditorView, { replace = false, focus = true, seed = true } = {}): boolean {
   const plugin = view.plugin(findPlugin);
   const current = view.state.field(findField);
@@ -110,7 +102,6 @@ function closeFind(view: EditorView): boolean {
   return true;
 }
 
-// ⌘E (actions.findWithSelection). 선택(없으면 커서 아래 낱말)을 검색어로 정하고 위젯을 열되 포커스는 옮기지 않는다. ⌘F3, ⇧⌘F3 (Find Next, Previous Selection)은 같은 일에 이어서 그 일치로 이동한다.
 function findWithSelection(view: EditorView, step?: "next" | "previous"): boolean {
   const text = seedText(view.state);
   if (text === null) return false;
@@ -122,7 +113,6 @@ function findWithSelection(view: EditorView, step?: "next" | "previous"): boolea
   return true;
 }
 
-// ⌘G, F3 (위젯이 닫혀 있으면 포커스를 옮기지 않고 열어서 이동)
 function step(view: EditorView, backward: boolean): boolean {
   if (!view.state.field(findField).open) openFind(view, { focus: false, seed: false });
   view.plugin(findPlugin)?.goTo(backward);
@@ -177,7 +167,6 @@ function replaceAll(view: EditorView) {
   view.dispatch({ changes: all.map((m) => ({ from: m.from, to: m.to, insert: replacementFor(view.state, m, state.replace, state.options) })), userEvent: "input.replace.all" });
 }
 
-// ⌥Enter. 모든 일치를 선택하고 편집기로 돌아간다.
 function selectAllMatches(view: EditorView) {
   const { list } = view.plugin(findPlugin)?.currentMatches() ?? { list: [] };
   if (!list.length) return;
@@ -185,8 +174,6 @@ function selectAllMatches(view: EditorView) {
   view.dispatch({ selection: EditorSelection.create(list.map((m) => EditorSelection.range(m.from, m.to)), Math.max(containingIndex(list, range.from, range.to), 0)), scrollIntoView: true, userEvent: "select.search.matches" });
   view.focus();
 }
-
-// --- 화면 ---
 
 type Ui = {
   root: HTMLElement;
@@ -217,7 +204,6 @@ class FindPlugin {
   private timer = 0;
   private cachedQuery: { key: string; query: SearchQuery } | null = null;
   private rulerKey = "";
-  // 입력으로 일치를 고를 때 훑기 시작하는 자리. 사용자가 직접 선택을 옮기면 따라간다.
   private anchor: number;
 
   constructor(readonly view: EditorView) {
@@ -266,7 +252,6 @@ class FindPlugin {
     return this.cachedQuery.query;
   }
 
-  // 목록이 낡았으면(디바운스 중) 여기서 바로 다시 센다. Enter, ⌘G, 바꾸기는 항상 최신 목록으로 움직인다.
   currentMatches(): Matches {
     if (!this.matches) this.recount();
     return this.matches!;
@@ -280,7 +265,6 @@ class FindPlugin {
     this.select(found.from, found.to, false);
   }
 
-  // 토글이나 범위가 바뀌면 입력을 시작한 자리에서부터 다시 고른다.
   restartFromAnchor() {
     const state = this.view.state.field(findField);
     if (state.search) this.selectFrom(this.anchor);
@@ -290,7 +274,6 @@ class FindPlugin {
     return EditorView.scrollIntoView(EditorSelection.range(from, to), { y: "center" });
   }
 
-  // 이미 화면 안에 보이는 일치는 스크롤하지 않고 선택만 옮긴다. 화면 밖일 때만 가운데로 보낸다.
   private isRevealed(from: number) {
     const coords = this.view.coordsAtPos(from);
     const box = this.view.scrollDOM.getBoundingClientRect();
@@ -426,7 +409,6 @@ class FindPlugin {
     return Decoration.set(marks, true);
   }
 
-  // 스크롤바 위 표시: 문서 높이에 대한 일치 줄의 위치를 줄마다 한 칸(같은 칸이면 한 번)으로 그린다.
   private drawRuler() {
     const canvas = this.ruler;
     const matches = this.matches;
@@ -464,8 +446,6 @@ const currentMark = Decoration.mark({ class: "cm-findMatch cm-findMatch-current"
 const scopeMark = Decoration.mark({ class: "cm-findScope" });
 
 const findPlugin = ViewPlugin.fromClass(FindPlugin, { decorations: (plugin) => plugin.decorations });
-
-// --- DOM 만들기 ---
 
 function buildUi(plugin: FindPlugin): Ui {
   const view = plugin.view;
@@ -537,7 +517,6 @@ function buildUi(plugin: FindPlugin): Ui {
       event.preventDefault();
       return;
     }
-    // 한글 조합 중 Enter 는 조합을 끝내는 키라 이동하지 않는다.
     if (event.isComposing || event.keyCode === 229 || event.key !== "Enter" || event.altKey || event.metaKey || event.ctrlKey) return;
     if (event.target === findInput) {
       event.preventDefault();
@@ -547,7 +526,6 @@ function buildUi(plugin: FindPlugin): Ui {
       replaceOne(view);
     }
   });
-  // 편집기의 오른쪽 클릭 메뉴(Editor.tsx)로 올라가지 않게 해서 입력칸에서는 기본 메뉴(복사, 붙여넣기)가 뜬다.
   root.addEventListener("contextmenu", (event) => event.stopPropagation());
 
   return { root, expand, find: findInput, findField: findBox, message, replace: replaceInput, caseSensitive, wholeWord, regexp, preserveCase, count, previous, next, scope, replaceButton, replaceAllButton, close };
@@ -567,7 +545,6 @@ function input(label: string) {
   node.setAttribute("spellcheck", "false");
   node.setAttribute("autocomplete", "off");
   node.setAttribute("autocapitalize", "off");
-  // 찾기 칸에는 CodeMirror 의 getSearchInput 이 찾는 속성을 단다.
   if (label === TIPS.find) node.setAttribute("main-field", "true");
   return node;
 }
@@ -599,8 +576,6 @@ function toggle(icon: string, label: string) {
   return button;
 }
 
-// --- 단축키 ---
-// scope 의 "find-widget" 은 위젯 안(입력칸과 버튼)에서도 같은 키가 듣게 한다. 위젯이 닫혀 있으면 whenOpen 이 false 를 줘서 다른 키맵으로 넘어간다.
 const SCOPE = "editor find-widget";
 
 const bindings: KeyBinding[] = [
@@ -620,5 +595,4 @@ const bindings: KeyBinding[] = [
   { key: "Mod-Alt-l", run: whenOpen(toggleScope), scope: SCOPE, preventDefault: true },
 ];
 
-// basicSetup 의 searchKeymap(⌘F, ⌘G, F3, Esc) 보다 먼저 받는다.
 const findKeymap = Prec.high(keymap.of(bindings));

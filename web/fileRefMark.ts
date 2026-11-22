@@ -9,12 +9,7 @@ import { rpc } from "./rpc";
 import { ensureFiles, getState } from "./store";
 import { WORKSPACE_CHANGED_EVENT } from "./workspaceEvents";
 
-// 대화 속 파일 링크(a[data-file], code[data-file])가 가리키는 파일이 실제로 있는지 확인해 표시한다.
-// 있으면 data-file 의 경로를 찾은 경로로 바꿔 눌렀을 때 바로 열리게 하고, 없으면 data-missing 을 달아 흐린 점선으로 그린다.
-// 원래 경로는 data-file-orig 에 남겨 두어, 파일 목록이 바뀐 뒤 다시 확인할 때 처음 글에서 다시 푼다.
-
 const existCache = new ExistCache();
-// 한 번에 디스크에 확인하는 경로 수. 넘는 것은 있는 것으로 둔다(없다고 잘못 흐리느니 평소처럼 보이게).
 const MAX_STAT = 60;
 
 export const useFileRefVersion = () => {
@@ -22,11 +17,9 @@ export const useFileRefVersion = () => {
   return useSyncExternalStore(existCache.subscribe, existCache.getVersion);
 };
 
-// 파일을 만들었거나 지웠을 때 그 폴더의 존재 캐시를 버린다.
 export const invalidateFileRefs = (workspaceId?: string) => existCache.invalidate(workspaceId);
 
 let installed = false;
-// 바깥에서 파일이 바뀌었거나(workspaceChanged) 에이전트의 도구가 끝났을 때(Bash 로 만든 파일까지) 캐시를 버린다.
 function installInvalidation() {
   if (installed) return;
   installed = true;
@@ -43,7 +36,6 @@ function installInvalidation() {
 
 type Item = { el: HTMLElement; original: FileRef; raw: string };
 
-// agentId 가 있으면, 작업 폴더에 없는 경로를 그 대화의 도구 호출이 만진 다른 폴더에서도 찾는다(web/fileRefOutside.ts).
 export async function markFileRefs(root: HTMLElement, workspaceId: string, isStale: () => boolean, agentId?: string) {
   const files = await ensureFiles(workspaceId).catch(() => null);
   if (!files || isStale()) return;
@@ -53,7 +45,6 @@ export async function markFileRefs(root: HTMLElement, workspaceId: string, isSta
   const items = collect(root, workspaceId);
   if (!items.length) return;
 
-  // 1차는 힌트 없이, 2차는 1차에서 찾은 파일들을 힌트로 못 찾은 것만 다시 푼다.
   const first = await settle(items, [], index, known, workspaceId);
   if (isStale()) return;
   const hints = first.flatMap((r) => (r.kind === "found" ? [r.path] : []));
@@ -75,8 +66,6 @@ export async function markFileRefs(root: HTMLElement, workspaceId: string, isSta
       if (path) results[i] = { kind: "found", path };
     });
   }
-  // 디스크 어디에도 없지만 대화가 GitHub 에서 읽은 저장소의 파일이면, 그 저장소의 로컬 클론(server/repoMirror.ts)에 있으면 그 파일로 열고
-  // 없으면 누를 때 GitHub 주소를 연다(data-remote, web/AgentView.tsx). 누르면 그 저장소 클론도 시작한다(data-remote-repo).
   const remotes = await settleRemote(items, results, agentId, known, workspaceId);
   if (isStale()) return;
   items.forEach((item, i) => {
@@ -99,7 +88,6 @@ export async function markFileRefs(root: HTMLElement, workspaceId: string, isSta
   });
 }
 
-// 못 찾은 링크마다 원격 저장소 파일인지 본다. 로컬 클론에 그 파일이 있으면 results 를 그 절대 경로로 바꾸고 null, 아니면 GitHub 주소를 돌려준다.
 async function settleRemote(items: Item[], results: Resolution[], agentId: string | undefined, known: Map<string, boolean>, workspaceId: string) {
   const out: ({ repo: string; url: string } | null)[] = items.map(() => null);
   const inputs = agentId ? toolInputs(agentId) : [];
@@ -139,11 +127,8 @@ async function settleRemote(items: Item[], results: Resolution[], agentId: strin
   return out;
 }
 
-// 도구 입력을 읽을 최근 호출 수. 긴 대화를 처음부터 끝까지 훑지 않게.
 const MAX_TOOL_INPUTS = 300;
 
-// 작업 폴더에서 못 찾은 링크마다, 대화가 만진 바깥 폴더 기준 후보를 디스크에 물어 처음 있는 절대 경로를 돌려준다.
-// 바깥 경로는 서버가 홈과 /tmp 아래 일반 파일만 읽어 주니(server/files.ts outsideReadable) 거절은 없는 것으로 본다.
 async function settleOutside(items: Item[], results: Resolution[], agentId: string, known: Map<string, boolean>, workspaceId: string): Promise<(string | null)[]> {
   const found: (string | null)[] = items.map(() => null);
   const missing = items.map((_, i) => i).filter((i) => results[i].kind === "missing");
@@ -169,7 +154,6 @@ async function settleOutside(items: Item[], results: Resolution[], agentId: stri
   return found;
 }
 
-// 최근 호출이 앞에 오는 도구 입력 글
 function toolInputs(agentId: string): string[] {
   const items = getState().timelines[agentId] ?? [];
   const out: string[] = [];
@@ -193,7 +177,6 @@ function collect(root: HTMLElement, workspaceId: string): Item[] {
       continue;
     }
     el.dataset.fileOrig = text;
-    // 작업 폴더 안의 절대 경로는 상대 경로로 본다. 홈(~/)과 다른 폴더의 절대 경로는 확인하지 않는다.
     let raw = original.raw;
     if (workspaceDir && raw.startsWith(`${workspaceDir}/`)) raw = raw.slice(workspaceDir.length + 1);
     else if (raw.startsWith("/") || raw.startsWith("~")) continue;
@@ -202,7 +185,6 @@ function collect(root: HTMLElement, workspaceId: string): Item[] {
   return items;
 }
 
-// 후보 중 목록에 없는 것은 디스크에 물어 알아낸다(files.stat 묶음). 결과는 캐시에 남긴다.
 async function settle(items: Item[], hints: string[], index: ReturnType<typeof fileIndex>, known: Map<string, boolean>, workspaceId: string): Promise<Resolution[]> {
   let results = items.map((item) => resolveFileRef(index, item.raw, hints, known));
   const need = [...new Set(results.flatMap((r) => (r.kind === "pending" ? r.check : [])))].filter((p) => !known.has(p));
@@ -215,7 +197,6 @@ async function settle(items: Item[], hints: string[], index: ReturnType<typeof f
             known.set(path, mtimeMs !== null);
             existCache.set(workspaceId, path, mtimeMs !== null);
           })
-          // 서버가 거절하거나 연결이 끊긴 경로는 캐시하지 않고 있는 것으로 본다
           .catch(() => known.set(path, true)),
       ),
     );
@@ -242,7 +223,6 @@ function apply(item: Item, result: Resolution, workspaceId: string) {
   }
 }
 
-// 링크 바로 아래 코드 블록, 또는 링크가 코드 블록 첫 줄 주석일 때 그 코드. 문단에 서로 다른 파일 링크가 여럿이면 어느 파일 것인지 알 수 없어 붙이지 않는다.
 function suggestedCodeFor(el: HTMLElement): string | null {
   const pre = el.closest("pre");
   if (pre) return codeWithoutPathHeader(pre.textContent ?? "", el.textContent ?? "");

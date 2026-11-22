@@ -1,5 +1,3 @@
-// 페어링: 데몬의 POST /mobile/pair 에 일회용 코드를 보내 이 기기의 장치 토큰을 받는다.
-// 주소 후보가 여럿이면(Wi-Fi, Tailscale 등) 동시에 시도해 먼저 응답한 주소를 쓴다. 코드가 틀린 응답(401, 429)은 곧바로 이유를 돌려준다.
 import type { PairResult } from "@shared/mobile";
 import type { PairingInfo } from "../logic/pairing";
 
@@ -25,8 +23,6 @@ export async function pairWithHost(info: PairingInfo, deviceName: string, opts: 
       clearTimeout(timer);
     }
   });
-  // 먼저 성공한 주소가 이긴다. 코드는 한 번 쓰면 폐기되므로 같은 Mac 의 다른 주소(Wi-Fi 와 Tailscale)는 거절을 받는다. 그 거절이 성공보다 먼저 도착해도
-  // 성공을 버리지 않게, 거절은 모든 주소가 끝난 뒤에 돌려준다. 전부 닿지 않으면 unreachable.
   const settled = await new Promise<PairOutcome>((resolve) => {
     let pending = attempts.length;
     let rejected: string | null = null;

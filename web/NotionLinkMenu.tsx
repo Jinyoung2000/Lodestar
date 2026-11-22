@@ -9,7 +9,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 type Anchor = { x: number; y: number; url: string; text: string };
 
-// 화면 어디서든 Notion 링크를 우클릭하면 뜨는 메뉴(Open in Notion View, Open in Browser Tab, Pin to Sidebar, Copy Link). 대화 본문의 기본 우클릭 메뉴보다 먼저 받아 링크일 때만 가로챈다.
 export function NotionLinkMenu() {
   const [menu, setMenu] = useState<Anchor | null>(null);
   const pins = useNotion((s) => s.pins);

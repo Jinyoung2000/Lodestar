@@ -8,7 +8,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 
-// 사용자 화면의 사례: cli.ts 를 쳤는데 jobs.ts, string.ts 같은 관계없는 파일이 이름 일치 뒤에 줄줄이 나왔다.
 const FILES = [
   "app-website/packages/cli/src/cli.ts",
   "app-website/packages/cli/templates/cli.ts.tmpl",
@@ -29,7 +28,6 @@ const FILES = [
 const names = (picks: { path: string }[]) => picks.map((p) => p.path);
 const build = (filter: string, extra: Partial<Parameters<typeof buildPicks>[0]> = {}) => buildPicks({ files: FILES, recent: [], filter, workspaceDir: "/Users/me/work/app", includeExcluded: false, ...extra });
 
-// 1. cli.ts: 이름에 cli.ts 가 들어간 파일이 먼저, 흩어져 맞는 파일은 뒤
 {
   const { results } = build("cli.ts");
   const order = names(results);
@@ -44,32 +42,25 @@ const build = (filter: string, extra: Partial<Parameters<typeof buildPicks>[0]> 
   check("cli.ts: 첫째 행 이름 전체가 강조 구간", JSON.stringify(results[0].labelMatch) === JSON.stringify([{ start: 0, end: 6 }]), JSON.stringify(results[0].labelMatch));
 }
 
-// 2. 설정으로 제외를 풀면 node_modules 도 나온다
 check("includeExcluded 면 node_modules 도 나옴", names(build("cli.ts", { includeExcluded: true }).results).includes("node_modules/cli-table/cli.ts"));
 
-// 3. 이름 전체 일치와 맨 앞 일치가 중간 일치보다 앞
 {
   const order = names(build("readme").results);
   check("readme: 둘 다 이름 앞 일치, 짧은 경로가 앞", order[0] === "README.md" && order[1] === "app-website/packages/cli/README.md", order.join(", "));
 }
 
-// 4. 대문자 단어 첫 글자(camelCase) 가산: fti 가 FileTypeIcon.tsx 를 찾는다
 check("fti: FileTypeIcon.tsx", names(build("fti").results)[0] === "web/FileTypeIcon.tsx", names(build("fti").results).join(", "));
 
-// 5. 경로를 친 질의는 경로 전체에서
 check("packages/cli/readme: 경로 질의", names(build("packages/cli/readme").results)[0] === "app-website/packages/cli/README.md", names(build("packages/cli/readme").results).join(", "));
 
-// 6. 공백으로 나눈 낱말은 모두 맞아야 한다
 {
   const order = names(build("cli readme").results);
   check("cli readme: 두 낱말 모두", order.length === 1 && order[0] === "app-website/packages/cli/README.md", order.join(", "));
 }
 
-// 7. 따옴표 낱말은 이어서 맞아야 한다
 check('"cli.ts" 따옴표는 흩어진 일치를 안 받음', names(build('"cli.ts"').results).every((p) => /cli\.ts/i.test(p)), names(build('"cli.ts"').results).join(", "));
 check("맞는 게 없으면 빈 결과", build("zzzzz").results.length === 0);
 
-// 8. 줄 이동 접미사
 {
   const a = splitLineSuffix("cli.ts:12");
   check("cli.ts:12", a.filter === "cli.ts" && a.line === 12 && a.column === undefined, JSON.stringify(a));
@@ -85,11 +76,9 @@ check("맞는 게 없으면 빈 결과", build("zzzzz").results.length === 0);
   check(":40 은 파일 없이 줄만", f.filter === "" && f.line === 40, JSON.stringify(f));
 }
 
-// 9. 기본 제외 규칙
 check("node_modules, .git 제외", isExcludedPath("a/node_modules/b.js") && isExcludedPath(".git/config") && isExcludedPath("x/.DS_Store") && isExcludedPath("a.code-search"));
 check("보통 파일은 제외 안 함", !isExcludedPath("src/node_modules_notes.md") && !isExcludedPath("src/git/a.ts"));
 
-// 10. 최근 연 파일: 빈 질의면 최근만, 글자를 치면 이름이 맞는 최근 파일이 "recently opened" 로 먼저 나오고 결과에서는 빠진다
 {
   const recent = ["web/Overlays.tsx", "app-website/packages/cli/README.md", "../outside/notes.md"];
   const empty = build("", { recent });
@@ -104,7 +93,6 @@ check("보통 파일은 제외 안 함", !isExcludedPath("src/node_modules_notes
   check("usableRecent: 지워진 파일 빼고 밖의 파일 유지, 다른 폴더 것 제외", filtered.join() === "web/Overlays.tsx,../x.ts", filtered.join());
 }
 
-// 11. 라우팅과 강조 조각
 {
   check("> 는 명령 팔레트", routeOf(">go")?.kind === "commands");
   const at = routeOf("@render");
@@ -114,7 +102,6 @@ check("보통 파일은 제외 안 함", !isExcludedPath("src/node_modules_notes
   check("강조 조각", JSON.stringify(parts) === JSON.stringify([{ text: "cli", hit: true }, { text: ".t", hit: false }, { text: "s", hit: true }]), JSON.stringify(parts));
 }
 
-// 12. 점수 단독: 이름 맨 앞 일치 > 이름 중간 일치 > 경로에만 일치, 그리고 rankFiles 도 같은 규칙
 {
   const q = prepareQuery("cli.ts");
   const prefix = scoreFileItem({ label: "cli.ts", description: "a", path: "a/cli.ts" }, q, true).score;
@@ -128,7 +115,6 @@ check("보통 파일은 제외 안 함", !isExcludedPath("src/node_modules_notes
   check("rankFiles(@ 메뉴, 첨부 메뉴)도 같은 순위", ranked[0] === "app-website/packages/cli/src/cli.ts" && ranked.indexOf("app-client/src/utils/jobs.ts") > 1, ranked.slice(0, 4).join(", "));
 }
 
-// 13. 규모: 파일 5 만 개에서 입력 한 번이 오래 걸리지 않는다
 {
   const dirs = ["packages/app", "packages/cli", "packages/web", "services/api", "services/worker", "libs/ui", "libs/utils", "docs", "scripts", "tools/build"];
   const stems = ["index", "client", "server", "helpers", "string", "file", "image", "filter", "config", "types", "cli", "controller", "view", "model", "router"];

@@ -1,5 +1,4 @@
 // MOBILE: iOS 클라이언트(mobile/)가 데몬의 모바일 포트와 주고받는 값. 데몬(server/mobileAccess.ts), 웹 Settings, 모바일 앱이 같은 모양을 쓴다.
-// 모바일 앱은 이 파일에서 타입만 가져온다(런타임 값은 mobile/src 에 같은 규칙으로 따로 있고, test/mobileaccess.test.ts 가 서로 맞는지 대조한다).
 import type { TimelineItem } from "./protocol";
 
 export const MOBILE_PROTOCOL = 1;
@@ -90,7 +89,6 @@ export type MobileWorktreeRequest = { branch: string; base: string };
 
 export type TimelinePage = { items: TimelineItem[]; hasMore: boolean; total: number };
 
-// 모바일에 보내는 타임라인 항목의 문자열 상한. 긴 도구 출력과 입력(파일 전체 내용 등)은 폰에서 읽을 일이 거의 없고 전송과 렌더링만 무겁게 한다.
 export const MOBILE_OUTPUT_CHARS = 4000;
 export const MOBILE_INPUT_CHARS = 2000;
 export const MOBILE_THINKING_CHARS = 1200;
@@ -107,7 +105,6 @@ function clipValue(value: unknown, max: number, depth = 0): unknown {
   return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, clipValue(v, max, depth + 1)]));
 }
 
-// 폰으로 보내기 전에 항목을 줄인다. 길이만 줄이고 모양은 그대로라, 모바일 화면은 데스크톱과 같은 항목 종류를 읽는다.
 export function compactTimelineItem(item: TimelineItem): TimelineItem {
   switch (item.kind) {
     case "tool": {
@@ -135,7 +132,6 @@ export function pageOfTimeline(items: readonly TimelineItem[], limit: number, be
   return { items: items.slice(start, end).map(compactTimelineItem), hasMore: start > 0, total: items.length };
 }
 
-// 5분짜리 일회용 코드를 QR 주소와 수동 입력 문자열로 만든다.
 export function pairingCodeLabel(code: string): string {
   return `${code.slice(0, 4)}-${code.slice(4)}`;
 }

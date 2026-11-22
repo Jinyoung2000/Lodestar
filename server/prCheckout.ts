@@ -9,12 +9,9 @@ export type CheckoutDeps = {
   addWorkspace: (dir: string, parentId: string | null, name: string) => Workspace;
   workspaceOfDir: (dir: string) => Workspace | undefined;
   announce: () => void;
-  // 새로 만든 리뷰 체크아웃 폴더를 기록한다. 남이 쓴 브랜치라 그 폴더의 코드는 실행하지 않는다(server/folderTrust.ts).
   markReview?: (dir: string) => void;
 };
 
-// PR 브랜치를 agent-nav worktree 로 연다. 워크스페이스의 지금 브랜치는 바꾸지 않는다(gh pr checkout 을 쓰지 않는 이유).
-// 같은 브랜치가 이미 어느 worktree 에 체크아웃돼 있으면 새로 만들지 않고 그 폴더를 쓴다.
 export async function checkoutPullRequest(deps: CheckoutDeps, dirs: string[], repo: string, number: number): Promise<PrCheckoutResult> {
   const repos = await discoverRepos(dirs);
   const found = repos.find((r) => r.fullName === repo);
@@ -55,7 +52,6 @@ export async function checkoutPullRequest(deps: CheckoutDeps, dirs: string[], re
   return { workspaceId: workspace.id, dir: path, branch, reused };
 }
 
-// `git worktree list --porcelain` 에서 이 브랜치를 체크아웃한 worktree 경로 (메인 worktree 포함)
 async function worktreeOfBranch(root: string, branch: string): Promise<string | null> {
   const output = await git(root, ["worktree", "list", "--porcelain"]);
   let path: string | null = null;

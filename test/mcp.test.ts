@@ -1,5 +1,3 @@
-// MCP 재연결과 상태 변환의 단독 시험 (데몬과 CLI 없이, 가짜 Query 로).
-// 실행: npm test
 import type { McpServerStatus } from "@anthropic-ai/claude-agent-sdk";
 import { isClaudeAiServer } from "../shared/mcp";
 import { errorText, reconnectInSessions, settleMcp, toMcpStatus, type McpControl } from "../server/mcp";
@@ -12,7 +10,6 @@ const expect = (condition: boolean, detail: string) => {
 };
 
 type Fake = McpControl & { calls: string[] };
-// statuses: 호출 순서대로 돌려줄 목록. 마지막 것이 계속 반복된다.
 function fake(statuses: McpServerStatus[][], reconnect: (name: string) => Promise<void> = async () => {}): Fake {
   const calls: string[] = [];
   let i = 0;

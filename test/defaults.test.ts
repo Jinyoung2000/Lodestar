@@ -20,7 +20,6 @@ const expect = (condition: boolean, detail: string) => {
 
 const NONE: Chosen = { defaultPermissionMode: null, defaultModel: null, defaultEffort: null, diffInlineWhenNarrow: null, requestQueuing: null, previewEditors: null };
 const PATHS = { vscodeUserDir: "/fake/Code/User", claudeSettings: "/fake/claude/settings.json" };
-// 가짜 파일과 가짜 state.vscdb 결과
 const fakeIo = (files: Record<string, string>, state: Record<string, string>): Io => ({
   readText: (file) => files[file] ?? null,
   vscodeState: (key) => state[key] ?? null,

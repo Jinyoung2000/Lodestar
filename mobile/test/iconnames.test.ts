@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { MATERIAL_ICONS } from "../src/ui/iconNames";
 import { expect, run, test } from "./harness";
 
-// 안드로이드에서 아이콘이 빈칸으로 나오는 것을 막는다: 소스에서 <Icon name=...> 에 쓰는 SF 이름이 모두 표에 있어야 한다.
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);

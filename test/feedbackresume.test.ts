@@ -1,6 +1,3 @@
-// FBREDO: 데몬이 재시작될 때 돌고 있던 피드백을 이어 가는 흐름 단독 시험(임시 git 저장소와 임시 홈, 모델 호출 없음).
-// 판단 함수(resumePlan, canRunAgain)와, 새 FeedbackRunner(= 재시작한 데몬)가 같은 홈의 state.json 을 읽고 resumeInterrupted 로 이어 가는 경로를 본다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +16,6 @@ const { FeedbackRunner } = await import("../server/feedback");
 const { MAX_RESUMES, canRunAgain, isInterruptible, resumePlan } = await import("../shared/feedbackResume");
 type Runner = InstanceType<typeof FeedbackRunner>;
 
-// 1. 판단 함수
 {
   const base = { status: "running" as const, resumeCount: 0, worktreeExists: true, baselineExists: true, agentExists: true, hasSession: true };
   check("running with a session record continues", resumePlan(base).action === "continue");
@@ -38,7 +34,6 @@ type Runner = InstanceType<typeof FeedbackRunner>;
   check("Run Again only for a failed feedback the restart cut", canRunAgain({ status: "failed", interrupted: true }) && !canRunAgain({ status: "failed" }) && !canRunAgain({ status: "applied", interrupted: true }));
 }
 
-// 재시작 확인 창이 세는 것: 개선 세션은 세션 수에서 빼고 따로 센다. 검사 중인 피드백(세션은 쉼)도 잡힌다.
 {
   const { runningWork } = await import("../shared/feedbackResume");
   const agents = [
@@ -76,7 +71,6 @@ function sourceRepo(name: string) {
 
 type Agent = { id: string; cwd: string; sessionId: string | null; status: string };
 
-// 데몬 하나. agents 는 가짜 개선 세션: send 가 불리면 정해 둔 동작을 worktree 에 하고 잠시 뒤 턴이 끝난 것처럼 afterTurn 을 부른다.
 function daemon(src: string, agent: Agent | null, options: { hasTranscript?: boolean; finishes?: boolean } = {}) {
   const notices: string[] = [];
   const sent: { prompt: string; display: string | undefined }[] = [];
@@ -131,7 +125,6 @@ async function until(runner: Runner, id: string, done: (status: string) => boole
   throw new Error(`timed out at ${runner.get(id).status}`);
 }
 
-// 첫 데몬이 피드백을 만들고 턴이 도는 중에 죽은 상태를 만든다(afterTurn 이 불리지 않는다). state.json 이 남는다.
 async function startAndCrash(src: string, status: "running" | "checking" | "fixing") {
   const first = daemon(src, null, { finishes: false });
   const feedback = await first.runner.create({ text: "change the ui text", element: null, screenshot: null, screenshotNote: null });
@@ -144,7 +137,6 @@ async function startAndCrash(src: string, status: "running" | "checking" | "fixi
 
 const patchState = (file: string, patch: Record<string, unknown>) => writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, "utf8")), ...patch }, null, 2));
 
-// 2. 턴이 도는 중에 죽음 -> 같은 세션을 resume 해서 이어 쓰고 반영
 {
   const src = sourceRepo("resume-running");
   const crashed = await startAndCrash(src, "running");
@@ -167,12 +159,10 @@ const patchState = (file: string, patch: Record<string, unknown>) => writeFileSy
   check("status goes running, checking, applied", d.statuses.filter((s) => ["running", "checking", "applied"].includes(s)).join(",") === "running,checking,applied", d.statuses.join(","));
 }
 
-// 3. 검사 중에 죽음 -> 세션 턴 없이 검사부터 다시
 {
   const src = sourceRepo("resume-checking");
   const crashed = await startAndCrash(src, "checking");
   writeFileSync(join(crashed.worktree, "web/ui.txt"), "after\n");
-  // 이 세션은 기록이 없어도 된다(검사만 다시 돈다)
   const d = daemon(src, { id: crashed.agentId, cwd: crashed.worktree, sessionId: null, status: "idle" }, { hasTranscript: false });
   d.holder.worktree = crashed.worktree;
   await d.runner.resumeInterrupted();
@@ -183,7 +173,6 @@ const patchState = (file: string, patch: Record<string, unknown>) => writeFileSy
   check("main folder got the change", readFileSync(join(src, "web/ui.txt"), "utf8") === "after\n");
 }
 
-// 4. 세션 기록이 없음 -> 실패 + Run Again, Run Again 은 같은 요청의 새 피드백을 만든다
 {
   const src = sourceRepo("resume-nosession");
   const crashed = await startAndCrash(src, "running");
@@ -207,7 +196,6 @@ const patchState = (file: string, patch: Record<string, unknown>) => writeFileSy
   check("running it again a second time is refused", refused.includes("can be run again"), refused);
 }
 
-// 5. worktree 가 사라짐, 너무 여러 번 끊김
 {
   const src = sourceRepo("resume-gone");
   const crashed = await startAndCrash(src, "running");
@@ -227,7 +215,6 @@ const patchState = (file: string, patch: Record<string, unknown>) => writeFileSy
   check("cut again and again: not continued a third time", one.status === "failed" && d.sent.length === 0 && (one.failure ?? "").includes("again and again") && canRunAgain(one), one.failure ?? "");
 }
 
-// 6. 이미 끝난 피드백은 재시작이 건드리지 않는다
 {
   const src = sourceRepo("resume-terminal");
   const crashed = await startAndCrash(src, "running");

@@ -6,9 +6,6 @@ import "./editorWhitespace.css";
 import { editorMetrics } from "./editorMetrics";
 import { whitespaceOffsets, whitespaceRuns, type LineSelection } from "./editorWhitespaceModel";
 
-// 공백 표시(editor.renderWhitespace). 공백은 점, 탭은 오른쪽 화살표를 editorWhitespace.foreground 색으로 그린다.
-// 어느 공백을 그릴지는 editorWhitespaceModel.ts 가 정하고, 여기서는 그 자리에 mark 를 붙인다. 그림은 editorWhitespace.css.
-
 const MAX_COLUMNS = 10_000;
 
 export function renderWhitespaceExtension(options: EditorOptions, context: OptionContext): Extension {
@@ -31,7 +28,6 @@ export function renderWhitespaceExtension(options: EditorOptions, context: Optio
 }
 
 const SPACE = Decoration.mark({ class: "cm-ws-space" });
-// 탭이 이어지면 같은 mark 끼리 하나의 요소로 합쳐져 화살표가 한 번만 그려진다. 속성을 번갈아 달아 탭마다 요소를 따로 만든다.
 const TABS = [Decoration.mark({ class: "cm-ws-tab", attributes: { "data-ws": "0" } }), Decoration.mark({ class: "cm-ws-tab", attributes: { "data-ws": "1" } })];
 
 function build(view: EditorView, mode: EditorOptions["renderWhitespace"]): DecorationSet {

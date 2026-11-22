@@ -6,9 +6,6 @@ import { rpc } from "./rpc";
 import { flash, getState, openAgent, setState, subscribe } from "./store";
 import { S } from "./strings";
 
-// Improvements 화면이 쓰는 피드백 동작. 알림(Feedback.tsx)의 버튼과 같은 RPC 를 같은 문구로 부른다.
-
-// 답 대기 항목의 Reply: 개선 세션을 열고 입력창에 커서를 둔다.
 export function replyToFeedback(agentId: string) {
   openAgent(agentId);
   setState({ focusComposer: { paneId: getState().activePaneId, nonce: Date.now() } });
@@ -23,7 +20,6 @@ export async function revertFeedback(feedback: Feedback) {
   }
 }
 
-// FBREDO: 반영 안 됨 항목 정리. 상태는 서버가 저장하고 feedback 이벤트로 목록에 돌아온다.
 export async function tidyFeedback(feedback: Feedback, action: "resolve" | "dismiss") {
   try {
     await rpc.call(action === "resolve" ? "feedback.resolve" : "feedback.dismiss", { id: feedback.id });
@@ -40,8 +36,6 @@ export async function restartFeedback(feedback: Feedback) {
   }
 }
 
-// Retry all not applied: 서버의 검사 재실행은 피드백마다 따로 돌아서 한꺼번에 부르면 tsc 와 build 가 겹친다. 하나가 끝나면 다음을 부른다.
-// 반영에 성공하면 서버가 창을 다시 읽게 하므로(reload 이벤트) 남은 목록은 sessionStorage 에 두고, 창이 다시 뜨면 이어서 돈다.
 export type RetryAllProgress = { done: number; total: number };
 type RetryQueue = { ids: string[]; total: number; skipped: number; savedAt: number };
 
@@ -82,7 +76,6 @@ function saveQueue(queue: RetryQueue | null) {
     if (queue) sessionStorage.setItem(QUEUE_KEY, JSON.stringify({ ...queue, savedAt: Date.now() }));
     else sessionStorage.removeItem(QUEUE_KEY);
   } catch {
-    // 저장하지 못하면 창을 다시 읽을 때 이어 돌지 못할 뿐이다
   }
 }
 
@@ -103,12 +96,10 @@ async function runQueue(queue: RetryQueue) {
       const id = queue.ids[0];
       const current = getState().feedbacks[id];
       if (current && isChecking(id)) {
-        // 창을 다시 읽기 전에 서버가 이미 돌리기 시작한 것: 끝나기만 기다린다.
         await waitFor(() => !isChecking(id), FINISH_WAIT_MS);
       } else if (current?.status === "failed" && canRetryChecks(current)) {
         try {
           await rpc.call("feedback.retryChecks", { id });
-          // 서버 응답이 상태 이벤트보다 먼저 올 수 있어서, 검사가 시작된 것을 본 뒤에 끝나기를 기다린다.
           await waitFor(() => isChecking(id), START_WAIT_MS);
           await waitFor(() => !isChecking(id), FINISH_WAIT_MS);
         } catch {
@@ -126,7 +117,6 @@ async function runQueue(queue: RetryQueue) {
   if (queue.skipped > 0) flash(S.improvementsRetrySkipped(queue.skipped));
 }
 
-// 창이 다시 뜬 뒤 서버 목록이 들어오면 남은 목록을 이어서 돈다.
 function resumeRetryAll() {
   const queue = loadQueue();
   if (!queue || progress) return;
@@ -147,7 +137,6 @@ function isChecking(id: string): boolean {
   return !!feedback && (feedback.status === "checking" || feedback.status === "fixing" || !!feedback.retrying);
 }
 
-// 조건이 참이 되면 true, 한도까지 안 되면 false. 스토어가 바뀔 때마다 다시 본다.
 function waitFor(condition: () => boolean, timeoutMs: number): Promise<boolean> {
   if (condition()) return Promise.resolve(true);
   return new Promise((resolve) => {

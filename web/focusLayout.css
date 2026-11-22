@@ -43,7 +43,6 @@
   outline: 1px solid var(--focus-border);
   outline-offset: -1px;
 }
-/* 개수 배지(Changes). 아이콘의 오른쪽 위에 걸친다 */
 .activity-item > .tab-badge {
   position: absolute;
   top: var(--space-1_5);
@@ -54,7 +53,6 @@
   box-sizing: border-box;
 }
 
-/* --- Primary Side Bar: 제목줄 35px, 제목은 11px 대문자 --- */
 .focus-side {
   box-sizing: border-box;
   flex-shrink: 0;
@@ -101,8 +99,6 @@
   flex-shrink: 0;
 }
 
-/* --- 오른쪽 대화 패널 (Secondary Side Bar 자리) --- */
-/* 격자(.panes)는 DOM 순서와 상관없이 작업 영역 격자의 Secondary 열(기본은 오른쪽, 사이드바 위치가 right 이면 왼쪽)에서 폭을 갖는다(web/styles.css 의 .body 블록). 활성 칸만 이 안을 채우고 나머지 칸은 숨긴 채 마운트되어 있다. */
 .center[data-layout="editor"] > .panes[data-dock] {
   position: relative;
   flex: 0 0 var(--dock-w, var(--size-chat-dock));
@@ -114,7 +110,6 @@
   border-left: 1px solid var(--border-subtle);
   pointer-events: auto;
 }
-/* 대화 패널이 왼쪽 열에 오면(Primary Side Bar 가 오른쪽) 경계선도 반대쪽이다 */
 .body[data-side="right"] .center[data-layout="editor"] > .panes[data-dock] {
   border-left: 0;
   border-right: 1px solid var(--border-subtle);
@@ -124,38 +119,98 @@
   inset: 0;
   flex-direction: column;
 }
-.pane[data-docked] > .agent {
-  min-height: 0;
-}
-/* 패널 머리(.dock-bar)가 칸 머리를 대신한다 */
 .pane[data-docked] .agent > .pane-header {
   display: none;
 }
-/* 높이는 에디터 탭줄과 같아서 두 줄의 아래 경계선이 한 줄로 이어진다 */
 .dock-bar {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   height: var(--size-tabs-header);
-  padding: 0 var(--space-2) 0 var(--space-3);
+  padding: 0 var(--space-2) 0 0;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
   white-space: nowrap;
   font-size: var(--text-ui);
   user-select: none;
 }
-.dock-bar .spacer {
+.pane-body {
+  display: flex;
   flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
-/* 앱 사이드바가 없어서 이름 바꾸기 입력이 제목 자리에 뜬다 */
-.dock-bar .session-rename,
-.float-bar .session-rename {
+.editor-chat-switcher {
+  display: flex;
+  align-items: center;
   flex: 1;
+  min-width: 0;
+  align-self: stretch;
+}
+.editor-chat-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.editor-chat-tab {
+  position: relative;
+  min-width: 0;
+  flex: 1 0 calc(var(--size-control) * 3.5);
+  max-width: calc(var(--size-control) * 7);
+  height: 100%;
+}
+.editor-chat-tab:only-child {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+.editor-chat-tab .editor-chat-tab-label {
+  flex: 1;
+  min-width: 0;
+  gap: var(--space-1);
+  padding-inline: var(--space-1_5);
+}
+.editor-chat-tab-label:hover {
+  background: var(--surface-hover);
+}
+.editor-chat-tab-label:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+.editor-chat-tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.editor-chat-tab .editor-chat-tab-close {
+  position: absolute;
+  right: var(--space-1);
+  width: var(--space-5);
+  height: var(--space-5);
+  visibility: hidden;
+}
+.editor-chat-tab:is([data-active], [data-sticky], :hover, :focus-within) .editor-chat-tab-close {
+  visibility: visible;
+}
+.editor-chat-tab[data-dragging] {
+  opacity: 0.5; /* lint-tokens: allow 끄는 탭 */
+}
+.editor-chat-tab:has(.editor-chat-tab-close) .editor-chat-tab-label {
+  padding-right: var(--size-control-sm);
+}
+.editor-chat-tab .session-rename {
+  flex: 1;
+  min-width: 0;
   height: var(--size-control-sm);
   margin: 0;
 }
+.editor-chat-reference-menu {
+  max-height: var(--radix-dropdown-menu-content-available-height);
+  overflow-y: auto;
+}
 
-/* 에디터 탭으로 연 대화(web/ChatDock.tsx ChatTabView). 에디터 그룹 본문을 채운다 */
 .chat-tab-pane {
   flex: 1 1 0;
 }

@@ -8,8 +8,6 @@ import { S } from "./strings";
 import { Button } from "./ui/button";
 import type { PermissionItem } from "./timelineModel";
 
-// 모델이 AskUserQuestion 으로 묻는 질문 카드(입력창 바로 위). 질문마다 선택지를 단추로 보이고 Other 에는 직접 쓴다.
-// 모든 질문에 답이 있어야 Submit 이 켜진다. 답은 질문 글 -> 고른 선택지(여러 개는 ", ")로 서버에 가서 도구 결과가 된다. Skip 은 답하지 않고 넘긴다.
 export function QuestionCard({ agentId, item }: { agentId: string; item: PermissionItem }) {
   const questions = useMemo(() => readQuestions(item.input), [item.input]);
   const [states, setStates] = useState<QuestionState[]>(() => questions.map(emptyQuestionState));

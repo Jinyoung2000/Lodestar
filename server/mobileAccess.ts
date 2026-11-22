@@ -1,5 +1,3 @@
-// MOBILE: iOS 앱(mobile/)이 LAN 으로 붙는 길. 기본은 꺼져 있고(설정 mobileAccess), 켜면 데스크톱용 서버와 완전히 별개인 서버를 따로 연다.
-// 별개 서버로 둔 이유: 데스크톱 서버의 Host/Origin 검사, 메인 토큰, 정적 파일 응답을 건드리지 않고(꺼져 있으면 이 파일의 서버는 존재하지 않는다),
 // 모바일 포트는 JSON 몇 개와 WebSocket 하나, 이미지 업로드 하나만 받는다. 메인 토큰은 이 서버에서 통하지 않고, 장치마다 다른 장치 토큰만 통한다.
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -13,7 +11,6 @@ import type { ServerEvent } from "../shared/protocol";
 import { resolveAddable, resolveFolder } from "./mobileFolders";
 import { T } from "./strings";
 
-// 읽기 쉬운 글자만 쓴다(I, O, 0, 1 제외). 32^8 가지에 5분 유효, 한 번만 쓰고, 틀리면 5번 만에 코드가 사라진다.
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 8;
 export const PAIRING_TTL_MS = 5 * 60_000;
@@ -30,7 +27,6 @@ export class PairingCodes {
     return (this.opts.now ?? Date.now)();
   }
 
-  // 새 코드를 만든다. 이전 코드는 그 순간 못 쓴다(한 번에 하나).
   issue(): { code: string; expiresAt: number } {
     const bytes = randomBytes(CODE_LENGTH);
     let code = "";
@@ -72,7 +68,6 @@ export class PairingCodes {
   }
 }
 
-// 짧은 시간에 몰리는 시도를 거른다(코드가 없을 때 계속 두드리는 경우까지 포함).
 export class AttemptLimiter {
   private times: number[] = [];
 
@@ -82,7 +77,6 @@ export class AttemptLimiter {
     private now: () => number = Date.now,
   ) {}
 
-  // 허용하면 true 이고 시도로 센다.
   take(): boolean {
     const cutoff = this.now() - this.windowMs;
     this.times = this.times.filter((t) => t > cutoff);
@@ -97,7 +91,6 @@ type DeviceRecord = { id: string; name: string; tokenHash: string; createdAt: st
 const TOKEN_RE = /^[0-9a-f]{64}$/;
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
-// 페어링된 장치. 토큰 원문은 장치에만 있고, 이 파일에는 sha256 만 남는다(파일이 새도 토큰을 되살릴 수 없다).
 export class MobileDevices {
   private records: DeviceRecord[];
 
@@ -118,7 +111,6 @@ export class MobileDevices {
     return { device, token };
   }
 
-  // 토큰이 맞는 장치. 모든 장치와 같은 시간에 비교한다.
   verify(token: unknown): DeviceRecord | null {
     if (typeof token !== "string" || !TOKEN_RE.test(token)) return null;
     const hash = Buffer.from(sha256(token), "hex");
@@ -150,7 +142,6 @@ export class MobileDevices {
   }
 }
 
-// 이 맥의 LAN 주소 후보. 가상 인터페이스(VPN 터널, AirDrop, 브리지, 컨테이너)와 링크 로컬은 뺀다. Wi-Fi(en0)가 맨 앞이다.
 const VIRTUAL_IFACE = /^(utun|awdl|llw|bridge|vmenet|veth|docker|vboxnet|ap\d|gif|stf|anpi|lo)/;
 
 export function lanHosts(interfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = networkInterfaces()): MobileHost[] {
@@ -158,7 +149,6 @@ export function lanHosts(interfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = netwo
   for (const [iface, infos] of Object.entries(interfaces)) {
     for (const info of infos ?? []) {
       if (info.family !== "IPv4" || info.internal || info.address.startsWith("169.254.")) continue;
-      // Tailscale 은 utun 이라 위 필터가 거르지만, 100.64.0.0/10 주소가 일반 인터페이스에 붙어 있으면 그 표시를 한다(relay 대신 Tailscale 로 붙는 2단계에서 쓴다).
       const [a, b] = info.address.split(".").map(Number);
       const tailscale = a === 100 && b >= 64 && b <= 127;
       if (VIRTUAL_IFACE.test(iface) && !tailscale) continue;
@@ -180,14 +170,11 @@ export function makeOffer(issued: { code: string; expiresAt: number }, hosts: Mo
   };
 }
 
-// --- 호출 검사 ---
-
 const METHOD_SET: ReadonlySet<string> = new Set(MOBILE_METHODS);
 const ID_LIMIT = 200;
 const PROMPT_LIMIT = 50_000;
 const THUMB_LIMIT = 30_000;
 const UUID_RE = /^[0-9a-f-]{36}$/;
-// worktree 의 브랜치와 기준 브랜치 이름 상한. git 의 refname 은 이보다 짧게 쓰인다.
 const REF_LIMIT = 200;
 const TITLE_LIMIT = 200;
 
@@ -219,8 +206,6 @@ function imagesOf(value: unknown) {
   });
 }
 
-// worktree 의 브랜치 이름과 기준 브랜치. 기준 브랜치는 git 명령의 인자로 넘어가므로 "-" 로 시작하는 값(`--` 가 없는 명령에서는 옵션으로 읽힌다)과 공백, 제어 문자를 막는다.
-// 브랜치 이름의 git 규칙(check-ref-format)과 이미 있는 이름은 데몬이 addWorktree 에서 다시 판정하고, 기준 브랜치가 실제 브랜치인지도 데몬이 목록으로 대조한다.
 function refOf(value: unknown, name: string): string {
   const text = typeof value === "string" ? value : "";
   return text.length > 0 && text.length <= REF_LIMIT && !text.startsWith("-") && !/[\s\u0000-\u001f\u007f]/.test(text) ? text : fail(T.errMobileParam(name));
@@ -232,9 +217,6 @@ function worktreeOf(value: unknown) {
   return { branch: refOf(w.branch, "branch"), base: refOf(w.base, "base") };
 }
 
-// 모바일이 부를 수 있는 RPC 와 그 인자를 확인하고, 데몬 핸들러에 넘길 인자를 새 객체로 만든다. 모르는 메서드와 모양이 어긋난 인자는 던진다.
-// 데스크톱에서 오는 호출은 이 검사를 거치지 않는다(그쪽은 같은 사용자가 연 화면이다).
-// browseRoot: 폴더 둘러보기와 워크스페이스 추가가 갇히는 홈. 기본은 mobileFolders 가 정한다(시험은 임시 폴더를 준다).
 export function guardMobileCall(method: string, raw: unknown, browseRoot?: string): Record<string, unknown> {
   if (!METHOD_SET.has(method)) fail(T.errMobileMethod(method));
   const p = asObject(raw);
@@ -250,7 +232,6 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
     case "agents.create": {
       const workspaceId = p.workspaceId === null ? null : idOf(p.workspaceId, "workspaceId");
       const worktree = worktreeOf(p.worktree);
-      // 폴더 없는 대화(Chat)에는 worktree 가 없다
       if (worktree && workspaceId === null) fail(T.errMobileParam("worktree"));
       return { workspaceId, prompt: textOf(p.prompt, "prompt"), ...(p.images === undefined ? {} : { images: imagesOf(p.images) }), ...(worktree ? { worktree } : {}) };
     }
@@ -264,7 +245,6 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
     case "agents.cancelSteering":
       return { agentId: idOf(p.agentId, "agentId"), steeringId: idOf(p.steeringId, "steeringId") };
     case "agents.respondPermission": {
-      // allowAlways 는 데스크톱의 영구 허용 규칙을 쓰는 결정이라 폰에서는 못 한다.
       const decision = p.decision === "allow" || p.decision === "deny" ? p.decision : fail(T.errMobileParam("decision"));
       return { agentId: idOf(p.agentId, "agentId"), itemId: idOf(p.itemId, "itemId"), decision };
     }
@@ -284,7 +264,6 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
       const folder = resolveFolder(p.path, browseRoot);
       return { dir: folder.dir, display: folder.display };
     }
-    // 홈 아래 실제 폴더만. 홈 자체와 숨김, 제외 폴더는 거절한다. 데몬 핸들러에는 풀어 낸 절대 경로를 넘긴다.
     case "workspaces.add":
       return { dir: resolveAddable(p.dir, browseRoot).dir };
     case "workspaces.remove":
@@ -298,7 +277,6 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
     case "agents.setDone":
       return { agentId: idOf(p.agentId, "agentId"), done: typeof p.done === "boolean" ? p.done : fail(T.errMobileParam("done")) };
     case "agents.rename": {
-      // 제어 문자는 공백으로 바꾸고 200자로 자른다. 비어 있는 이름은 데몬이 거절한다.
       const title = typeof p.title === "string" && p.title.length <= 2000 ? p.title.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, TITLE_LIMIT) : fail(T.errMobileParam("title"));
       return { agentId: idOf(p.agentId, "agentId"), title };
     }
@@ -310,7 +288,6 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
   return fail(T.errMobileMethod(method));
 }
 
-// 서버 이벤트를 모바일용으로 거른다. 보내지 않을 이벤트는 null. 항목은 줄여서 보낸다.
 export function shapeMobileEvent(event: ServerEvent): ServerEvent | null {
   if (!(MOBILE_EVENT_TYPES as readonly string[]).includes(event.type)) return null;
   switch (event.type) {
@@ -325,16 +302,12 @@ export function shapeMobileEvent(event: ServerEvent): ServerEvent | null {
   }
 }
 
-// --- 서버 ---
-
 export type MobileServerDeps = {
   devices: MobileDevices;
   pairing: PairingCodes;
-  // 허용 목록과 인자 검사를 통과한 호출을 실행한다(데몬의 핸들러)
   call: (method: string, params: Record<string, unknown>, client: WebSocket) => Promise<unknown> | unknown;
   saveImage: (bytes: Buffer, mediaType: string, name: string) => { id: string };
   hostName: string;
-  // 브라우저가 아닌 클라이언트(React Native)는 Origin 을 보내지 않는다. Origin 이 있는 요청은 브라우저 페이지에서 온 것이라 기본으로 거절한다. 시험에서 웹 빌드를 붙일 때만 허용 목록을 준다.
   allowedOrigins?: ReadonlySet<string>;
   onClose?: (client: WebSocket) => void;
   log?: (line: string) => void;
@@ -345,7 +318,6 @@ const MAX_UNAUTHENTICATED = 8;
 const FLUSH_MS = 50;
 const KEEPALIVE_MS = 15_000;
 const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
-// 보내기 한 번은 글 5만 자(한글은 150KB 가까이)와 첨부 미리보기 5개(각 30KB)를 함께 실을 수 있어 1MB 로 둔다
 const MAX_FRAME_BYTES = 1024 * 1024;
 
 export class MobileServer {
@@ -355,7 +327,6 @@ export class MobileServer {
   private unauthenticated = 0;
   private alive = new WeakSet<WebSocket>();
   private keepalive: NodeJS.Timeout | null = null;
-  // 같은 항목의 스트리밍 갱신은 50ms 마다 마지막 것만 보낸다. 글이 흘러나오는 동안 폰의 렌더링이 따라가게 한다.
   private pending = new Map<string, ServerEvent>();
   private flushTimer: NodeJS.Timeout | null = null;
   private pairAttempts = new AttemptLimiter(10, 60_000);
@@ -432,7 +403,6 @@ export class MobileServer {
     return new Set(this.sockets.values());
   }
 
-  // 장치를 해제하면 그 장치의 열린 연결도 바로 끊는다.
   dropDevice(deviceId: string) {
     for (const [ws, id] of this.sockets) {
       if (id !== deviceId) continue;
@@ -445,7 +415,6 @@ export class MobileServer {
     return this.deps.devices.list().some((d) => d.id === id);
   }
 
-  // 장치를 목록에서 빼고(토큰이 더는 통하지 않는다) 열린 연결도 끊는다.
   revokeDevice(id: string) {
     this.deps.devices.revoke(id);
     this.dropDevice(id);
@@ -462,13 +431,11 @@ export class MobileServer {
     if (!shaped) return;
     if (shaped.type === "timelineUpsert" || shaped.type === "agent") {
       const key = shaped.type === "agent" ? `agent:${shaped.agent.id}` : `item:${shaped.agentId}:${shaped.item.id}`;
-      // 맨 뒤로 보내 순서를 지킨다: 같은 키의 옛 갱신을 지우고 최신 것을 끝에 둔다.
       this.pending.delete(key);
       this.pending.set(key, shaped);
       this.flushTimer ??= setTimeout(() => this.flush(), FLUSH_MS);
       return;
     }
-    // 항목 삭제 같은 이벤트가 앞선 갱신을 앞지르지 않게 쌓인 것부터 보낸다.
     this.flush();
     this.send(JSON.stringify({ event: shaped }));
   }
@@ -487,7 +454,6 @@ export class MobileServer {
 
   private sendTo(ws: WebSocket, text: string) {
     if (ws.readyState !== ws.OPEN) return;
-    // 폰이 못 따라와 쌓이면 끊는다. 다시 붙을 때 목록과 타임라인 끝을 새로 받아 맞춘다.
     if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
       ws.terminate();
       return;
@@ -508,9 +474,7 @@ export class MobileServer {
 
   // Origin 이 없으면 통과한다. 있으면 두 경우만 받는다.
   // 1. React Native(iOS)는 연결한 주소 그대로를 Origin 으로 보낸다(Host 와 같은 http://<IP>:<포트>). 호스트가 IP 주소나 .local 이름일 때만 인정한다.
-  //    다른 사이트의 웹페이지는 자기 도메인이 Origin 이고, DNS rebinding 으로 이 포트를 겨눠도 호스트 이름이 일반 도메인이라 걸러진다.
   // 2. 시험용으로 허용 목록(AGENT_NAV_MOBILE_ALLOW_ORIGIN)에 적은 Origin.
-  // 어느 쪽이든 장치 토큰이 없으면 아무것도 실행되지 않는다(이 검사는 겹겹이 두는 방어다).
   private originAllowed(req: IncomingMessage): boolean {
     const origin = req.headers.origin;
     if (origin === undefined || this.deps.allowedOrigins?.has(origin) === true) return true;
@@ -522,7 +486,6 @@ export class MobileServer {
 
   private accept(ws: WebSocket) {
     this.unauthenticated += 1;
-    // 인증 전 연결 수를 한 번만 센다(인증이나 종료 중 먼저 오는 쪽에서 줄인다)
     let counted = true;
     const settle = () => {
       if (counted) {
@@ -573,8 +536,6 @@ export class MobileServer {
     });
   }
 
-  // --- HTTP ---
-
   private onRequest(req: IncomingMessage, res: ServerResponse) {
     if (!this.originAllowed(req)) return json(res, 403, { error: "forbidden" });
     const url = requestUrl(req);
@@ -610,7 +571,6 @@ export class MobileServer {
       return json(res, 401, { error: "unauthorized" });
     }
     const tooLarge = () => {
-      // 남은 본문은 읽지 않는다. 응답을 다 보낸 뒤 연결을 닫는다.
       res.setHeader("connection", "close");
       json(res, 413, { error: T.errMobileImageTooLarge(MAX_IMAGE_BYTES / 1024 / 1024) });
       res.on("finish", () => req.socket.destroySoon());
@@ -627,7 +587,6 @@ export class MobileServer {
     try {
       name = decodeURIComponent(typeof rawName === "string" ? rawName : url.searchParams.get("name") ?? "image");
     } catch {
-      // 이름은 표시용이라 못 읽으면 기본값을 쓴다
     }
     try {
       json(res, 200, this.deps.saveImage(bytes, String(req.headers["content-type"] ?? ""), name));
@@ -637,7 +596,6 @@ export class MobileServer {
   }
 }
 
-// 요청 주소가 URL 로 읽히지 않으면(예: "//[") null. new URL 이 던지는 것을 잡지 않으면 인증 전 요청 하나로 데몬 전체가 죽는다.
 function requestUrl(req: IncomingMessage): URL | null {
   try {
     return new URL(req.url ?? "/", "http://mobile");
@@ -651,7 +609,6 @@ function json(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(text), "cache-control": "no-store" }).end(text);
 }
 
-// 본문을 limit 바이트까지만 받는다. 넘으면 그 순간 던져서 더 읽지 않는다.
 function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];

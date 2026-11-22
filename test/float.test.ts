@@ -1,4 +1,3 @@
-// 배치 모드와 떠 있는 창의 순수 로직(web/floatLayout.ts)을 확인한다. 실행: npm test
 import {
   clampRect,
   defaultRect,
@@ -24,7 +23,6 @@ const expect = (condition: boolean, detail: string) => {
   if (!condition) throw new Error(detail);
   return detail;
 };
-// 키 순서와 상관없이 비교한다
 const stable = (value: unknown) => JSON.stringify(value, (_k, v) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v));
 const same = (actual: unknown, wanted: unknown, label: string) => {
   const a = stable(actual);
@@ -34,8 +32,6 @@ const same = (actual: unknown, wanted: unknown, label: string) => {
 
 const vp: Viewport = { width: 1440, height: 900, top: 35 };
 const limits: FloatLimits = { minW: 320, minH: 240, margin: 16 };
-
-// --- 시작 모드 ---
 
 test("starts from the Settings default", () => {
   same(startingMode({ restored: null, defaultLayout: "editor", remember: false, last: "chat" }), "editor", "default beats last when remember is off");
@@ -53,8 +49,6 @@ test("a reloaded window keeps its mode", () => {
   same(startingMode({ restored: "chat", defaultLayout: "editor", remember: false, last: null }), "chat", "restored beats settings");
   return "restored first";
 });
-
-// --- 자리와 크기 ---
 
 test("default rect sits at the bottom right", () => {
   const r = defaultRect({ w: 420, h: 560 }, vp, limits);
@@ -131,8 +125,6 @@ test("the pill hangs from the window's bottom right corner", () => {
   return "ok";
 });
 
-// --- 고정 탭과 에디터 탭 ---
-
 const slice = (over: Partial<TabSlice>): TabSlice => ({
   layoutMode: "editor",
   activeTabKey: "a.ts",
@@ -169,7 +161,6 @@ test("editor layout: a tab in another group stays active when a pinned tab is ch
 
 test("editor layout: closing the active tab does not move the side panel", () => {
   const prev = slice({ sideTabKey: "files" });
-  // closeTab 이 "changes" 로 떨어뜨린다. 활성이던 a.ts 는 사라졌다.
   const out = normalizeTabs(prev, { ...prev, activeTabKey: "changes", tabKeys: ["b.ts", "c.ts"], mainKeys: ["b.ts"] });
   same([out.activeTabKey, out.sideTabKey], ["b.ts", "files"], "falls to the remaining tab, side panel untouched");
   const last = normalizeTabs(prev, { ...prev, activeTabKey: "changes", tabKeys: [], mainKeys: [] });
@@ -178,7 +169,6 @@ test("editor layout: closing the active tab does not move the side panel", () =>
 });
 
 test("editor layout: choosing a pinned tab with no editor tab open still moves the side panel", () => {
-  // 열린 에디터 탭이 없으면 activeTabKey 는 null 이다. 이때 Changes 나 Files 를 눌러도 반응이 없던 버그(떠 있는 창 배치).
   const prev = slice({ activeTabKey: null, mainEditorKey: null, sideTabKey: "files", tabKeys: [], mainKeys: [] });
   const out = normalizeTabs(prev, { ...prev, activeTabKey: "changes" });
   same([out.activeTabKey, out.sideTabKey], [null, "changes"], "changes selected");
@@ -231,14 +221,12 @@ test("chat layout: opening the first file from Files keeps Files in the column",
 
 test("chat layout: closing the last file hands the panel back to the pinned tab it showed", () => {
   const prev = slice({ layoutMode: "chat", activeTabKey: "a.ts", sideTabKey: "files", tabKeys: ["a.ts"], mainKeys: ["a.ts"] });
-  // store.ts activeAfterClose 가 main 그룹의 마지막 탭을 닫으면 sideTabKey 를 고른다
   const out = normalizeTabs(prev, { ...prev, activeTabKey: "files", tabKeys: [], mainKeys: [] });
   same([out.activeTabKey, out.sideTabKey, out.mainEditorKey], ["files", "files", null], "Files is active again and fills the panel");
   return "ok";
 });
 
 test("chat layout: a snapshot saved with a pinned active tab and editors open is settled on load", () => {
-  // 옛 Chat 배치는 Files 탭이 에디터 탭줄에 있었다. 저장된 activeTabKey 가 files 이고 에디터 탭이 있으면 고정 칸으로 옮기고 보이는 에디터를 활성으로 한다.
   const saved = slice({ layoutMode: "chat", activeTabKey: "files", sideTabKey: "changes", mainEditorKey: "b.ts" });
   const out = normalizeTabs(saved, saved);
   same([out.activeTabKey, out.sideTabKey], ["b.ts", "files"], "column shows Files, b.ts active");
@@ -276,8 +264,6 @@ test("the side panel falls back to Changes when its card is gone or the key is a
   same(sideKeyOf("files", false), "files", "files");
   return "ok";
 });
-
-// --- 세션 드롭다운 ---
 
 const agent = (id: string, workspaceId: string | null, over: Partial<SessionChoice> = {}): SessionChoice => ({ id, title: id, workspaceId, done: false, feedback: false, updatedAt: 0, ...over });
 

@@ -1,4 +1,3 @@
-// 편집 승인 카드의 변경 미리보기(web/approvalPreview.ts). 실행: npm test
 import { isEditApproval, previewEdit } from "../web/approvalPreview";
 
 const expect = (condition: boolean, detail: string) => {

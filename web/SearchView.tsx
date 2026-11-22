@@ -22,7 +22,6 @@ export function SearchView() {
   const listRef = useRef<HTMLDivElement>(null);
   useFocusRequest(focusRequest, inputRef);
 
-  // 다른 폴더에서 돌린 결과는 이 폴더의 것이 아니다
   const shown = run.kind === "done" && !runIsCurrent(run, workspaceId) ? IDLE_RUN : run;
   return (
     <>
@@ -40,8 +39,6 @@ export function SearchView() {
     </>
   );
 }
-
-// --- 제목 줄 단추 ---
 
 export function SearchHeaderActions() {
   const view = useStore((s) => s.searchView);
@@ -90,7 +87,6 @@ export function SearchHeaderActions() {
   );
 }
 
-// 결과 모델은 store 의 결과와 searchState 의 지운 일치, 보기 방식이 바뀔 때만 다시 만든다
 function useSearchUiModel() {
   const run = useStore((s) => s.searchRun);
   const mode = useStore((s) => s.searchView.viewMode);
@@ -99,8 +95,6 @@ function useSearchUiModel() {
   const workspaceId = useStore(searchWorkspaceOf);
   return useMemo(() => currentModel(), [run, mode, dismissed, settings, workspaceId]);
 }
-
-// --- 검색 위젯 ---
 
 function SearchWidget({ view, hasResults, resultQuery, inputRef, listRef }: { view: SearchViewOptions; hasResults: boolean; resultQuery: string | null; inputRef: RefObject<HTMLTextAreaElement | null>; listRef: RefObject<HTMLDivElement | null> }) {
   const settings = useSearchUi((s) => s.settings);
@@ -116,7 +110,6 @@ function SearchWidget({ view, hasResults, resultQuery, inputRef, listRef }: { vi
     setSearchUi({ note: null });
     historyOf("search").reset();
     if (!settings.searchOnType) return;
-    // 정규식이 틀렸으면 검색하지 않는다. 비우면 같은 디바운스 뒤 결과가 지워진다.
     const delay = typingDelay({ query, regex: view.regex }, settings.searchOnTypeDebouncePeriod);
     if (delay !== null) scheduleSearchView(delay);
   };
@@ -201,7 +194,6 @@ function SearchWidget({ view, hasResults, resultQuery, inputRef, listRef }: { vi
   );
 }
 
-// 검색 뷰 안에서 걸리는 키: 토글 ⌥⌘C W R P, 상세 ⇧⌘J, Replace All ⌥⌘Enter
 function widgetKey(event: KeyboardEvent, toggle: (patch: Partial<SearchViewOptions>) => void, view: SearchViewOptions) {
   const mac = event.metaKey && !event.ctrlKey;
   if (mac && event.altKey && !event.shiftKey) {
@@ -235,7 +227,6 @@ type InputBoxProps = {
   history: HistoryKind;
   error: string | null;
   onChange: (value: string) => void;
-  // 기록으로 불러온 값. 바로 검색하지 않는다(비운 경우만 결과를 지운다)
   onHistory: (value: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -253,7 +244,6 @@ function InputBox({ inputRef, value, placeholder, label, history, error, onChang
     if (event.nativeEvent.isComposing) return;
     if (event.key === "Enter") {
       if (event.ctrlKey) {
-        // 개행: textarea 의 기본 Enter 는 개행이지만 Ctrl 이 붙으면 브라우저가 넣지 않으므로 직접 넣는다
         event.preventDefault();
         const next = `${value.slice(0, el.selectionStart)}\n${value.slice(el.selectionEnd)}`;
         onChange(next);
@@ -284,7 +274,6 @@ function InputBox({ inputRef, value, placeholder, label, history, error, onChang
       const up = event.key === "ArrowUp";
       const multiline = value.includes("\n") || el.scrollHeight > el.clientHeight + 1;
       const atEdge = up ? el.selectionStart === 0 || !value.slice(0, el.selectionStart).includes("\n") : el.selectionEnd === value.length || !value.slice(el.selectionEnd).includes("\n");
-      // 줄이 여러 개면 가장자리 줄에서만 기록으로 넘어간다. ⌥ 가 붙으면 늘 기록이다.
       if (event.altKey || !multiline || atEdge) {
         const found = up ? navigator.previous(value) : navigator.next();
         if (found !== null) {
@@ -325,7 +314,6 @@ function InputBox({ inputRef, value, placeholder, label, history, error, onChang
   );
 }
 
-// 내용이 늘면 높이가 늘어나고 최대 높이에서 스크롤한다
 function fitHeight(el: HTMLTextAreaElement) {
   el.style.height = "auto";
   if (el.scrollHeight === 0) {
@@ -367,8 +355,6 @@ function Toggle({ label, keys, icon, on, onChange }: { label: string; keys: stri
     </button>
   );
 }
-
-// --- files to include / files to exclude ---
 
 function SearchDetails({ view }: { view: SearchViewOptions }) {
   const debounce = useSearchUi((s) => s.settings.searchOnTypeDebouncePeriod);
@@ -423,8 +409,6 @@ function PatternBox({ kind, value, disabled, placeholder, onChange, children }: 
   );
 }
 
-// --- 요약 줄 ---
-
 function SearchMessage({ view, run, stale, noFolder }: { view: SearchViewOptions; run: SearchRun; stale: boolean; noFolder: boolean }) {
   const model = useSearchUiModel();
   const note = useSearchUi((s) => s.note);
@@ -468,7 +452,6 @@ function SearchMessage({ view, run, stale, noFolder }: { view: SearchViewOptions
       </div>
     );
   }
-  // 큰 폴더에서는 검색이 몇 초 걸린다. 그동안 빈 화면이면 고장처럼 보여서 검색 중임을 알린다.
   if (run.kind === "busy") return <div className="sv-messages"><div className="sv-message">{S.searchRunning}</div></div>;
   if (run.kind !== "done" || phase !== 0) return <div className="sv-messages" />;
   if (model.hitCount === 0) {
@@ -519,7 +502,6 @@ function reRun(patch: Partial<SearchViewOptions>) {
   queueMicrotask(() => scheduleSearchView(0));
 }
 
-// "Search again in all files": include, exclude 를 비우고 Open Editors 와 Changed Files 를 끄고 다시 검색한다
 function searchAllFiles() {
   reRun({ include: "", exclude: "", openOnly: false, changedOnly: false });
 }
@@ -532,7 +514,6 @@ function Link({ children, onClick, title }: { children: ReactNode; onClick: () =
   );
 }
 
-// ⇧⌘F 가 보낸 요청(시각)을 한 번 받아 입력에 포커스를 주고 글을 전체 선택한다. 사이드바나 오른쪽 패널이 막 열리는 중이면 입력이 아직 안 보여서 몇 프레임 다시 시도한다.
 function useFocusRequest(request: number | null, inputRef: RefObject<HTMLTextAreaElement | null>) {
   useEffect(() => {
     if (request === null) return;

@@ -9,8 +9,6 @@ import { Icon } from "../ui/Icon";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
 import { Text } from "../ui/Text";
 
-// 워크스페이스 추가: 맥의 홈 폴더 아래를 한 단계씩 둘러보며 폴더를 고르거나, 경로를 직접 적는다(Paseo 의 Add project 의 Browse 와 Search for directory 를 한 화면에 모았다).
-// 폰이 볼 수 있는 것은 폴더 이름과 git 여부뿐이다(숨김 폴더, Library 같은 시스템 폴더, 홈 밖은 데몬이 거절한다). 맨 아래 단추는 지금 입력칸에 있는 경로를 추가한다.
 export default function AddWorkspace() {
   const router = useRouter();
   const colors = useColors();

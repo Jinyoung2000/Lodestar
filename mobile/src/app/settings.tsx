@@ -9,7 +9,6 @@ import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Button } from "../ui/Button";
 import { Text } from "../ui/Text";
 
-// 설정: 연결(Mac 이름, 주소, 상태, 왕복 시간), 주소 바꾸기, 연결 해제, 성능 측정값.
 export default function Settings() {
   const router = useRouter();
   const colors = useColors();
@@ -18,7 +17,6 @@ export default function Settings() {
   const hostName = useAppState((s) => s.hostName);
   const syncedAt = useAppState((s) => s.syncedAt);
   const [rtt, setRtt] = useState<number | null>(null);
-  // 주소 바꾸기: 입력 칸을 화면 안에 편다(Alert.prompt 는 iOS 에만 있다)
   const [addressDraft, setAddressDraft] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>([...allMetrics()]);
   useEffect(() => {
@@ -52,7 +50,6 @@ export default function Settings() {
     setAddressDraft(null);
   };
 
-  // reset 은 저장소를 연결에서 떼어 낸다. 다시 붙이고 목록을 새로 받는다(붙어 있지 않으면 다시 붙을 때 받는다).
   const clearSaved = async () => {
     await store.reset();
     store.attach(client);

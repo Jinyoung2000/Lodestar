@@ -20,7 +20,6 @@ import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 
-// 탭에 보이는 이름. 파일은 파일 이름만, diff 와 SCM 탭은 파일 이름 뒤에 비교 범위를 붙인다.
 export function tabName(tab: Tab): string {
   if (tab.kind === "search") return S.searchTabTitle(tab.query);
   if (tab.kind === "browser") return tabLabel(tab.title);
@@ -35,7 +34,10 @@ export function tabName(tab: Tab): string {
 const SCOPE_LABEL: Record<ChangeScope, string> = { branch: S.branchChanges, uncommitted: S.scopeUncommitted, session: S.scopeSession, lastTurn: S.scopeLastTurn };
 
 export function diffScopeLabel(tab: DiffTab | ScmDiffTab): string {
-  if (tab.kind === "scm") return tab.section === "staged" ? M.sectionIndex : M.sectionChanges;
+  if (tab.kind === "scm") {
+    if (tab.section === "uncommitted") return S.scopeUncommitted;
+    return tab.section === "staged" ? M.sectionIndex : M.sectionChanges;
+  }
   const agent = getState().agents.find((a) => a.id === tab.agentId);
   return SCOPE_LABEL[tab.scope ?? (agent ? defaultChangeScope(agent) : "branch")];
 }
@@ -170,7 +172,6 @@ export function DiffTabActions({ activeKey }: { activeKey: string | null }) {
   );
 }
 
-// 탭이 하나도 없는 그룹의 본문(배치 명령이나 New Editor Group 이 만든 빈 그룹)
 export function EmptyGroup({ group }: { group: string }) {
   const lonely = useStore((s) => groupIdsOf(s.editorLayout).length < 2);
   return (

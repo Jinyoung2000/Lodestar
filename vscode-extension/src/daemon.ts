@@ -3,9 +3,6 @@ import { join } from "node:path";
 import WebSocket from "ws";
 import type { Agent, RpcMethod, RpcMethods, ServerEvent, ServerMessage, Workspace } from "../../shared/protocol";
 
-// 데몬 RPC 에 붙는 클라이언트. 토큰은 데몬이 쓰는 파일(<home>/token)에서 읽는다.
-// 데몬은 브라우저의 교차 출처 접속을 막으려고 Origin 을 검사한다. Node 클라이언트는 그 헤더를 마음대로 쓸 수 있으니 데몬 자신의 출처를 보내고,
-// 실제 인증은 토큰이 한다. 토큰이 틀리면 데몬이 403 으로 거절한다(rejected).
 export type DaemonSettings = { port: number; home: string };
 
 export type DaemonState = "connecting" | "online" | "offline" | "noToken" | "rejected";
@@ -19,7 +16,6 @@ export class Daemon {
   state: DaemonState = "connecting";
   workspaces: Workspace[] = [];
   agents: Agent[] = [];
-  // 한 번이라도 목록을 받았는지. 받기 전에는 세션이 없다고 단정하지 않는다.
   loaded = false;
   private socket: WebSocket | null = null;
   private nextId = 1;
@@ -45,7 +41,6 @@ export class Daemon {
     this.socket?.terminate();
   }
 
-  // 설정(포트, 홈)이 바뀌었을 때 처음부터 다시 붙는다.
   reconnect() {
     if (this.retry) clearTimeout(this.retry);
     this.socket?.terminate();
@@ -56,7 +51,6 @@ export class Daemon {
     this.connect();
   }
 
-  // 상태나 목록이 바뀔 때마다 부른다.
   onChange(listener: () => void) {
     this.changeListeners.add(listener);
     return { dispose: () => this.changeListeners.delete(listener) };

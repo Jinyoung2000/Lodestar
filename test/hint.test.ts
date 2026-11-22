@@ -1,5 +1,3 @@
-// 사소한 결과 안내(말풍선)의 순수 로직: 보이는 시간, 붙일 곳 고르기, 놓는 자리, 닫는 키.
-// 실행: npm test
 import { chooseAnchor, dismissesOnKey, hintDuration, HINT_MAX_MS, HINT_MIN_MS, placeBubble, POINTER_FRESH_MS, windowPoint, type AnchorInput, type HintRect } from "../web/hintModel";
 
 let failed = 0;

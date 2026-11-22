@@ -8,11 +8,6 @@ import { canQuickSend, parseDraft, planQuickSend, quickDefaults, quickKeyAction,
 import { rpc } from "./rpc";
 import { S } from "./strings";
 
-// 어느 앱에서나 단축키로 띄우는 빠른 입력창(electron/quickEntry.ts 가 만든 별도 창의 ?view=quick 화면).
-// 보내기는 메인 창의 새 세션 화면과 같은 RPC 를 쓴다: 새 세션과 빠른 채팅은 agents.create, 이어 보내기는 agents.send. 이미지는 images.upload 로 먼저 올린다.
-// 보낸 뒤에는 메인이 같은 창의 주소를 그 세션의 대화 화면으로 바꾼다(electron/quickEntry.ts finishSend, web/MiniChat.tsx).
-// 창은 한 번 만들어 숨겨 두고 다시 쓰므로, 열 때마다(onQuickEntryShow) 목록을 새로 읽고 쓰던 글은 그대로 둔다.
-
 const DRAFT_KEY = "agent-nav:quick-entry-draft";
 
 type QuickData = { workspaces: Workspace[]; agents: Agent[]; settings: Settings | null; resolved: ResolvedDefaults | null };
@@ -45,7 +40,6 @@ export function QuickEntry() {
       const [workspaces, agents, settings, resolved] = await Promise.all([rpc.call("workspaces.list", {}), rpc.call("agents.list", {}), rpc.call("settings.get", {}), rpc.call("defaults.get", {}).catch(() => null)]);
       setData({ workspaces, agents, settings, resolved });
     } catch {
-      // 연결이 끊겼으면 아래 안내가 보이고, 다시 연결되면 load 를 다시 부른다
     }
   }, []);
 
@@ -55,7 +49,6 @@ export function QuickEntry() {
       setConnected(up);
       if (up) void load();
     });
-    // 창이 열릴 때마다: 목록을 새로 읽고, 보내기 전의 글이 없으면 대상도 최근 쓴 워크스페이스로 다시 정하고, 입력칸에 포커스를 준다.
     const offShow = window.agentNavNative?.onQuickEntryShow?.(() => {
       setMenuOpen(false);
       setError(null);
@@ -78,7 +71,6 @@ export function QuickEntry() {
 
   useTheme(data.settings?.theme, data.settings?.themeStyle);
 
-  // 카드 높이가 바뀔 때마다(글이 늘거나 목록이 열릴 때) 창 높이를 맞춘다.
   useLayoutEffect(() => {
     const card = cardRef.current;
     if (!card) return;
@@ -89,7 +81,6 @@ export function QuickEntry() {
     return () => observer.disconnect();
   }, []);
 
-  // 입력칸은 글이 늘면 높이가 따라 커진다(상한은 CSS)
   useLayoutEffect(() => {
     const el = inputRef.current;
     if (!el) return;
@@ -101,7 +92,6 @@ export function QuickEntry() {
     writeDraft({ text, target: picked });
   }, [text, picked]);
 
-  // 목록이 열리면 지금 대상이 있는 줄부터 시작한다
   useEffect(() => {
     if (menuOpen) setActive(Math.max(0, rows.findIndex((row) => sameTarget(row.target, target))));
   }, [menuOpen]);
@@ -137,7 +127,6 @@ export function QuickEntry() {
     }
   };
 
-  // stay: ⌘Enter. 보낸 뒤 패널이 대화로 커지지 않고 숨는다. ⌥C 는 새 막대로 열리니, 그 대화는 막대의 Continue 목록이나 답 알림으로 다시 연다.
   const submit = async (stay: boolean) => {
     if (!sendable) return;
     const plan = planQuickSend({ target, text, imageCount: images.length, defaults: quickDefaults(data.settings, data.resolved) });
@@ -308,7 +297,6 @@ function TargetIcon({ target }: { target: QuickTarget }) {
   return <Codicon name="comment" size={14} />;
 }
 
-// Lodestar 앱 아이콘(public/favicon.svg)의 별 모양. 판 없이 별만 그린다.
 function LodestarMark() {
   return (
     <svg viewBox="200 160 624 704" fill="currentColor" aria-hidden="true">
@@ -317,9 +305,7 @@ function LodestarMark() {
   );
 }
 
-// settings.theme 를 <html data-theme> 에, settings.themeStyle 을 <html data-style> 에 반영한다. system 은 OS 설정을 따른다. 설정을 읽기 전에는 창을 만들 때 쿼리로 받은 값(initQuickView)이 그대로 있다.
 function useTheme(theme: Settings["theme"] | undefined, style: Settings["themeStyle"] | undefined) {
-  // 색 스타일은 속성이 없으면 lodestar 다
   useEffect(() => {
     if (style === "webstorm") document.documentElement.dataset.style = style;
     else delete document.documentElement.dataset.style;
@@ -351,11 +337,9 @@ function writeDraft(draft: { text: string; target: QuickTarget | null }) {
     if (draft.text === "" && draft.target === null) localStorage.removeItem(DRAFT_KEY);
     else localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
   } catch {
-    // 저장소를 못 쓰면 이번 창에서만 남는다
   }
 }
 
-// 빠른 입력창 페이지의 시작. 메인 앱의 initStore 는 부르지 않는다(창 상태와 초안 저장본이 메인 창 것과 섞이면 안 된다). 연결만 연다.
 export function initQuickView() {
   document.documentElement.classList.add("quick-entry");
   const theme = new URLSearchParams(location.search).get("theme");

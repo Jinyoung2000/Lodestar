@@ -7,8 +7,6 @@ import { createNote, deleteNote, flushNote, openNote, saveListScroll, savedListS
 import { S } from "./strings";
 import { Button } from "./ui/button";
 
-// 가운데 영역에 세션 격자 대신 보이는 메모장. 왼쪽에 메모 목록(첫 줄이 제목, 최근 수정 순)과 검색, 오른쪽에 열린 메모의 편집기가 있다.
-// 글은 입력이 멈추면 저장되고, 메모를 옮기거나 이 화면을 떠나면 바로 저장된다(web/notesStore.ts). 열었던 메모와 목록 스크롤은 다시 들어올 때 돌아온다.
 export function NotesView() {
   const notes = useNotes((s) => s.notes);
   const loadError = useNotes((s) => s.loadError);
@@ -53,7 +51,6 @@ export function NotesView() {
   );
 }
 
-// 목록 칸과 빈 화면이 같이 쓰는 머리줄: 제목과 새 메모 단추
 function NotesHeader() {
   return (
     <div className="pane-header">
@@ -74,7 +71,6 @@ function NotesList() {
   const focusAfter = useRef<string | null>(null);
   const firstPaint = useRef(true);
 
-  // 처음 그릴 때는 저장해 둔 스크롤로 돌아가고, 그 뒤 열린 메모가 바뀌면(새 메모 등) 그 줄이 보이게만 한다.
   useLayoutEffect(() => {
     const el = listRef.current;
     if (!el) return;
@@ -86,7 +82,6 @@ function NotesList() {
     el.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(openId ?? "")}"]`)?.scrollIntoView({ block: "nearest" });
   }, [openId]);
 
-  // 목록에서 ↑ ↓ 를 누르면 다음 메모를 열고 그 줄에 포커스를 둔다(Slack 화면과 같다).
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     if (!(event.target as HTMLElement).classList.contains("notes-row")) return;
@@ -104,7 +99,6 @@ function NotesList() {
     listRef.current?.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(id)}"]`)?.focus();
   }, [openId]);
 
-  // 스크롤 위치는 프레임에 한 번만 저장한다
   const scrollFrame = useRef(0);
   const onScroll = () => {
     cancelAnimationFrame(scrollFrame.current);

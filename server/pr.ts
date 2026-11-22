@@ -7,7 +7,6 @@ import { checkoutPullRequest, type CheckoutDeps } from "./prCheckout";
 import { discoverRepos } from "./prRepos";
 import { fileAt, localTarget } from "./prLocal";
 
-// GitHub 쓰기는 사용자가 버튼을 눌렀을 때 화면이 싣는 confirmed: true 가 있을 때만 한다. 읽기 동작에는 이 검사가 없다.
 export function requireConfirmed(params: unknown): void {
   if (!params || typeof params !== "object" || (params as { confirmed?: unknown }).confirmed !== true) throw new Error("This action changes GitHub and needs an explicit confirmation from the app.");
 }
@@ -41,7 +40,6 @@ export function prHandlers(deps: PrDeps): Handlers {
       requireConfirmed(params);
       const { owner, name } = splitRepo(params.repo);
       if (params.mode === "single") {
-        // 대기 중인 리뷰가 있으면 GitHub 가 REST 단일 코멘트를 거절하므로 화면은 그때 review 모드만 낸다.
         await ghRest("POST", `repos/${owner}/${name}/pulls/${Number(params.number)}/comments`, {
           body: params.body,
           commit_id: params.headSha,
@@ -111,13 +109,11 @@ export function prHandlers(deps: PrDeps): Handlers {
       requireConfirmed(params);
       return checkoutPullRequest(deps, topDirs(), params.repo, Number(params.number));
     },
-    // 코드 보기용 읽기 두 개: 새 쪽 글을 줄 로컬 폴더 고르기, 그 폴더 저장소의 sha 시점 파일 글. 쓰기도 네트워크도 없어 확인 필드를 받지 않는다.
     "pr.local": async ({ repo, headRef, headSha }) => {
       splitRepo(repo);
       return localTarget(deps, repo, String(headRef), String(headSha));
     },
     "pr.fileAt": async ({ workspaceId, sha, path }) => fileAt(deps, String(workspaceId), sha, path),
-    // 확장과 같은 GraphQL mergePullRequest. rebase 는 커밋 문구를 싣지 않는다(확장의 확인 단계에 입력칸이 없다).
     "pr.merge": async (params) => {
       requireConfirmed(params);
       if (!MERGE_METHODS.includes(params.method)) throw new Error(`Unknown merge method: ${String(params.method)}`);
@@ -130,7 +126,6 @@ export function prHandlers(deps: PrDeps): Handlers {
       try {
         await ghGraphql("mutation PrMerge($input: MergePullRequestInput!) { mergePullRequest(input: $input) { pullRequest { id state } } }", { input });
       } catch (error) {
-        // 화면이 본 뒤 head 가 바뀌면 GitHub 가 거절한다. 확장의 안내문으로 바꾼다
         if (/Head branch was modified/i.test(String((error as Error).message))) throw new Error("Head branch was modified. Pull, review, then try again.");
         throw error;
       }

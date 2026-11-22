@@ -1,5 +1,3 @@
-// 사이드바 Lodestar improvements 행의 상태 표시: 피드백 상태 값을 라벨, 색 계열, 아이콘으로 묶는 순수 함수 단독 시험.
-// 실행: npm test
 import { countNotApplied, feedbackBadge, feedbackFailureReason } from "../web/feedbackBadge";
 import type { Feedback } from "../shared/protocol";
 

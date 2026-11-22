@@ -1,7 +1,3 @@
-// 네이티브 TypeScript(typescript-go 7.0.2) LSP 의 hover 마크다운에서 만든 Copy Type, Copy Signature 문자열을 확인한다(web/hoverParts.ts).
-// 입력은 /tmp 임시 저장소의 실제 TS 파일에서 `tsc --lsp --stdio` 로 받은 hover 의 value 다(test/fixtures/native-hover.json).
-// 기대값은 test/typeparts.test.ts 가 typescript-language-server 의 quickinfo-full 조각으로 확인한 값과 같은 모양이다.
-// 실행: npm test
 import { readFileSync } from "node:fs";
 import { partsFromHoverMarkdown } from "../web/hoverParts";
 import { signatureFromParts, typeFromParts } from "../web/typeParts";

@@ -1,5 +1,3 @@
-// 덩어리 종류별로 줄 전체 폭 띠(cm-wholeChangedLine)를 칠할 줄을 가리는 규칙과 공백만 바뀐 줄 처리를 확인한다. DOM 이 필요 없다.
-// 실행: npm test
 import { Chunk } from "@codemirror/merge";
 import { Text } from "@codemirror/state";
 import { countLineChanges } from "../shared/lineDiff";

@@ -49,7 +49,6 @@ export const GROUP_COMMAND_TITLES: Record<string, string> = {
   ...Object.fromEntries(SIDES.map((side) => [`newGroup:${side}`, `View: ${S.newGroupSide[side]}`])),
 };
 
-// 키가 없는 그룹 명령(명령 팔레트에만 둔다)
 export const GROUP_KEYLESS_COMMANDS = [
   "quickOpenRecentEditor",
   "quickOpenOldestEditor",

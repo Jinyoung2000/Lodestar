@@ -3,7 +3,6 @@ import { usePrView } from "./prStore";
 import { P } from "./prStrings";
 import { relativeTime } from "./sessionList";
 
-// Commits: 이 PR 의 커밋을 오래된 것부터. 줄을 누르면 GitHub 의 커밋 페이지를 밖에서 연다.
 export function PrCommits() {
   const commits = usePrView((v) => v.detail?.commitList);
   const total = usePrView((v) => v.detail?.commitCount ?? 0);

@@ -1,4 +1,3 @@
-// 탭을 탭줄에 끌어 놓을 때 놓을 자리 표시선이 붙박이 구역 제한을 반영하는지(web/tabDropMark.ts). 실행: npm test
 import { dropMarkAt, type StripTabBox } from "../web/tabDropMark";
 
 let failed = 0;
@@ -7,7 +6,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 
-// 폭 100 짜리 탭이 0 부터 이어진다: s1[0,100] s2[100,200] a[200,300] b[300,400]. s 는 붙박이.
 const box = (key: string, index: number, sticky = false, editor = true): StripTabBox => ({ key, left: index * 100, right: index * 100 + 100, sticky, editor });
 const strip = [box("s1", 0, true), box("s2", 1, true), box("a", 2), box("b", 3)];
 const mark = (x: number, key: string, sticky: boolean, tabs = strip) => dropMarkAt(tabs, x, { key, sticky }, 0);
@@ -46,7 +44,6 @@ check("a pinned tab dropped over a loose tab lands before the first loose tab", 
 })());
 
 check("the dragged tab from the same strip is not in tabs, the mark still clamps", (() => {
-  // s2 를 끌고 있다: 줄에는 s1 a b 만 남는다
   const rest = [box("s1", 0, true), box("a", 1), box("b", 2)];
   const m = mark(310, "s2", true, rest);
   return m.beforeKey === "a" && m.x === 100;

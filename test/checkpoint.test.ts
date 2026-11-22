@@ -1,5 +1,3 @@
-// B2: 체크포인트 복원과 메시지 단위 갈래의 순수한 부분(server/checkpoints.ts)과 타임라인 묶기(web/timelineModel.ts) 단독 시험.
-// 실행: npm test
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -47,7 +45,6 @@ test("findMessageId: 같은 글이 여럿이면 타임라인 순번으로 고른
   expect(findMessageId(chain, " first ", 0) === "u1", "앞뒤 공백 무시");
 });
 
-// 옛 빌드가 보낸 메시지: 타임라인 항목에 messageId 가 없다. 같은 글은 순번으로 짝짓는다.
 const legacy: TimelineItem[] = [
   { id: "L1", kind: "user", text: "first", source: "user" },
   { id: "LS", kind: "user", text: "same", source: "system" },

@@ -1,11 +1,9 @@
-/* 마지막 열 뒤 여백(editor.scrollBeyondLastColumn). 줄 바꿈 모드에서는 가로 스크롤이 없으니 두지 않는다. */
 .cm-editor.cm-vsc-scroll .cm-content:not(.cm-lineWrapping) {
   padding-right: calc(var(--editor-last-columns) * var(--editor-char-w));
 }
 .cm-editor.cm-vsc-smooth-scroll .cm-scroller {
   scroll-behavior: smooth;
 }
-/* 다른 파일이나 정의로 건너뛴 직후에는 부드럽게 내려가지 않고 바로 그 줄에 놓는다. */
 .cm-editor.cm-vsc-smooth-scroll.cm-vsc-jump .cm-scroller {
   scroll-behavior: auto;
 }

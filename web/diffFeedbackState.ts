@@ -4,8 +4,6 @@ import { rpc } from "./rpc";
 import { absolutePath } from "./lsp";
 import { activeAgent, flash, getState, openDiff, openFile } from "./store";
 
-// DIFFFB: 세션마다 쌓은 diff 피드백을 화면이 들고 있는 작은 저장소. 원본은 데몬(`~/.agent-nav/diff-feedback/`)이고 여기는 읽어 온 복사본이다.
-// store.ts 의 State 와 따로 둔다(changesState.ts 와 같은 방식).
 type Reveal = { agentId: string; path: string; line: number; nonce: number; at: number };
 
 type FeedbackState = {
@@ -39,7 +37,6 @@ export function useDiffFeedback(agentId: string | null | undefined): DiffFeedbac
 
 export const pendingOf = (items: DiffFeedback[]) => items.filter((f) => f.state === "accepted");
 
-// 에디터에 그릴 피드백: 쌓인 것과 다시 보이기로 한 보낸 것
 export function visibleFeedback(agentId: string, path: string) {
   const shown = state.shown[agentId] ?? [];
   return getDiffFeedback(agentId).filter((f) => f.path === path && (f.state === "accepted" || shown.includes(f.id)));
@@ -80,12 +77,10 @@ export const updateDiffFeedback = (agentId: string, id: string, text: string) =>
 export const removeDiffFeedback = (agentId: string, id: string) => void rpc.call("diffFeedback.remove", { agentId, id }).catch(fail);
 export const clearDiffFeedback = (agentId: string) => void rpc.call("diffFeedback.clear", { agentId }).catch(fail);
 
-// 쌓인 것 전부를 한 메시지로 보낸다. text 는 입력창에 쓴 글(없으면 빈 문자열). 응답 중이면 서버가 큐에 넣는다.
 export function sendDiffFeedback(agentId: string, text: string, steer = false) {
   return rpc.call("diffFeedback.send", { agentId, text, steer });
 }
 
-// 작업 폴더 기준 상대 경로. 세션 폴더, worktree, 워크스페이스 폴더 순으로 맞는 것을 쓴다.
 export function relativeToAgent(agent: Agent | undefined, absolute: string) {
   const workspace = agent?.workspaceId ? getState().workspaces.find((w) => w.id === agent.workspaceId) : undefined;
   for (const root of [agent?.cwd, agent?.worktree?.root, workspace?.dir]) {
@@ -94,7 +89,6 @@ export function relativeToAgent(agent: Agent | undefined, absolute: string) {
   return absolute;
 }
 
-// 칩이나 목록에서 피드백 위치로 간다. 바뀐 파일이면 diff 탭, 아니면 파일 탭을 열고 그 줄을 보인다. 보낸 피드백이면 에디터에 다시 보인다.
 export function revealDiffFeedback(agentId: string, target: { path: string; line: number; id?: string }) {
   const agent = getState().agents.find((a) => a.id === agentId);
   if (!agent?.workspaceId) return;
@@ -111,7 +105,6 @@ export function revealDiffFeedback(agentId: string, target: { path: string; line
   }
 }
 
-// 에디터 탭의 파일에 피드백을 보낼 세션: 지금 보고 있는 세션이고 그 파일이 세션 폴더(또는 worktree, 워크스페이스 폴더) 안일 때만이다. 없으면 null.
 export function feedbackAgentFor(workspaceId: string, path: string): string | null {
   const agent = activeAgent();
   if (!agent?.workspaceId) return null;

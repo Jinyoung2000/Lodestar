@@ -10,7 +10,6 @@ export const messageField = StateField.define<Message | null>({
   create: () => null,
   update(value, tr) {
     for (const effect of tr.effects) if (effect.is(setMessage)) return effect.value;
-    // 다음 입력이나 커서 이동이면 닫는다
     return value && (tr.docChanged || tr.selection) ? null : value;
   },
   provide: (field) => showTooltip.from(field, (message) => (message ? tooltipOf(message) : null)),
@@ -19,13 +18,11 @@ export const messageField = StateField.define<Message | null>({
 export function editorMessage(): Extension {
   return [
     messageField,
-    // Esc 로 닫는다. 메시지가 없을 때는 다른 Esc 동작(제안 목록 닫기 등)에 넘긴다.
     Prec.highest(keymap.of([{ key: "Escape", run: (view) => (hasMessage(view) ? (closeEditorMessage(view), true) : false) }])),
     ViewPlugin.fromClass(MessageTimer),
   ];
 }
 
-// 이 에디터가 말풍선을 띄울 수 있는지(editorMessage 확장이 들어 있는지)
 export function canShowEditorMessage(view: EditorView) {
   return view.state.field(messageField, false) !== undefined;
 }
@@ -58,7 +55,6 @@ function tooltipOf(message: Message): Tooltip {
   };
 }
 
-// 말풍선이 새로 뜨면 시간을 재고, 다 되면 닫는다.
 class MessageTimer {
   private shown: Message | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -66,7 +62,6 @@ class MessageTimer {
   constructor(private readonly view: EditorView) {}
 
   update(update: ViewUpdate) {
-    // 에디터 밖으로 포커스가 나가면 닫는다. 이 update 안에서는 dispatch 할 수 없어 다음 틱에 닫는다.
     if (update.focusChanged && !update.view.hasFocus) queueMicrotask(() => closeEditorMessage(this.view));
     const message = update.state.field(messageField, false) ?? null;
     if (message === this.shown) return;

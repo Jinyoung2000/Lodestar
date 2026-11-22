@@ -20,7 +20,6 @@ for (const [id, { iconPath }] of Object.entries(theme.iconDefinitions)) {
 }
 copyFileSync(join(source, "LICENSE.txt"), join(publicDir, "LICENSE.txt"));
 
-// 열린 폴더 아이콘은 닫힌 폴더 id 에 -open 을 붙인 것과 같다. 다르면 따로 적는다.
 const expandedOverrides = (closed, expanded) => Object.fromEntries(Object.entries(closed).filter(([name, id]) => expanded[name] !== `${id}-open`).map(([name]) => [name, expanded[name]]));
 const light = theme.light;
 const out = {

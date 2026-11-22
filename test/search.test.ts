@@ -1,5 +1,3 @@
-// 본문 검색(server/search.ts): rg 와 git grep 의 출력 해석, 앞뒤 줄 붙이기, 실제 저장소에서 두 엔진의 결과, 스크린샷 저장(server/browserShot.ts), 표시 함수(web/searchText.ts).
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -56,7 +54,6 @@ test("앞뒤 줄: 겹치면 한 번만 나오고 일치한 줄에 표시, 파일
   }
 });
 
-// 두 엔진이 같은 저장소에서 같은 일치 줄을 돌려주는지. rg 가 없는 환경에서는 git grep 만 본다.
 test("실제 저장소 검색: 옵션(대소문자, 낱말, 정규식), 새 파일, .gitignore, 오류", async () => {
   const dir = mkdtempSync(join(tmpdir(), "an-search-repo-"));
   try {
@@ -80,7 +77,6 @@ test("실제 저장소 검색: 옵션(대소문자, 낱말, 정규식), 새 파�
     expect((await lines({ matchCase: true })).startsWith("src/a.ts:2,3 src/new.ts:1"), await lines({ matchCase: true }));
     expect((await lines({ wholeWord: true })).startsWith("src/a.ts:1,3 src/new.ts:1"), await lines({ wholeWord: true }));
     expect((await lines({ query: "al(pha|phabet) =", regex: true })).startsWith("src/a.ts:1,2,3"), await lines({ query: "al(pha|phabet) =", regex: true }));
-    // 정규식을 끄면 특수문자가 글자 그대로다
     expect((await lines({ query: "a.pha" })).startsWith(" ") || (await lines({ query: "a.pha" })).startsWith("("), "정규식 아님");
     expect((await searchWorkspace(dir, { ...base, query: "   " })).matches === 0, "빈 검색어");
     let message = "";
@@ -94,7 +90,6 @@ test("실제 저장소 검색: 옵션(대소문자, 낱말, 정규식), 새 파�
   }
 });
 
-// rg 가 없는 개발 환경에서는 Claude 실행 파일이 ARGV0=rg 로 ripgrep 구실을 하는 것을 빌려 진짜 rg --json 경로를 확인한다.
 test("rg 엔진: 같은 저장소에서 git grep 과 같은 일치 줄", async () => {
   const claude = join(process.env.HOME ?? "", ".local", "bin", "claude");
   const real = await findRipgrep();
@@ -168,7 +163,6 @@ test("files to include, files to exclude: 패턴을 glob 로 풀고 두 엔진�
     execFileSync("git", ["init", "-q"], { cwd: dir });
     const base = { query: "needle", matchCase: false, wholeWord: false, regex: false, context: 0 };
     const paths = async (extra: object, rg: string | null) => (await searchWorkspace(dir, { ...base, ...extra }, rg)).files.map((f) => f.path).join();
-    // rg 가 없는 환경에서는 위 시험처럼 Claude 실행 파일이 ARGV0=rg 로 대신한다.
     let rg = await findRipgrep();
     const claude = join(process.env.HOME ?? "", ".local", "bin", "claude");
     if (!rg && existsSync(claude)) {

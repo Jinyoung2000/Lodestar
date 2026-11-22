@@ -15,7 +15,6 @@ export type ImportDeps = {
   store: Store;
   runner: AgentRunner;
   emit: (event: ServerEvent) => void;
-  // 시험에서만 바꾼다
   userDir?: string;
   projects?: string;
   now?: () => number;
@@ -23,10 +22,7 @@ export type ImportDeps = {
 
 const ACTIVE_WINDOW_MS = 15_000;
 const OWN_WRITE_GRACE_MS = 20_000;
-// 모델 이름으로 받는 글자(설정 화면과 같다)
 const MODEL_NAME = /^[\w.[\]:/-]+$/;
-
-// --- 후보 목록 ---
 
 export async function listVscodeSessions(deps: ImportDeps): Promise<VscodeImportList> {
   const userDir = deps.userDir ?? vscodeUserDir();
@@ -56,11 +52,8 @@ export async function listVscodeSessions(deps: ImportDeps): Promise<VscodeImport
   };
 }
 
-// --- 가져오기 ---
-
 let importQueue: Promise<unknown> = Promise.resolve();
 
-// 가져오기는 한 번에 하나씩 한다. 같은 Claude 세션을 두 호출이 동시에 만들지 않게 하고, 부모 채팅이 자식보다 먼저 들어오는 순서를 지킨다.
 export function importVscodeSessions(deps: ImportDeps, keys: string[]): Promise<VscodeImportResult[]> {
   const run = importQueue.then(() => runImport(deps, keys));
   importQueue = run.catch(() => undefined);
@@ -77,7 +70,6 @@ async function runImport(deps: ImportDeps, keys: string[]): Promise<VscodeImport
   }
   const drafts = collectDrafts(state);
   const done = new Map<string, VscodeImportResult>();
-  // 부모(기본 채팅)가 먼저 들어와야 다른 채팅이 바로 그 아래에 붙는다. 결과는 요청한 순서대로 돌려준다.
   const wanted = [...new Set(keys)].map((key) => ({ key, draft: drafts.find((d) => d.key === key) })).sort((a, b) => Number(a.draft?.kind === "peer") - Number(b.draft?.kind === "peer"));
   for (const { key, draft } of wanted) {
     if (!draft) {
@@ -100,7 +92,6 @@ async function importDraft(deps: ImportDeps, p: Probed): Promise<VscodeImportRes
   if (!draft.claudeSessionId) return { ...base, outcome: "skipped", note: T.importNoSessionId };
   const existing = deps.store.agents.find((a) => a.sessionId === draft.claudeSessionId);
   if (existing) {
-    // agent-nav 가 직접 만든 세션은 건드리지 않는다. 가져온 세션만 새 메시지를 더한다.
     if (!existing.imported) return { ...base, agentId: existing.id, outcome: "unchanged", items: deps.store.timeline(existing.id).length, note: T.importExistingNative };
     const synced = await reconcile(deps, existing.id, { force: true });
     linkFamily(deps, existing);
@@ -112,7 +103,6 @@ async function importDraft(deps: ImportDeps, p: Probed): Promise<VscodeImportRes
   if (!cwd) return { ...base, outcome: "failed", note: T.importNoFolder };
   const chain = await loadChain(draft.claudeSessionId, cwd);
   const running = p.running;
-  // 압축 이전 대화도 읽기 전용으로 앞에 붙인다(압축 지점은 구분선 항목)
   const split = splitAtCompaction(chain, raw.notes, raw.entries, raw.entryOrder);
   const before = markPreCompact(buildItems(split.before, raw.notes, { finishLastTurn: true }).built);
   const { built, lastTimestamp, model } = buildItems(split.after, raw.notes, { finishLastTurn: !running });
@@ -185,13 +175,11 @@ function linkFamily(deps: ImportDeps, agent: Agent) {
 const parentAgentOf = (store: Store, draft: Draft) => (draft.kind === "peer" ? store.agents.find((a) => a.imported?.vsSessionId === draft.vsSessionId && a.imported.chatId === "default") : undefined);
 
 
-// 메시지를 보내기 전에 부른다. 세션 기록이 마지막으로 맞춘 뒤 바뀌었고, 그 안에 타임라인에 없는 새 항목이 있으면 타임라인을 맞추고 true.
 export async function reconcileBeforeTurn(deps: ImportDeps, agentId: string): Promise<boolean> {
   const synced = await reconcile(deps, agentId, { force: false });
   return synced.added > 0 || synced.updated > 0;
 }
 
-// agent-nav 가 직접 돌린 턴이 끝났다. 그 턴이 쓴 기록까지 맞춘 것으로 표지를 올린다.
 export function markSynced(deps: ImportDeps, agentId: string) {
   const agent = deps.store.agents.find((a) => a.id === agentId);
   if (!agent?.imported || !agent.sessionId) return;
@@ -243,7 +231,6 @@ export function importActivity(deps: ImportDeps, agentId: string): { active: boo
 const isRecent = (mtimeMs: number, deps: ImportDeps) => (deps.now ?? Date.now)() - mtimeMs < ACTIVE_WINDOW_MS;
 
 
-// 후보 하나가 되기 전의 내부 모양. 가져올 때 필요한 값(권한, 모델, 폴더 힌트)까지 담는다.
 export type Draft = {
   key: string;
   claudeSessionId: string | null;
@@ -299,7 +286,6 @@ export function collectDrafts(state: VscodeState): Draft[] {
     draft.title = draft.title ?? (c.summary.trim() || null);
     draft.unread = draft.unread || c.chats.some((chat) => chat.isRead === false);
     draft.subagentChats = Math.max(draft.subagentChats, c.chats.filter((chat) => chat.authority === "subagent").length);
-    // 캐시에만 있고 session.db 에서 풀지 못한 다른 채팅은 Claude 세션 id 를 모르는 채로 보인다
     for (const chat of c.chats) {
       if (chat.authority === "default" || chat.authority === "subagent" || !chat.authority) continue;
       if (state.peers.some((p) => p.authority === chat.authority && p.parentVsSessionId === c.vsSessionId)) continue;
@@ -382,11 +368,8 @@ function applyPeer(draft: Draft, p: PeerMeta, owner: SessionMeta | undefined, pa
   draft.title = [...(owner?.chatTitles ?? [])].find(([uri]) => uri.startsWith(`ahp-chat://${p.authority}/`))?.[1] ?? null;
 }
 
-// --- 파일 시스템에서 보충 ---
-
 type Probed = { draft: Draft; file: string | null; peek: TranscriptPeek | null; mtimeMs: number | null; running: boolean; cwd: string | null; cwdExists: boolean };
 
-// 세션 기록의 위치와 앞뒤 일부(작업 폴더, 시각, 제목)를 읽고 작업 폴더가 있는지 본다.
 async function probe(deps: ImportDeps, draft: Draft): Promise<Probed> {
   const file = draft.claudeSessionId ? findTranscript(draft.claudeSessionId, draft.cwd, deps.projects) : null;
   const peek = file ? await peekTranscript(file) : null;
@@ -424,7 +407,6 @@ function candidateOf(deps: ImportDeps, p: Probed): VscodeCandidate {
   };
 }
 
-// 기본 채팅 바로 아래에 그 세션의 다른 채팅이 오고, 기본 채팅은 최근 수정 순서다. 부모가 목록에 없는 다른 채팅은 맨 위 줄로 올라온다.
 function orderCandidates(list: VscodeCandidate[]): VscodeCandidate[] {
   const keys = new Set(list.map((c) => c.key));
   const children = new Map<string, VscodeCandidate[]>();
@@ -438,11 +420,8 @@ function orderCandidates(list: VscodeCandidate[]): VscodeCandidate[] {
   return roots.flatMap((root) => [root, ...(children.get(root.key) ?? []).sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? "") || a.key.localeCompare(b.key))]);
 }
 
-// --- 작업 폴더와 워크스페이스 ---
-
 type Placement = { workspaceId: string | null; cwd: string; worktree: Agent["worktree"]; startCommit: string | null; cwdMissing: boolean };
 
-// 세션이 실제로 돈 폴더. 세션 기록이 들어 있는 프로젝트 폴더 이름과 맞는 쪽을 쓴다(CLI 가 이어 갈 때 이 이름으로 기록을 찾는다).
 function chooseCwd(file: string, vscodeCwd: string | null, recordedCwd: string | null): string | null {
   const dir = basename(dirname(file));
   for (const candidate of [vscodeCwd, recordedCwd]) {
@@ -451,8 +430,6 @@ function chooseCwd(file: string, vscodeCwd: string | null, recordedCwd: string |
   return vscodeCwd ?? recordedCwd;
 }
 
-// 폴더를 워크스페이스로 등록하고(없으면 자동 등록), git worktree 면 원 레포 워크스페이스 아래에 붙인다(AgentRunner.create 와 같은 모양).
-// 폴더가 없으면 그 경로로 등록은 하되 cwdMissing 으로 알린다. 폴더 없는 채팅(workspaceless)은 Chats 묶음에 들어간다.
 async function placeSession(store: Store, cwd: string, draft: Draft): Promise<Placement> {
   const real = realOrSame(cwd);
   if (draft.workspaceless || /\/\.copilot\/chats\/[^/]+$/.test(real)) return { workspaceId: null, cwd: real, worktree: null, startCommit: null, cwdMissing: !isDirectorySync(real) };
@@ -465,7 +442,6 @@ async function placeSession(store: Store, cwd: string, draft: Draft): Promise<Pl
   return { workspaceId: child.id, cwd: real, worktree: { root: tree.root, branch: tree.branch, base }, startCommit: null, cwdMissing: false };
 }
 
-// cwd 가 레포의 추가 worktree 안이면 그 worktree 의 뿌리, 원 레포 뿌리, 브랜치. 아니면 null.
 export async function detectWorktree(cwd: string): Promise<{ root: string; mainRoot: string; branch: string } | null> {
   const run = async (args: string[]) => {
     try {
@@ -480,8 +456,6 @@ export async function detectWorktree(cwd: string): Promise<{ root: string; mainR
   if (!root || !gitDir || !common || realOrSame(gitDir) === realOrSame(common) || basename(common) !== ".git") return null;
   return { root: realOrSame(root), mainRoot: realOrSame(dirname(common)), branch: (await run(["rev-parse", "--abbrev-ref", "HEAD"])) ?? "HEAD" };
 }
-
-// --- 값 옮기기 ---
 
 function permissionOf(store: Store, value: string | null): PermissionMode {
   if (value && (PERMISSION_MODE_VALUES as readonly string[]).includes(value)) return value as PermissionMode;

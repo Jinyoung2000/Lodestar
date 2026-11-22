@@ -1,5 +1,3 @@
-// FBREDO: 반영 안 됨(failed) 항목을 사람이 정리하는 길(Mark as Resolved, Dismiss) 단독 시험. 서버 상태 저장, 거절 조건, 목록 필터를 본다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -45,7 +43,6 @@ function daemon() {
   return { runner, notices, events };
 }
 
-// 첫 데몬이 피드백을 만들고, 상태를 patch 로 바꾼 채 죽은 것처럼 state.json 을 고쳐 둔다. 두 번째 데몬이 그 기록을 읽는다.
 async function seeded(patch: Partial<Feedback>) {
   const first = daemon();
   const created = await first.runner.create({ text: "fix the thing", element: null, screenshot: null, screenshotNote: null });
@@ -54,7 +51,6 @@ async function seeded(patch: Partial<Feedback>) {
   return { id: created.id, file, second: daemon() };
 }
 
-// 1. Mark as Resolved: failed -> resolved, 알림은 다시 안 띄우고(seen), 파일에 저장돼 재시작 뒤에도 남는다
 {
   const { id, file, second } = await seeded({ status: "failed", failure: "Not applied: tsc failed", seen: false, conflict: true });
   const before = second.runner.get(id);
@@ -76,7 +72,6 @@ async function seeded(patch: Partial<Feedback>) {
   check("a resolved feedback cannot be dismissed", again.includes("was not applied"), again);
 }
 
-// 2. Dismiss
 {
   const { id, file, second } = await seeded({ status: "failed", failure: "Not applied: build failed", seen: false });
   const done = second.runner.dismiss(id);
@@ -85,7 +80,6 @@ async function seeded(patch: Partial<Feedback>) {
   check("the state file keeps it", JSON.parse(readFileSync(file, "utf8")).status === "dismissed");
 }
 
-// 3. 거절: 실패한 항목이 아니거나, 도는 중
 {
   const applied = await seeded({ status: "applied" });
   let message = "";
@@ -119,7 +113,6 @@ async function seeded(patch: Partial<Feedback>) {
   check("a retry in progress is refused", message.includes("still running"), message);
 }
 
-// 4. 목록: Resolved 는 Applied 쪽 차분한 표시로, Dismissed 는 All 에서 빠져 필터로만, Not applied 개수에서 둘 다 빠진다
 {
   const base = { retrying: false, restartPending: false, failure: null, checks: [], changedFiles: [], createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z" };
   const rows = {

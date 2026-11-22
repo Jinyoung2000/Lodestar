@@ -17,14 +17,11 @@ export type MenuClose = "escape" | "pick" | "outside" | "layout";
 type Props = {
   source: MenuSource;
   anchor: HTMLElement;
-  // 마우스로 연 경우 누른 가로 위치(화살표가 그곳을 가리킨다). 키보드로 열면 null.
   pointerX: number | null;
   name: string;
   onPick: (target: PickTarget, side: boolean) => void;
-  // 초점이 다른 항목으로 갈 때(심볼이면 에디터가 그 자리로 미리 스크롤한다)
   onPreview: (target: PickTarget) => void;
   onClose: (why: MenuClose) => void;
-  // ⌥←, ⌥→: 이웃 조각의 목록으로
   onMove: (step: -1 | 1) => void;
 };
 
@@ -52,10 +49,8 @@ export function BreadcrumbMenu({ source, anchor, pointerX, name, onPick, onPrevi
     const index = rows.findIndex((row) => row.item.id === focusId);
     if (rowsRef.current && index >= 0) rowsRef.current.scrollTop = Math.max(0, index * PICKER_ROW - (body - PICKER_ROW) / 2);
     rootRef.current?.focus({ preventScroll: true });
-    // 열 때 한 번만 읽는다
   }, []);
 
-  // 키로 초점이 움직이면 그 행이 보이게 한다
   useEffect(() => {
     const list = rowsRef.current;
     if (!list || focusIndex < 0) return;
@@ -66,7 +61,6 @@ export function BreadcrumbMenu({ source, anchor, pointerX, name, onPick, onPrevi
 
   useEffect(() => {
     if (focusedRow) onPreview(focusedRow.item.target);
-    // 초점 항목이 바뀔 때만
   }, [focusedRow?.item.id]);
 
   useEffect(() => {
@@ -83,7 +77,6 @@ export function BreadcrumbMenu({ source, anchor, pointerX, name, onPick, onPrevi
     };
   }, [onClose]);
 
-  // 오른쪽 패널의 Files 탭이 한 번도 열리지 않았으면 파일 목록이 아직 없다
   useEffect(() => {
     if (source.kind === "files") void ensureFiles(source.workspaceId);
   }, [source]);
@@ -99,7 +92,6 @@ export function BreadcrumbMenu({ source, anchor, pointerX, name, onPick, onPrevi
     setExpanded(next);
   };
 
-  // Enter, 클릭: 파일과 심볼은 고르고 폴더는 펼치거나 접는다
   const activate = (row: PickerRow, side: boolean) => {
     setFocusId(row.item.id);
     if (row.item.target.type === "folder") toggle(row.item.id);
@@ -108,7 +100,6 @@ export function BreadcrumbMenu({ source, anchor, pointerX, name, onPick, onPrevi
 
   const setQuery = (query: string, filter = find.filter) => {
     setFind({ open: true, query, filter });
-    // highlight 모드는 입력하는 대로 첫 일치 행으로 초점을 옮기고, filter 모드는 초점 행이 걸러져 사라지면 첫 행으로 옮긴다
     const next = visibleRows(items, expanded, query, filter);
     if (!filter) {
       const hit = matchRowIndex(next, Math.max(0, next.findIndex((row) => row.item.id === focusId)), 0);
@@ -147,7 +138,6 @@ export function BreadcrumbMenu({ source, anchor, pointerX, name, onPick, onPrevi
     if (inInput && nav && event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "PageDown" && event.key !== "PageUp") return;
     if (nav) {
       handled(event);
-      // highlight 모드에서 찾는 중이면 ↑↓ 는 이전, 다음 일치로 간다
       if (find.open && find.query && !find.filter && matchStep !== 0) {
         const hit = matchRowIndex(rows, focusIndex, matchStep === 1 ? 1 : -1);
         if (hit >= 0) setFocusId(rows[hit]!.item.id);
@@ -207,7 +197,6 @@ export function BreadcrumbMenu({ source, anchor, pointerX, name, onPick, onPrevi
   );
 }
 
-// 목록이 처리한 키는 앱의 전역 단축키로 새어 나가지 않게 한다
 function handled(event: ReactKeyboardEvent) {
   event.preventDefault();
   event.stopPropagation();

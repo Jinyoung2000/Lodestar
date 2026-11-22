@@ -8,12 +8,14 @@ import { ChangesPanel, ChatChanges, WIDE_MIN } from "./ChangesPanel";
 import { ChangesBadge } from "./ChangesBadge";
 import { ChatTabView } from "./ChatDock";
 import { DraftChanges } from "./DraftChanges";
+import { editorGitWorkspaceOf } from "./editorChat";
 import { DiffTab } from "./DiffView";
 import { ScmDiffView } from "./ScmDiffView";
 import { type EditorLayout, groupIdsOf, MAIN_GROUP, mainTabs, tabsOfGroup } from "./editorGroups";
 import { closable } from "./editorTabs";
 import { DiffTabActions, diffScopeLabel, EmptyGroup, GroupMoreMenu, tabName } from "./EditorGroupExtras";
 import { RecentEditors } from "./RecentEditors";
+import { scrollMemory } from "./scrollKeep";
 import { moveEditorToGroup } from "./editorMove";
 import { closeInGroup, setSticky, toggleMaximizeGroup } from "./groupActions";
 import { editorKeyOfMain, sideKeyOf } from "./floatLayout";
@@ -24,6 +26,8 @@ import { Editor } from "./Editor";
 import { EditorStatus } from "./EditorStatus";
 import { FV } from "./fileViewStrings";
 import { stripScrollTarget } from "./tabStrip";
+import { FilesRoots } from "./FilesRoots";
+import { isMultiRoot } from "./sessionFolders";
 import { FilesTab } from "./FilesTab";
 import { Close, Codicon, Diff, FilesIcon, ListIcon, Maximize, Minimize, More, Plus } from "./icons";
 import { stretchedMin } from "./paneFit";
@@ -70,17 +74,11 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { hint } from "./hint";
 import { useCommandKey } from "./commandKeys";
 
-// 오른쪽 패널의 에디터 영역: 분할 트리(web/editorGroups.ts)대로 에디터 그룹을 그리고, 그룹마다 탭줄과 본문을 가진다.
-// main 그룹은 변경, 파일 탭(과 카드, 인박스 상세)이 있는 첫 탭줄이다. 탭 본문은 한 번 만든 뒤 DOM 을 옮겨 그룹 사이를 오가므로(TabBodies) 에디터의 편집 내용과 되돌리기 기록이 그대로 따라간다.
-
-// mode "all" 은 Chat 중심의 오른쪽 패널(고정 탭과 에디터 탭이 한 탭줄), "editors" 는 Editor 중심의 가운데(에디터 탭만, 고정 탭은 오른쪽 SideTabs).
 type AreaProps = { narrow: boolean; maximized: boolean; onMaximize: () => void; mode: "all" | "editors" };
-// bar 는 탭줄의 빈 곳을 우클릭한 메뉴(Split 계열만). 이때 key 는 그룹의 활성 탭이다.
 type TabMenu = { key: string | null; group: string; x: number; y: number; bar?: boolean };
 
 export function EditorArea({ narrow, maximized, onMaximize, mode = "all" }: Omit<AreaProps, "mode"> & { mode?: AreaProps["mode"] }) {
   const layout = useStore((s) => s.editorLayout);
-  // Editor 중심에서는 상태 표시줄을 App 이 창 맨 아래(Panel 아래)에 따로 그린다
   const editorCentered = useStore((s) => s.layoutMode === "editor");
   const [menu, setMenu] = useState<TabMenu | null>(null);
   return (
@@ -99,10 +97,8 @@ function LayoutNode({ node, area, onMenu }: { node: EditorLayout; area: AreaProp
   return <EditorSplit node={node} area={area} onMenu={onMenu} />;
 }
 
-// 가로로 나뉜 그룹들은 GROUP_MIN 아래로 눌리지 않는다. 모자라면 한 화면에 온전히 들어가는 그룹 수만큼 그룹 폭을 키워 칸 영역을 채우고(stretchedMin) 줄이 가로 스크롤되며 경계에 선다(styles.css 의 scroll-snap).
 function EditorSplit({ node, area, onMenu }: { node: Extract<EditorLayout, { type: "split" }>; area: AreaProps; onMenu: (menu: TabMenu) => void }) {
   const [setRoot, width] = useElementWidth();
-  // 최대화한 그룹이 이 분할 안에 있으면 그 그룹을 품은 칸만 남고 나머지 칸은 접힌다(Toggle Maximize Editor Group).
   const maximized = useStore((s) => s.maximizedGroup);
   const keeps = maximized ? node.children.findIndex((child) => groupIdsOf(child).includes(maximized)) : -1;
   const groupMin = node.dir === "row" ? stretchedMin(GROUP_MIN, width, [node.children.length]) : undefined;
@@ -117,7 +113,6 @@ function EditorSplit({ node, area, onMenu }: { node: Extract<EditorLayout, { typ
   );
 }
 
-// keeps 는 최대화로 남기는 칸의 자리(없으면 -1). 남기는 칸이 있으면 다른 칸과 그 칸 앞의 경계는 접힌다.
 function SplitCell({ node, index, keeps, children }: { node: Extract<EditorLayout, { type: "split" }>; index: number; keeps: number; children: React.ReactNode }) {
   const collapsed = keeps !== -1 && index !== keeps;
   return (
@@ -130,7 +125,6 @@ function SplitCell({ node, index, keeps, children }: { node: Extract<EditorLayou
   );
 }
 
-// 그룹 사이 경계. 끄는 동안 양옆 두 그룹만 크기를 주고받고 각 그룹은 GROUP_MIN 아래로 줄지 않는다. 더블클릭은 같은 크기로 되돌린다.
 const GROUP_MIN = 120;
 
 function SplitSash({ node, index, hidden }: { node: Extract<EditorLayout, { type: "split" }>; index: number; hidden: boolean }) {
@@ -149,7 +143,6 @@ function SplitSash({ node, index, hidden }: { node: Extract<EditorLayout, { type
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
-      // 합성 PointerEvent(검증 창구)는 활성 포인터가 아니라 캡처가 거절된다. window 리스너로 끝까지 따라가므로 없어도 된다.
     }
     setActive(true);
     const move = (e: PointerEvent) => {
@@ -177,7 +170,6 @@ function SplitSash({ node, index, hidden }: { node: Extract<EditorLayout, { type
 function EditorGroup({ id, area, onMenu }: { id: string; area: AreaProps; onMenu: (menu: TabMenu) => void }) {
   const focused = useStore((s) => s.activeGroupId === id);
   const activeKey = useStore((s) => (area.mode === "editors" ? editorKeyOfGroup(s, id) : activeKeyOfGroup(s, id)));
-  // 탭 본문은 포털(TabBodies)로 그려져 React 이벤트가 이 요소를 거치지 않는다. 에디터 본문을 눌러도 그룹이 포커스되도록 DOM 이벤트로 받는다.
   const groupRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = groupRef.current;
@@ -194,17 +186,13 @@ function EditorGroup({ id, area, onMenu }: { id: string; area: AreaProps; onMenu
   );
 }
 
-// --- 탭줄 ---
-
 function GroupStrip({ id, activeKey, area, onMenu }: { id: string; activeKey: string | null; area: AreaProps; onMenu: (menu: TabMenu) => void }) {
   const editorsOnly = area.mode === "editors";
-  // editors 모드의 main 그룹은 고정 탭 자리가 없는 평범한 에디터 그룹이다(오른쪽 패널이 고정 탭을 갖는다).
   const main = id === MAIN_GROUP && !editorsOnly;
   const tabs = useStore((s) => s.tabs);
   const agents = useStore((s) => shownAgentsOf(s));
   const filesIndex = useStore((s) => s.filesIndex);
   const selectedCardId = useStore((s) => s.selectedCardId);
-  // PRTABSESSION: filesIndex 는 숨겨진 탭까지 센 main 그룹 위치다. 나눈 다음에 보이지 않는 세션의 PR 탭을 뺀다.
   const all = tabs.filter((t) => (t.group ?? MAIN_GROUP) === id);
   const mine = all.filter((t) => isShown(t, agents));
   const before = main ? all.slice(0, filesIndex).filter((t) => isShown(t, agents)) : [];
@@ -282,15 +270,11 @@ function ClosePanelButton() {
   );
 }
 
-// 고정 칸이 에디터 옆에 있을 때(EditorsWithSide) 맞닿은 그룹의 탭줄에 두는 패널 단추: 패널 최대화와, 고정 칸이 접혀 있거나 서랍이 닫혀 있을 때 다시 펴는 단추.
-// 펴는 단추는 고정 칸이 붙은 쪽 끝에 둔다(Right 면 탭줄 오른쪽 끝, Left 면 왼쪽 끝).
-// X 는 자기가 놓인 칸만 닫는다. 고정 칸 탭줄의 X 는 고정 칸만 접으므로, 패널 전체를 닫는 X 는 고정 칸이 안 보여 에디터만 남았을 때만 여기 둔다.
 function PanelActions({ group, edge }: { group: string; edge: PinnedSide }) {
   const pinned = useContext(PinnedContext);
   const layout = useStore((s) => s.editorLayout);
   if (!pinned || edgeGroupOf(layout, edge) !== group) return null;
   const show = !pinned.shown && pinned.side === edge;
-  // 최대화와 패널 닫기는 패널 오른쪽 끝에, 펴는 단추는 고정 칸이 붙은 쪽 끝에 둔다
   const panelEnd = edge === "right";
   return (
     <>
@@ -309,7 +293,6 @@ function PanelActions({ group, edge }: { group: string; edge: PinnedSide }) {
   );
 }
 
-// 탭줄의 + 단추: Browser, Search, 새 파일 탭
 function AddTabMenu({ group }: { group: string }) {
   return (
     <DropdownMenu>
@@ -330,7 +313,6 @@ function AddTabMenu({ group }: { group: string }) {
   );
 }
 
-// 탭이 많아 줄이 넘칠 때 활성 탭이 오른쪽 꼬리 단추(.tabs-tail, sticky)에 가려지지 않게 한다: 꼬리 폭만큼 scroll-padding-right 를 주고 활성 탭을 보이는 곳으로 스크롤한다.
 function useStripScroll(activeKey: string | null) {
   const strip = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -347,13 +329,10 @@ function useStripScroll(activeKey: string | null) {
   }, []);
   useEffect(() => {
     if (!activeKey) return;
-    // 활성 탭이 바뀌면 꼬리 단추 수도 바뀌므로(ResizeObserver 는 한 박자 늦다) 스크롤 직전에 폭을 다시 읽는다
     const tail = strip.current?.querySelector<HTMLElement>(":scope > .tabs-tail");
     if (strip.current && tail) strip.current.style.scrollPaddingRight = `${tail.offsetWidth}px`;
     const element = strip.current;
     if (!element) return;
-    // 활성 탭이 보이게 하되 왼쪽 끝에 잘린 탭이 남지 않게 탭 경계에 맞춘다(web/tabStrip.ts).
-    // 탭이 막 생기거나 포커스가 옮겨 가며 브라우저가 따로 스크롤하는 일이 있어, 레이아웃이 자리 잡은 다음 프레임에 한 번 더 맞춘다.
     const align = () => {
       const items = Array.from(element.querySelectorAll<HTMLElement>(":scope > .tab[data-tab-key]"));
       const base = element.getBoundingClientRect().left - element.scrollLeft;
@@ -362,7 +341,6 @@ function useStripScroll(activeKey: string | null) {
         return { left: rect.left - base, right: rect.right - base };
       });
       const next = stripScrollTarget({ scrollLeft: element.scrollLeft, width: element.clientWidth, padRight: element.querySelector<HTMLElement>(":scope > .tabs-tail")?.offsetWidth ?? 0, tabs: boxes, active: items.findIndex((item) => item.dataset.tabKey === activeKey) });
-      // 마지막 탭들 쪽에서는 다음 탭 경계가 스크롤 끝 너머일 수 있다. 그때만 끝에 빈 자리(--tabs-extra)를 더해 닿을 수 있게 하고, 필요 없으면 거둔다.
       const natural = element.scrollWidth - element.clientWidth - (Number.parseFloat(element.style.getPropertyValue("--tabs-extra")) || 0);
       const extra = Math.max(0, Math.ceil(next - natural));
       element.style.setProperty("--tabs-extra", `${extra}px`);
@@ -370,7 +348,6 @@ function useStripScroll(activeKey: string | null) {
     };
     align();
     const frame = requestAnimationFrame(() => requestAnimationFrame(align));
-    // 창이나 패널 폭이 바뀌어 탭 줄 폭이 달라져도 같은 규칙으로 다시 맞춘다. 활성 탭이 그대로여도 줄어든 폭에서 왼쪽 끝에 잘린 탭 조각이 남았다(round-5 발견 18, 오른쪽 패널 200px).
     let resizeFrame = 0;
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(resizeFrame);
@@ -420,10 +397,9 @@ function TabItem({ tab, activeKey, onMenu }: { tab: Tab; activeKey: string | nul
   const dirty = useStore((s) => !!s.dirtyTabs[tab.key]);
   const deleted = !!useDocFlags(tab.key).deleted;
   const select = () => setState({ activeTabKey: tab.key });
-  // 대화 탭은 세션 제목이 바뀌면 따라간다
   const chatTitle = useStore((s) => (tab.kind === "chat" ? s.agents.find((a) => a.id === tab.agentId)?.title : undefined));
   const name = chatTitle || tabName(tab);
-  const title = tab.kind === "search" ? S.searchTabTitle(tab.query) : tab.kind === "pr" ? P.tabTitle(tab.repo, tab.number) : tab.kind === "browser" ? tabTooltip(tab.title, tab.url) : tab.kind === "untitled" || tab.kind === "chat" ? name : tab.kind === "diff" ? `${tab.path} (${diffScopeLabel(tab)})` : tab.kind === "scm" ? M.scmTabTitle(tab.section, tab.path) : tab.path;
+  const title = tab.kind === "search" ? S.searchTabTitle(tab.query) : tab.kind === "pr" ? P.tabTitle(tab.repo, tab.number) : tab.kind === "browser" ? tabTooltip(tab.title, tab.url) : tab.kind === "untitled" || tab.kind === "chat" ? name : tab.kind === "diff" || (tab.kind === "scm" && tab.section === "uncommitted") ? `${tab.path} (${diffScopeLabel(tab)})` : tab.kind === "scm" ? M.scmTabTitle(tab.section === "staged" ? "staged" : "changes", tab.path) : tab.path;
   const closeLabel = tab.kind === "file" || tab.kind === "diff" || tab.kind === "scm" || tab.kind === "replace" ? tab.path : name;
   const fileName = tab.kind === "search" || tab.kind === "browser" || tab.kind === "untitled" || tab.kind === "pr" || tab.kind === "chat" ? name : tab.path.slice(tab.path.lastIndexOf("/") + 1);
   return (
@@ -472,8 +448,6 @@ function TabItem({ tab, activeKey, onMenu }: { tab: Tab; activeKey: string | nul
     </div>
   );
 }
-
-// --- 탭 우클릭 메뉴 ---
 
 function TabContextMenu({ menu, onClose }: { menu: TabMenu | null; onClose: () => void }) {
   const tabs = useStore((s) => s.tabs);
@@ -607,8 +581,6 @@ function TabContextMenu({ menu, onClose }: { menu: TabMenu | null; onClose: () =
   );
 }
 
-// --- main 그룹의 탭줄 오른쪽 단추 ---
-
 export function MainActions({ changesTab, searchTab = false, narrow, maximized, onMaximize, maximize = !narrow }: { changesTab: boolean; searchTab?: boolean; narrow: boolean; maximized: boolean; onMaximize: () => void; maximize?: boolean }) {
   const wide = useChangesView((s) => s.wide);
   const wordWrap = useChangesView((s) => s.wordWrap);
@@ -655,9 +627,6 @@ function ListToggle({ changesTab }: { changesTab: boolean }) {
   );
 }
 
-// --- 본문 ---
-
-// 그룹 본문 요소 등록부. 탭 본문(TabBody)이 자기 그룹의 본문 요소를 찾아 DOM 을 옮겨 붙인다.
 const bodies = new Map<string, HTMLElement>();
 const bodyListeners = new Set<() => void>();
 
@@ -688,16 +657,12 @@ function GroupBody({ id, activeKey, mode }: { id: string; activeKey: string | nu
   );
 }
 
-// Editor 중심에서 가운데 그룹이 보일 탭. main 그룹이 고정 키를 기억하고 있어도 에디터 탭을 고른다.
 export function editorKeyOfGroup(s: Parameters<typeof activeKeyOfGroup>[0] & { mainEditorKey: string | null }, group: string): string | null {
   const key = activeKeyOfGroup(s, group);
   if (group !== MAIN_GROUP) return key;
   return editorKeyOfMain(key, s.mainEditorKey, mainTabs(s.tabs).map((t) => t.key));
 }
 
-// --- Editor 중심: 가운데 에디터와 오른쪽 고정 탭 ---
-
-// 가운데 영역 전체. 에디터 그룹이 이 안에서 분할되고, 빠른 질문(⌘I) 창도 여기서 뜬다(오른쪽 패널이 닫혀 있어도 보여야 한다).
 export function EditorCenter({ hidden }: { hidden: boolean }) {
   const quick = useStore((s) => s.quick);
   return (
@@ -711,8 +676,6 @@ export function EditorCenter({ hidden }: { hidden: boolean }) {
 type PinnedContextValue = { side: PinnedSide; shown: boolean; presentation: PinnedPresentation; maximized: boolean; onMaximize: () => void; toggle: () => void };
 const PinnedContext = createContext<PinnedContextValue | null>(null);
 
-// Chat 중심에서 에디터 탭이 열려 있을 때의 오른쪽 패널: 에디터 그룹 옆에 고정 탭(Changes, Files)이 한 칸으로 붙는다. 위치는 Settings 의 Changes and Files position(기본 Right).
-// 칸은 끌어서 폭을 바꾸고(폭과 접힘은 기억), 접을 수 있다. 패널이 에디터 최소 폭과 칸 최소 폭을 다 못 담을 만큼 좁으면 칸이 에디터 위에 서랍으로 뜬다. 계산은 web/pinnedLayout.ts.
 export function EditorsWithSide({ maximized, onMaximize }: { maximized: boolean; onMaximize: () => void }) {
   const quick = useStore((s) => s.quick);
   const side = usePinned((s) => s.side);
@@ -732,7 +695,6 @@ export function EditorsWithSide({ maximized, onMaximize }: { maximized: boolean;
   const presentation = presentationOf(panel, collapsed);
   const shown = pinnedShown(presentation, drawerOpen);
   const baseWidth = pinnedWidth(panel, saved);
-  // FIXY: 서랍 옆에 다른 에디터 그룹의 얇은 조각이 남으면 서랍을 그 그룹 가장자리까지 넓혀 가린다
   const [drawerWidth, setDrawerWidth] = useState<number | null>(null);
   useLayoutEffect(() => {
     const element = rootRef.current;
@@ -752,10 +714,8 @@ export function EditorsWithSide({ maximized, onMaximize }: { maximized: boolean;
   useEffect(() => {
     if (presentation !== "overlay") setPinnedDrawer(false);
   }, [presentation]);
-  // 서랍은 Esc 로 닫는다
   useEffect(() => {
     if (presentation !== "overlay" || !drawerOpen) return;
-    // 서랍 안에서 연 확인 창을 Esc 로 닫을 때(Radix 가 preventDefault 한 Esc) 서랍까지 닫혀 포커스가 BODY 로 가지 않게 한다
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
       e.preventDefault();
@@ -795,7 +755,6 @@ export function EditorsWithSide({ maximized, onMaximize }: { maximized: boolean;
   );
 }
 
-// 요소 폭을 지켜본다. 처음 그릴 때는 0 이고, 붙는 즉시 잰다.
 function useElementWidth() {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
@@ -810,7 +769,6 @@ function useElementWidth() {
   return [setElement, width] as const;
 }
 
-// Editor 중심의 오른쪽 패널 탭줄: Changes, Files, 열린 카드. 에디터 탭은 가운데에 있다.
 export function SideTabs({ narrow, maximized, onMaximize, standalone = false }: { narrow: boolean; maximized: boolean; onMaximize: () => void; standalone?: boolean }) {
   const selectedCardId = useStore((s) => s.selectedCardId);
   const key = useStore((s) => sideKeyOf(s.sideTabKey, !!s.selectedCardId));
@@ -856,6 +814,7 @@ export function SideTabs({ narrow, maximized, onMaximize, standalone = false }: 
         )}
         {standalone && <AddTabMenu group={MAIN_GROUP} />}
         <div className="tabs-tail">
+          <span className="focus-side-actions" data-slot="scm" role="toolbar" aria-label={S.scmTitleActionsAria} hidden={key !== "scm"} />
           <MainActions changesTab={key === "changes"} narrow={narrow} maximized={maximized} onMaximize={onMaximize} maximize={!pinned && !narrow} />
           {!narrow && <ListToggle changesTab={key === "changes"} />}
           {pinned ? (
@@ -876,7 +835,7 @@ export function SideTabs({ narrow, maximized, onMaximize, standalone = false }: 
 
 export function PinnedBodies({ activeKey, withQuick = true }: { activeKey: string | null; withQuick?: boolean }) {
   const agent = useStore((s) => activeAgentOf(s.panes, s.activePaneId, s.agents));
-  // 새 세션 화면(고른 폴더가 있는 초안 칸)에서는 Files 탭이 그 폴더의 트리를 보인다
+  const editorWorkspaceId = useStore((s) => agent && s.editorSessionChangesId === agent.id ? null : editorGitWorkspaceOf(s));
   const draftWorkspaceId = useStore((s) => {
     const pane = s.panes.find((p) => p.id === s.activePaneId);
     return pane?.kind === "draft" ? pane.workspaceId : null;
@@ -886,8 +845,8 @@ export function PinnedBodies({ activeKey, withQuick = true }: { activeKey: strin
   return (
     <>
       {activeKey === "card" && selectedCardId && <CardDetail />}
-      {activeKey === "changes" && (agent ? inFolder(agent) ? <ChangesPanel key={agent.id} agent={agent} /> : <ChatChanges /> : draftWorkspaceId ? <DraftChanges key={draftWorkspaceId} workspaceId={draftWorkspaceId} /> : <div className="empty-hint">{S.openChangesHint}</div>)}
-      {activeKey === "files" && (agent ? inFolder(agent) ? <FilesTab key={agent.id} workspaceId={agent.workspaceId} agentId={agent.id} /> : <div className="empty-hint">{S.chatNoFiles}</div> : draftWorkspaceId ? <FilesTab key={draftWorkspaceId} workspaceId={draftWorkspaceId} agentId={null} /> : <div className="empty-hint">{S.openChangesHint}</div>)}
+      {activeKey === "changes" && <ActiveChanges agent={agent} editorWorkspaceId={editorWorkspaceId} draftWorkspaceId={draftWorkspaceId} />}
+      {activeKey === "files" && (agent ? inFolder(agent) ? isMultiRoot(agent) ? <FilesRoots key={agent.id} agent={agent} /> : <FilesTab key={agent.id} workspaceId={agent.workspaceId} agentId={agent.id} /> : null : draftWorkspaceId ? <FilesTab key={draftWorkspaceId} workspaceId={draftWorkspaceId} agentId={null} /> : <div className="empty-hint">{S.openChangesHint}</div>)}
       {activeKey === "scm" && <SourceControlTab />}
       {activeKey === "search" && <SearchView />}
       {withQuick && quick && <QuickAsk key={quick.run?.id ?? "draft"} quick={quick} />}
@@ -895,8 +854,13 @@ export function PinnedBodies({ activeKey, withQuick = true }: { activeKey: strin
   );
 }
 
-// 모든 탭의 본문. 탭마다 한 번 만든 요소(display: contents)에 포털로 그리고, 그 요소를 탭이 속한 그룹의 본문에 붙인다.
-// 탭을 다른 그룹으로 옮기면 요소만 옮겨 가서 React 트리는 그대로다(에디터가 다시 만들어지지 않는다). Browser 탭의 webview 는 DOM 이 옮겨지면 페이지를 다시 읽는다.
+function ActiveChanges({ agent, editorWorkspaceId, draftWorkspaceId }: { agent: ReturnType<typeof activeAgentOf>; editorWorkspaceId: string | null; draftWorkspaceId: string | null }) {
+  if (editorWorkspaceId) return <DraftChanges key={editorWorkspaceId} workspaceId={editorWorkspaceId} openAsDiff />;
+  if (agent) return inFolder(agent) ? <ChangesPanel key={agent.id} agent={agent} /> : <ChatChanges />;
+  if (draftWorkspaceId) return <DraftChanges key={draftWorkspaceId} workspaceId={draftWorkspaceId} />;
+  return <div className="empty-hint">{S.openChangesHint}</div>;
+}
+
 export function TabBodies() {
   const tabs = useStore((s) => s.tabs);
   return (
@@ -910,26 +874,25 @@ export function TabBodies() {
 
 function TabBody({ tab }: { tab: Tab }) {
   const group = tab.group ?? MAIN_GROUP;
-  const wrapper = useMemo(() => {
+  const { wrapper, scroll } = useMemo(() => {
     const element = document.createElement("div");
     element.style.display = "contents";
     element.dataset.tabBody = tab.key;
-    return element;
-    // 키가 같은 동안 같은 요소를 쓴다
+    return { wrapper: element, scroll: scrollMemory(element) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const body = useGroupBody(group);
+  useLayoutEffect(() => scroll.watch(), [scroll]);
   useLayoutEffect(() => {
-    if (body && wrapper.parentElement !== body) body.appendChild(wrapper);
-  }, [body, wrapper]);
+    if (!body || wrapper.parentElement === body) return;
+    body.appendChild(wrapper);
+    scroll.restore();
+  }, [body, wrapper, scroll]);
   useLayoutEffect(() => () => wrapper.remove(), [wrapper]);
-  // 보이지 않는 세션의 PR 탭은 마운트된 채 남지만 활성이 되는 일은 없다
   const active = useStore((s) => isShown(tab, shownAgentsOf(s)) && (group === MAIN_GROUP ? editorKeyOfGroup(s, group) : activeKeyOfGroup(s, group)) === tab.key);
   const content = tab.kind === "file" || tab.kind === "untitled" ? <Editor tab={tab} active={active} /> : tab.kind === "browser" ? <BrowserTabView tab={tab} active={active} /> : tab.kind === "search" ? <SearchTabView tab={tab} active={active} /> : tab.kind === "pr" ? <PullRequestTab tab={tab} active={active} /> : tab.kind === "scm" ? <ScmDiffView tab={tab} active={active} /> : tab.kind === "replace" ? <ReplacePreviewView tab={tab} active={active} /> : tab.kind === "chat" ? <ChatTabView agentId={tab.agentId} tabKey={tab.key} active={active} /> : <DiffTab tabKey={tab.key} agentId={tab.agentId} workspaceId={tab.workspaceId} path={tab.path} changeScope={tab.scope} active={active} />;
   return createPortal(content, wrapper);
 }
-
-// --- 끄는 동안의 표시 ---
 
 function DragOverlay() {
   const drag = useTabDrag();

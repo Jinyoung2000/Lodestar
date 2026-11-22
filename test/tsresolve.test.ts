@@ -1,5 +1,3 @@
-// 워크스페이스 TypeScript 판별과 네이티브 실행 파일 탐색 단독 시험. /tmp 에 가짜 node_modules 를 만들어 확인한다.
-// 실행: npm test
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,11 +17,9 @@ let counter = 0;
 
 type Layout = { version?: string; tsserver?: boolean; getExePath?: "ok" | "throws" | "missing-exe"; platformPackage?: boolean | "not-executable"; link?: boolean };
 
-// node_modules/typescript(+ @typescript/<플랫폼 패키지>)를 만들고 워크스페이스 폴더를 돌려준다.
 function workspace(layout: Layout) {
   const base = join(root, `case-${++counter}`);
   const nodeModules = join(base, "node_modules");
-  // link 면 pnpm 처럼 .pnpm 저장소 안에 실제 파일을 두고 node_modules/typescript 는 심볼릭 링크로 건다.
   const store = layout.link ? join(base, "node_modules/.pnpm/typescript@x/node_modules") : nodeModules;
   const tsDir = join(store, "typescript");
   mkdirSync(join(tsDir, "lib"), { recursive: true });
@@ -36,7 +32,6 @@ function workspace(layout: Layout) {
     chmodSync(join(exeDir, "tsc"), layout.platformPackage === "not-executable" ? 0o644 : 0o755);
   }
   if (layout.getExePath === "ok") {
-    // 실제 getExePath.js 처럼 typescript 패키지 기준 상대 위치의 플랫폼 패키지 실행 파일을 돌려준다.
     writeFileSync(
       join(tsDir, "lib/getExePath.js"),
       `import path from "node:path";\nimport { fileURLToPath } from "node:url";\nexport default function getExePath() {\n  const here = path.dirname(fileURLToPath(import.meta.url));\n  return path.join(here, "..", "..", "@typescript", "${pkgName}", "lib", "tsc");\n}\n`,

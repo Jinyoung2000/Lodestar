@@ -1,6 +1,3 @@
-// PERFDAEMON: 끝난 피드백의 worktree 와 되돌리기 백업 정리(shared/feedbackRetention.ts, server/feedback.ts tidyPlan, tidyRun)와 SCM worktree 목록의 피드백 사본 제외 단독 시험.
-// 핵심은 진행 중이거나 다시 돌릴 수 있는 피드백을 건드리지 않는 것이다. 임시 git 저장소만 쓴다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -37,7 +34,6 @@ const facts = (id: string, status: Feedback["status"], daysAgo: number, patch: P
 };
 const actions = (list: RetentionFacts[], policy = DEFAULT_RETENTION) => Object.fromEntries(planRetention(list, NOW, policy).map((e) => [e.id, `${e.action}${e.reason ? `:${e.reason}` : ""}`]));
 
-// 1. 순수 규칙: 보호 조건
 {
   check("running, checking, fixing, needsInput, blocked, awaitingRestart 는 정리하지 않는다", (["running", "checking", "fixing", "needsInput", "blocked", "awaitingRestart"] as const).every((s) => protectedReason(facts("x", s, 30)) !== null));
   check("재시작을 기다리는 되돌림(reverted + restartPending)은 정리하지 않는다", protectedReason(facts("x", "reverted", 30, { feedback: { restartPending: true } })) === "restart");
@@ -49,7 +45,6 @@ const actions = (list: RetentionFacts[], policy = DEFAULT_RETENTION) => Object.f
   check("applied, resolved, dismissed, noChanges 는 정리 대상", (["applied", "resolved", "dismissed", "noChanges"] as const).every((s) => protectedReason(facts("x", s, 30)) === null));
 }
 
-// 2. 순수 규칙: 보존 기간과 개수
 {
   const list = [facts("old1", "applied", 20), facts("old2", "applied", 10), facts("mid", "applied", 5), facts("new1", "applied", 1), facts("new2", "applied", 0.5), facts("dis", "dismissed", 15), facts("res", "resolved", 8)];
   const result = actions(list, { worktreeKeepRecent: 2, worktreeKeepDays: 3, backupKeepApplied: 1, backupKeepDays: 3 });
@@ -65,13 +60,11 @@ const actions = (list: RetentionFacts[], policy = DEFAULT_RETENTION) => Object.f
   check("정책 값은 0 이상의 유한한 수만 받는다", withPolicy({ worktreeKeepRecent: -1, worktreeKeepDays: Number.NaN, backupKeepApplied: 7 }).worktreeKeepRecent === DEFAULT_RETENTION.worktreeKeepRecent && withPolicy({ backupKeepApplied: 7 }).backupKeepApplied === 7);
 }
 
-// 3. 피드백 사본 판별
 {
   check("feedback/<id> 브랜치와 feedback-<id> 폴더가 맞아야 피드백 사본", isFeedbackWorktree("/r/agent-nav.worktrees/feedback-03a850e0", "feedback/03a850e0"));
   check("사용자가 만든 비슷한 이름은 사본이 아니다", !isFeedbackWorktree("/r/repo.worktrees/feedback-login", "feedback/login") && !isFeedbackWorktree("/r/repo.worktrees/other", "feedback/03a850e0") && !isFeedbackWorktree("/r/repo.worktrees/x", null));
 }
 
-// 4. 서버: 계획은 아무것도 지우지 않고, 실행은 보호된 것을 건드리지 않는다
 const src = join(root, "src");
 mkdirSync(join(src, "web"), { recursive: true });
 writeFileSync(join(src, "web/ui.txt"), "x\n");
@@ -137,7 +130,6 @@ const policy = { worktreeKeepRecent: 1, worktreeKeepDays: 1, backupKeepApplied: 
   check("dry-run 은 아무것도 지우지 않는다", [a, b, c, d, e, f].every((x) => existsSync(x.worktree)) && existsSync(join(a.dir, "backup-dist")));
 }
 
-// 5. 실행
 {
   const result = await runner.tidyRun(policy);
   check("실행: worktree 2개, 백업 2개, 워크스페이스 2개", result.worktrees === 2 && result.backups === 2 && result.workspaces === 2 && result.failed.length === 0, JSON.stringify(result));
@@ -159,7 +151,6 @@ const policy = { worktreeKeepRecent: 1, worktreeKeepDays: 1, backupKeepApplied: 
   check("두 번째 실행은 할 일이 없다", again.worktrees === 0 && again.backups === 0, JSON.stringify(again));
 }
 
-// 6. 실행 직전에 보호 조건이 생기면 건너뛴다
 {
   const g = await seeded("becomes busy", { status: "applied", updatedAt: old(40), seen: true });
   const later = daemon();
@@ -168,7 +159,6 @@ const policy = { worktreeKeepRecent: 1, worktreeKeepDays: 1, backupKeepApplied: 
   check("세션이 도는 중이면 오래된 반영도 건너뛴다", existsSync(g.worktree) && existsSync(join(g.dir, "backup-dist")), JSON.stringify(result));
 }
 
-// 7. SCM worktree 목록에서 피드백 사본을 뺀다
 {
   const repo = join(root, "scm-repo");
   mkdirSync(repo, { recursive: true });

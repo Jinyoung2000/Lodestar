@@ -16,8 +16,6 @@ import { S } from "./strings";
 import { copyResult } from "./typeCopy";
 
 
-// 일반 hover. lsp-client 의 hoverTooltips() 는 ⌘ 링크가 생겨도 닫을 수 없고 진단, 동작 줄을 못 붙여서 같은 요청으로 직접 만들었다.
-// ⌘ 를 누르면 이 상자는 닫히고(hideOn) 정의 링크의 상자(linkTooltip)가 같은 내용에 미리보기를 더해 대신 뜬다.
 export function lspHover(workspaceId: string): Extension {
   return hoverTooltip(
     async (view, pos) => {
@@ -36,7 +34,6 @@ export function lspHover(workspaceId: string): Extension {
   );
 }
 
-// ⌘ 를 누른 동안의 hover 상자: 일반 hover 내용 아래에 정의 미리보기를 더해 기호 위에 한 상자로 놓는다.
 export function linkTooltip(link: Link | null, workspaceId: string): Tooltip | null {
   const preview = link?.preview && link.preview.text.trim() ? link.preview : null;
   if (!link || (!link.hover?.html && !link.hover?.diagnostics.length && !preview)) return null;
@@ -65,8 +62,6 @@ function hoverBox(view: EditorView, data: HoverData | null, preview: Preview | n
   return dom;
 }
 
-// 화면에 붙은 에디터가 없는 곳(PR diff)의 hover 상자. 진단, 관련 위치, hover 본문, Copy Type 과 Copy Signature 를 같은 블록과 같은 클래스로 쌓는다.
-// 보기가 있어야 하는 동작(Quick Fix, 문제 보기, Explain, Fix with Claude)은 뺀다.
 export function plainHoverBox(data: HoverData): HTMLElement {
   const dom = document.createElement("div");
   dom.className = "cm-lsp-hover-tooltip cm-lsp-documentation";
@@ -144,7 +139,6 @@ function actionsBlock(view: EditorView, data: HoverData, pos: number, workspaceI
   const items: { label: string; run: () => void }[] = [];
   const problem = data.diagnostics[0];
   if (problem) items.push({ label: S.hoverViewProblem(commandKeyLabel("nextProblem")), run: () => viewProblem(view, problem) });
-  // 키는 지금 프리셋의 표에서 읽는다. WebStorm 프리셋에서 ⌘. 은 접기라 빠른 수정은 ⌥↵ 다.
   if (data.hasFixes) {
     const fixKey = activeBindings().find((b) => b.command === "quickFix" && b.keys.length === 1)?.keys[0];
     items.push({ label: S.hoverQuickFix(fixKey ? strokeLabel(fixKey) : null), run: () => void openQuickFix(view, pos) });
@@ -163,7 +157,6 @@ function actionsBlock(view: EditorView, data: HoverData, pos: number, workspaceI
     button.type = "button";
     button.className = "cm-hover-action";
     button.textContent = item.label;
-    // 눌러도 에디터가 포커스를 잃지 않게 한다.
     button.addEventListener("mousedown", (event) => event.preventDefault());
     button.addEventListener("click", item.run);
     block.append(button);

@@ -14,7 +14,6 @@ export function statusItems(state: EditorState, file: { path: string | null }, i
   };
 }
 
-// Ln 12, Col 5 / Ln 12, Col 5 (3 selected) / 3 selections / 3 selections (14 characters selected)
 export function selectionLabel(state: EditorState): string {
   const ranges = state.selection.ranges;
   const selected = ranges.reduce((sum, range) => sum + characterCount(state.sliceDoc(range.from, range.to)), 0);

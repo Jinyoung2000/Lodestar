@@ -10,16 +10,11 @@ import { graphqlTemplates } from "./graphqlEmbed";
 import { semanticTokens } from "./semanticTokens";
 
 
-// 에디터와 diff 가 같이 쓰는 코드 색. semantic 은 LSP 가 붙은 에디터만 켠다(diff 에는 LSP 가 없다).
 export function editorSyntax(options: { semantic?: boolean } = {}): Extension {
   return [
     editorSyntaxTheme,
     syntaxHighlighters.map((highlighter) => syntaxHighlighting(highlighter)),
-    // LSP 의 hover 와 시그니처 도움말 속 코드 블록은 highlightingFor(state, tags) 를 scope 없이 부른다. scope 가 있는 위 하이라이터는 그때 빠지므로,
-    // LSP 가 붙는 JS, TS 에디터에는 같은 규칙의 scope 없는 하이라이터를 하나 더 둔다(본문에는 같은 클래스가 겹쳐 붙을 뿐이다).
     options.semantic ? syntaxHighlighting(tagHighlighter(toSpecs(BASE_RULES))) : [],
-    // 구문 색(syntaxHighlighting)은 Prec.high 의 mark 장식이고, 같은 글자에 mark 가 겹치면 우선순위가 높은 쪽이 안쪽 span 이 되어 색을 이긴다.
-    // 아래 셋은 구문 색 위에 덮어야 하므로 그보다 높은 Prec.highest 로 둔다. 배열에서 앞선 쪽이 안쪽이라, 괄호 색, 의미 색, refinements 순으로 이긴다.
     Prec.highest([bracketPairs, options.semantic ? semanticTokens : [], refinements]),
   ];
 }
@@ -37,7 +32,6 @@ const GRAPHQL_OVERRIDES = styleTags({
   ArgumentAttributeName: tags.variableName,
   "InputValueDefinition/Name FieldDefinition/Name": tags.variableName,
   "OperationDefinition/Name": tags.function(tags.definition(tags.variableName)),
-  // ...Frag: variable.fragment (변수 색, cm6-graphql 은 atom 이라 키워드 색)
   "FragmentSpread/FragmentName/Name": tags.variableName,
 });
 
@@ -48,7 +42,6 @@ export function refineJavascript(options?: Parameters<typeof javascript>[0]): La
 
 const PREFIX = "cm-syn-";
 
-// 클래스 이름과 토큰 변수. 구두점은 기본 전경색이다.
 const COLORS = {
   kw: "--syntax-keyword",
   control: "--syntax-keyword-control",
@@ -76,7 +69,6 @@ type Rule = { tag: Tag | readonly Tag[]; kind: Kind | "md-heading" | "md-strong"
 
 const toSpecs = (rules: readonly Rule[]) => rules.map((r) => ({ tag: r.tag, class: PREFIX + r.kind }));
 
-// TS, TSX, JS, JSX 와 마크다운. 한 노드에 규칙이 여럿 맞으면 태그가 더 구체적인 쪽이 이긴다(function(definition(variableName)) 가 definition(variableName) 보다 먼저).
 const BASE_RULES: Rule[] = [
   { tag: [tags.controlKeyword, tags.moduleKeyword], kind: "control" },
   { tag: [tags.keyword, tags.operatorKeyword, tags.definitionKeyword, tags.modifier, tags.self, tags.null, tags.atom, tags.bool, tags.function(tags.punctuation), tags.special(tags.brace)], kind: "kw" },
@@ -93,7 +85,6 @@ const BASE_RULES: Rule[] = [
   { tag: tags.comment, kind: "comment" },
   { tag: tags.operator, kind: "operator" },
   { tag: [tags.punctuation, tags.derefOperator], kind: "punct" },
-  // 마크다운
   { tag: [tags.heading, tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6], kind: "md-heading" },
   { tag: tags.strong, kind: "md-strong" },
   { tag: tags.emphasis, kind: "md-emphasis" },
@@ -101,7 +92,6 @@ const BASE_RULES: Rule[] = [
   { tag: tags.quote, kind: "md-quote" },
 ];
 
-// CSS: 선택자, 속성 이름, 값이 JS 와 다른 색이고, at-rule(@media, @import)은 제어 키워드 색이다.
 const CSS_RULES: Rule[] = [
   { tag: tags.definitionKeyword, kind: "control" },
   { tag: tags.keyword, kind: "kw" },
@@ -122,8 +112,6 @@ const JSON_RULES: Rule[] = [
 ];
 
 
-// YAML: 키는 entity.name.tag(파랑), 값은 string.unquoted(주황), 앵커와 별칭은 변수색, !!str 같은 태그는 storage.type(파랑), | 와 > 는 keyword.control.
-// 숫자, true, null 은 Lezer 트리에 구분이 없어서 web/languages.ts 가 값(Literal) 안을 따로 파싱해 number, atom 으로 나눈다.
 const YAML_RULES: Rule[] = [
   ...BASE_RULES,
   { tag: tags.definition(tags.propertyName), kind: "tag" },
@@ -136,7 +124,6 @@ const YAML_RULES: Rule[] = [
   { tag: tags.meta, kind: "punct" },
 ];
 
-// HTML, XML: 태그 이름은 entity.name.tag(파랑), 꺾쇠는 회색, 속성 이름은 하늘색, 속성 값은 string, &amp; 는 constant.character.entity.
 const MARKUP_RULES: Rule[] = [
   ...BASE_RULES,
   { tag: tags.tagName, kind: "tag" },
@@ -146,7 +133,6 @@ const MARKUP_RULES: Rule[] = [
   { tag: tags.invalid, kind: "regexp" },
 ];
 
-// SQL: 자료형은 storage.type(파랑), 내장 함수 이름은 support.function(노랑), @변수는 variable. 식별자는 기본색.
 const SQL_RULES: Rule[] = [
   ...BASE_RULES,
   { tag: tags.typeName, kind: "kw" },
@@ -155,17 +141,14 @@ const SQL_RULES: Rule[] = [
   { tag: tags.special(tags.string), kind: "variable" },
 ];
 
-// .properties, .ini, .env: [섹션] 은 entity.name.section(파랑), 키는 변수색, 값은 string.
 const PROPERTIES_RULES: Rule[] = [
   ...BASE_RULES,
   { tag: tags.heading, kind: "tag" },
   { tag: tags.quote, kind: "string" },
 ];
 
-// 셸: 단어 맨 앞의 명령 이름은 entity.name.command(노랑), `#!` 줄은 주석색, 그 밖에는 BASE_RULES 와 같다.
 const SHELL_RULES: Rule[] = [...BASE_RULES, { tag: tags.meta, kind: "comment" }];
 
-// diff: 추가 줄은 markup.inserted(연두), 삭제 줄은 markup.deleted(주황), @@ 줄은 meta.diff.range(파랑), 헤더는 markup.heading.
 const DIFF_RULES: Rule[] = [
   { tag: tags.inserted, kind: "number" },
   { tag: tags.deleted, kind: "string" },
@@ -174,10 +157,8 @@ const DIFF_RULES: Rule[] = [
   { tag: tags.heading, kind: "tag" },
 ];
 
-// Java, Kotlin, Swift 의 @Annotation 은 storage.type.annotation(타입색).
 const CLIKE_RULES: Rule[] = [...BASE_RULES, { tag: tags.meta, kind: "type" }, { tag: tags.character, kind: "string" }];
 
-// Go 의 룬 'a' 도 문자열색이다.
 const CHARACTER_RULES: Rule[] = [...BASE_RULES, { tag: tags.character, kind: "string" }];
 
 export type SyntaxGroup = "css" | "json" | "yaml" | "markup" | "sql" | "properties" | "shell" | "diff" | "clike" | "character";
@@ -195,8 +176,6 @@ const GROUP_RULES: Record<SyntaxGroup, readonly Rule[]> = {
   character: CHARACTER_RULES,
 };
 
-// 하이라이터의 scope 는 (중첩된 언어마다) 그 언어의 최상위 노드 타입으로 부른다.
-// 묶음에 속한 언어는 읽어 올 때(web/languages.ts) markLanguage 로 등록하므로, 아직 읽지 않은 언어의 패키지를 여기서 import 하지 않는다.
 const groupMembers = new Map<SyntaxGroup, Set<unknown>>();
 
 export function markLanguage(group: SyntaxGroup, language: Language): void {
@@ -215,7 +194,6 @@ const groupOf = (top: NodeType): SyntaxGroup | null => {
   return null;
 };
 
-// 한 노드에 두 하이라이터의 클래스가 겹치면 CSS 선언 순서에 기대게 되므로, 언어마다 하나만 맞게 scope 로 가른다.
 export const syntaxHighlighters: Highlighter[] = [
   tagHighlighter(toSpecs(BASE_RULES), { scope: (top) => groupOf(top) === null }),
   ...(Object.keys(GROUP_RULES) as SyntaxGroup[]).map((group) => tagHighlighter(toSpecs(GROUP_RULES[group]), { scope: (top) => groupOf(top) === group })),
@@ -224,18 +202,10 @@ export const syntaxHighlighters: Highlighter[] = [
 const JS_OVERRIDES = styleTags({
   "await yield as satisfies": tags.controlKeyword,
   "MethodDeclaration/PropertyDefinition": tags.function(tags.definition(tags.propertyName)),
-  // class A extends Base: 상속한 클래스 이름은 타입 색이다(entity.other.inherited-class).
   "ClassDeclaration/VariableName ClassExpression/VariableName": tags.className,
-  // useState<Foo>(x) 처럼 타입 인자가 붙은 호출은 CallExpression 안에 InstantiationExpression 이 한 겹 더 있다.
   "CallExpression/InstantiationExpression/VariableName": tags.function(tags.variableName),
   "CallExpression/InstantiationExpression/MemberExpression/PropertyName": tags.function(tags.propertyName),
 });
-
-// --- 이름만 봐서는 못 정하는 TS 색 (TextMate 문법이 하던 일) ---
-//   undefined, NaN, Infinity: constant.language (파랑)
-//   const 로 선언한 이름: variable.other.constant (밝은 파랑)
-//   함수를 바로 대입한 이름(const f = () => {}): entity.name.function (노랑)
-// 의미 기반 색(semanticTokens)이 오면 그쪽이 이 위를 덮는다.
 
 const LANGUAGE_CONSTANTS = new Set(["undefined", "NaN", "Infinity"]);
 const PATTERNS = new Set(["ObjectPattern", "ArrayPattern", "PatternProperty"]);
@@ -245,7 +215,6 @@ function declarationClass(definition: SyntaxNode): string | null {
   let owner = definition.parent;
   while (owner && PATTERNS.has(owner.name)) owner = owner.parent;
   if (!owner || !(owner.name === "VariableDeclaration" || owner.name === "ForOfSpec" || owner.name === "ForInSpec")) return null;
-  // 직접 선언한 이름이 함수 값을 받으면 함수 색
   if (definition.parent === owner) {
     let next = definition.nextSibling;
     if (next?.name === "TypeAnnotation") next = next.nextSibling;
@@ -257,8 +226,6 @@ function declarationClass(definition: SyntaxNode): string | null {
   return null;
 }
 
-// 객체 리터럴의 메서드(async handle() {}, get x() {})와 함수를 값으로 둔 속성(handle: () => {})의 이름은 함수 색이다(entity.name.function).
-// 클래스 메서드는 JS_OVERRIDES 가 맡고, 객체 리터럴은 Property 안에 ParamList 가 있는지 봐야 해서 여기서 칠한다(사용자 10-28 defineProcessor({ async handle() }) 가 속성 색이었다).
 function isFunctionProperty(definition: SyntaxNode): boolean {
   const property = definition.parent;
   if (property?.name !== "Property") return false;
@@ -317,7 +284,6 @@ const BRACKET_COLORS = 3;
 const BRACKET_MARKS = [0, 1, 2].map((i) => Decoration.mark({ class: `cm-bracket-${i}` }));
 const UNEXPECTED_MARK = Decoration.mark({ class: "cm-bracket-unexpected" });
 
-// editor.bracketPairColorization. 에디터가 설정으로 끈다. 켜 둔 곳(diff 등)은 기본값이 켬이다.
 export const bracketColorization = Facet.define<boolean, boolean>({ combine: (values) => values.length === 0 || values[values.length - 1]! });
 
 class BracketPairs {
@@ -325,7 +291,6 @@ class BracketPairs {
   private tree: Tree | null = null;
   private builtTo = 0;
   private stack: string[] = [];
-  // 괄호 하나당 [위치, 색 번호(BRACKET_COLORS 면 짝 없음)]
   private found: [number, number][] = [];
 
   constructor(view: EditorView) {
@@ -349,7 +314,6 @@ class BracketPairs {
       this.found = [];
     }
     const last = view.visibleRanges[view.visibleRanges.length - 1];
-    // 보이는 범위가 없을 때(본문이 비었거나 아직 재지 않음) 낡은 장식을 그대로 두면 다음 갱신에서 새 문서 밖 위치를 옮기다 RangeError 가 난다
     if (!last) {
       this.decorations = Decoration.none;
       return;
@@ -391,7 +355,9 @@ class BracketPairs {
 
 const bracketPairs = ViewPlugin.fromClass(BracketPairs, { decorations: (plugin) => plugin.decorations });
 
-// --- 색 ---
+export function tokenMarks(view: EditorView): DecorationSet[] {
+  return [view.plugin(refinements)?.decorations, view.plugin(semanticTokens)?.decorations, view.plugin(bracketPairs)?.decorations].filter((set): set is DecorationSet => set !== undefined);
+}
 
 const kindRules = Object.fromEntries(
   (Object.entries(COLORS) as [Kind, string][]).map(([kind, variable]) => [`.${PREFIX}${kind}`, { color: `var(${variable})` }]),

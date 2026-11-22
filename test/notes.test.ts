@@ -1,5 +1,3 @@
-// NoteStore 단독 시험 (데몬 없이). 저장, 목록 정렬, 삭제(휴지통), 동시 저장, 검색, 깨진 입력을 임시 폴더에서 확인한다.
-// 실행: npm test
 import { existsSync, mkdtempSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -145,7 +143,6 @@ test("Many saves fired at once land in call order; the last one wins and no temp
   expect(readFileSync(join(dir, `${b.id}.md`), "utf8") === "b50", "b last write");
   expect(files(dir).every((f) => f.endsWith(".md")), files(dir).join());
   expect(store.list().map((x) => x.title).sort().join() === "a50,b50", "list matches the files");
-  // 새 저장소로 다시 열어도 같다
   return expect(new NoteStore(dir).list().length === 2, "reopened store sees both");
 });
 

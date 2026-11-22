@@ -6,18 +6,15 @@ import { Codicon } from "./icons";
 import { rpc } from "./rpc";
 import { Button } from "./ui/button";
 
-// Q2: 이미지(png, jpg, gif, webp, svg)는 미리보기, 그 밖의 바이너리는 안내와 Reveal in Finder 를 에디터 자리에 보인다.
 type Source = { url: string; size: number } | { tooLarge: number } | { failed: true } | null;
 
 export function ImagePreview({ workspaceId, path }: { workspaceId: string; path: string }) {
   const [source, setSource] = useState<Source>(null);
   const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
-  // null 이면 맞춤 보기
   const [zoom, setZoom] = useState<number | null>(null);
   const [area, setArea] = useState({ width: 0, height: 0 });
   const viewRef = useRef<HTMLDivElement>(null);
 
-  // 다른 프로그램이 그림을 바꾸는 경우(에이전트가 다시 그린 경우 등)를 위해 창이 포커스를 받을 때 다시 읽는다.
   useEffect(() => {
     let disposed = false;
     const load = () =>
@@ -48,7 +45,6 @@ export function ImagePreview({ workspaceId, path }: { workspaceId: string; path:
 
   const fit = natural ? fitScale(natural, area) : 1;
   const scale = zoom ?? fit;
-  // Ctrl 이나 ⌘ 를 누른 휠(트랙패드 핀치 포함)로 확대와 축소. 페이지 기본 확대를 막으려면 passive 가 아니어야 한다.
   const scaleRef = useRef(scale);
   scaleRef.current = scale;
   useEffect(() => {
@@ -110,7 +106,6 @@ export function ImagePreview({ workspaceId, path }: { workspaceId: string; path:
   );
 }
 
-// 텍스트가 아닌 파일. 에디터에는 싣지 않고 안내와 Finder 로 보기 단추만 둔다.
 export function BinaryNotice({ workspaceId, path, size }: { workspaceId: string; path: string; size: number }) {
   return (
     <div className="file-preview file-preview-binary" data-testid="binary-notice" aria-label={FV.previewAria}>

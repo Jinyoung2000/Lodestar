@@ -3,7 +3,6 @@ import { StateEffect } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 
 
-// 서버가 initialize 결과에 legend 를 주지만, 못 받았을 때 쓰는 typescript-language-server 6 의 값
 const FALLBACK_LEGEND = {
   tokenTypes: ["class", "enum", "interface", "namespace", "typeParameter", "type", "parameter", "variable", "enumMember", "property", "function", "member"],
   tokenModifiers: ["declaration", "static", "async", "readonly", "defaultLibrary", "local"],
@@ -11,7 +10,6 @@ const FALLBACK_LEGEND = {
 
 type Legend = { tokenTypes: string[]; tokenModifiers: string[] };
 
-// LSPClient 를 만들 때 extensions 에 넣는다. 서버에 "토큰 요청을 보낼 수 있다" 고 알리는 클라이언트 기능 선언이다.
 export const semanticTokensCapability = {
   clientCapabilities: {
     textDocument: {
@@ -66,7 +64,6 @@ class SemanticTokens {
   private destroyed = false;
 
   constructor(private view: EditorView) {
-    // LSPPlugin 은 이 플러그인과 같은 때에 만들어지므로 한 틱 뒤에 찾는다.
     this.schedule(0);
   }
 
@@ -75,7 +72,6 @@ class SemanticTokens {
       for (const effect of tr.effects) if (effect.is(received)) this.decorations = effect.value;
     }
     if (update.docChanged) {
-      // 서버가 새 응답을 줄 때까지 기존 장식을 본문 변경에 맞춰 옮긴다.
       this.decorations = this.decorations.map(update.changes);
       this.schedule(400);
     }
@@ -91,7 +87,6 @@ class SemanticTokens {
     this.timer = setTimeout(() => void this.request(attempt), delay);
   }
 
-  // 프로젝트를 아직 읽는 중이면 서버가 실패나 빈 응답을 줄 수 있어 몇 번 다시 묻는다.
   private async request(attempt: number) {
     const view = this.view;
     const plugin = LSPPlugin.get(view);
@@ -105,13 +100,11 @@ class SemanticTokens {
       plugin.client.sync();
       const doc = view.state.doc;
       const result = await plugin.client.request<object, { data: number[] } | null>("textDocument/semanticTokens/full", { textDocument: { uri: plugin.uri } });
-      // 기다리는 사이 본문이 바뀌었거나 에디터가 닫혔으면 버린다(바뀐 쪽의 요청이 따로 뒤따른다).
       if (this.destroyed || view.state.doc !== doc) return;
       if (!result?.data) throw new Error("no tokens");
       const legend = ((plugin.client.serverCapabilities?.semanticTokensProvider as { legend?: Legend } | undefined)?.legend ?? FALLBACK_LEGEND) as Legend;
       view.dispatch({ effects: received.of(decode(result.data, doc, legend)) });
     } catch {
-      // 끝내 못 받아도 Lezer 색이 그대로 보이므로 조용히 둔다.
       if (attempt < RETRIES) this.schedule(RETRY_DELAY, attempt + 1);
     }
   }

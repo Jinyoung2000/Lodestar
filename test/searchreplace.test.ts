@@ -35,57 +35,37 @@ suite('vscode replace.test.ts', () => {
 			assert.strictEqual(expectedHasParameters, actual.hasParameters);
 		};
 
-		// no backslash => no treatment
 		testParse('hello', 'hello', false);
 
-		// \t => TAB
 		testParse('\\thello', '\thello', false);
 
-		// \n => LF
 		testParse('\\nhello', '\nhello', false);
 
-		// \\t => \t
 		testParse('\\\\thello', '\\thello', false);
 
-		// \\\t => \TAB
 		testParse('\\\\\\thello', '\\\thello', false);
 
-		// \\\\t => \\t
 		testParse('\\\\\\\\thello', '\\\\thello', false);
 
-		// \ at the end => no treatment
 		testParse('hello\\', 'hello\\', false);
 
-		// \ with unknown char => no treatment
 		testParse('hello\\x', 'hello\\x', false);
 
-		// \ with back reference => no treatment
 		testParse('hello\\0', 'hello\\0', false);
 
 
 
-		// $1 => no treatment
 		testParse('hello$1', 'hello$1', true);
-		// $2 => no treatment
 		testParse('hello$2', 'hello$2', true);
-		// $12 => no treatment
 		testParse('hello$12', 'hello$12', true);
-		// $99 => no treatment
 		testParse('hello$99', 'hello$99', true);
-		// $99a => no treatment
 		testParse('hello$99a', 'hello$99a', true);
-		// $100 => no treatment
 		testParse('hello$100', 'hello$100', false);
-		// $100a => no treatment
 		testParse('hello$100a', 'hello$100a', false);
-		// $10a0 => no treatment
 		testParse('hello$10a0', 'hello$10a0', true);
-		// $$ => no treatment
 		testParse('hello$$', 'hello$$', false);
-		// $$0 => no treatment
 		testParse('hello$$0', 'hello$$0', false);
 
-		// $0 => $&
 		testParse('hello$0', 'hello$&', true);
 		testParse('hello$02', 'hello$&2', true);
 
@@ -177,7 +157,7 @@ suite('vscode replace.test.ts', () => {
 		assert.strictEqual(actual, '\\left ern');
 	});
 
-	test('case operations and newline', () => { // #140734
+	test('case operations and newline', () => {
 		const testObject = new ReplacePattern('$1\n\\U$2', { pattern: '(multi)(line)', isRegExp: true });
 		const actual = testObject.getReplaceString('multiline');
 		assert.strictEqual(actual, 'multi\nLINE');
@@ -276,7 +256,6 @@ suite('vscode replace.test.ts', () => {
 	});
 });
 
-// 대소문자 유지: base/test/common 에는 별도 시험이 없고 editor/contrib/find/test/browser/replacePattern.test.ts 의 'buildReplaceStringWithCasePreserved test' 사례가 같은 함수를 본다(원문 그대로).
 test("vscode replacePattern.test.ts: buildReplaceStringWithCasePreserved", () => {
   const assertReplace = (target: string[], replaceString: string, expected: string) => assert.strictEqual(buildReplaceStringWithCasePreserved(target, replaceString), expected);
   assertReplace(["abc"], "Def", "def");
@@ -304,8 +283,6 @@ test("vscode replacePattern.test.ts: buildReplaceStringWithCasePreserved", () =>
   assert.strictEqual(buildReplaceStringWithCasePreserved(null, "x"), "x");
   assert.strictEqual(buildReplaceStringWithCasePreserved([""], "x"), "x");
 });
-
-// --- replacementFor: 공개 함수로 규칙 확인 ---
 
 const regexQuery = (pattern: string, patch: Partial<ReplaceQuery> = {}): ReplaceQuery => ({ pattern, isRegex: true, matchCase: true, wholeWord: false, ...patch });
 const literalQuery = (pattern: string, patch: Partial<ReplaceQuery> = {}): ReplaceQuery => ({ pattern, isRegex: false, matchCase: true, wholeWord: false, ...patch });
@@ -378,8 +355,6 @@ test("replacementFor: 정규식이 JS 로 해석되지 않으면 던진다", () 
   assert.throws(() => replacementFor("a", regexQuery(""), "x", false), /empty string/);
 });
 
-// --- 파일 쓰기 ---
-
 const root = realpathSync(mkdtempSync(join(tmpdir(), "agent-nav-sr-")));
 let counter = 0;
 const workspace = () => {
@@ -438,7 +413,6 @@ test("conflict: 내용이 바뀐 파일은 하나도 쓰지 않고, 같은 요�
   const before = readFileSync(join(dir, "stale.txt"));
   const { results } = await replaceInWorkspace(dir, [
     { path: "good1.txt", edits: [edit(0, 0, 0, 3, "foo", "1")] },
-    // 첫 편집은 맞고 둘째가 다르다: 맞는 쪽도 쓰지 않는다
     { path: "stale.txt", edits: [edit(0, 0, 0, 3, "foo", "X"), edit(1, 0, 1, 3, "baz", "Y")] },
     { path: "missing.txt", edits: [edit(0, 0, 0, 1, "a", "b")] },
     { path: "good2.txt", edits: [edit(0, 0, 0, 3, "foo", "2")] },
@@ -455,7 +429,6 @@ test("conflict: 파일 뒤쪽이 사라졌거나 줄이 짧아졌으면", async 
   assert.strictEqual((await one(dir, "s.txt", edit(5, 0, 5, 1, "a", "b"))).status, "conflict");
   assert.strictEqual((await one(dir, "s.txt", edit(0, 1, 0, 9, "b", "c"))).status, "conflict");
   put(dir, "crlf.txt", "ab\r\ncd\r\n");
-  // \r 은 열이 아니다: 줄 길이 2 보다 큰 열은 범위 밖
   assert.strictEqual((await one(dir, "crlf.txt", edit(0, 1, 0, 3, "b\r", "c"))).status, "conflict");
   assert.strictEqual(text(dir, "crlf.txt"), "ab\r\ncd\r\n");
 });
@@ -479,7 +452,6 @@ test("겹치는 range 는 error 이고 파일은 그대로", async () => {
   assert.strictEqual((await one(dir, "o.txt", edit(0, 1, 0, 1, "", "X"), edit(0, 1, 0, 1, "", "Y"))).status, "error");
   assert.strictEqual((await one(dir, "o.txt", edit(0, 0, 1, 0, "abcdef\n", "X"), edit(0, 3, 0, 4, "d", "Y"))).status, "error");
   assert.strictEqual(text(dir, "o.txt"), "abcdef\n");
-  // 맞닿는 것은 겹침이 아니다
   assert.strictEqual((await one(dir, "o.txt", edit(0, 0, 0, 3, "abc", "X"), edit(0, 3, 0, 6, "def", "Y"))).status, "applied");
   assert.strictEqual(text(dir, "o.txt"), "XY\n");
 });
@@ -568,16 +540,13 @@ test("CRLF 는 유지하고, LF 로 온 새 줄바꿈은 파일 표기를 따른
   put(dir, "c.txt", "a\r\nb\r\nc\r\n");
   assert.strictEqual((await one(dir, "c.txt", edit(1, 0, 1, 1, "b", "x\ny"))).status, "applied");
   assert.strictEqual(text(dir, "c.txt"), "a\r\nx\r\ny\r\nc\r\n");
-  // 여러 줄 range 의 expected 는 \n 으로 줘도 \r\n 으로 줘도 같다
   assert.strictEqual((await one(dir, "c.txt", edit(0, 0, 1, 1, "a\nx", "Z"))).status, "applied");
   assert.strictEqual(text(dir, "c.txt"), "Z\r\ny\r\nc\r\n");
   assert.strictEqual((await one(dir, "c.txt", edit(0, 0, 1, 1, "Z\r\ny", "Q"))).status, "applied");
   assert.strictEqual(text(dir, "c.txt"), "Q\r\nc\r\n");
-  // 섞인 파일: 다수인 CRLF 로 새 줄바꿈을 쓰고 손대지 않은 줄은 그대로
   put(dir, "mixed.txt", "a\r\nb\r\nc\nd\r\n");
   assert.strictEqual((await one(dir, "mixed.txt", edit(2, 0, 2, 1, "c", "x\ny"))).status, "applied");
   assert.strictEqual(text(dir, "mixed.txt"), "a\r\nb\r\nx\r\ny\nd\r\n");
-  // LF 파일에 \r\n 이 든 치환 글이 와도 LF
   put(dir, "lf.txt", "a\nb\n");
   assert.strictEqual((await one(dir, "lf.txt", edit(0, 0, 0, 1, "a", "x\r\ny"))).status, "applied");
   assert.strictEqual(text(dir, "lf.txt"), "x\ny\nb\n");
@@ -640,15 +609,12 @@ test("상한 경계: 파일당 편집 수가 딱 상한이면 처리한다", asy
   assert.strictEqual(text(dir, "edge.txt"), "b".repeat(REPLACE_MAX_EDITS_PER_FILE) + "\n");
 });
 
-// --- 세션 변경 장부: 여기서 쓴 파일은 사람의 편집이다 ---
-
 test("장부: 에이전트가 쓴 파일을 바꾸면 사람이 고친 것으로 보이고, 에이전트가 안 만진 파일은 세션 변경에 들지 않는다", async () => {
   const home = mkdtempSync(join(tmpdir(), "agent-nav-sr-home-"));
   const savedHome = process.env.AGENT_NAV_HOME;
   process.env.AGENT_NAV_HOME = home;
   try {
     const touch = await import("../server/sessionTouch");
-    // 장부는 import 시점의 AGENT_NAV_HOME 아래에 쓴다. 사용자의 ~/.agent-nav 로 새면 여기서 멈춘다.
     const { HOME } = await import("../server/store");
     assert.strictEqual(HOME, home, "장부 홈이 임시 폴더");
     const repo = workspace();
@@ -685,8 +651,6 @@ test("장부: 에이전트가 쓴 파일을 바꾸면 사람이 고친 것으로
   }
 });
 
-// --- 노출 범위 ---
-
 test("모바일 허용 목록과 에이전트 도구에 없다", () => {
   assert.ok(!(MOBILE_METHODS as readonly string[]).includes("search.replace"));
   const files = readdirSync("server").filter((name) => name.endsWith(".ts"));
@@ -695,8 +659,6 @@ test("모바일 허용 목록과 에이전트 도구에 없다", () => {
   const toolFiles = files.filter((name) => /Tools?\.ts$|^mcp|Host\.ts$/.test(name));
   for (const name of toolFiles) assert.ok(!/searchReplace|replaceInWorkspace/.test(readFileSync(join("server", name), "utf8")), `${name} 이 쓰지 않는다`);
 });
-
-// --- 실제 데몬 RPC 왕복 ---
 
 type Reply = { result?: unknown; error?: string; events: ServerMessage[] };
 

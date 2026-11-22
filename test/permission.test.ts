@@ -11,7 +11,7 @@ const g = globalThis as unknown as Record<string, unknown>;
 g.localStorage = fake;
 g.sessionStorage = fake;
 g.window = g;
-g.addEventListener = () => {}; // 브라우저의 window 는 이벤트 대상이다. web/idleReload.ts 가 불러올 때 입력 이벤트를 단다
+g.addEventListener = () => {};
 g.removeEventListener = () => {};
 g.document = { querySelector: () => null, documentElement: { dataset: {}, style: {} }, addEventListener() {}, hasFocus: () => true, visibilityState: "visible" };
 g.location = { reload() {}, origin: "http://localhost" };

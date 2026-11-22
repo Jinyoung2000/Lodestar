@@ -1,5 +1,3 @@
-// BoardStore 단독 시험 (데몬 없이). 저장, 다시 읽기, 깨진 파일, 마지막 열, 자동 이동 규칙을 임시 폴더에서 확인한다.
-// 실행: npm test
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +6,6 @@ const home = mkdtempSync(join(tmpdir(), "agent-nav-board-unit-"));
 process.env.AGENT_NAV_HOME = home;
 const { BoardStore } = await import("../server/board");
 
-// 시험마다 빈 보드에서 시작한다.
 const fresh = () => {
   rmSync(join(home, "board.json"), { force: true });
   return new BoardStore();
@@ -149,7 +146,6 @@ test("A corrupt board.json is moved aside, not overwritten", () => {
   return expect(!existsSync(join(home, "board.json")), "nothing written until the first change");
 });
 
-// BOARDUX: 우선순위, 카드 번호, 정렬, 라벨 색
 const { sortCards, labelColorOf, LABEL_COLORS, cardKey, numberCards } = await import("../shared/board");
 
 test("BOARDUX: a new card gets priority 0 and the next number; numbers are never reused after a delete and survive a reload", () => {

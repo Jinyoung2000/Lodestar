@@ -1,5 +1,3 @@
-// 갈래가 원 세션의 응답 중 쌓인 메시지(queue)를 물려받지 않는지(server/forkAgent.ts) 확인한다. 데몬도 모델도 필요 없다.
-// 실행: npm test
 import type { Agent } from "../shared/protocol";
 import { forkedFrom } from "../server/forkAgent";
 

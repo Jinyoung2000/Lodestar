@@ -9,7 +9,6 @@ export const M = {
   statusFailed: (message: string) => `Source control failed: ${message}`,
   noChanges: "No changes",
   noChangesText: "The working tree is clean.",
-  // 머리줄
   branchAria: "Current branch",
   detached: "detached",
   aheadBehind: (ahead: number, behind: number) => `${ahead} to push, ${behind} to pull`,
@@ -25,7 +24,6 @@ export const M = {
   pullDone: "Pulled.",
   pushDone: "Pushed.",
   fetchDone: "Fetched.",
-  // 커밋 입력
   messageLabel: "Commit message",
   messagePlaceholder: (branch: string | null) => (branch ? `Message (⌘Enter to commit on "${branch}")` : "Message (⌘Enter to commit)"),
   generate: "Generate Commit Message",
@@ -37,7 +35,6 @@ export const M = {
   commitAndSync: "Commit & Sync",
   commitAmend: "Commit (Amend)",
   undoLastCommit: "Undo Last Commit",
-  // 확인 창
   needMessage: "Please provide a commit message.",
   nothingToCommit: "There are no changes to commit.",
   resolveConflicts: "Resolve the merge conflicts before committing.",
@@ -54,13 +51,11 @@ export const M = {
   committed: (summary: string) => (summary ? `Committed: ${summary}` : "Committed."),
   pushFailedAfterCommit: (message: string) => `Committed, but the push failed: ${message}`,
   undone: "Last commit undone.",
-  // 커밋 실패
   commitFailed: "Commit failed",
   hookFailed: "A git hook rejected the commit",
   dismiss: "Dismiss",
   commitWithoutHooks: "Commit Without Hooks",
   commitWithoutHooksHint: "Runs git commit --no-verify and skips the hooks that failed.",
-  // 묶음
   mergeChanges: "Merge Changes",
   stagedChanges: "Staged Changes",
   changes: "Changes",
@@ -68,7 +63,6 @@ export const M = {
   unstageAll: "Unstage All Changes",
   discardAll: "Discard All Changes",
   stageAllMerge: "Stage All Merge Changes",
-  // 파일 행
   openFile: "Open File",
   openChanges: "Open Changes",
   stage: "Stage Changes",
@@ -79,7 +73,6 @@ export const M = {
   discardFolder: "Discard Folder Changes",
   statusName: { M: "Modified", A: "Added", D: "Deleted", R: "Renamed", C: "Copied", T: "Type changed", U: "Untracked", "!": "Conflict" } as const,
   renamedFrom: (from: string) => `renamed from ${from}`,
-  // 버리기 확인
   discardFileTitle: (name: string) => `Discard changes in "${name}"?`,
   discardFileDetail: "The file goes back to its staged or last committed version. This cannot be undone.",
   discardFileButton: "Discard File",
@@ -95,7 +88,6 @@ export const M = {
   },
   discardManyButton: (n: number) => `Discard ${n} Files`,
   discarded: (restored: number, trashed: number) => (trashed > 0 ? `Discarded ${restored + trashed} files. ${trashed} moved to the Trash.` : `Discarded ${restored} files.`),
-  // Worktrees
   worktrees: "Worktrees",
   noWorktrees: "No worktrees",
   worktreeCurrent: "Current worktree",
@@ -103,7 +95,6 @@ export const M = {
   worktreeDetached: (head: string) => `detached at ${head}`,
   upstreamOf: (upstream: string) => `Tracks ${upstream}`,
   openWorktreeFailed: (message: string) => `Could not open the worktree: ${message}`,
-  // Graph
   graph: "Graph",
   noCommits: "No commits yet",
   commitRowAria: (subject: string) => `Commit ${subject}`,
@@ -113,7 +104,6 @@ export const M = {
   diffTruncated: "The diff is long. Showing the first part.",
   noDiffText: "No textual changes",
   mergeCommit: "Merge commit. Showing changes against the first parent.",
-  // FIX6B: pull, push, fetch 흐름
   upToDate: "Already up to date.",
   pullMerge: "Pull (Merge)",
   pullRebase: "Pull (Rebase)",
@@ -133,7 +123,6 @@ export const M = {
   copyCommand: "Copy Command",
   copied: "Copied.",
   dirtyFiles: (files: string[]) => `${files.join(", ")}.`,
-  // 병합과 리베이스 진행 띠
   mergeInProgress: "Merging",
   rebaseInProgress: "Rebasing",
   opConflictsLeft: (n: number) => `${n} ${n === 1 ? "conflict" : "conflicts"} left to resolve`,
@@ -151,7 +140,6 @@ export const M = {
   mergeAborted: "Merge aborted.",
   rebaseAborted: "Rebase aborted.",
   continueFailed: "Could not continue",
-  // diff 탭과 hunk
   scmTabTitle: (section: "staged" | "changes", path: string) => `${section === "staged" ? "Staged" : "Working Tree"}: ${path}`,
   sectionStaged: "Staged",
   sectionChanges: "Working Tree",
@@ -172,7 +160,6 @@ export const M = {
   diffTooLargeText: "This file is too large to compare here. Stage or unstage the whole file.",
   diffLoadFailed: (message: string) => `Could not load the diff: ${message}`,
   hunkFailed: (message: string) => `Could not update the index: ${message}`,
-  // 충돌 해결 (에디터)
   acceptCurrent: "Accept Current Change",
   acceptIncoming: "Accept Incoming Change",
   acceptBoth: "Accept Both Changes",

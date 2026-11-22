@@ -5,13 +5,10 @@ import type { Workspace } from "../shared/protocol";
 
 export type TrustRoots = {
   workspaces: readonly Pick<Workspace, "id" | "dir" | "parentId">[];
-  // PR 리뷰 체크아웃 폴더. 같은 폴더의 워크스페이스보다 앞선다(체크아웃이 워크스페이스를 같이 만든다).
   reviews: readonly string[];
-  // 앱이 받아 둔 클론. 같은 폴더를 사용자가 워크스페이스로 추가했으면 워크스페이스가 앞선다.
   downloads: readonly string[];
 };
 
-// 아직 없는 파일(새로 저장할 파일)은 있는 가장 가까운 상위 폴더의 실제 경로에 나머지를 붙인다(/var 와 /private/var 처럼 링크가 낀 경로도 같은 뿌리로 본다).
 const real = (path: string): string => {
   try {
     return realpathSync(path);
@@ -23,7 +20,6 @@ const real = (path: string): string => {
 
 const inside = (path: string, root: string) => path === root || path.startsWith(root.endsWith("/") ? root : `${root}/`);
 
-// path 를 품은 가장 깊은 뿌리가 정한다. 사용자가 추가한 워크스페이스면 실행해도 되고(worktree 워크스페이스는 부모를 따른다), 리뷰 체크아웃이나 받아 둔 클론이거나 어느 워크스페이스에도 없으면 안 된다.
 export function runsFolderCode(path: string, roots: TrustRoots, depth = 0): boolean {
   const target = real(path);
   type Root = { dir: string; rank: number; workspace?: TrustRoots["workspaces"][number] };
@@ -40,7 +36,6 @@ export function runsFolderCode(path: string, roots: TrustRoots, depth = 0): bool
   return !!parent && depth < 8 && runsFolderCode(parent.dir, roots, depth + 1);
 }
 
-// PR 리뷰 체크아웃 폴더 목록(~/.agent-nav/review-checkouts.json). 임시 파일에 쓴 뒤 rename 으로 바꾼다.
 export class ReviewCheckouts {
   private dirs: string[];
 
@@ -54,7 +49,6 @@ export class ReviewCheckouts {
       const raw = JSON.parse(readFileSync(this.file, "utf8")) as unknown;
       return Array.isArray(raw) ? raw.filter((d): d is string => typeof d === "string" && d.startsWith("/")) : [];
     } catch {
-      // 쓰기가 rename 이라 반쪽 파일은 생기지 않는다. 그래도 읽을 수 없으면 덮어쓰지 않게 옆으로 치우고 로그에 남긴다.
       const aside = `${this.file}.corrupt-${Date.now()}`;
       renameSync(this.file, aside);
       console.error(`[trust] ${this.file} is unreadable, moved to ${aside}`);
@@ -72,7 +66,6 @@ export class ReviewCheckouts {
     this.save([...this.dirs, path]);
   }
 
-  // 사용자가 그 폴더를 직접 워크스페이스로 추가하거나 열었다
   forget(dir: string) {
     const path = real(dir);
     if (!this.dirs.includes(path)) return;

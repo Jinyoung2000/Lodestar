@@ -8,8 +8,6 @@ import { Icon } from "./Icon";
 import { StatusDot } from "./StatusDot";
 import { Text } from "./Text";
 
-// 세션 목록의 한 줄(세션 탭과 워크스페이스 화면이 같이 쓴다). 고정한 세션은 시간 옆에 핀 표시가 붙는다.
-// time 은 오른쪽에 보이는 시각의 기준: 기본은 마지막 수정(updated), 프로젝트 화면이 만든 순으로 정렬했을 때는 만든 시각(created)을 보인다.
 export const SessionRow = memo(function SessionRow({ agent, subtitle, time = "updated", onPress, onLongPress }: { agent: Agent; subtitle: string; time?: SessionSort; onPress: (id: string) => void; onLongPress: (agent: Agent) => void }) {
   const colors = useColors();
   const state = stateOf(agent);

@@ -1,4 +1,3 @@
-// Improvements: 피드백 개선 세션이 Sessions 목록, 세션 검색, 순서 이동에서 빠지고 별도 화면의 목록 거르기가 맞는지 순수 함수로 확인한다. 실행: npm test
 import type { Agent, Feedback } from "../shared/protocol";
 import { improvementRows, improvementsBusy, matchesImprovement, needsInputCount, notAppliedCount, requestFirstLine, retryTargets, withoutImprovementSessions } from "../web/improvementRows";
 import { buildGroups, DEFAULT_VIEW, sidebarLayout, type GroupInput } from "../web/sessionList";
@@ -62,7 +61,6 @@ const feedback = (id: string, agentId: string, patch: Partial<Feedback> = {}): F
   ...patch,
 });
 
-// 세션 하나와 그 피드백 기록을 짝으로 만든다
 const pair = (id: string, patch: Partial<Feedback> = {}, agentPatch: Partial<Agent> = {}) => {
   const a = agent({ id: `s-${id}`, feedbackId: id, title: `Feedback ${id}`, ...agentPatch });
   return { agent: a, feedback: feedback(id, a.id, patch) };
@@ -147,8 +145,6 @@ test("the first line of a request is the row text", () => {
   return expect(requestFirstLine("\n  make it wider \nand taller") === "make it wider" && requestFirstLine("") === "", "first line");
 });
 
-// --- Sessions 목록에서 빠짐 ---
-
 const normal = [agent({ id: "n1", createdAt: at(50) }), agent({ id: "n2", createdAt: at(40), workspaceId: null })];
 const withImprovements = [...normal, ...agents];
 const input = (list: Agent[]): GroupInput => ({
@@ -177,8 +173,6 @@ test("the sidebar session count ignores improvement sessions in every group", ()
   const total = groups.reduce((sum, g) => sum + g.count, 0);
   return expect(total === normal.length, `${total}`);
 });
-
-// --- 검색(⌘K, ⌃⌥R) ---
 
 const searchData = (list: Agent[], recentAgentIds: string[]): SearchData => ({
   agents: list,

@@ -1,4 +1,3 @@
-// 실패 알림 기억: 한 번 보여 준 실패는 다음 실행에서 알림으로 다시 뜨지 않고, Retry 뒤 새로 실패하면 뜬다. 실행: npm test
 import { failureNoticeKey, loadFailureMemory, saveFailureMemory, showFailureNotice, type StorageLike } from "../web/feedbackNoticeMemory";
 
 let failed = 0;
@@ -18,12 +17,10 @@ const retried = failureNoticeKey({ id: "fb1", updatedAt: "2026-10-16T02:00:00Z" 
 const storage = memory();
 check("an empty storage remembers nothing", loadFailureMemory(storage).length === 0);
 
-// 첫 실행: 아무것도 기억하지 않으니 보여 주고, 보여 준 것을 저장한다
 const run1 = new Set(loadFailureMemory(storage));
 check("first run shows the failure", showFailureNotice(first, run1, new Set()));
 saveFailureMemory(storage, [first]);
 
-// 둘째 실행: 이전 실행에서 본 실패는 가린다
 const run2 = new Set(loadFailureMemory(storage));
 check("second run hides a failure shown in the previous run", !showFailureNotice(first, run2, new Set()));
 check("a failure that started showing in this run stays visible until closed", showFailureNotice(first, run2, new Set([first])));

@@ -11,9 +11,6 @@ import { Icon } from "../ui/Icon";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
 import { Text } from "../ui/Text";
 
-// 새 세션: 폴더를 고르고, 어디서 시작할지(그 폴더 자체, 새 worktree, 이미 있는 worktree)를 정한 뒤 첫 메시지를 쓴다.
-// 기본은 데스크톱 새 세션 화면과 같다: 폴더 자체(Branch)에서 시작하고, worktree 는 고를 때만. 새 worktree 는 기준 브랜치에서 갈라진 새 브랜치로 레포 옆 <repo>.worktrees/<branch> 에 만들어진다.
-// 권한 모드와 모델은 데스크톱 기본값을 쓰되, 폰에서 만든 세션은 편집 전에 묻는 모드로 시작한다(승인 카드가 폰에 뜬다).
 type Place = "here" | "worktree" | { existing: string };
 
 export default function NewSession() {
@@ -24,7 +21,6 @@ export default function NewSession() {
   const agents = useAppState((s) => s.agents);
   const conn = useAppState((s) => s.conn);
   const choices = useMemo(() => pickableWorkspaces(workspaces, agents), [workspaces, agents]);
-  // 링크로 온 폴더(worktree 주소여도 그 프로젝트)가 먼저, 없으면 가장 최근에 쓴 폴더
   const fromLink = params.workspace ? topWorkspace(workspaces, params.workspace)?.id : undefined;
   const [picked, setPicked] = useState<string | null | undefined>(undefined);
   const selected = picked === undefined ? (fromLink ?? choices[0]?.id ?? null) : picked;
@@ -39,7 +35,6 @@ export default function NewSession() {
   const [pickingBase, setPickingBase] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
-  // 폴더를 고르면 그 폴더의 브랜치 정보를 읽는다
   useEffect(() => {
     setInfo(null);
     setBase("");
@@ -61,7 +56,6 @@ export default function NewSession() {
   }, [selected, conn]);
 
   const wantsWorktree = effectivePlace === "worktree";
-  // 브랜치 이름의 문제(git 규칙, 이미 있는 이름)를 입력하는 동안 입력칸 아래에 보인다(200ms 뒤 데몬에 묻는다)
   useEffect(() => {
     if (!wantsWorktree || !selected || !branch.trim() || conn !== "online") {
       setProblem(null);

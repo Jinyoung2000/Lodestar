@@ -47,8 +47,6 @@ function writeState(cached: unknown[]) {
   sh(file, `create table ItemTable (key text unique on conflict replace, value blob); insert into ItemTable values ('localAgentHost.cachedSessions.v4', ${sql(JSON.stringify(cached))});`);
 }
 
-// --- 가짜 세션 기록 만들기 ---
-
 const stamp = (n: number) => new Date(Date.UTC(2026, 9, 1, 0, 0, 0) + n * 1000).toISOString();
 type Line = Record<string, unknown>;
 
@@ -66,7 +64,6 @@ const base = (sessionId: string, cwd: string, parentUuid: string | null, uuid: s
 const userLine = (sessionId: string, cwd: string, parent: string | null, uuid: string, at: number, content: unknown, extra: Line = {}): Line => ({ ...base(sessionId, cwd, parent, uuid, at), type: "user", message: { role: "user", content }, ...extra });
 const assistantLine = (sessionId: string, cwd: string, parent: string, uuid: string, at: number, content: unknown[], model = "claude-sonnet-5-5"): Line => ({ ...base(sessionId, cwd, parent, uuid, at), type: "assistant", message: { model, id: `msg_${uuid}`, role: "assistant", content } });
 
-// 도구 호출 하나가 끼어 있는 두 턴짜리 기록
 function conversation(sessionId: string, cwd: string): Line[] {
   const sid = sessionId.slice(0, 4);
   return [
@@ -80,7 +77,6 @@ function conversation(sessionId: string, cwd: string): Line[] {
   ];
 }
 
-// 압축이 한 번 있었던 기록: 압축 전 두 턴, 압축 경계(logicalParentUuid 로 앞 줄기에 이어짐), 요약문, /compact 명령 글, 압축 뒤 한 턴
 function compacted(id: string, logicalParent = "c-a2"): Line[] {
   const sys = (uuid: string, parent: string | null, at: number, extra: Line): Line => ({ ...base(id, repo, parent, uuid, at), type: "system", ...extra });
   return [
@@ -97,8 +93,6 @@ function compacted(id: string, logicalParent = "c-a2"): Line[] {
 }
 
 const uuidOf = (n: number) => `${String(n).padStart(8, "0")}-0000-4000-8000-${String(n).padStart(12, "0")}`;
-
-// --- 시험 재료 ---
 
 const work = join(root, "work");
 const repo = join(work, "proj");
@@ -119,23 +113,23 @@ mkdirSync(copilotChat, { recursive: true });
 
 const VS_A = uuidOf(1);
 const S_A = uuidOf(11);
-const P1 = uuidOf(21); // peerChats 에 적힌 사이드 챗
+const P1 = uuidOf(21);
 const S_P1 = uuidOf(31);
-const P2 = uuidOf(22); // 채팅 폴더로만 남은 사이드 챗
+const P2 = uuidOf(22);
 const S_P2 = uuidOf(32);
 const S_B = uuidOf(12);
-const S_C = uuidOf(13); // 기록 파일이 없는 external 세션
-const VS_D = uuidOf(4); // 작업 폴더가 사라진 세션
+const S_C = uuidOf(13);
+const VS_D = uuidOf(4);
 const S_D = uuidOf(14);
-const VS_E = uuidOf(5); // 폴더 없는 채팅(workspaceless)
+const VS_E = uuidOf(5);
 const S_E = uuidOf(15);
-const VS_F = uuidOf(6); // worktree 세션
+const VS_F = uuidOf(6);
 const S_F = uuidOf(16);
-const VS_G = uuidOf(7); // 보관된 세션, 모델과 권한 없음
+const VS_G = uuidOf(7);
 const S_G = uuidOf(17);
 const S_H = uuidOf(18);
-const S_I = uuidOf(19); // 압축된 세션
-const S_J = uuidOf(20); // 압축된 세션(경계의 logicalParentUuid 가 기록에 없음)
+const S_I = uuidOf(19);
+const S_J = uuidOf(20);
 
 const providerData = (sdk: string, model = "@provider=anthropic:opus%5B1m%5D", level = "high") => JSON.stringify({ sdkSessionId: sdk, model: { id: model, config: { thinkingLevel: level } } });
 
@@ -158,14 +152,12 @@ function build() {
     "agentHost.chatOrigin": JSON.stringify({ kind: "sideChat", chat: chatUri("default", VS_A) }),
     "claude.workingDirectories": JSON.stringify([fileUri(repo)]),
   });
-  // 서브에이전트 채팅 폴더는 메타데이터 키가 없다(폴더 이름만 센다)
   makeSessionDb(`subagent-${b64(sessionUri(VS_A))}-toolu_abc`, { unrelated: "x" });
   makeSessionDb(`subagent-${b64(sessionUri(VS_A))}-toolu_def`, { unrelated: "x" });
   makeSessionDb(VS_D, { defaultChatProviderData: providerData(S_D), "claude.workingDirectories": JSON.stringify([fileUri(gone)]), customTitle: "Gone folder" });
   makeSessionDb(VS_E, { defaultChatProviderData: providerData(S_E), "claude.workingDirectories": JSON.stringify([fileUri(chatsDir)]), "agentHost.workspaceless": "true", customTitle: "Chat without folder" });
   makeSessionDb(VS_F, { defaultChatProviderData: providerData(S_F), "claude.workingDirectories": JSON.stringify([fileUri(wt)]), "agentHost.diffBaseBranch": "main", customTitle: "Worktree session" });
   makeSessionDb(VS_G, { defaultChatProviderData: JSON.stringify({ sdkSessionId: S_G }), isArchived: "true", isRead: "true" });
-  // Copilot 세션은 sdkSessionId 가 없다(sessionId 만 있다). 후보에 들어오면 안 된다.
   makeSessionDb(uuidOf(8), { defaultChatProviderData: JSON.stringify({ sessionId: uuidOf(99) }) });
   writeState([
     { session: sessionUri(S_B), provider: "claude", initiator: { name: "claude" }, startTime: Date.UTC(2026, 9, 2), modifiedTime: Date.UTC(2026, 9, 3), summary: "Cached B summary", workingDirectory: fileUri(repo), status: 32, chats: [{ chat: chatUri("default", S_B), summary: "Cached B summary", kind: "default", interactivity: "full", isRead: true }], external: true },
@@ -183,7 +175,6 @@ function build() {
   writeTranscript(S_D, gone, conversation(S_D, gone));
   writeTranscript(S_E, chatsDir, conversation(S_E, chatsDir));
   writeTranscript(S_F, wt, conversation(S_F, wt));
-  // 기록에도 권한 모드가 없는 세션(기본값을 쓴다)
   writeTranscript(S_I, repo, compacted(S_I));
   writeTranscript(S_J, repo, compacted(S_J, "not-in-the-file"));
   writeTranscript(S_H, copilotChat, conversation(S_H, copilotChat));
@@ -212,8 +203,6 @@ const fingerprint = (path: string): string => {
   walk(path);
   return hash.digest("hex");
 };
-
-// --- 후보 목록 ---
 
 test("Candidates merge the cache, session.db and chat folders by Claude session id", async () => {
   const { deps } = fresh();
@@ -259,8 +248,6 @@ test("The cache entry with a broken ?...#r suffix is still found by its uuid", a
   expect(state.cached.some((c) => c.vsSessionId === VS_A), "VS_A in cache");
   return `${state.cached.length} cached, ${state.sessions.length} sessions, ${state.peers.length} peers`;
 });
-
-// --- 타임라인 ---
 
 test("Transcript to timeline: items, ids, tool pairing, turn results", async () => {
   const lines = conversation(S_B, repo);
@@ -314,8 +301,6 @@ test("System-origin user messages, compaction, API errors, interrupted and unfin
   expect(userSource({ type: "user", originKind: "task-notification" }, "x") === "system" && userSource({ type: "user", originKind: "human" }, "x") === "user", "origin kinds");
   return "ok";
 });
-
-// --- 가져오기 ---
 
 test("Import: same Claude session id, title, times, status, folder, permission/model/effort", async () => {
   const { deps, store } = fresh();
@@ -378,7 +363,6 @@ test("An agent-nav session that already has the Claude session id is not importe
 
 test("Re-import adds only the entries VS Code wrote since; a tool result that arrives late updates its row", async () => {
   const { deps, store } = fresh();
-  // 마지막 도구 호출이 결과 없이 끝난 기록
   const lines = conversation(S_B, repo);
   lines.push(assistantLine(S_B, repo, "uuid-none", "late-a", 30, [{ type: "tool_use", id: "toolu_late", name: "Bash", input: { command: "ls" } }]));
   lines[lines.length - 1].parentUuid = lines[lines.length - 2].uuid;
@@ -411,13 +395,11 @@ test("An item agent-nav wrote itself (random id, messageId = transcript uuid) is
   const { deps, store, runner } = fresh();
   const [first] = await importVscodeSessions(deps, [S_B]);
   const id = first.agentId!;
-  // agent-nav 가 이어서 보낸 턴: 사용자 항목은 무작위 id 와 messageId, 응답은 기록 uuid 에서 만든 id
   const lines = [userLine(S_B, repo, "S_B-a4", "own-u", 100, "sent from agent-nav"), assistantLine(S_B, repo, "own-u", "own-a", 101, [{ type: "text", text: "reply" }])];
   const chainTail = conversation(S_B, repo).at(-1)!.uuid as string;
   lines[0].parentUuid = chainTail;
   appendFileSync(join(projects, projectDirName(repo), `${S_B}.jsonl`), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
   runner.applyImported(id, [{ id: "random-user-id", kind: "user", text: "sent from agent-nav", source: "user", at: stamp(100), messageId: "own-u" }, { id: "own-a:0", kind: "assistant", text: "reply", streaming: false, at: stamp(101) }]);
-  // agent-nav 의 턴이 끝났을 때 표지를 올린다(markSynced 대신 같은 값을 넣는다)
   store.patchAgent(id, { imported: { ...store.agent(id).imported!, syncedMtimeMs: statSync(join(projects, projectDirName(repo), `${S_B}.jsonl`)).mtimeMs, syncedUntil: stamp(101) } });
   const before = store.timeline(id).length;
   const [again] = await importVscodeSessions(deps, [S_B]);
@@ -577,8 +559,6 @@ test("Compacted session: the history before the last compaction is shown read-on
   expect(/compacted/.test(blocked), `fork before a pre-compaction message is refused: ${blocked}`);
   return `${items.length} items`;
 });
-
-// --- 읽기 전용 ---
 
 test("Reading and importing never change the VS Code state or the transcripts", async () => {
   const { deps } = fresh();

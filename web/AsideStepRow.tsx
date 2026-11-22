@@ -11,9 +11,6 @@ import { S } from "./strings";
 
 type ToolItem = Extract<TimelineItem, { kind: "tool" }>;
 
-// Aside(브라우저 조작 REPL, mcp__aside__repl) 호출 한 줄. 줄에는 제목, 주소, 결과 미리보기가 한 줄로 보이고 이미지는 줄 아래에 썸네일로 바로 보인다.
-// 펼치면 코드(구문 색)와 결과 글이 나온다. 결과가 길면 한 번 더 접혀 있다.
-// state 는 Timeline 의 StepRow 가 정한 줄 상태(running, queued, denied, done, error). gate 는 승인 대기와 거절.
 export function AsideStepRow({ item, state, gate, queued }: { item: ToolItem; state: string; gate: "pending" | "denied" | null; queued: boolean }) {
   const [open, setOpen] = useState(false);
   const summary = useMemo(() => asideSummary(item), [item.input, item.output, item.status, item.shots]);
@@ -49,7 +46,6 @@ export function AsideStepRow({ item, state, gate, queued }: { item: ToolItem; st
   );
 }
 
-// 접힌 줄에서 제목과 주소 뒤에 흐리게 보이는 짧은 결과. 오류면 오류 첫 줄, 출력이 없으면 "No output".
 function AsidePreview({ summary }: { summary: AsideSummary }) {
   if (summary.state === "running" || (summary.state === "ok" && !summary.preview)) return <span className="aside-preview" />;
   if (summary.state === "empty") return <span className="aside-preview faint">{S.asideNoOutput}</span>;
@@ -81,7 +77,6 @@ function AsideBody({ item, summary }: { item: ToolItem; summary: AsideSummary })
   );
 }
 
-// 명령 상자(Bash 출력)와 같은 상자와 글꼴
 function AsideOutput({ text }: { text: string }) {
   return (
     <div className="step-terminal mono aside-output">
@@ -92,7 +87,6 @@ function AsideOutput({ text }: { text: string }) {
 
 const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-// 응답 속 코드 블록과 같은 구문 색(JS). 언어를 아직 못 읽었으면 색 없이 보이다가 읽으면 다시 그린다.
 function AsideCode({ code }: { code: string }) {
   const languagesVersion = useLanguagesVersion();
   const html = useMemo(() => highlightCodeBlocks(`<pre><code class="language-javascript">${escapeHtml(code)}</code></pre>`), [code, languagesVersion]);
@@ -124,7 +118,6 @@ function useAsideImage(candidates: string[]) {
   return src;
 }
 
-// 줄 아래 썸네일. 누르면 크게 보인다. 파일을 읽을 수 없으면(지워진 옛 기록) 아무것도 그리지 않는다.
 function AsideThumb({ candidates }: { candidates: string[] }) {
   const src = useAsideImage(candidates);
   const [large, setLarge] = useState(false);

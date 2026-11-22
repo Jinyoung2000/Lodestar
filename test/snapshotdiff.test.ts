@@ -1,5 +1,3 @@
-// Last Turn 범위 계산의 git 읽기를 묶은 뒤에도 결과가 같은지, 시간이 줄었는지 임시 git 저장소로 확인한다.
-// 실행: npm test
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,10 +29,8 @@ const expect = (condition: boolean, detail: string) => {
 };
 
 try {
-  // 턴 시작 전: 10개는 이미 고쳐진 상태
   for (let i = 0; i < 10; i++) writeFileSync(join(repo, "src", `f${i}.ts`), `line a ${i}\nline b ${i}\nhuman\n`);
   await beginTurn(agent, store);
-  // 턴 동안: 80개 전부 수정, 한글 이름 파일 수정, 빈 파일 수정, 새 파일, 지운 파일
   for (let i = 0; i < COUNT; i++) writeFileSync(join(repo, "src", `f${i}.ts`), `line a ${i}\nline b ${i}\nhuman\nagent\n`);
   writeFileSync(join(repo, "src/한글 이름.txt"), "안녕\n세상\n");
   writeFileSync(join(repo, "src/empty.txt"), "x\n");
@@ -45,7 +41,6 @@ try {
   const names = [...Array.from({ length: COUNT }, (_, i) => `f${i}.ts`), "한글 이름.txt", "bin.dat", "empty.txt", "new.ts", "nope.ts"];
   const paths = names.map(abs);
 
-  // 한 번에 읽은 값이 파일마다 git show 로 읽은 값과 같다
   let started = performance.now();
   const one = new Map<string, string | null>();
   for (const path of paths) {
@@ -63,7 +58,6 @@ try {
   expect((await gitOps.originals(repo, "HEAD", ["/elsewhere/x"])).get("/elsewhere/x") === null, "저장소 밖 경로는 null");
   expect((await gitOps.originals(repo, null, [abs("f1.ts")])).get(abs("f1.ts")) === null, "기준이 없으면 null");
 
-  // 범위 결과: 80개 + 한글 + 빈 파일 + 새 파일 + 지운 파일
   started = performance.now();
   const turn = await lastTurnChanges(agent, store);
   const lastTurn = performance.now() - started;

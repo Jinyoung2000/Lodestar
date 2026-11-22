@@ -5,7 +5,6 @@ export type GoToParse = { label: string; offsetMode: boolean; target: GoToTarget
 
 export type GoToInput = {
   doc: Text;
-  // 줄끝 글자 수(LF 1, CRLF 2). 글자 위치는 줄끝을 이 길이로 센다.
   eolLength: number;
   tabSize: number;
   zeroBasedOffset?: boolean;

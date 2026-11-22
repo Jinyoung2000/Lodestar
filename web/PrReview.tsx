@@ -6,7 +6,6 @@ import { Button } from "./ui/button";
 
 type Event = "COMMENT" | "APPROVE" | "REQUEST_CHANGES";
 
-// 헤더의 Review 버튼과 제출 패널. 대기 중인 리뷰의 코멘트 수가 버튼에 보이고, Submit Review 를 눌러야 GitHub 에 제출된다.
 export function PrReview() {
   const detail = usePrView((v) => v.detail);
   const busy = usePrView((v) => v.busy !== null);
@@ -31,7 +30,6 @@ export function PrReview() {
     };
   }, [open]);
 
-  // 다른 PR 로 바뀌면 앞 PR 에 쓰던 리뷰 글과 선택을 버린다(새 PR 에 제출되지 않게)
   const prId = detail?.id;
   useEffect(() => {
     setOpen(false);

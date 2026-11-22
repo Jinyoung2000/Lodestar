@@ -38,7 +38,6 @@ function newAgent(extra: Partial<Agent> = {}): Agent {
   return a;
 }
 
-// cancel 은 CLI 에 물어볼 답을 줄 수 있는 가짜 프로세스. calls 로 CLI 에 간 물음을 센다.
 function fakeRun(answer: (uuid: string) => Promise<boolean | undefined> | boolean | undefined) {
   const calls: string[] = [];
   const run = {
@@ -59,7 +58,6 @@ function fakeRun(answer: (uuid: string) => Promise<boolean | undefined> | boolea
   return { run, calls };
 }
 
-// 끼어들기를 하나 보낸 상태를 만든다. pulled 가 true 면 PushQueue 의 메시지를 SDK 가 이미 꺼내 간 것으로 본다(CLI 명령 큐에 있는 상태).
 async function steerState(run: ReturnType<typeof fakeRun>["run"], agent: Agent, id: string, extras: Partial<QueuedMessage> = {}, pulled = true) {
   const iterator = run.input[Symbol.asyncIterator]();
   run.input.push(userMessage("steer me", id, "next"));

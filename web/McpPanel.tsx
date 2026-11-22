@@ -7,7 +7,6 @@ import { S } from "./strings";
 import { Button } from "./ui/button";
 import { hint } from "./hint";
 
-// 설정 패널의 MCP 목록. 서버마다 상태, 재연결, 켜기/끄기가 있고, 인증이 필요하면 안내가 붙는다.
 export function McpSection() {
   const meta = useStore((s) => s.meta);
   const refreshing = useStore((s) => s.metaRefreshing);
@@ -62,7 +61,6 @@ function McpServerRow({ server }: { server: McpStatus }) {
   );
 }
 
-// 서버가 알려 준 도구 이름과 설명. 개수 글자 아래에서 펼치고 접는다.
 function McpToolList({ server }: { server: McpStatus }) {
   const [open, setOpen] = useState(false);
   const tools = server.tools ?? [];
@@ -89,7 +87,6 @@ function McpToolList({ server }: { server: McpStatus }) {
   );
 }
 
-// 서버 한 줄 아래에 붙는 설명: 마지막 동작의 결과, 실패 사유, 인증이 필요할 때의 다음 단계.
 export function McpDetail({ server }: { server: McpStatus }) {
   const note = useStore((s) => s.mcpNotes[server.name]);
   return (
@@ -105,8 +102,6 @@ export function McpDetail({ server }: { server: McpStatus }) {
   );
 }
 
-// 인증은 앱 안에서 할 수 없다. 실제로 확인한 대로 CLI 는 재연결 때 인증 URL 을 주지 않는다(Elicitation 도 오지 않는다).
-// claude.ai 커넥터는 claude.ai 의 설정 페이지로, 그 밖의 서버는 터미널의 /mcp 로 보낸다.
 function McpAuthHelp({ server }: { server: McpStatus }) {
   if (isClaudeAiServer(server)) {
     return (

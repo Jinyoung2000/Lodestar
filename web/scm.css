@@ -1,4 +1,3 @@
-/* SCM: Source Control 보기(오른쪽 패널의 고정 탭). 값은 전부 토큰이고, 행 높이와 글자는 변경 패널, Files 트리와 같다. */
 
 .scm-view {
   flex: 1;
@@ -20,7 +19,6 @@
   padding-right: calc(var(--space-3) - var(--size-scrollbar));
 }
 
-/* 머리줄과 커밋 입력은 위에 고정하고, 그 아래 목록만 스크롤한다 */
 .scm-top {
   flex-shrink: 0;
 }
@@ -48,7 +46,6 @@
   align-items: center;
 }
 
-/* 커밋 입력 */
 .scm-commit-box {
   display: flex;
   flex-direction: column;
@@ -134,7 +131,6 @@
   box-shadow: inset 1px 0 0 var(--border);
 }
 
-/* 커밋 실패 */
 .scm-failure {
   margin: 0 var(--space-3) var(--space-2);
   border: 1px solid var(--danger);
@@ -168,7 +164,6 @@
   padding: 0 var(--space-2) var(--space-2);
 }
 
-/* 묶음과 구역 머리 */
 .scm-section-head {
   display: flex;
   align-items: center;
@@ -244,7 +239,6 @@
   text-align: center;
 }
 
-/* 행 (파일, 폴더, worktree, 커밋). 파일 아이콘은 구역 머리의 제목 글자와 같은 x 에서 시작한다 */
 .scm-row {
   all: unset;
   box-sizing: border-box;
@@ -285,7 +279,6 @@
   font-size: var(--text-ui-sm);
   color: var(--fg-muted);
 }
-/* 단추는 마우스를 올릴 때만 폭을 가진다. 접혀 있어도 margin-left: auto 가 상태 글자를 오른쪽 끝에 붙인다 */
 .scm-row-actions {
   display: inline-flex;
   align-items: center;
@@ -320,7 +313,6 @@
   outline: 1px solid var(--focus-border);
   outline-offset: -1px;
 }
-/* 상태 글자 열: 모든 행에서 같은 폭이라 글자가 세로로 정렬된다 */
 .scm-status {
   display: inline-flex;
   align-items: center;
@@ -403,7 +395,6 @@
   color: var(--fg-subtle);
   font-size: var(--text-ui-sm);
 }
-/* 저장소 머리: worktree 행보다 왼쪽에서 시작하고 굵게 보인다 */
 .scm-repo-name {
   display: flex;
   align-items: center;
@@ -467,7 +458,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 제목이 먼저 폭을 가진다. 배지 묶음은 줄에서 40% 까지만 쓰고 넘치는 배지는 가려진다(dogfood 17). */
 .scm-refs {
   display: flex;
   flex: 0 0 auto;
@@ -531,7 +521,6 @@
   color: var(--fg-subtle);
 }
 
-/* 변경이 없을 때 */
 .scm-clean {
   display: flex;
   flex-direction: column;
@@ -545,7 +534,6 @@
   color: var(--fg-strong);
 }
 
-/* FIX6B: 병합이나 리베이스가 진행 중일 때 목록 위의 띠. 충돌 개수와 이어가기, 중단 */
 .scm-operation {
   margin: var(--space-2) var(--space-3);
   padding: var(--space-2) var(--space-2) var(--space-2);
@@ -646,7 +634,6 @@
   outline-offset: -1px;
 }
 
-/* FIX6B: 충돌 마커 편집기. 현재 쪽은 초록, 들어오는 쪽은 파랑, 마커 줄은 흐리게 */
 .cm-conflict-current {
   background: color-mix(in srgb, var(--success) 18%, transparent);
 }

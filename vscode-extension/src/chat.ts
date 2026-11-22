@@ -8,8 +8,6 @@ import { chatHtml, embedUrl } from "./html";
 import { launchApp } from "./launch";
 import { readSettings } from "./settings";
 
-// 사이드바 Chat 뷰. 한 번에 한 세션을 보이고, 본 적 있는 세션의 화면은 webview 안에 숨겨 둔다(chatState.ts 가 정한 개수까지).
-// 화면 목록의 정본은 이 클래스의 frames 다. 뷰가 사라졌다 다시 만들어져도(보조 사이드바로 옮길 때 등) 문서가 ready 를 보내면 같은 목록을 다시 내려 준다.
 const LAST_KEY = "lodestar.chat.lastAgent";
 const COMMANDS = new Set(["lodestar.newSession"]);
 
@@ -39,7 +37,6 @@ export class ChatView implements vscode.WebviewViewProvider {
     this.updateContext();
   }
 
-  // 화면이 세션에 묶였을 때(트리가 그 행을 고르도록) 알린다.
   onSessionBound(listener: (agentId: string) => void) {
     this.onBound = listener;
   }
@@ -68,7 +65,6 @@ export class ChatView implements vscode.WebviewViewProvider {
     await this.open({ key: this.newKey(), agentId, workspaceId: null, src: this.urlFor({ agentId }) });
   }
 
-  // 새 세션 입력창. 같은 폴더의 입력창이 이미 있으면 쓰던 글이 남아 있는 그 화면을 보인다.
   async openDraft(workspaceId: string) {
     await this.open({ key: this.newKey(), agentId: null, workspaceId, src: this.urlFor({ workspaceId }) });
   }
@@ -81,13 +77,11 @@ export class ChatView implements vscode.WebviewViewProvider {
     return this.frames.length > 0;
   }
 
-  // 화면을 지운다(에디터 탭으로 옮겼을 때). 남은 화면 중 가장 최근 것이 보인다.
   drop(key: string) {
     this.frames = dropFrame(this.frames, key);
     this.afterChange();
   }
 
-  // 에디터 선택을 지금 보이는 세션 입력창에 첨부한다.
   attach(message: EmbedFromHost) {
     const frame = this.current();
     if (!frame) return false;
@@ -96,7 +90,6 @@ export class ChatView implements vscode.WebviewViewProvider {
     return true;
   }
 
-  // 포트 설정이 바뀌면 CSP 의 출처와 화면 주소가 달라지므로 문서를 다시 쓴다.
   onSettingsChanged() {
     this.frames = this.frames.map((f) => ({ ...f, src: this.urlFor(f.agentId ? { agentId: f.agentId } : { workspaceId: f.workspaceId ?? "" }) }));
     if (!this.view) return;
@@ -122,7 +115,6 @@ export class ChatView implements vscode.WebviewViewProvider {
     this.frames = showFrame(this.frames, frame).frames;
     this.pendingFocus = true;
     this.afterChange(true);
-    // 뷰가 아직 없거나 접혀 있거나 다른 패널 뒤에 있어도 이 명령이 열어 준다. 문서가 아직 안 떴으면 ready 에서 sync 와 포커스를 이어서 한다.
     await vscode.commands.executeCommand(`${ChatView.viewType}.focus`);
     this.flushFocus();
   }
@@ -134,7 +126,6 @@ export class ChatView implements vscode.WebviewViewProvider {
     this.post({ kind: "relay", frame: frame.key, message: { type: "agent-nav:focus" } });
   }
 
-  // 화면 목록이나 보이는 화면이 바뀐 뒤. reveal 이면 트리가 그 세션 행을 고르게 한다(사용자가 연 경우만).
   private afterChange(reveal = false) {
     const frame = this.current();
     void this.context.workspaceState.update(LAST_KEY, frame?.agentId ?? undefined);
@@ -153,7 +144,6 @@ export class ChatView implements vscode.WebviewViewProvider {
     this.post({ kind: "daemon", online: this.daemon.state === "online", message: daemonMessage(this.daemon.state, readSettings().port) });
   }
 
-  // 문서가 뜨기 전에 보낸 메시지는 잃으므로 ready 이후에만 보낸다. ready 가 오면 목록과 연결 상태를 통째로 내려 준다.
   private post(message: object) {
     if (!this.view || !this.ready) return;
     void this.view.webview.postMessage(message);
@@ -195,11 +185,9 @@ export class ChatView implements vscode.WebviewViewProvider {
       this.afterChange(true);
       return;
     }
-    // 사이드바는 에디터 그룹이 아니라서 파일과 diff 는 지금 에디터 그룹에 연다.
     await handleHostMessage(this.daemon, message, vscode.ViewColumn.Active);
   }
 
-  // 데몬 이벤트는 대화 중 계속 오므로, 화면 목록이 바뀐 때만 sync 를 다시 보낸다.
   private onDaemonChange() {
     this.pushDaemon();
     const before = this.frames;
@@ -212,7 +200,6 @@ export class ChatView implements vscode.WebviewViewProvider {
     }
   }
 
-  // 창을 다시 읽은 뒤 처음 목록을 받으면 마지막으로 보던 세션을 사이드바에 올려 둔다(포커스는 가져오지 않는다).
   private restoreLast() {
     if (this.restored) return;
     this.restored = true;
@@ -221,7 +208,6 @@ export class ChatView implements vscode.WebviewViewProvider {
     this.frames = [{ key: this.newKey(), agentId: last, workspaceId: null, src: this.urlFor({ agentId: last }) }];
   }
 
-  // 보고 있는 세션은 읽음으로 둔다(Lodestar 앱이 열린 세션을 읽음으로 두는 것과 같다).
   private markVisibleRead() {
     const agentId = this.current()?.agentId;
     if (!agentId || !this.view?.visible || !vscode.window.state.focused || this.daemon.state !== "online") return;

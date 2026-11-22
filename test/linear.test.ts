@@ -1,6 +1,3 @@
-// LINEAR: Linear 연동의 데몬 쪽(server/linear*.ts, shared/linear.ts)을 확인한다. Linear 에는 닿지 않는다: 이 파일이 로컬 http 로 가짜 Linear GraphQL 서버를 띄운다.
-// 가짜 서버는 데몬이 보낸 IssueFilter 를 직접 해석해서(모르는 칸이 오면 400) 필터가 의도한 이슈를 고르는지까지 본다. 실행: npm test
-// 실제 macOS 키체인 시험은 AGENT_NAV_LINEAR_REAL_KEYCHAIN=1 일 때만 돈다(임시 service 이름으로 만들고 지운다).
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -23,7 +20,6 @@ const BAD401 = "lin_api_BADKEY401_23456789abcdefghijklmnopq";
 const BAD400 = "lin_api_BADKEY400_23456789abcdefghijklmnopq";
 const ECHO = "lin_api_ECHOKEY0123456789abcdefghijklmnopqrs";
 
-// --- 가짜 Linear ---
 type Raw = Record<string, any>;
 const STATES: Raw[] = [
   { id: "s-j-todo", name: "Todo", type: "unstarted", color: "#e2e2e2", position: 1, team: { id: "t-jobl" } },
@@ -117,7 +113,6 @@ const wireIssue = (issue: Raw): Raw => {
   return { ...rest, state: { id: st.id, name: st.name, type: st.type, color: st.color }, labels: { nodes: issue.labels.map((l: Raw) => ({ name: l.name, color: l.color })) }, cycle: issue.cycle ? { number: issue.cycle.number, name: issue.cycle.name } : null };
 };
 
-// 메타 질의는 first 를 문서에 박아 두므로 변수에 없으면 크게 잡는다.
 const page = (items: Raw[], first: number | undefined, after: string | null | undefined) => {
   first ??= 1000;
   const start = after ? Number(after.slice(1)) : 0;
@@ -132,7 +127,6 @@ function answer(body: Raw): { status: number; headers?: Record<string, string>; 
   if (op === "LodestarViewer") return { status: 200, json: { data: { viewer: ME, organization: { name: "Example", urlKey: "example" } } } };
   if (op === "LodestarTeams") return { status: 200, json: { data: { teams: page([{ id: "t-jobl", key: "JOBL", name: "Jobs", cyclesEnabled: true }, { id: "t-ads", key: "ADS", name: "Ads", cyclesEnabled: false }], v.first, v.after) } } };
   if (op === "LodestarStates") return { status: 200, json: { data: { workflowStates: page(STATES, v.first, v.after) } } };
-  // 라벨은 한 쪽에 둘씩만 줘서 데몬이 커서로 끝까지 읽는지 본다.
   if (op === "LodestarLabels") return { status: 200, json: { data: { issueLabels: page(LABELS, 2, v.after) } } };
   if (op === "LodestarCycles") return { status: 200, json: { data: { cycles: page([{ id: "c-12", number: 12, name: null, startsAt: "2026-10-12", endsAt: "2026-10-26", isActive: true, isNext: false, team: { id: "t-jobl" } }], v.first, v.after) } } };
   if (op === "LodestarIssues") {
@@ -188,7 +182,6 @@ const server = createServer((req, res) => {
 await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 const BASE = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
-// --- 시험 도구 ---
 let clock = 1_800_000_000_000;
 const env = (extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({ AGENT_NAV_LINEAR_API: BASE, ...extra });
 const logs: string[] = [];
@@ -215,7 +208,6 @@ async function issuesOf(call: ReturnType<typeof make>["call"], filter?: Raw, ext
 }
 const ids = (issues: LinearIssue[]) => issues.map((i) => i.identifier);
 
-// --- 필터 ---
 test("filter: 내 이슈는 담당자 isMe 와 열린 상태(completed, canceled 제외)로 바뀐다", () => {
   const built = buildIssueFilter(normalizeFilter({ assignee: "me" }));
   expect(JSON.stringify(built) === JSON.stringify({ assignee: { isMe: { eq: true } }, state: { type: { nin: ["completed", "canceled"] } } }), JSON.stringify(built));
@@ -240,7 +232,6 @@ test("filter: 식별자 모양 검색어는 팀 key 와 번호 조건도 추가�
   expect(or.length === 3 && JSON.stringify(or[2]) === JSON.stringify({ team: { key: { eqIgnoreCase: "jobl" } }, number: { eq: 12 } }), JSON.stringify(or));
 });
 
-// --- 키 저장소 ---
 test("key: 환경 변수 키는 가짜 서버(AGENT_NAV_LINEAR_API)일 때만 듣고, 운영은 키체인이다", async () => {
   const calls: string[][] = [];
   const run: SecurityRunner = async (args) => (calls.push(args), { code: 44, stdout: "", stderr: "" });
@@ -311,7 +302,6 @@ if (process.env.AGENT_NAV_LINEAR_REAL_KEYCHAIN === "1") {
   });
 }
 
-// --- 상태와 키 ---
 test("status: 키 없음은 오류가 아니라 noKey 상태로 돌려준다 (요청도 안 보낸다)", async () => {
   const { call } = make(null);
   const status = await call("linear.status", {});
@@ -363,7 +353,6 @@ test("clearKey: 키를 지우고 캐시도 비운다", async () => {
   expect(!meta.ok && meta.error.kind === "noKey", "지운 뒤에는 캐시된 메타도 안 준다");
 });
 
-// --- 메타 ---
 test("meta: 팀별 상태(position 순), 라벨(커서로 끝까지), 현재 사이클", async () => {
   const { call } = make();
   const result = await call("linear.meta", {});
@@ -395,7 +384,6 @@ test("meta: 10분 캐시, force 는 다시, TTL 이 지나면 다시", async () 
   expect(fake.requests.length === before + first, "TTL 후");
 });
 
-// --- 이슈 ---
 test("issues: 내 이슈 빠른 필터는 내 열린 이슈만 (완료와 취소, 남의 것 제외), 응답은 보드 카드 모양", async () => {
   const { call } = make();
   const data = await issuesOf(call, { assignee: "me" });
@@ -484,7 +472,6 @@ test("issues: 잘못된 필터는 badRequest 로 돌려주고 Linear 에는 안 
   expect(!result.ok && result.error.kind === "badRequest" && fake.requests.length === 0, JSON.stringify(result));
 });
 
-// --- 쓰기 ---
 test("updateIssue: confirmed 없이는 거절 (Linear 에 아무것도 안 보낸다)", async () => {
   const { call } = make();
   for (const params of [{ id: "id-2", priority: 1 }, { id: "id-2", priority: 1, confirmed: false }, { id: "id-2", priority: 1, confirmed: "true" }]) {
@@ -522,7 +509,6 @@ test("updateIssue: 값 검증 (우선순위 범위, 바꿀 것 없음, 알 수 �
   expect(fake.issues[1].assignee?.id === "u-me" && fake.issues[1].title === "Issue 2", "담당자와 제목은 그대로");
 });
 
-// --- 오류 분류 ---
 test("errors: 키 없음, 401, 400 authentication error, 403, 서버 오류", async () => {
   const none = await make(null).call("linear.issues", {});
   expect(!none.ok && none.error.kind === "noKey", JSON.stringify(none));
@@ -583,7 +569,6 @@ test("errors: 남은 요청 수 헤더가 0 이면 다음 요청부터 막는다
   expect((await call("linear.issues", { filter: { teamIds: ["t-ads"] } })).ok, "Reset 뒤");
 });
 
-// --- 키 노출 ---
 test("secret: 키는 가짜 서버의 Authorization 헤더에만 있고, 응답, 오류, 로그, 로컬 console 어디에도 없다", async () => {
   logs.length = 0;
   console.log = capture;
@@ -623,7 +608,6 @@ test("secret: 키는 가짜 서버의 Authorization 헤더에만 있고, 응답,
   expect(sent.length > 5 && !sent.some((r) => r.text.includes("lin_api_")), "요청 본문에는 키가 없다");
 });
 
-// --- 쓰기 보호 ---
 test("guard: Linear RPC 는 모바일 허용 목록에 없고, 세션 모델에게 주는 도구 설정에도 없다", () => {
   const linearish = MOBILE_METHODS.filter((m) => /linear/i.test(m));
   expect(linearish.length === 0, linearish.join());
@@ -645,7 +629,6 @@ test("guard: 키는 AGENT_NAV_ 접두어 환경 변수라 세션 CLI 환경에�
   expect(out.AGENT_NAV_LINEAR_KEY === undefined && out.AGENT_NAV_LINEAR_API === undefined && out.PATH === "/bin", JSON.stringify(out));
 });
 
-// --- 세션 표지와 초안 ---
 test("session: 이슈 표지를 붙이고 떼며, 이상한 값은 거절한다", async () => {
   const { call, refs } = make();
   const ref = { identifier: "JOBL-1", title: "  Fix   login\ncrash ", url: "https://linear.example/issue/jobl-1" };

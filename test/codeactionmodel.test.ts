@@ -1,5 +1,3 @@
-// 코드 액션 메뉴(그룹, 정렬, 키 이동)와 전구(요청 조건, 자리, 아이콘, 툴팁, 메뉴 자리)의 순수 로직.
-// 실행: npm test
 import {
   ACTION_GROUPS,
   buildRows,
@@ -24,7 +22,6 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failed++;
 };
 
-// ---- kind 와 그룹 ----
 check("refactor contains refactor.extract", kindContains("refactor", "refactor.extract") && kindContains("refactor", "refactor"));
 check("refactor.extract does not contain refactor.inline or refactorX", !kindContains("refactor.extract", "refactor.inline") && !kindContains("refactor", "refactorX"));
 check("the empty kind contains everything", kindContains("", "quickfix") && kindContains("", "@@none@@"));
@@ -34,7 +31,6 @@ check("a bare refactor kind falls to More Actions...", groupOf("refactor").title
 check("group order is Quick Fix first, More Actions... last", ACTION_GROUPS[0]!.id === "quickfix" && ACTION_GROUPS[ACTION_GROUPS.length - 1]!.id === "other");
 check("source actions are detected", isSourceAction({ title: "x", kind: "source.organizeImports" }) && !isSourceAction({ title: "x", kind: "refactor" }) && !isSourceAction({ title: "x" }));
 
-// ---- 정렬과 행 ----
 const fix = { title: "Add import", kind: "quickfix", diagnostics: [{}] };
 const preferred = { title: "Fix spelling", kind: "quickfix", diagnostics: [{}], isPreferred: true };
 const extract = { title: "Extract to constant", kind: "refactor.extract.constant" };
@@ -60,7 +56,6 @@ const shown = buildRows([fix, disabled], { showHeaders: true, showDisabled: true
 const shownDisabled = shown.find((r) => r.type === "action" && r.disabled) as Extract<MenuRow, { type: "action" }>;
 check("a disabled row shows its reason and cannot preview", shownDisabled?.label === "Cannot extract range" && !shownDisabled.canPreview);
 
-// ---- 키 이동 ----
 const focusable = focusableIndexes(shown);
 check("focus skips headers and disabled rows", focusable.length === 1 && shown[focusable[0]!]!.type === "action");
 const list = buildRows([fix, preferred, extract], { showHeaders: true, showDisabled: false });
@@ -70,7 +65,6 @@ check("up from the first wraps to the last", (list[stepFocus(list, first, -1)] a
 check("down from the last wraps to the first", stepFocus(list, stepFocus(list, first, -1), 1) === first);
 check("no focusable rows gives -1", stepFocus([{ type: "header", title: "x" }], 0, 1) === -1);
 
-// ---- 자동 수정 표시 ----
 check("a preferred quickfix means auto fix", hasAutoFix([fix, preferred]) && !hasAutoFix([fix, extract]));
 check("a preferred refactor does not count", !hasAutoFix([{ title: "x", kind: "refactor", isPreferred: true }]));
 check("a disabled preferred fix does not count", !hasAutoFix([{ ...preferred, disabled: { reason: "no" } }]));
@@ -80,7 +74,6 @@ const auto = lightbulbInfo([preferred], { autoFix: "⌥⌘.", quickFix: "⌘." }
 check("auto fix bulb uses the autofix icon and the preferred title", auto.icon === "lightbulb-autofix" && auto.title === "Show Code Actions. Preferred Quick Fix Available (⌥⌘.)");
 check("without key labels the title is plain", lightbulbInfo([extract], { autoFix: "", quickFix: "" }).title === "Show Code Actions" && lightbulbInfo([preferred], { autoFix: "", quickFix: "⌘." }).title === "Show Code Actions");
 
-// ---- 전구 요청 조건(onCode) ----
 check("off never requests", !shouldRequestLightbulb("off", true, "const a = 1;", 3));
 check("on always requests, even on an empty line", shouldRequestLightbulb("on", true, "", 1));
 check("onCode skips an empty line", !shouldRequestLightbulb("onCode", true, "", 1));
@@ -89,10 +82,8 @@ check("onCode skips trailing whitespace at the end", !shouldRequestLightbulb("on
 check("onCode skips between two whitespace characters", !shouldRequestLightbulb("onCode", true, "a   b", 3) && shouldRequestLightbulb("onCode", true, "a b", 2));
 check("onCode requests for a selection anywhere", shouldRequestLightbulb("onCode", false, "   ", 2));
 
-// ---- 들여쓰기 칸 수 ----
 check("indent columns count spaces and expand tabs", indentColumns("    x", 2) === 4 && indentColumns("\tx", 4) === 4 && indentColumns(" \tx", 4) === 4 && indentColumns("x", 4) === 0);
 
-// ---- 전구 자리 ----
 const doc = ["import a from 'a';", "import b from 'b';", "", "function f() {", "  const x = 1;", "    return x;", "  }", "}", "last();"];
 const at = (line: number, column = 1, overrides: Partial<Parameters<typeof placeLightbulb>[0]> = {}) =>
   placeLightbulb({
@@ -117,7 +108,6 @@ check("a one-line file goes to the gutter", JSON.stringify(placeLightbulb({ line
 check("the last line with an indented line above uses the line above", (at(9, 1, { lineText: (n) => (n === 8 ? "  x" : n === 9 ? "last();" : "") }) as { line: number }).line === 8);
 check("a single-character line like } puts the bulb at column 2", JSON.stringify(at(5, 1, { indentWidth: 0, lineText: (n) => (n === 6 ? "}" : n === 5 ? "foo();" : n === 4 ? "bar();" : "") , lineCount: 6 })) === JSON.stringify({ kind: "widget", line: 6, column: 2 }), JSON.stringify(at(5, 1, { indentWidth: 0, lineText: (n) => (n === 6 ? "}" : n === 5 ? "foo();" : n === 4 ? "bar();" : ""), lineCount: 6 })));
 
-// ---- 메뉴 놓는 자리 ----
 const viewport = { width: 1000, height: 800 };
 const below = placeMenu({ x: 100, top: 90, bottom: 110 }, { width: 200, height: 300 }, viewport);
 check("the menu opens below the anchor when it fits", !below.above && below.top === 110 && below.left === 100);

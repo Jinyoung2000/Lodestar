@@ -9,10 +9,8 @@ import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 
-// 화면을 나갔다 다시 들어와도 검색어와 출처 필터는 남는다
 const remembered: { query: string; filter: SkillFilter } = { query: "", filter: "all" };
 
-// 이 길이를 넘는 설명에만 펼치기 단추를 단다(한 줄에 다 들어가면 필요 없다)
 const LONG_DESCRIPTION = 110;
 
 type Load = { catalog: SkillCatalog | null; error: string | null; busy: boolean };
@@ -30,7 +28,6 @@ export function SkillsView() {
       .then((catalog) => setLoad({ catalog, error: null, busy: false }))
       .catch((error: Error) => setLoad((l) => ({ catalog: l.catalog, error: /unknown method|not found/i.test(error.message) ? S.skillsNeedsDaemon : S.skillsLoadFailed(error.message), busy: false })));
   }, []);
-  // 화면에 들어올 때마다 디스크를 다시 읽는다(스킬을 만들거나 지운 뒤 바로 반영)
   useEffect(() => refresh(), [refresh]);
 
   const skills = load.catalog?.skills ?? [];
@@ -47,7 +44,6 @@ export function SkillsView() {
     setFilter(next);
   };
 
-  // 목록에서 ↑ ↓ 는 다음 줄로 포커스를 옮긴다(Enter 는 단추 기본 동작으로 연다)
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     const row = (event.target as HTMLElement).closest<HTMLElement>(".skills-row");
@@ -172,7 +168,6 @@ function shadowLabel(entry: SkillEntry, by: SkillEntry | undefined): string {
   return entry.shadow?.reason === "same-file" ? S.skillsShadowFile(label) : S.skillsShadowName(label);
 }
 
-// 에디터 탭은 세션 화면에 있으므로 연 뒤 가운데 화면을 세션으로 돌린다. 연 폴더가 하나도 없으면 탭을 열 곳이 없다.
 function openSkill(entry: SkillEntry) {
   const state = getState();
   const target = skillOpenTarget(

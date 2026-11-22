@@ -13,7 +13,6 @@ export type ResolveEnv = {
   pathVar: string;
   extensionsDir: string;
   builtinExtensionsDir: string;
-  // npm root -g, pnpm root -g, ~/.bun/install/global/node_modules. 처음 한 번만 셸을 부른다.
   globalRoots: () => Promise<string[]>;
 };
 
@@ -30,9 +29,7 @@ export function defaultResolveEnv(env: NodeJS.ProcessEnv = process.env): Resolve
 
 export type ToolContext = {
   workspaceDir: string;
-  // 포맷할 파일의 절대 경로
   file: string;
-  // settings.json 의 "oxc.path.oxfmt" 같은 한 줄짜리 키 (작업 폴더 설정이 사용자 설정 위)
   flat: Record<string, unknown>;
   env: ResolveEnv;
 };
@@ -50,7 +47,6 @@ function findGlobalRoots(home: string): Promise<string[]> {
 
 export type ExtensionInfo = { id: string; displayName: string; dir: string; version: string };
 
-// 폴더 이름은 `publisher.name-버전[-플랫폼]`. 같은 확장의 옛 버전은 .obsolete 에 표시돼 있어 건너뛴다. 꺼진 확장은 state.vscdb 에만 있어 구분하지 못한다.
 export function findExtension(extensionsDir: string, id: string): ExtensionInfo | null {
   let names: string[];
   try {
@@ -62,7 +58,6 @@ export function findExtension(extensionsDir: string, id: string): ExtensionInfo 
   try {
     obsolete = JSON.parse(readFileSync(join(extensionsDir, ".obsolete"), "utf8")) as Record<string, unknown>;
   } catch {
-    // 없으면 모두 현재 버전
   }
   const prefix = `${id.toLowerCase()}-`;
   const matches = names
@@ -95,7 +90,6 @@ export function lookupExtension(env: Pick<ResolveEnv, "extensionsDir" | "builtin
   return findExtension(env.extensionsDir, id) ?? findBuiltinExtension(env.builtinExtensionsDir, id);
 }
 
-// displayName 이 `%key%` 면 package.nls.json 에서 찾는다
 function localized(dir: string, value: string | undefined) {
   if (!value) return null;
   const key = /^%(.+)%$/.exec(value)?.[1];
@@ -109,22 +103,16 @@ function localized(dir: string, value: string | undefined) {
   }
 }
 
-// --- 설정 문자열 ---
-
-// `${userHome}` 과 `${env:이름}` 을 푼다. 셸 메타문자가 남으면 확장이 그 경로를 버리므로 null.
 export function expandSettingPath(value: unknown, home: string, env: NodeJS.ProcessEnv = process.env): string | null {
   if (typeof value !== "string" || !value) return null;
   const expanded = value.replaceAll(/\$\{(userHome|env:([^}]+))\}/g, (_all, _name: string, variable: string | undefined) => (variable === undefined ? home : (env[variable] ?? "")));
   return /[$&;|`><!%^]/.test(expanded) ? null : expanded;
 }
 
-// 작업 폴더 기준 상대 경로. prettier 설정은 맨 앞 `~` 도 홈으로 푼다.
 function inWorkspace(workspaceDir: string, path: string, home: string) {
   if (path === "~" || path.startsWith("~/")) return join(home, path.slice(1));
   return isAbsolute(path) ? normalize(path) : normalize(join(workspaceDir, path));
 }
-
-// --- 공통 도구 ---
 
 function isFile(path: string) {
   try {
@@ -142,7 +130,6 @@ function isDir(path: string) {
   }
 }
 
-// 스크립트면 node 로, 아니면 직접 실행한다. `.bin/oxfmt` 는 `#!/usr/bin/env node` 스크립트로 가는 심볼릭 링크다.
 export function loaderOf(path: string): "node" | "native" {
   if (/\.(c|m)?js$/.test(path)) return "node";
   let fd: number | undefined;
@@ -164,7 +151,6 @@ function located(path: string, origin: ToolOrigin, args: string[] = []): ToolLoc
   return { path: real, loader: loaderOf(real), args, origin };
 }
 
-// node_modules/.bin/<bin> 를 폴더 목록(각각 node_modules 의 부모가 아니라 node_modules 자신)에서 첫 번째로
 function firstBin(nodeModulesDirs: string[], bin: string): string | null {
   for (const dir of nodeModulesDirs) {
     const candidate = join(dir, ".bin", bin);
@@ -173,7 +159,6 @@ function firstBin(nodeModulesDirs: string[], bin: string): string | null {
   return null;
 }
 
-// require.resolve(이름, { paths }) 와 같은 탐색: 각 시작 폴더에서 위로 올라가며 node_modules/<이름>/package.json 을 찾고 그 bin 항목을 돌려준다
 export function packageBin(startDirs: string[], packageName: string, bin: string): string | null {
   for (const start of startDirs) {
     for (let current = start; ; current = dirname(current)) {
@@ -198,7 +183,6 @@ function binOfPackage(pkgDir: string, bin: string): string | null {
   }
 }
 
-// 확장은 findFiles("**/package.json") 로 모든 하위 패키지의 node_modules 를 훑는다. 같은 일을 깊이와 개수를 제한해서 한다.
 const SKIP_DIRS = new Set(["node_modules", ".git"]);
 const SCAN_DEPTH = 5;
 const SCAN_LIMIT = 4000;
@@ -227,16 +211,12 @@ export function packageDirs(workspaceDir: string): string[] {
   return dirs;
 }
 
-// 하위 패키지는 파일을 품은 것부터(가까운 순), 나머지는 경로순
 function nestedPackageDirs(workspaceDir: string, file: string) {
   const all = packageDirs(workspaceDir).filter((dir) => dir !== workspaceDir);
   const containing = all.filter((dir) => file.startsWith(dir + sep)).sort((a, b) => b.length - a.length);
   return [...containing, ...all.filter((dir) => !containing.includes(dir)).sort()];
 }
 
-// --- oxfmt (Oxc 확장) ---
-
-// oxc.enable.oxfmt 가 있으면 그 값, 없으면 oxc.enable(참거짓), 둘 다 없으면 켜짐
 export function oxcFormatterEnabled(flat: Record<string, unknown>) {
   const own = flat["oxc.enable.oxfmt"];
   if (typeof own === "boolean") return own;
@@ -244,8 +224,6 @@ export function oxcFormatterEnabled(flat: Record<string, unknown>) {
   return typeof master === "boolean" ? master : true;
 }
 
-// 확장 searchBinaryPath 순서: oxc.path.oxfmt 로 지정했으면 그것만 → vite-plus 의 `vp fmt` → 작업 폴더 node_modules/.bin → 하위 패키지 node_modules/.bin
-// → require.resolve("oxfmt") → Yarn PnP(이 앱은 못 한다) → npm, pnpm, bun 전역 → PATH
 export async function resolveOxfmt(ctx: ToolContext): Promise<Resolution> {
   const { workspaceDir, file, flat, env } = ctx;
   const configured = flat["oxc.path.oxfmt"];
@@ -276,8 +254,6 @@ export async function resolveOxfmt(ctx: ToolContext): Promise<Resolution> {
   }
   return { tool: null, why: "oxfmt was not found in this workspace, its packages, parent folders, the global npm, pnpm and bun folders, or PATH." };
 }
-
-// --- Prettier (Prettier 확장) ---
 
 export function prettierEnabled(flat: Record<string, unknown>) {
   return flat["prettier.enable"] !== false;
@@ -343,14 +319,12 @@ function findPrettierModule(startDir: string): string | null {
           if (existsSync(nested)) return nested;
         }
       } catch {
-        // 못 읽는 폴더는 건너뛴다
       }
     }
     if (existsSync(join(dir, ".do-not-use-prettier-vscode-root")) || dirname(dir) === dir) return null;
   }
 }
 
-// prettier.ignorePath 를 확장처럼 찾는다: 작업 폴더 기준 경로, 없으면 파일 폴더에서 위로
 export function prettierIgnorePath(ctx: ToolContext): string {
   const name = typeof ctx.flat["prettier.ignorePath"] === "string" && ctx.flat["prettier.ignorePath"] ? (ctx.flat["prettier.ignorePath"] as string) : ".prettierignore";
   const direct = inWorkspace(ctx.workspaceDir, name, ctx.env.home);
@@ -367,15 +341,12 @@ export function prettierConfigPath(ctx: ToolContext): string | null {
   return typeof configured === "string" && configured ? inWorkspace(ctx.workspaceDir, configured, ctx.env.home) : null;
 }
 
-// --- ESLint (ESLint 확장) ---
-
 export function eslintFormatEnabled(flat: Record<string, unknown>) {
   return flat["eslint.format.enable"] === true;
 }
 
 const ESLINT_FLAT_CONFIGS = ["eslint.config.js", "eslint.config.mjs", "eslint.config.cjs", "eslint.config.ts", "eslint.config.mts", "eslint.config.cts"];
 
-// 확장은 ESLint 를 번들하지 않는다. 작업 디렉터리(flat config 가 있으면 그 폴더, 없으면 작업 폴더)에서 위로 node_modules 를 찾고, 없으면 전역에서 찾는다.
 export async function resolveEslint(ctx: ToolContext): Promise<Resolution> {
   const { workspaceDir, file, env } = ctx;
   let base = workspaceDir;
@@ -394,15 +365,12 @@ export async function resolveEslint(ctx: ToolContext): Promise<Resolution> {
   return { tool: null, why: "ESLint was not found in this workspace or in the global npm folder. The ESLint extension does not bundle it." };
 }
 
-// --- 저장소의 포맷 설정 파일 (Format with 목록의 순서에 쓴다) ---
-
 const CONFIG_FILES = {
   prettier: [".prettierrc", ".prettierrc.json", ".prettierrc.yml", ".prettierrc.yaml", ".prettierrc.json5", ".prettierrc.js", ".prettierrc.cjs", ".prettierrc.mjs", ".prettierrc.ts", "prettier.config.js", "prettier.config.cjs", "prettier.config.mjs", "prettier.config.ts", ".prettierrc.toml"],
   oxc: [".oxfmtrc.json", ".oxfmtrc.jsonc", "oxfmt.config.ts", "oxfmt.config.mts", "oxfmt.config.js", "oxfmt.config.mjs"],
   eslint: [...ESLINT_FLAT_CONFIGS, ".eslintrc", ".eslintrc.js", ".eslintrc.cjs", ".eslintrc.json", ".eslintrc.yml", ".eslintrc.yaml"],
 } as const;
 
-// 파일 폴더에서 위로 올라가며 이 도구의 설정 파일이 있는지. prettier 는 package.json 의 "prettier" 키도 설정이다.
 export function hasRepoConfig(tool: "prettier" | "oxc" | "eslint", file: string): boolean {
   for (let dir = dirname(file); ; dir = dirname(dir)) {
     if (CONFIG_FILES[tool].some((name) => existsSync(join(dir, name)))) return true;
@@ -411,7 +379,6 @@ export function hasRepoConfig(tool: "prettier" | "oxc" | "eslint", file: string)
         const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { prettier?: unknown };
         if (pkg.prettier !== undefined) return true;
       } catch {
-        // package.json 이 없거나 깨졌으면 건너뛴다
       }
     }
     if (dirname(dir) === dir) return false;

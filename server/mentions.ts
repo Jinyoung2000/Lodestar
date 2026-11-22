@@ -6,16 +6,8 @@ import type { InboxStore } from "./inbox";
 import { analysisBudgetUsd, type AnalysisContext, type AnalysisOutcome } from "./mentionAnalyze";
 import { JUDGE_BATCH, toJudgeInput, type JudgeBatchResult, type JudgeInput } from "./mentionJudge";
 
-// 새 멘션 처리의 흐름.
-//   가져오기 → judgeNew(): 새 멘션을 haiku 로 판단 (한 번에 묶어서)
-//            → 요청이고 confidence 가 기준 이상이면 분석 큐(item.analysis.status = "queued")
-//   큐 → drain(): 한 번에 하나씩 sonnet 분석 → 분석 결과로 보드 카드 생성 (실패하면 판단 단계의 제목과 요약으로 카드 + "analysis failed" 라벨)
-// 같은 멘션으로 카드를 두 번 만들지 않는 근거: 판단은 item.judgment 가 없을 때만 하고, 카드는 item.cardId 가 없을 때만 만든다.
-// 카드를 사람이 지워도 item.cardId 가 남아 있어서 다시 만들지 않는다.
-
 export const MAX_JUDGE_PER_RUN = 30;
 export const MAX_FAILURES = 3;
-// 한 번의 판단에서 분석 큐에 넣는 최대 수. 넘는 요청은 판단만 남고 카드는 Add to Board 로 만든다.
 export const MAX_QUEUE_PER_RUN = Number(process.env.AGENT_NAV_ANALYSIS_QUEUE_MAX ?? 8);
 
 export type JudgeFn = (batch: JudgeInput[]) => Promise<JudgeBatchResult>;
@@ -30,7 +22,6 @@ export type PipelineDeps = {
   analyze: AnalyzeFn;
   emitInbox: () => void;
   emitBoard: () => void;
-  // true 면 판단과 분석을 하지 않는다(시험 인스턴스, server/mentionGate.ts).
   blocked?: () => boolean;
 };
 
@@ -43,7 +34,6 @@ export class MentionPipeline {
 
   constructor(private deps: PipelineDeps) {}
 
-  // 앱을 켠 직후: 분석 중이던 항목(앱이 꺼져서 끊긴 것)을 큐로 되돌리고 이어서 돈다.
   resume() {
     for (const item of this.deps.inbox.mentions()) {
       if (item.analysis?.status === "running") this.deps.inbox.update(item.id, (i) => ({ ...i, analysis: { ...i.analysis!, status: "queued", at: now() } }));
@@ -51,15 +41,12 @@ export class MentionPipeline {
     this.kick();
   }
 
-  // --- 판단 ---
-
   async judgeNew(): Promise<JudgeInfo> {
     const { inbox, settings, judge } = this.deps;
     const info: JudgeInfo = { judged: 0, requests: 0, notRequests: 0, queued: 0, error: null, costUsd: null, turns: null };
     if (this.deps.blocked?.()) return info;
     const fresh = inbox.mentions().filter((i) => !i.judgment && !i.cardId && i.verdict !== "not-request");
     if (!fresh.length) return info;
-    // 꺼져 있는 동안 들어온 멘션은 판단하지 않고, 나중에 켜도 소급해서 처리하지 않는다.
     if (!settings().autoAddRequests) {
       for (const item of fresh) inbox.update(item.id, (i) => ({ ...i, judgment: skipped("off") }));
       return info;
@@ -80,7 +67,6 @@ export class MentionPipeline {
       batch.forEach((item, i) => {
         const result = results[i];
         if (!result) {
-          // 실패한 항목은 다음 가져오기에서 다시 판단하고, 3번 실패하면 포기한다.
           inbox.update(item.id, (cur) => {
             const failures = (cur.judgeFailures ?? 0) + 1;
             return failures >= MAX_FAILURES ? { ...cur, judgeFailures: failures, judgment: skipped("failed") } : { ...cur, judgeFailures: failures };
@@ -88,7 +74,6 @@ export class MentionPipeline {
           return;
         }
         const cur = inbox.item(item.id);
-        // 판단하는 동안 사용자가 이미 카드를 만들었거나 정정했으면 건드리지 않는다.
         if (cur.judgment || cur.cardId || cur.verdict) return;
         const judgment: MentionJudgment = { at: now(), ...result };
         const queue = isAutoRequest(judgment) && queued < MAX_QUEUE_PER_RUN;
@@ -105,8 +90,6 @@ export class MentionPipeline {
     return info;
   }
 
-  // --- 분석 큐 ---
-
   kick() {
     if (this.running || this.deps.blocked?.()) return;
     this.running = this.drain().finally(() => {
@@ -118,12 +101,10 @@ export class MentionPipeline {
     return this.running !== null;
   }
 
-  // 큐가 빌 때까지 기다린다 (시험용).
   async idle() {
     while (this.running) await this.running;
   }
 
-  // 자동 분석은 설정이 켜져 있을 때만. Re-analyze(manual)는 설정과 무관하게 돈다.
   private nextQueued(): InboxItem | null {
     const auto = this.deps.settings().autoAddRequests;
     const queued = this.deps.inbox.mentions().filter((i) => i.analysis?.status === "queued" && (auto || i.analysis.manual));
@@ -135,15 +116,12 @@ export class MentionPipeline {
       try {
         await this.analyzeOne(next);
       } catch (error) {
-        // 카드 만들기나 저장이 던지면(보드 카드 수 한도 등) 이 항목을 실패로 남기고 다음 항목으로 간다.
-        // 그대로 두면 kick 의 promise 가 처리되지 않은 거부로 데몬을 끝내고, 항목이 running 으로 남아 다시 뜬 뒤 resume 이 같은 분석을 또 돌린다.
         const reason = String(error instanceof Error ? error.message : error).slice(0, 200);
         console.error(`[mentions] analysis failed: ${reason}`);
         try {
           this.deps.inbox.update(next.id, (i) => ({ ...i, analysis: { ...i.analysis, status: "failed", at: now(), error: reason } }));
           this.deps.emitInbox();
         } catch {
-          // 항목이 이미 지워졌으면 남길 곳이 없다
         }
       }
     }
@@ -184,19 +162,16 @@ export class MentionPipeline {
     this.deps.emitInbox();
   }
 
-  // 분석 결과를 카드에 반영하고 항목에 기록한다. 이 함수는 await 없이 끝까지 돌아서, 같은 멘션의 카드가 중복으로 만들어지지 않는다.
   private finish(id: string, result: MentionAnalysisResult | null, analysis: MentionAnalysis) {
     const { inbox, board } = this.deps;
     const item = inbox.item(id);
     const existing = item.cardId ? board.get().cards.find((c) => c.id === item.cardId) : undefined;
-    // 분석하는 동안 사용자가 "Not a request" 로 정정했으면 카드를 만들지 않는다.
     if (item.verdict === "not-request" && !existing) {
       inbox.update(id, (i) => ({ ...i, analysis }));
       this.deps.emitInbox();
       return;
     }
     if (existing) {
-      // 이미 카드가 있으면(수동 추가, Re-analyze) 분석이 성공했을 때만 내용을 바꾼다. 실패로 사용자가 고친 카드를 덮어쓰지 않는다.
       if (result) this.applyToCard(existing, item, result);
       inbox.update(id, (i) => ({ ...i, analysis }));
     } else {
@@ -206,7 +181,6 @@ export class MentionPipeline {
     this.deps.emitInbox();
   }
 
-  // 멘션의 카드를 만든다. 같은 Slack 링크를 가진 카드가 이미 있으면(저장 도중 끊긴 경우) 그 카드를 쓴다.
   createCard(item: InboxItem, analysis: MentionAnalysisResult | null, analysisFailed: boolean, workspaceId?: string | null): BoardCard {
     const { board } = this.deps;
     const duplicate = item.permalink ? board.get().cards.find((c) => c.links.some((l) => l.url === item.permalink)) : undefined;
@@ -228,9 +202,6 @@ export class MentionPipeline {
     this.deps.emitBoard();
   }
 
-  // --- 사용자 동작 ---
-
-  // 멘션을 보드 카드로 만든다 (수동 Add to Board). 분석 없이 판단 단계의 제목과 요약으로 만든다. 이미 카드가 있으면 그 카드를 돌려준다.
   addToBoard(id: string, workspaceId: string | null): { item: InboxItem; card: BoardCard } {
     const { inbox, board } = this.deps;
     const item = inbox.item(id);
@@ -242,7 +213,6 @@ export class MentionPipeline {
     return { item: saved, card };
   }
 
-  // "Not a request": 이 멘션으로 만든 카드를 지우고 표시를 바꾼다. 지우는 것은 이 앱의 보드 카드뿐이고 Slack 에는 아무것도 하지 않는다.
   notRequest(id: string) {
     const { inbox, board } = this.deps;
     const item = inbox.item(id);
