@@ -428,7 +428,7 @@ export class AntigravityRunner {
       session.applied.model = choice.model;
       session.applied.effort = null;
     }
-    const effort = modelChoice(null, choice.effort, session.options).effort;
+    const effort = modelChoice(null, agent.effort ?? choice.effort, session.options).effort;
     if (effort && session.applied.effort !== effort) {
       await set("thought_level", effort);
       session.applied.effort = effort;
