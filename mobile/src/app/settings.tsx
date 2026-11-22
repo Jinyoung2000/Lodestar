@@ -150,8 +150,8 @@ export default function Settings() {
         <Row label="Last sync" value={syncedAt ? new Date(syncedAt).toLocaleTimeString() : "-"} />
         <Row label="Round trip" value={rtt === null ? "Tap Measure" : durationLabel(rtt)} />
         <View style={styles.buttons}>
-          <Button title="Measure" onPress={() => void measure()} flex disabled={conn !== "online"} />
-          <Button title="Reconnect" onPress={() => client.resume()} flex />
+          <Button title="Measure" onPress={() => void measure()} style={styles.actionButton} disabled={conn !== "online"} />
+          <Button title="Reconnect" onPress={() => client.resume()} style={styles.actionButton} />
         </View>
         {addressDraft === null ? (
           <Button title="Change address" kind="plain" onPress={editAddress} />
@@ -170,8 +170,8 @@ export default function Settings() {
               style={[styles.input, { color: colors.textStrong, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
             />
             <View style={styles.buttons}>
-              <Button title="Cancel" onPress={() => setAddressDraft(null)} flex />
-              <Button title="Save" kind="primary" onPress={saveAddress} flex />
+              <Button title="Cancel" onPress={() => setAddressDraft(null)} style={styles.actionButton} />
+              <Button title="Save" kind="primary" onPress={saveAddress} style={styles.actionButton} />
             </View>
           </View>
         )}
@@ -225,6 +225,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: spacing.lg, gap: spacing.md },
   row: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, minHeight: 28 },
   input: { minHeight: 48, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.lg, fontSize: 16 },
-  buttons: { flexDirection: "row", gap: spacing.sm },
+  buttons: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  actionButton: { flexGrow: 1, paddingHorizontal: spacing.sm },
   metric: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 28 },
 });
