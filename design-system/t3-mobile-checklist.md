@@ -31,7 +31,9 @@
 - [x] 일반 대화가 세로 공간을 차지한다. 생성된 미리보기가 있으면 상단 아이콘으로 갤러리를 연다. HTML, SVG, 이미지, Markdown, CSV는 대화에서도 열 수 있다.
 - [x] 승인을 기다릴 때 입력 위치에서 응답한다. 허용·거절 결과는 해당 도구 실행에 표시한다. 직접 답한 질문만 대화에 답변으로 남긴다.
 - [x] Android 이미지 붙여넣기는 기존 썸네일과 전송 경로를 사용한다. 백그라운드 연결과 질문 알림은 페어링한 Mac을 따른다.
-- [x] 재연결 중에도 Fold 창의 연결 상태는 한 번만 표시한다. 이미 받은 대화 기록과 작성 중인 메시지를 보존한다.
+- [x] 재연결이 길어지면 기존 앱 제목 아래에 상태를 표시한다. Fold에서는 한 곳에만 표시하며, 대화와 초안이 있는 자리는 그대로 둔다.
+- [x] 임시 통신 오류가 발생하면 열려 있는 대화의 기록을 자동으로 다시 요청한다. 서버가 특정 대화에 반환한 오류는 해당 대화에서 확인한다.
+- [x] 워크스페이스 정렬 아이콘을 누르면 Recent, Name, Manual 메뉴가 열린다. 현재 기준에 체크를 표시한다.
 
 [T3 Android 작업공간](https://github.com/pingdotgg/t3code/blob/c9e9e7d36a91044bdcd9c7e1163c97de297f5bde/apps/mobile/src/features/layout/workspace/WorkspaceRootScreen.android.tsx) · [Lodestar 화면 구성](../mobile/src/app/_layout.tsx) · [Android 배포와 연결](../README.md#android-companion)
 
@@ -68,3 +70,11 @@ T3 원본에는 음성 입력, 터미널, Runtime 편집도 있다. 이 표에�
 | Android 배포 | 0.2.1 설치에서 OTA `4fdb26db`를 적용했다. 개인 S3의 APK 전체를 다시 받아 서명한 빌드와 SHA-256이 같은지 확인했다. |
 
 [모델 캐시·즐겨찾기·스와이프 Android 업데이트](https://expo.dev/accounts/jinzero/projects/lodestar-mobile/updates/a5bbf3fc-742d-419e-a670-76f208910669)
+
+## 연결 복구와 정렬 검증
+
+- Android 0.2.1에서 Settings로 OTA `6e6e942f`를 적용했다. Fold 에뮬레이터에서 테스트 데몬을 25초 동안 중지했다. 제목 아래의 연결 상태만 바뀌었고, 선택한 세션의 대화, 미리보기 목록과 입력하던 두 줄이 유지됐다. 서버가 돌아온 뒤 별도 조작 없이 연결됐다.
+- 첫 대화 기록 요청이 시간 초과되는 경우도 따로 재현했다. 폰은 최근 16개 항목부터 다시 요청했고, 세션을 닫으면 재시도를 중단했다.
+- Workspaces에서 정렬 아이콘으로 Name을 선택하면 Aster가 첫 행이었고, Recent로 돌아가면 최근 대화가 있는 Lodestar UX Lab이 첫 행이었다. 메뉴를 다시 열었을 때 선택한 항목의 체크와 Manual 선택도 확인했다.
+
+[T3 대화 열기와 연결 복구](https://github.com/pingdotgg/t3code/blob/c9e9e7d36a91044bdcd9c7e1163c97de297f5bde/apps/mobile/src/features/threads/ThreadRouteScreen.tsx) · [배포한 Android 업데이트](https://expo.dev/accounts/jinzero/projects/lodestar-mobile/updates/d765d1d8-9f3c-4d40-a283-889e7c6a6420)
