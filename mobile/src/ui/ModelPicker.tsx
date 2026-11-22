@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, Image, Keyboard, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SwitchBlock } from "@shared/harnessSwitch";
-import type { MobileModelCatalog, MobileModelProvider, MobileModelSelection } from "@shared/mobile";
+import type { MobileModelProvider, MobileModelSelection } from "@shared/mobile";
 import type { Agent, EffortLevel, Harness } from "@shared/protocol";
-import { loadPref, savePref } from "../state/storage";
-import { store } from "../state/app";
+import { store, useAppState } from "../state/app";
+import { MODEL_HARNESSES } from "../state/store";
 import { spacing, useColors } from "../theme/theme";
 import { Button } from "./Button";
 import { useFoldLayout } from "./FoldLayout";
@@ -29,33 +29,23 @@ function modelOf(provider: MobileModelProvider, model: string | null) {
   return provider.models.find((entry) => entry.value === id) ?? provider.models.find((entry) => id !== null && entry.resolved === id);
 }
 
-export function useModelPicker(online: boolean, agent?: Agent, draft?: MobileModelSelection) {
+export function useModelPicker(agent?: Agent, draft?: MobileModelSelection) {
   const [open, setOpen] = useState(false);
-  const [catalog, setCatalog] = useState<MobileModelCatalog | null>(null);
-  const [prefetched, setPrefetched] = useState<MobileModelProvider | null>(null);
   const selection = agent
     ? { harness: agent.harness ?? "claude", model: agent.model, effort: agent.effort }
     : draft ?? DEFAULT_MODEL_SELECTION;
   const { harness } = selection;
-  const provider = catalog?.providers.find((entry) => entry.harness === harness) ?? (prefetched?.harness === harness ? prefetched : undefined);
+  const provider = useAppState((state) => state.modelProviders[harness]);
   const model = provider ? modelOf(provider, selection.model) : undefined;
   const modelId = selection.model ?? agent?.activeModel ?? null;
   const name = (selection.model !== null || provider?.defaultModelKnown ? model?.displayName : null) ?? modelId ?? "Default model";
   const effort = selection.effort ?? model?.defaultLevel ?? agent?.activeEffort ?? null;
-  useEffect(() => {
-    if (!online) return;
-    let active = true;
-    void store.models(undefined, harness).then((value) => {
-      if (active) setPrefetched(value.providers[0] ?? null);
-    }).catch(() => {});
-    return () => { active = false; };
-  }, [harness, online]);
   const show = useCallback(() => {
     Keyboard.dismiss();
     setOpen(true);
   }, []);
   const close = useCallback(() => setOpen(false), []);
-  return { open, show, close, setCatalog, name, effort, selection };
+  return { open, show, close, name, effort, selection };
 }
 
 export function modelPickerLabel(name: string, effort: EffortLevel | null) {
@@ -75,43 +65,47 @@ type Props = {
   selection: MobileModelSelection;
   canResetDraft?: boolean;
   onResetDraft?: () => void;
-  onCatalog: (catalog: MobileModelCatalog) => void;
   close: () => void;
   keyboardInset?: number;
   apply: (choice: MobileModelSelection) => Promise<MobileModelSelection>;
 };
 
-export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, onCatalog, close, keyboardInset = 0, apply }: Props) {
+export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, close, keyboardInset = 0, apply }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { paneWidth, fontScale } = useFoldLayout();
   const searchHint = paneWidth < 360 && fontScale >= 1.3 ? "Search" : "Find a model";
-  const [catalog, setCatalog] = useState<MobileModelCatalog | null>(null);
+  const available = useAppState((state) => state.modelProviders);
+  const favorites = useAppState((state) => state.modelPins);
+  const online = useAppState((state) => state.conn === "online");
+  const [switchBlock, setSwitchBlock] = useState<SwitchBlock | null | undefined>(agentId ? undefined : null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [page, setPage] = useState<"models" | "reasoning" | "filter">("models");
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Harness | "favorites" | null>(null);
+  const [chosenFilter, setFilter] = useState<Harness | "favorites" | null>();
   const [collapsed, setCollapsed] = useState<Partial<Record<Harness, boolean>>>({});
-  const [favorites, setFavorites] = useState<string[] | null>(null);
+  const [changingPin, setChangingPin] = useState(false);
   const [draft, setDraft] = useState<MobileModelSelection | null>(null);
   const [saving, setSaving] = useState(false);
   const inFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let active = true;
-    void store.models(agentId).then((value) => {
-      if (active) { setCatalog(value); onCatalog(value); }
-    }, (cause: Error) => { if (active) setLoadError(cause.message); });
-    return () => { active = false; };
-  }, [agentId, onCatalog, retry]);
-
-  useEffect(() => {
+    if (!online) return;
     let live = true;
-    void loadPref<string[]>("favoriteModels", []).then((keys) => { if (live) setFavorites(Array.isArray(keys) ? keys : []); });
+    setLoadError(null);
+    setError(null);
+    const failed = (cause: Error) => { if (live) setLoadError(cause.message); };
+    void store.warmModels().catch(failed);
+    void store.loadModelPins().catch((cause: Error) => {
+      if (live) setError(cause.message.includes("cannot call") ? "Update Lodestar on your Mac to sync favorites." : cause.message);
+    });
+    if (agentId) {
+      void store.modelSwitchBlock(agentId, selection.harness).then((value) => { if (live) setSwitchBlock(value); }, failed);
+    }
     return () => { live = false; };
-  }, []);
+  }, [agentId, online, retry, selection.harness]);
 
   useEffect(() => {
     if (page === "models" && !saving) return;
@@ -124,7 +118,10 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, o
   }, [page, saving]);
 
   const displayed = draft ?? selection;
-  const providers = catalog?.providers ?? [];
+  const providers = MODEL_HARNESSES.flatMap((harness) => available[harness] ?? []);
+  const loading = online && !loadError && MODEL_HARNESSES.some((harness) => available[harness] === undefined);
+  const filter = chosenFilter === undefined ? (!query.trim() && favorites?.length ? "favorites" : null) : chosenFilter;
+  const pinOrder = new Map(favorites?.map((key, index) => [key, index]));
   const provider = providers.find((entry) => entry.harness === displayed.harness);
   const current = provider && modelOf(provider, displayed.model);
   const effort = displayed.effort ?? current?.defaultLevel ?? null;
@@ -134,17 +131,17 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, o
   const groups = providers.flatMap((entry) => {
     if (filter && filter !== "favorites" && filter !== entry.harness) return [];
     const models = entry.models.filter((model) => {
-      const key = `${entry.harness}/${model.value}`;
-      return (filter !== "favorites" || favorites?.includes(key)) && [PROVIDER_NAMES[entry.harness], model.displayName, model.value].some((value) => value.toLowerCase().includes(needle));
-    }).sort((a, b) => Number(favorites?.includes(`${entry.harness}/${b.value}`) ?? false) - Number(favorites?.includes(`${entry.harness}/${a.value}`) ?? false));
+      return (filter !== "favorites" || (model.pinKey !== undefined && pinOrder.has(model.pinKey))) && [PROVIDER_NAMES[entry.harness], model.displayName, model.value].some((value) => value.toLowerCase().includes(needle));
+    }).sort((a, b) => (pinOrder.get(a.pinKey ?? "") ?? pinOrder.size) - (pinOrder.get(b.pinKey ?? "") ?? pinOrder.size));
     return models.length ? [{ entry, models }] : [];
   });
 
-  const favorite = (key: string) => {
-    if (!favorites) return;
-    const next = favorites.includes(key) ? favorites.filter((value) => value !== key) : [...favorites, key];
-    setFavorites(next);
-    savePref("favoriteModels", next);
+  const favorite = async (harness: Harness, model: string, pinned: boolean) => {
+    setChangingPin(true);
+    setError(null);
+    try { await store.setModelPin(harness, model, pinned); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save favorite."); }
+    finally { setChangingPin(false); }
   };
   const choose = (entry: MobileModelProvider, model: string | null) => {
     setError(null);
@@ -209,12 +206,12 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, o
       {!!error && <Text color="danger" variant="caption" accessibilityLiveRegion="polite" style={styles.note}>{error}</Text>}
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}>
         {page === "models" && <>
-          {loadError ? <View><Text variant="secondary" color="textMuted">{loadError}</Text>{!loadError.startsWith("Update Lodestar") && <Button title="Try again" kind="plain" onPress={() => { setLoadError(null); setRetry((n) => n + 1); }} />}</View> : !catalog && <ActivityIndicator color={colors.textMuted} />}
-          {catalog?.switchBlock && <Text variant="caption" color="textMuted" style={styles.note}>{SWITCH_MESSAGES[catalog.switchBlock]}</Text>}
+          {loadError ? <View><Text variant="secondary" color="textMuted">{loadError}</Text>{!loadError.startsWith("Update Lodestar") && <Button title="Try again" kind="plain" onPress={() => { setLoadError(null); setRetry((n) => n + 1); }} />}</View> : loading && !groups.length && <ActivityIndicator color={colors.textMuted} />}
+          {switchBlock && <Text variant="caption" color="textMuted" style={styles.note}>{SWITCH_MESSAGES[switchBlock]}</Text>}
           {groups.map(({ entry, models }) => {
             const name = PROVIDER_NAMES[entry.harness];
             const hidden = !narrowed && (collapsed[entry.harness] ?? (entry.harness === "antigravity" && displayed.harness !== "antigravity"));
-            const locked = saving || (!!catalog?.switchBlock && entry.harness !== selection.harness);
+            const locked = !online || saving || (switchBlock !== null && entry.harness !== selection.harness);
             return <View key={entry.harness}>
               <Pressable accessibilityRole="button" accessibilityLabel={name} accessibilityState={{ expanded: !hidden }} disabled={narrowed} style={styles.groupHead} onPress={() => setCollapsed((old) => ({ ...old, [entry.harness]: !hidden }))}>
                 <ProviderMark harness={entry.harness} state="idle" size={16} /><Text color="textMuted" style={styles.bold}>{name}</Text>
@@ -225,10 +222,10 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, o
                 {!narrowed && <Choice label={entry.harness === "claude" ? "Mac default" : `${name} default`} checked={entry.harness === displayed.harness && displayed.model === null} disabled={locked} onPress={() => choose(entry, null)} />}
                 {models.map((model) => {
                   const key = `${entry.harness}/${model.value}`;
-                  const starred = favorites?.includes(key) ?? false;
+                  const starred = !!model.pinKey && pinOrder.has(model.pinKey);
                   return <View key={key} style={styles.modelRow}>
                     <Choice label={model.displayName} checked={entry.harness === displayed.harness && displayed.model !== null && model.value === current?.value} disabled={locked} onPress={() => choose(entry, model.value)} />
-                    <Pressable accessibilityRole="button" accessibilityLabel={`${starred ? "Unfavorite" : "Favorite"} ${model.displayName}`} accessibilityState={{ selected: starred }} disabled={!favorites} style={styles.target} onPress={() => favorite(key)}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`${starred ? "Unfavorite" : "Favorite"} ${model.displayName}`} accessibilityState={{ selected: starred }} disabled={!online || !favorites || !model.pinKey || changingPin} style={styles.target} onPress={() => void favorite(entry.harness, model.value, !starred)}>
                       <Image accessible={false} importantForAccessibility="no" source={starred ? require("../../assets/model-picker/favorite.png") : require("../../assets/model-picker/favorite-outline.png")} style={{ width: 17, height: 17, tintColor: starred ? colors.accentText : colors.textMuted }} />
                     </Pressable>
                   </View>;
@@ -236,7 +233,7 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, o
               </View>}
             </View>;
           })}
-          {catalog && !groups.length && <Text variant="secondary" style={styles.note} color="textMuted">{needle ? "No matching models" : filter === "favorites" ? "No favorite models" : "No models available"}</Text>}
+          {!loading && !loadError && !groups.length && <Text variant="secondary" style={styles.note} color="textMuted">{needle ? "No matching models" : filter === "favorites" ? "No favorite models" : "No models available"}</Text>}
           {!!current?.levels.length && <View>
             <Text variant="secondary" color="textMuted" style={styles.groupHeadText}>Options</Text>
             <Pressable accessibilityRole="button" accessibilityLabel={`Reasoning effort, ${effort ?? "Default"}`} disabled={saving} style={[styles.disclosure, { backgroundColor: colors.surfaceBase }]} onPress={() => { Keyboard.dismiss(); setPage("reasoning"); }}>

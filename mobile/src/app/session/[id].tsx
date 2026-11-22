@@ -44,7 +44,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   const colors = useColors();
   const agent = useAppState((s) => s.agents.find((a) => a.id === id));
   const conn = useAppState((s) => s.conn);
-  const model = useModelPicker(conn === "online" && !!agent, agent);
+  const model = useModelPicker(agent);
   const { open: modelOpen, close: closeModel } = model;
   const workspaces = useAppState((s) => s.workspaces);
   const timeline = useAppState((s) => s.timelines[id]);
@@ -280,7 +280,6 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
       {modelOpen && agent && <ModelPicker
         agentId={id}
         selection={model.selection}
-        onCatalog={model.setCatalog}
         close={model.close}
         keyboardInset={expanded || keyboardTop === undefined ? 0 : Math.max(0, windowHeight - keyboardTop)}
         apply={(selection) => store.setModel(id, selection)}

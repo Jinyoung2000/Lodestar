@@ -2,6 +2,8 @@ import { SLACK_NOT_CONNECTED_PREFIX } from "../shared/mcp";
 
 export const T = {
   errMobileMethod: (method: string) => `The phone app cannot call ${method}`,
+  errModelPin: "Invalid model pin",
+  errModelPins: "Invalid model pins",
   errMobileParam: (name: string) => `Invalid ${name}`,
   errMobileProviderUnavailable: "That provider is unavailable on your Mac",
   errMobileModelUnavailable: "That model is unavailable on your Mac",

@@ -4,23 +4,8 @@ import { activeHarness } from "./harness";
 import { rpc } from "./rpc";
 import { activePane, flash, getState, rememberPick, setState, type LastPicked } from "./store";
 
-const PINNED_KEY = "agent-nav:pinned-models";
-
-export function readPinned(): string[] {
-  try {
-    const value = JSON.parse(localStorage.getItem(PINNED_KEY) ?? "[]") as unknown;
-    return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-export function writePinned(values: string[]) {
-  try {
-    localStorage.setItem(PINNED_KEY, JSON.stringify(values));
-  } catch {
-    return;
-  }
+export function setModelPin(harness: Harness, model: string, pinned: boolean) {
+  void rpc.call("models.setPin", { harness, model, pinned }).catch((error: Error) => flash(error.message, "warning"));
 }
 
 export function pickKeys(harness: Harness, model: string | null | undefined, effort: EffortLevel | null | undefined): LastPicked {

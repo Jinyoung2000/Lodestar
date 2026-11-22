@@ -10,7 +10,7 @@ export type { MobileMethod };
 type MobileOnly = {
   "agents.create": { params: MobileSessionRequest; result: Agent };
   "mobile.createSession": { params: MobileSessionRequest & { selection: MobileModelSelection }; result: Agent };
-  "mobile.models": { params: { agentId?: string; harness?: Harness }; result: MobileModelCatalog };
+  "mobile.models": { params: { agentId?: string; harness?: Harness; switchOnly?: boolean }; result: MobileModelCatalog };
   "mobile.setModel": { params: { agentId: string; selection: MobileModelSelection }; result: MobileModelSelection };
   "mobile.preview": { params: { agentId: string; itemId: string; target: string }; result: MobilePreview };
   "mobile.browse": { params: { path?: string }; result: MobileBrowseResult };

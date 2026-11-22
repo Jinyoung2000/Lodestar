@@ -21,6 +21,7 @@ import { BROWSER_PAGE_ZOOMS, BROWSER_SEARCH_ENGINES, BROWSER_STORAGES, BROWSER_T
 
 export const HOME = process.env.AGENT_NAV_HOME ?? join(homedir(), ".agent-nav");
 const STATE_FILE = join(HOME, "state.json");
+const MODEL_PINS_FILE = join(HOME, "model-pins.json");
 const SETTINGS_FILE = join(HOME, "settings.json");
 const TIMELINE_DIR = join(HOME, "timelines");
 const CHANGES_DIR = join(HOME, "changes");
@@ -270,6 +271,8 @@ function validSeen(value: unknown): HarnessSeen | undefined {
 
 export class Store {
   private state: State;
+  private modelPinsValue: string[] = [];
+  private beforePinImport: string[] | null = [];
   private settingsValue: Settings;
   private timelines = new Map<string, TimelineItem[]>();
   private changesCache = new Map<string, FileChange[]>();
@@ -281,6 +284,19 @@ export class Store {
   onRestored: ((agents: Agent[]) => void) | null = null;
 
   constructor() {
+    if (existsSync(MODEL_PINS_FILE)) {
+      try {
+        const saved = JSON.parse(readFileSync(MODEL_PINS_FILE, "utf8"));
+        const pins: unknown = Array.isArray(saved) ? saved : saved.pins;
+        const edits: unknown = Array.isArray(saved) ? null : saved.beforeImport;
+        if (!Array.isArray(pins) || !pins.every((pin) => typeof pin === "string")
+          || !(edits === null || (Array.isArray(edits) && edits.every((pin) => typeof pin === "string")))) throw new Error("invalid model pins");
+        this.modelPinsValue = pins;
+        this.beforePinImport = edits;
+      } catch (error) {
+        setAside(MODEL_PINS_FILE, error);
+      }
+    }
     mkdirSync(TIMELINE_DIR, { recursive: true });
     mkdirSync(CHANGES_DIR, { recursive: true });
     mkdirSync(DIFF_FEEDBACK_DIR, { recursive: true });
@@ -430,6 +446,31 @@ export class Store {
     this.state.sessionOrders = pruneSessionOrders(orders, { agents: this.allAgentIds, workspaces: this.allWorkspaceIds });
     this.save();
     return this.state.sessionOrders;
+  }
+
+  get modelPins(): string[] {
+    return this.modelPinsValue;
+  }
+
+  setModelPin(key: string, pinned: boolean) {
+    const current = this.modelPinsValue;
+    const beforeImport = this.beforePinImport;
+    if (current.includes(key) === pinned && (!beforeImport || beforeImport.includes(key))) return current;
+    const pins = pinned ? [...new Set([...current, key])] : current.filter((pin) => pin !== key);
+    return this.writeModelPins(pins, beforeImport && [...new Set([...beforeImport, key])]);
+  }
+
+  importModelPins(legacy: string[]) {
+    if (this.beforePinImport === null) return this.modelPinsValue;
+    const removed = new Set(this.beforePinImport.filter((pin) => !this.modelPinsValue.includes(pin)));
+    return this.writeModelPins([...new Set([...legacy.filter((pin) => !removed.has(pin)), ...this.modelPinsValue])], null);
+  }
+
+  private writeModelPins(pins: string[], beforeImport: string[] | null) {
+    writeFileAtomic(MODEL_PINS_FILE, JSON.stringify({ pins, beforeImport }));
+    this.modelPinsValue = pins;
+    this.beforePinImport = beforeImport;
+    return pins;
   }
 
   get settings() {

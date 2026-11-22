@@ -1,4 +1,4 @@
-import type { MobileBrowseResult, MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
+import type { MobileBrowseResult, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
 import type { Agent, BranchesResult, Harness, ImageRef, PermissionDecision, ServerEvent, TimelineItem, Workspace } from "@shared/protocol";
 import type { ConnStatus } from "../net/rpc";
 import { mergeTail, prependOlder, remove, upsert } from "../logic/timeline";
@@ -23,7 +23,13 @@ export type GitSummary = { repoRoot: string | null; current: string | null; unco
 
 export type SessionTimeline = { items: TimelineItem[]; hasMore: boolean; synced: boolean; cached: boolean; loading: boolean; loadingOlder: boolean };
 
+type ModelProviders = Partial<Record<Harness, MobileModelProvider | null>>;
+
+export const MODEL_HARNESSES: Harness[] = ["claude", "codex", "antigravity"];
+
 export type State = {
+  modelProviders: ModelProviders;
+  modelPins: string[] | null;
   conn: ConnStatus;
   hostName: string | null;
   loaded: boolean;
@@ -46,7 +52,7 @@ const timelineKey = (id: string) => `cache:v1:tl:${id}`;
 const EMPTY: SessionTimeline = { items: [], hasMore: false, synced: false, cached: false, loading: false, loadingOlder: false };
 
 export class AppStore {
-  private state: State = { conn: "idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null };
+  private state: State = { modelProviders: {}, modelPins: null, conn: "idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null };
   private listeners = new Set<() => void>();
   private link: Link | null = null;
   private unsubscribers: (() => void)[] = [];
@@ -56,6 +62,12 @@ export class AppStore {
   private dirty = new Set<string>();
   private syncing: Promise<void> | null = null;
   private timelineRequests = new Map<string, Promise<void>>();
+
+  private providerRequests = new Map<Harness, Promise<void>>();
+  private providerFreshUntil = new Map<Harness, number>();
+  private connectionGeneration = 0;
+  private pinRevision = 0;
+  private pinRead: Promise<void> | null = null;
 
   constructor(private cache: Cache) {}
 
@@ -75,9 +87,9 @@ export class AppStore {
     const raw = await this.cache.get(INDEX_KEY);
     if (!raw) return false;
     try {
-      const index = JSON.parse(raw) as { agents: Agent[]; workspaces: Workspace[]; recent: string[]; hostName: string | null };
+      const index = JSON.parse(raw) as { agents: Agent[]; workspaces: Workspace[]; recent: string[]; hostName: string | null; modelProviders?: ModelProviders; modelPins?: string[] };
       this.recent = index.recent ?? [];
-      this.set({ agents: index.agents, workspaces: index.workspaces, hostName: index.hostName ?? null, loaded: true });
+      this.set({ modelProviders: index.modelProviders ?? {}, modelPins: index.modelPins ?? null, agents: index.agents, workspaces: index.workspaces, hostName: index.hostName ?? null, loaded: true });
       return true;
     } catch {
       return false;
@@ -94,6 +106,8 @@ export class AppStore {
       link.onReady((ready) => {
         this.set({ hostName: ready.host });
         void this.sync();
+        void this.warmModels().catch(() => {});
+        void this.loadModelPins().catch(() => {});
       }),
     ];
   }
@@ -102,38 +116,50 @@ export class AppStore {
     for (const off of this.unsubscribers) off();
     this.unsubscribers = [];
     this.link = null;
+    this.syncing = null;
     this.timelineRequests.clear();
+    this.connectionGeneration++;
+    this.providerRequests.clear();
+    this.providerFreshUntil.clear();
+    this.pinRead = null;
   }
 
   async reset() {
     this.detach();
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = null;
+    this.dirty.clear();
     this.opened.clear();
     const keys = [INDEX_KEY, ...this.recent.map(timelineKey), ...Object.keys(this.state.timelines).map(timelineKey)];
     this.recent = [];
-    this.set({ conn: "idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null });
+    this.set({ modelProviders: {}, modelPins: null, conn: "idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null });
     await this.cache.remove([...new Set(keys)]).catch(() => {});
   }
 
   sync(): Promise<void> {
     if (this.syncing) return this.syncing;
-    this.syncing = this.runSync().finally(() => {
-      this.syncing = null;
+    const request = this.runSync().finally(() => {
+      if (this.syncing === request) this.syncing = null;
     });
-    return this.syncing;
+    this.syncing = request;
+    return request;
   }
 
   private async runSync() {
     const link = this.link;
     if (!link) return;
+    const generation = this.connectionGeneration;
     markStart("list-sync");
     try {
       const [agents, workspaces] = await Promise.all([link.call("agents.list", {}) as Promise<Agent[]>, link.call("workspaces.list", {}) as Promise<Workspace[]>]);
+      if (this.connectionGeneration !== generation) return;
       this.set({ agents, workspaces, loaded: true, syncedAt: Date.now(), error: null });
       markEnd("list-sync", `${agents.length} sessions`);
       this.touchIndex();
       if (this.opened.size > 0) void link.call("agents.setOpen", { agentIds: [...this.opened] }).catch(() => {});
       await Promise.all([...this.opened].filter((id) => agents.some((a) => a.id === id)).map((id) => this.syncTimeline(id)));
     } catch (error) {
+      if (this.connectionGeneration !== generation) return;
       markEnd("list-sync", "failed");
       this.set({ error: message(error) });
     }
@@ -141,6 +167,9 @@ export class AppStore {
 
   private onEvent(event: ServerEvent) {
     switch (event.type) {
+      case "modelPins":
+        this.acceptModelPins(event.pins);
+        break;
       case "workspaces":
         this.set({ workspaces: event.workspaces });
         this.touchIndex();
@@ -280,8 +309,58 @@ export class AppStore {
     return this.modelCall<Agent>("mobile.createSession", { ...params, selection }, MODEL_TIMEOUT_MS + (worktree ? 90_000 : 0));
   }
 
-  models(agentId?: string, harness?: Harness) {
-    return this.modelCall<MobileModelCatalog>("mobile.models", { agentId, harness }, MODEL_TIMEOUT_MS);
+  private loadProvider(harness: Harness): Promise<void> {
+    const provider = this.state.modelProviders[harness];
+    const hasLegacyKeys = this.state.modelPins !== null && provider?.models.some((model) => !model.pinKey);
+    if (!hasLegacyKeys && (this.providerFreshUntil.get(harness) ?? 0) > Date.now()) return Promise.resolve();
+    const existing = this.providerRequests.get(harness);
+    if (existing) return existing;
+    const request = this.modelCall<MobileModelCatalog>("mobile.models", { harness }, MODEL_TIMEOUT_MS).then((catalog) => {
+      if (this.providerRequests.get(harness) !== request) return;
+      const provider = catalog.providers.find((item) => item.harness === harness) ?? null;
+      this.set({ modelProviders: { ...this.state.modelProviders, [harness]: provider } });
+      this.providerFreshUntil.set(harness, Date.now() + (provider ? 300_000 : 30_000));
+      this.touchIndex();
+    }).finally(() => {
+      if (this.providerRequests.get(harness) === request) this.providerRequests.delete(harness);
+    });
+    this.providerRequests.set(harness, request);
+    return request;
+  }
+
+  warmModels() {
+    return Promise.all(MODEL_HARNESSES.map((harness) => this.loadProvider(harness)));
+  }
+
+  async modelSwitchBlock(agentId: string, harness: Harness) {
+    const catalog = await this.modelCall<MobileModelCatalog>("mobile.models", { agentId, harness, switchOnly: true }, MODEL_TIMEOUT_MS);
+    return catalog.switchBlock;
+  }
+
+  private acceptModelPins(pins: string[]) {
+    this.pinRevision++;
+    this.set({ modelPins: pins });
+    this.touchIndex();
+  }
+
+  loadModelPins(): Promise<void> {
+    if (this.pinRead) return this.pinRead;
+    const revision = this.pinRevision;
+    const generation = this.connectionGeneration;
+    const request = this.call("models.pins", {}).then((result) => {
+      if (this.connectionGeneration === generation && revision === this.pinRevision && Array.isArray(result)) this.acceptModelPins(result);
+    }).finally(() => {
+      if (this.pinRead === request) this.pinRead = null;
+    });
+    this.pinRead = request;
+    return request;
+  }
+
+  async setModelPin(harness: Harness, model: string, pinned: boolean) {
+    const revision = this.pinRevision;
+    const generation = this.connectionGeneration;
+    const pins = await this.call("models.setPin", { harness, model, pinned }) as string[];
+    if (generation === this.connectionGeneration && revision === this.pinRevision) this.acceptModelPins(pins);
   }
 
   async setModel(agentId: string, selection: MobileModelSelection) {
@@ -403,7 +482,7 @@ export class AppStore {
     const writes: Promise<void>[] = [];
     for (const key of dirty) {
       if (key === "*index") {
-        writes.push(this.cache.set(INDEX_KEY, JSON.stringify({ agents: this.state.agents, workspaces: this.state.workspaces, recent: this.recent, hostName: this.state.hostName })));
+        writes.push(this.cache.set(INDEX_KEY, JSON.stringify({ agents: this.state.agents, workspaces: this.state.workspaces, recent: this.recent, hostName: this.state.hostName, modelProviders: this.state.modelProviders, modelPins: this.state.modelPins })));
         continue;
       }
       const timeline = this.state.timelines[key];

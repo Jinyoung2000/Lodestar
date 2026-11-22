@@ -784,6 +784,9 @@ export type RpcMethods = PrRpcMethods & LinearRpcMethods & SimulatorRpcMethods &
   "mcp.reconnect": { params: { name: string }; result: McpActionResult };
   "mcp.toggle": { params: { name: string; enabled: boolean }; result: McpActionResult };
   "runtime.info": { params: Record<string, never>; result: RuntimeInfo };
+  "models.pins": { params: Record<string, never>; result: string[] };
+  "models.setPin": { params: { harness: Harness; model: string; pinned: boolean }; result: string[] };
+  "models.importPins": { params: { pins: string[] }; result: string[] };
   "settings.get": { params: Record<string, never>; result: Settings };
   "defaults.get": { params: Record<string, never>; result: ResolvedDefaults };
   "settings.set": { params: Partial<Settings>; result: Settings };
@@ -993,6 +996,7 @@ export type RpcRequest = { id: number; method: RpcMethod; params: unknown };
 
 export type ServerEvent =
   | { type: "workspaces"; workspaces: Workspace[] }
+  | { type: "modelPins"; pins: string[] }
   | { type: "sessionOrders"; orders: SessionOrders }
   | { type: "agent"; agent: Agent }
   | { type: "agentRemoved"; agentId: string }

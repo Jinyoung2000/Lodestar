@@ -28,7 +28,7 @@ export default function NewSession() {
   const conn = useAppState((s) => s.conn);
   const [modelChoice, setModelChoice] = useState<MobileModelSelection>();
   const [starting, setStarting] = useState(false);
-  const model = useModelPicker(conn === "online", undefined, modelChoice);
+  const model = useModelPicker(undefined, modelChoice);
   const { open: modelOpen, close: closeModel } = model;
   const keyboardTop = useKeyboardTop();
   const { height: windowHeight } = useWindowDimensions();
@@ -221,7 +221,6 @@ export default function NewSession() {
         selection={model.selection}
         canResetDraft={!!modelChoice}
         onResetDraft={() => setModelChoice(undefined)}
-        onCatalog={model.setCatalog}
         close={model.close}
         keyboardInset={expanded || keyboardTop === undefined ? 0 : Math.max(0, windowHeight - keyboardTop)}
         apply={async (selection) => {

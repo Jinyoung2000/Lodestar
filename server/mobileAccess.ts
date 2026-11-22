@@ -238,8 +238,12 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
     case "workspaces.list":
     case "agents.list":
       return {};
+    case "models.pins":
+      return {};
+    case "models.setPin":
+      return { harness: harnessOfParam(p.harness), model: mobileModelId(p.model) ? p.model : fail(T.errMobileParam("model")), pinned: typeof p.pinned === "boolean" ? p.pinned : fail(T.errMobileParam("pinned")) };
     case "mobile.models":
-      return { ...(p.agentId === undefined ? {} : { agentId: idOf(p.agentId, "agentId") }), ...(p.harness === undefined ? {} : { harness: harnessOfParam(p.harness) }) };
+      return { ...(p.switchOnly === true ? { switchOnly: true } : {}), ...(p.agentId === undefined ? {} : { agentId: idOf(p.agentId, "agentId") }), ...(p.harness === undefined ? {} : { harness: harnessOfParam(p.harness) }) };
     case "mobile.setModel":
       return { agentId: idOf(p.agentId, "agentId"), selection: modelSelectionOf(p.selection) };
     case "agents.timelinePage": {

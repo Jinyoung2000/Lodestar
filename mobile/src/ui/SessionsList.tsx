@@ -1,7 +1,7 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { Stack, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Keyboard, Platform, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
+import { Keyboard, PanResponder, Platform, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
 import type { SearchBarCommands } from "react-native-screens";
 import type { Agent, TimelineItem } from "@shared/protocol";
 import { groupAgents, workspaceName } from "../logic/agents";
@@ -24,7 +24,8 @@ import { NEW_SESSION_CLEARANCE, NewSessionButton } from "./NewSessionButton";
 import { WorkspacesView } from "./WorkspacesView";
 
 type Item = { kind: "header"; key: string; title: string; count: number; mark: ProjectMark; workspaceId: string | null } | { kind: "session"; key: string; agent: Agent; workspace: string };
-type Tab = "sessions" | "waiting" | "workspaces";
+const tabs = ["sessions", "waiting", "workspaces"] as const;
+type Tab = (typeof tabs)[number];
 
 export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId, onOpenSession, headerHeight = 0 }: {
   docked?: boolean;
@@ -45,6 +46,14 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
   const [tab, setTab] = useState<Tab>("sessions");
   const [scopedId, setScopedId] = useState<string>();
   const scopedWorkspace = docked && tab === "workspaces" && scopedId ? topWorkspace(workspaces, scopedId) : null;
+  const swipe = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_, gesture) =>
+      gesture.numberActiveTouches === 1 && Math.abs(gesture.dx) > 14 && Math.abs(gesture.dx) > 1.6 * Math.abs(gesture.dy),
+    onPanResponderRelease: (_, { dx, dy, vx }) => {
+      if (Math.abs(dx) <= Math.abs(dy) * 1.4 || (Math.abs(dx) < 48 && !(Math.abs(dx) > 22 && Math.abs(vx) > 0.45))) return;
+      setTab((current) => tabs[tabs.indexOf(current) + (dx < 0 ? 1 : -1)] ?? current);
+    },
+  }), []);
   const scopedSort = useSessionSort(scopedId ?? "");
   const [query, setQuery] = useState("");
   const [railSearch, setRailSearch] = useState(false);
@@ -174,65 +183,67 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
           </View>,
         }}
       />}
-      <View style={{ paddingTop: Platform.OS === "ios" ? headerHeight : 0 }}>
-        {!docked && <ConnectionBanner />}
-        <Segmented underline options={[{ value: "sessions", label: "Sessions" }, { value: "waiting", label: "Waiting", count: waitingAgents.length, countTone: "attention" }, { value: "workspaces", label: "Workspaces" }]} value={tab} onChange={setTab} paneWidth={paneWidth} />
-      </View>
-      {scopedWorkspace && (
-        <View style={styles.scope}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to workspaces" style={styles.headerButton} onPress={() => setScopedId(undefined)}>
-            <Icon name="chevron.left" size={20} color="textMuted" />
-          </Pressable>
-          <View style={styles.projectTitle}><ProjectIcon /><Text variant="bodyStrong" color="textStrong" numberOfLines={2} style={{ flex: 1 }}>{scopedWorkspace.name}</Text></View>
-          <Pressable accessibilityRole="button" accessibilityLabel="New in workspace" style={styles.headerButton} onPress={() => router.push({ pathname: "/new", params: { workspace: scopedWorkspace.id } })}>
-            <Icon name="plus" size={20} color="textMuted" />
-          </Pressable>
+      <View style={styles.tabContent} {...swipe.panHandlers}>
+        <View style={{ paddingTop: Platform.OS === "ios" ? headerHeight : 0 }}>
+          {!docked && <ConnectionBanner />}
+          <Segmented underline options={[{ value: "sessions", label: "Sessions" }, { value: "waiting", label: "Waiting", count: waitingAgents.length, countTone: "attention" }, { value: "workspaces", label: "Workspaces" }]} value={tab} onChange={setTab} paneWidth={paneWidth} />
         </View>
-      )}
-      {tab === "workspaces" && !scopedWorkspace ? (
-        <WorkspacesView query={query} paneWidth={paneWidth} selectedId={workspaceId} onOpen={docked ? setScopedId : undefined} />
-      ) : tab === "waiting" && waitingAgents.length === 0 && loaded && (conn === "online" || agents.length > 0) ? (
-        <View style={styles.waitingEmpty}><Icon name="checkmark.circle" size={28} color="textSubtle" /><Text variant="title" color="textStrong" style={{ fontSize: 19 }}>No replies needed</Text></View>
-      ) : data.length === 0 ? (
-        <Empty offline={conn !== "online" && agents.length === 0} searching={query.trim().length > 0} onNew={() => router.push("/new")} />
-      ) : (
-        <FlashList
-          key={listKey}
-          onLoad={revealSelection}
-          ref={list}
-          data={data}
-          keyExtractor={(item) => item.key}
-          getItemType={(item) => item.kind}
-          stickyHeaderIndices={stickyHeaderIndices}
-          contentInsetAdjustmentBehavior="automatic"
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps={docked ? "handled" : undefined}
-          contentContainerStyle={{ paddingBottom: docked ? spacing.xl : NEW_SESSION_CLEARANCE }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={colors.textMuted} colors={[colors.accent]} progressBackgroundColor={colors.surface} />}
-          extraData={tab === "waiting" ? { timelines, sessionId } : sessionId}
-          renderItem={({ item }) => {
-            if (item.kind === "header") {
-              if (scopedWorkspace) return (
-                <View style={[styles.sectionHeader, styles.scope, { backgroundColor: colors.background }]}>
-                  <ProjectIcon mark={item.mark} />
-                  <Text variant="secondary" color="textStrong" style={styles.sectionTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text variant="caption" color="textSubtle">{item.count}</Text>
-                </View>
-              );
-              const { workspaceId } = item;
-              return <SectionHeader title={item.title} count={item.count} mark={item.mark}
-                expanded={!collapsed.includes(item.key)}
-                onToggle={() => sortPrefs.toggleGroup(item.key)}
-                onNew={workspaceId ? () => router.push({ pathname: "/new", params: { workspace: workspaceId } }) : undefined} />;
-            }
-            if (tab === "waiting") {
-              const pending = timelines[item.agent.id]?.items.findLast((entry): entry is Extract<TimelineItem, { kind: "permission" }> => entry.kind === "permission" && entry.status === "pending");
-              return <WaitingRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} workspace={item.workspace} pending={pending} onPress={open} onLongPress={actions.open} />;
-            }
-            return <SessionRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} subtitle={item.workspace} time={scopedWorkspace ? scopedSort : undefined} onPress={open} onLongPress={actions.open} />;
-          }}
-        />
-      )}
+        {scopedWorkspace && (
+          <View style={styles.scope}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Back to workspaces" style={styles.headerButton} onPress={() => setScopedId(undefined)}>
+              <Icon name="chevron.left" size={20} color="textMuted" />
+            </Pressable>
+            <View style={styles.projectTitle}><ProjectIcon /><Text variant="bodyStrong" color="textStrong" numberOfLines={2} style={{ flex: 1 }}>{scopedWorkspace.name}</Text></View>
+            <Pressable accessibilityRole="button" accessibilityLabel="New in workspace" style={styles.headerButton} onPress={() => router.push({ pathname: "/new", params: { workspace: scopedWorkspace.id } })}>
+              <Icon name="plus" size={20} color="textMuted" />
+            </Pressable>
+          </View>
+        )}
+        {tab === "workspaces" && !scopedWorkspace ? (
+          <WorkspacesView query={query} paneWidth={paneWidth} selectedId={workspaceId} onOpen={docked ? setScopedId : undefined} />
+        ) : tab === "waiting" && waitingAgents.length === 0 && loaded && (conn === "online" || agents.length > 0) ? (
+          <View style={styles.waitingEmpty}><Icon name="checkmark.circle" size={28} color="textSubtle" /><Text variant="title" color="textStrong" style={{ fontSize: 19 }}>No replies needed</Text></View>
+        ) : data.length === 0 ? (
+          <Empty offline={conn !== "online" && agents.length === 0} searching={query.trim().length > 0} onNew={() => router.push("/new")} />
+        ) : (
+          <FlashList
+            key={listKey}
+            onLoad={revealSelection}
+            ref={list}
+            data={data}
+            keyExtractor={(item) => item.key}
+            getItemType={(item) => item.kind}
+            stickyHeaderIndices={stickyHeaderIndices}
+            contentInsetAdjustmentBehavior="automatic"
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps={docked ? "handled" : undefined}
+            contentContainerStyle={{ paddingBottom: docked ? spacing.xl : NEW_SESSION_CLEARANCE }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={colors.textMuted} colors={[colors.accent]} progressBackgroundColor={colors.surface} />}
+            extraData={tab === "waiting" ? { timelines, sessionId } : sessionId}
+            renderItem={({ item }) => {
+              if (item.kind === "header") {
+                if (scopedWorkspace) return (
+                  <View style={[styles.sectionHeader, styles.scope, { backgroundColor: colors.background }]}>
+                    <ProjectIcon mark={item.mark} />
+                    <Text variant="secondary" color="textStrong" style={styles.sectionTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text variant="caption" color="textSubtle">{item.count}</Text>
+                  </View>
+                );
+                const { workspaceId } = item;
+                return <SectionHeader title={item.title} count={item.count} mark={item.mark}
+                  expanded={!collapsed.includes(item.key)}
+                  onToggle={() => sortPrefs.toggleGroup(item.key)}
+                  onNew={workspaceId ? () => router.push({ pathname: "/new", params: { workspace: workspaceId } }) : undefined} />;
+              }
+              if (tab === "waiting") {
+                const pending = timelines[item.agent.id]?.items.findLast((entry): entry is Extract<TimelineItem, { kind: "permission" }> => entry.kind === "permission" && entry.status === "pending");
+                return <WaitingRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} workspace={item.workspace} pending={pending} onPress={open} onLongPress={actions.open} />;
+              }
+              return <SessionRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} subtitle={item.workspace} time={scopedWorkspace ? scopedSort : undefined} onPress={open} onLongPress={actions.open} />;
+            }}
+          />
+        )}
+      </View>
       {!docked && tab !== "workspaces" && <NewSessionButton onPress={() => router.push("/new")} />}
       <RenameDialog initial={actions.renaming?.title ?? null} onSubmit={actions.submitRename} onClose={actions.closeRename} />
     </View>
@@ -287,6 +298,7 @@ function Empty({ offline, searching, onNew }: { offline: boolean; searching: boo
 }
 
 const styles = StyleSheet.create({
+  tabContent: { flex: 1 },
   projectTitle: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },
   scope: { flexDirection: "row", alignItems: "center" },
   railHeader: { minHeight: 48, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingLeft: spacing.lg },

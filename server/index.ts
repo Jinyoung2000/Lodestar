@@ -31,7 +31,8 @@ import { lanHosts, makeOffer, MobileDevices, MobileServer, PairingCodes } from "
 import { mobilePreview } from "./mobilePreview";
 import { listFolder } from "./mobileFolders";
 import { mobileModels } from "./mobileModels";
-import { pageOfTimeline } from "../shared/mobile";
+import { modelPinKey } from "../shared/modelChoices";
+import { mobileModelId, pageOfTimeline } from "../shared/mobile";
 import { resolveReadable, terminalDir } from "./files";
 import * as gitOps from "./git";
 import { forgetForkBase } from "./forkBase";
@@ -453,6 +454,22 @@ const handlers: Handlers = {
   ...fileHandlers({ store, broadcast, folderCodeAllowed }),
   ...gitHandlers({ store, feedback, broadcast, sessionChanges }),
   ...settingsHandlers({ store, broadcast, effects: settingsEffects }),
+  "models.pins": () => store.modelPins,
+  "models.setPin": ({ harness, model, pinned }) => {
+    if (!HARNESS_VALUES.includes(harness) || !mobileModelId(model) || typeof pinned !== "boolean") throw new Error(T.errModelPin);
+    const key = modelPinKey(harness, model);
+    const current = store.modelPins;
+    const pins = store.setModelPin(key, pinned);
+    if (current !== pins) broadcast({ type: "modelPins", pins });
+    return pins;
+  },
+  "models.importPins": ({ pins: legacy }) => {
+    if (!Array.isArray(legacy) || !legacy.every((key) => typeof key === "string")) throw new Error(T.errModelPins);
+    const current = store.modelPins;
+    const pins = store.importModelPins(legacy);
+    if (current !== pins) broadcast({ type: "modelPins", pins });
+    return pins;
+  },
   ...feedbackHandlers({ feedback }),
   ...boardHandlers({ store, board, publishBoard, topWorkspaceOf }),
   ...notesHandlers({ notes, publishNotes }),
@@ -610,9 +627,9 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
   },
   "agents.create": (params: MobileSessionRequest) => createPhoneSession(params),
   "mobile.createSession": ({ selection, ...params }: MobileSessionRequest & { selection: MobileModelSelection }) => createPhoneSession(params, selection),
-  "mobile.models": async ({ agentId, harness }: { agentId?: string; harness?: Harness }): Promise<MobileModelCatalog> => {
+  "mobile.models": async ({ agentId, harness, switchOnly }: { agentId?: string; harness?: Harness; switchOnly?: boolean }): Promise<MobileModelCatalog> => {
     if (agentId) phoneAgent(agentId);
-    const providers = await Promise.all((harness ? [harness] : HARNESS_VALUES).map((target) => phoneModels.provider(target)));
+    const providers = switchOnly ? [] : await Promise.all((harness ? [harness] : HARNESS_VALUES).map((target) => phoneModels.provider(target)));
     return { providers: providers.filter((provider) => provider !== null), switchBlock: agentId ? switchBlock(phoneAgent(agentId), store.timeline(agentId)) : null };
   },
   "mobile.setModel": async ({ agentId, selection }: { agentId: string; selection: MobileModelSelection }): Promise<MobileModelSelection> => {

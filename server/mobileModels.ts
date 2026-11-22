@@ -1,5 +1,5 @@
 import { mobileModelId, type MobileModelProvider, type MobileModelSelection } from "../shared/mobile";
-import { claudeModels, toolModels, type PickerModel } from "../shared/modelChoices";
+import { claudeModels, modelPinKey, toolModels, type PickerModel } from "../shared/modelChoices";
 import { modelNameFromId } from "../shared/modelName";
 import type { EffortLevel, Harness } from "../shared/protocol";
 import type { AgentRunner } from "./agents";
@@ -19,6 +19,7 @@ function providerOf(harness: Harness, choices: PickerModel[], defaultId: string 
     const displayName = model.value === "default" && resolved ? modelNameFromId(resolved) ?? model.displayName : model.displayName;
     return {
       value: model.value,
+      pinKey: modelPinKey(harness, model.value),
       resolved,
       displayName: displayName.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").trim().slice(0, 120) || model.value,
       levels: [...new Set(model.levels)],

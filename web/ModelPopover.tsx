@@ -24,7 +24,7 @@ import {
   type Provider,
   type ProviderTab,
 } from "./modelChoices";
-import { applyEffort, applyModel, currentModelAndEffort, lastPickedModel, readPinned, startDraftOn, switchTool, writePinned } from "./modelPick";
+import { applyEffort, applyModel, currentModelAndEffort, lastPickedModel, setModelPin, startDraftOn, switchTool } from "./modelPick";
 import { Popup, anchorInActivePane } from "./Popup";
 import { rpc } from "./rpc";
 import { claimKeys } from "./shortcuts";
@@ -75,7 +75,8 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
   const claudeMeta = useStore((s) => s.meta);
   const codexMeta = useStore((s) => s.codexMeta);
   const antigravityMeta = useStore((s) => s.antigravityMeta);
-  const [pinned, setPinned] = useState(readPinned);
+  const modelPins = useStore((s) => s.modelPins);
+  const pinned = modelPins ?? [];
   const [tab, setTab] = useState<ProviderTab>(() => (firstArea === "list" && pinned.length > 0 ? "pinned" : harness));
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -164,12 +165,6 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
     if (row) choose(row, isCurrent(row) ? currentEffort : carryLevel(currentEffort, levelsOf(row), defaultLevelOf(row)), { model: alt, effort: false });
     return true;
   };
-  const togglePin = (key: string) => {
-    const next = pinned.includes(key) ? pinned.filter((v) => v !== key) : [...pinned, key];
-    setPinned(next);
-    writePinned(next);
-  };
-
   const strokes = useRef<(stroke: string) => boolean>(() => false);
   strokes.current = (stroke) => {
     const digit = /^(Alt\+)?Meta\+Digit([1-9])$/.exec(stroke);
@@ -279,7 +274,7 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
                 pinned={pinned}
                 onHover={(key) => setHighlight(key)}
                 onChoose={(choice, alt) => choose(choice, isCurrent(choice) ? currentEffort : carryLevel(currentEffort, levelsOf(choice), defaultLevelOf(choice)), { model: alt, effort: false })}
-                onPin={togglePin}
+                onPin={modelPins === null ? undefined : setModelPin}
               />
             ))}
             {rows.length === 0 && emptyText && <div className="model-popover-status" role="status">{emptyText}</div>}
@@ -357,7 +352,7 @@ type PopoverRowProps = {
   pinned: string[];
   onHover: (key: string) => void;
   onChoose: (row: ChoiceRow, alt: boolean) => void;
-  onPin: (key: string) => void;
+  onPin: ((harness: Harness, model: string, pinned: boolean) => void) | undefined;
 };
 
 function PopoverRow({ row, choices, activeKey, isCurrent, continuesIn, pinned, onHover, onChoose, onPin }: PopoverRowProps) {
@@ -384,16 +379,17 @@ function PopoverRow({ row, choices, activeKey, isCurrent, continuesIn, pinned, o
       <span className="popup-row-title model-popover-name">{row.kind === "model" ? row.model.displayName : S.customModelOption(row.value)}</span>
       {detail && <span className="model-popover-detail">{detail}</span>}
       {index < SHORTCUT_COUNT && <kbd className="popup-row-key">⌘{index + 1}</kbd>}
-      {pin && (
+      {pin && row.kind === "model" && (
         <button
           type="button"
           className="popup-row-action"
+          disabled={!onPin}
           data-on={isPinned || undefined}
           aria-label={isPinned ? S.unpinModel : S.pinModel}
           title={isPinned ? S.unpinModel : S.pinModel}
           onClick={(e) => {
             e.stopPropagation();
-            onPin(pin);
+            onPin?.(row.model.tool, row.model.value, !isPinned);
           }}
         >
           <Codicon name={isPinned ? "star-full" : "star-empty"} size={12} />

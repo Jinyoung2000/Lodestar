@@ -345,6 +345,7 @@ export type State = {
   mcpBusy: Record<string, McpBusy>;
   mcpNotes: Record<string, McpNote>;
   settings: Settings | null;
+  modelPins: string[] | null;
   sessionOrders: SessionOrders;
   defaults: ResolvedDefaults | null;
   changes: Record<string, FileChange[]>;
@@ -479,6 +480,7 @@ let state: State = {
   mcpBusy: {},
   mcpNotes: {},
   settings: null,
+  modelPins: null,
   sessionOrders: {},
   defaults: null,
   changes: {},
@@ -2137,9 +2139,29 @@ const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"
 let layoutReconciled = false;
 let connectedBefore = false;
 
+const LEGACY_MODEL_PINS_KEY = "agent-nav:pinned-models";
+
+async function syncModelPins() {
+  const previousPins = state.modelPins;
+  let legacy: string[] | undefined;
+  if (!EMBED) {
+    try {
+      const raw = localStorage.getItem(LEGACY_MODEL_PINS_KEY);
+      const parsed: unknown = raw === null ? null : JSON.parse(raw);
+      if (Array.isArray(parsed)) legacy = parsed.filter((pin): pin is string => typeof pin === "string");
+    } catch {
+      legacy = undefined;
+    }
+  }
+  const modelPins = legacy === undefined
+    ? await rpc.call("models.pins", {})
+    : await rpc.call("models.importPins", { pins: legacy });
+  if (state.connected && state.modelPins === previousPins) setState({ modelPins });
+}
+
 export function initStore() {
   rpc.onStatus((connected) => {
-    setState({ connected });
+    setState(connected ? { connected } : { connected, modelPins: null });
     if (!connected) return;
     if (connectedBefore) {
       for (const agentId of Object.keys(state.timelines)) {
@@ -2150,6 +2172,7 @@ export function initStore() {
       }
     }
     connectedBefore = true;
+    void syncModelPins().catch((error: Error) => console.error("[model pins]", error.message));
     void rpc.call("board.get", {}).then((board) => setState({ board })).catch(() => setState({ board: null }));
     void rpc.call("inbox.get", {}).then((inbox) => setState({ inbox })).catch(() => setState({ inbox: null }));
     void refreshReview();
@@ -2192,6 +2215,9 @@ export function initStore() {
         return;
       case "release":
         setState({ release: event.release });
+        return;
+      case "modelPins":
+        setState({ modelPins: event.pins });
         return;
       case "sessionOrders":
         setState({ sessionOrders: event.orders });

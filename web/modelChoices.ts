@@ -1,5 +1,5 @@
 import { HARNESS_VALUES, type Harness } from "../shared/protocol";
-import { isModel, type PickerModel } from "../shared/modelChoices";
+import { isModel, modelPinKey, type PickerModel } from "../shared/modelChoices";
 
 export { carryLevel, claudeModels, isModel, toolModels, type PickerModel } from "../shared/modelChoices";
 
@@ -12,7 +12,7 @@ export type ChoiceRow = Extract<PickerRow, { kind: "model" | "custom" }>;
 
 const CUSTOM_NAME = /^[\w.[\]:/-]+$/;
 
-export const pinKey = (tool: Harness, value: string) => (tool === "claude" ? value : `${tool}:${value}`);
+export const pinKey = modelPinKey;
 
 export function rowKey(row: ChoiceRow) {
   return row.kind === "model" ? `${row.model.tool}:${row.model.value}` : `${row.tool}:custom:${row.value}`;

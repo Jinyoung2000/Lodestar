@@ -38,3 +38,7 @@ export function carryLevel(current: EffortLevel | null, levels: readonly EffortL
   if (levels.length === 0) return null;
   return current && levels.includes(current) ? current : fallback;
 }
+
+export function modelPinKey(harness: Harness, model: string): string {
+  return harness === "claude" ? model : `${harness}:${model}`;
+}

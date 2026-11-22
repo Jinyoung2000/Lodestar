@@ -10,7 +10,7 @@ import { currentDefaults } from "./defaults";
 import { announce } from "./announce";
 import { claimKeys } from "./shortcuts";
 import { activeHarness, codexLevels, toolMetaOf } from "./harness";
-import { applyEffort, currentModelAndEffort, readPinned, writePinned } from "./modelPick";
+import { applyEffort, currentModelAndEffort, setModelPin } from "./modelPick";
 
 type ModelMenuProps = {
   anchor: HTMLElement | null;
@@ -24,7 +24,8 @@ export function ModelMenu({ anchor, current, onChoose, onClose }: ModelMenuProps
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const [othersOpen, setOthersOpen] = useState(false);
-  const [pinned, setPinned] = useState(readPinned);
+  const modelPins = useStore((s) => s.modelPins);
+  const pinned = modelPins ?? [];
   const models = meta?.models ?? [];
   const q = query.trim().toLowerCase();
 
@@ -52,7 +53,7 @@ export function ModelMenu({ anchor, current, onChoose, onClose }: ModelMenuProps
       pinned={entry.kind === "model" && pinned.includes(entry.model.value)}
       onHover={() => setIndex(i)}
       onChoose={(e) => choose(entry, e.altKey)}
-      onPin={() => entry.kind === "model" && togglePin(entry.model.value)}
+      onPin={modelPins !== null && entry.kind === "model" ? () => setModelPin("claude", entry.model.value, !pinned.includes(entry.model.value)) : undefined}
     />
   );
 
@@ -76,12 +77,6 @@ export function ModelMenu({ anchor, current, onChoose, onClose }: ModelMenuProps
       }),
     [],
   );
-  const togglePin = (value: string) => {
-    const next = pinned.includes(value) ? pinned.filter((v) => v !== value) : [...pinned, value];
-    setPinned(next);
-    writePinned(next);
-  };
-
   return (
     <Popup anchor={anchor} placement="above" label={S.selectModel} className="popup-model" onClose={onClose}>
       <input
@@ -132,7 +127,7 @@ type Entry = { kind: "model"; model: ModelInfo } | { kind: "custom"; value: stri
 
 const SHORTCUT_COUNT = 9;
 
-function ModelRow({ entry, selected, active, shortcut, pinned, onHover, onChoose, onPin }: { entry: Entry; selected: boolean; active: boolean; shortcut: number | null; pinned: boolean; onHover: () => void; onChoose: (event: { altKey: boolean }) => void; onPin: () => void }) {
+function ModelRow({ entry, selected, active, shortcut, pinned, onHover, onChoose, onPin }: { entry: Entry; selected: boolean; active: boolean; shortcut: number | null; pinned: boolean; onHover: () => void; onChoose: (event: { altKey: boolean }) => void; onPin: (() => void) | undefined }) {
   return (
     <div className="popup-row model-row" role="option" aria-selected={selected} data-active={active || undefined} onMouseEnter={onHover} onClick={onChoose}>
       <span className="popup-check">{selected && <Check size={12} />}</span>
@@ -142,12 +137,13 @@ function ModelRow({ entry, selected, active, shortcut, pinned, onHover, onChoose
         <button
           type="button"
           className="popup-row-action"
+          disabled={!onPin}
           data-on={pinned || undefined}
           aria-label={pinned ? S.unpinModel : S.pinModel}
           title={pinned ? S.unpinModel : S.pinModel}
           onClick={(e) => {
             e.stopPropagation();
-            onPin();
+            onPin?.();
           }}
         >
           <Pin size={12} />
