@@ -18,17 +18,20 @@
 - [x] 상단에 닫기, `Find a model` 검색창, 필터, Done 또는 Save를 둔다. 제공자별 목록에서 현재 모델을 표시하고 별 버튼으로 즐겨찾기를 바꾼다.
 - [x] 모델을 누르면 선택을 미리 표시한다. Save는 적용하고, 닫기와 뒤로 가기는 미적용 선택을 버린다.
 - [x] Options의 Reasoning effort에는 해당 모델이 지원하는 수준만 표시한다. 현재 모델의 effort만 바꾸면 바로 적용한다. 새 모델을 함께 고르면 Save에서 둘을 같이 적용한다.
+- [x] 이전에 받은 모델은 선택기를 열면 바로 표시한다. 처음 연결했을 때는 제공자별 목록이 도착하는 순서대로 표시한다. PC와 폰에서 누른 별표는 Mac 데몬에 저장한다.
 - [x] 모델 목록, 지원 effort와 제공자 전환 가능 여부는 연결된 Mac이 결정한다. 모바일에서 시작한 세션에는 Mac의 기본 권한을 적용한다.
 
 [T3 ThreadSettingsSheet](https://github.com/pingdotgg/t3code/blob/c9e9e7d36a91044bdcd9c7e1163c97de297f5bde/apps/mobile/src/features/threads/ThreadSettingsSheet.tsx) · [Lodestar ModelPicker](../mobile/src/ui/ModelPicker.tsx) · [Mac 모바일 RPC](../server/index.ts)
 
 ## 목록, 결과와 연결
 
+- [x] 목록을 좌우로 밀어 Sessions, Waiting, Workspaces를 오간다. Fold에서는 왼쪽 목록에서 탭을 바꿔도 오른쪽 대화가 그대로 있다.
+
 - [x] 펼친 화면에서 세션 목록을 왼쪽에 둔다. 기존 대화, 새 대화, 모델 선택은 오른쪽에 표시한다. 좁은 창은 한 화면씩 이동한다.
 - [x] 일반 대화가 세로 공간을 차지한다. 생성된 미리보기가 있으면 상단 아이콘으로 갤러리를 연다. HTML, SVG, 이미지, Markdown, CSV는 대화에서도 열 수 있다.
 - [x] 승인을 기다릴 때 입력 위치에서 응답한다. 허용·거절 결과는 해당 도구 실행에 표시한다. 직접 답한 질문만 대화에 답변으로 남긴다.
 - [x] Android 이미지 붙여넣기는 기존 썸네일과 전송 경로를 사용한다. 백그라운드 연결과 질문 알림은 페어링한 Mac을 따른다.
-- [x] 오프라인 안내는 Fold 창에서 한 번만 표시한다. 캐시된 대화를 읽을 수 있고, 저장된 기록이 없으면 빈 상태에서 재연결할 수 있다.
+- [x] 재연결 중에도 Fold 창의 연결 상태는 한 번만 표시한다. 이미 받은 대화 기록과 작성 중인 메시지를 보존한다.
 
 [T3 Android 작업공간](https://github.com/pingdotgg/t3code/blob/c9e9e7d36a91044bdcd9c7e1163c97de297f5bde/apps/mobile/src/features/layout/workspace/WorkspaceRootScreen.android.tsx) · [Lodestar 화면 구성](../mobile/src/app/_layout.tsx) · [Android 배포와 연결](../README.md#android-companion)
 
@@ -53,3 +56,15 @@ T3 원본에는 음성 입력, 터미널, Runtime 편집도 있다. 이 표에�
 | 개인 S3 설치 파일 | 고정 경로 `android/latest/lodestar.apk`에서 최신 빌드 `897eb090`을 다시 내려받아 35,966,521바이트 전체의 SHA-256이 서명한 로컬 APK와 같은지 확인했다. |
 
 [배포한 Android OTA](https://expo.dev/accounts/jinzero/projects/lodestar-mobile/updates/3d448a67-3f6e-41f6-9db7-73d8cd300ab3)
+
+## 모델 즐겨찾기와 탭 전환 검증
+
+| 조건 | 확인한 결과 |
+| --- | --- |
+| 모델 목록 캐시 | 한 제공자의 응답을 보류해도 다른 제공자의 목록이 먼저 표시됐다. 5회 다시 열었을 때 목록 요청은 0건이었다. 앱을 새로 시작해도 네트워크 응답 전에 저장된 모델을 읽었다. |
+| 기존 PC의 별표 | PC에 저장된 별표를 처음 읽을 때 원래 순서를 유지했다. 이관 전에 폰에서 별을 추가하거나 해제한 경우와 빈 목록을 저장하고 다시 시작한 경우를 검증했다. |
+| Android와 격리 데몬 | PC가 지정한 GPT Fixture Mini가 폰의 즐겨찾기에 표시됐다. 폰에서 GPT Fixture에 별표를 추가한 뒤 PC에서 두 모델을 확인했다. |
+| Fold 목록 | 세션 행 위와 비어 있는 Waiting 화면에서 좌우로 밀어 세 탭을 왕복했다. 오른쪽 대화의 초안이 유지됐다. 390dp에서도 세 탭을 왕복했다. |
+| Android 배포 | 0.2.1 설치에서 OTA `4fdb26db`를 적용했다. 개인 S3의 APK 전체를 다시 받아 서명한 빌드와 SHA-256이 같은지 확인했다. |
+
+[모델 캐시·즐겨찾기·스와이프 Android 업데이트](https://expo.dev/accounts/jinzero/projects/lodestar-mobile/updates/a5bbf3fc-742d-419e-a670-76f208910669)
