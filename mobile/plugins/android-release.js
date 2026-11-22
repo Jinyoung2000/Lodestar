@@ -1,4 +1,4 @@
-const { withAndroidManifest, withAppBuildGradle } = require("expo/config-plugins");
+const { AndroidConfig, withAndroidManifest, withAppBuildGradle } = require("expo/config-plugins");
 
 function withManifest(config) {
   return withAndroidManifest(config, (mod) => {
@@ -7,6 +7,13 @@ function withManifest(config) {
       app.$["android:usesCleartextTraffic"] = "true";
       app.$["android:allowBackup"] = "false";
     }
+    const main = AndroidConfig.Manifest.getMainActivityOrThrow(mod.modResults);
+    main.$["android:screenOrientation"] = "unspecified";
+    main.$["android:resizeableActivity"] = "true";
+    const changes = new Set((main.$["android:configChanges"] ?? "").split("|").filter(Boolean));
+    changes.add("density");
+    changes.add("fontScale");
+    main.$["android:configChanges"] = [...changes].join("|");
     return mod;
   });
 }

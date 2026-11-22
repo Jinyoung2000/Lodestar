@@ -8,7 +8,8 @@ import { MIN_TOUCH, radius, spacing, useColors } from "../../theme/theme";
 import { ConnectionBanner } from "../../ui/Banner";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
-import { ProjectIcon } from "../../ui/ProjectIcon";
+import { useFoldLayout } from "../../ui/FoldLayout";
+import { ProjectIcon, type ProjectMark } from "../../ui/ProjectIcon";
 import { RenameDialog } from "../../ui/RenameDialog";
 import { Segmented } from "../../ui/Segmented";
 import { SessionRow } from "../../ui/SessionRow";
@@ -24,7 +25,7 @@ export default function WorkspaceScreen() {
   const agents = useAppState((s) => s.agents);
   const git = useAppState((s) => s.git);
   const conn = useAppState((s) => s.conn);
-  const hostName = useAppState((s) => s.hostName);
+  const { sharedConnectionStrip } = useFoldLayout();
   const loaded = useAppState((s) => s.loaded);
   const actions = useSessionActions();
   const [refreshing, setRefreshing] = useState(false);
@@ -47,7 +48,7 @@ export default function WorkspaceScreen() {
   const open = useCallback((agentId: string) => router.push({ pathname: "/session/[id]", params: { id: agentId } }), [router]);
 
   if (!project || !top) {
-    return loaded && conn === "online" ? <Redirect href="/" /> : <View style={{ flex: 1 }} />;
+    return loaded && conn === "online" ? <Redirect href="/" /> : <View style={{ flex: 1 }}>{!sharedConnectionStrip && <ConnectionBanner />}</View>;
   }
 
   const startHere = (location: Location) => router.push({ pathname: "/new", params: { workspace: top.id, ...(location.kind === "worktree" ? { location: location.workspace.id } : {}) } });
@@ -58,7 +59,7 @@ export default function WorkspaceScreen() {
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: top.name }} />
-      <ConnectionBanner status={conn} hostName={hostName} />
+      {!sharedConnectionStrip && <ConnectionBanner />}
       <ScrollView
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
@@ -66,7 +67,7 @@ export default function WorkspaceScreen() {
       >
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.cardHead}>
-            <ProjectIcon name={top.name} size={44} />
+            <ProjectIcon />
             <View style={{ flex: 1, gap: 2 }}>
               <Text variant="title" color="textStrong" numberOfLines={1}>{top.name}</Text>
               <Text variant="secondary" color="textMuted" numberOfLines={2} selectable>{shortPath(top.dir)}</Text>
@@ -95,7 +96,7 @@ export default function WorkspaceScreen() {
 
         {everyoneDone.length > 0 && (
           <View>
-            <SectionTitle title="Done" count={everyoneDone.length} />
+            <SectionTitle mark="archive" title="Done" count={everyoneDone.length} />
             {everyoneDone.map(({ agent, label }) => (
               <SessionRow key={agent.id} agent={agent} subtitle={label} time={sessionSort} onPress={open} onLongPress={actions.open} />
             ))}
@@ -117,11 +118,12 @@ const SESSION_SORT_OPTIONS: { value: SessionSort; label: string }[] = [
   { value: "created", label: "Created" },
 ];
 
-function SectionTitle({ title, count, plain, children }: { title: string; count?: number; plain?: boolean; children?: ReactNode }) {
+function SectionTitle({ title, count, mark, plain, children }: { mark: ProjectMark; title: string; count?: number; plain?: boolean; children?: ReactNode }) {
   const colors = useColors();
   return (
     <View style={[styles.sectionHeader, { backgroundColor: colors.background }]}>
-      <Text variant="secondary" color="textMuted" style={plain ? { fontWeight: "600" } : { fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 }} numberOfLines={1}>{title}</Text>
+      <ProjectIcon mark={mark} />
+      <Text variant="secondary" color="textMuted" style={[styles.sectionTitle, !plain && styles.sectionTitleUppercase]} numberOfLines={1}>{title}</Text>
       {count !== undefined && <Text variant="secondary" color="textSubtle">{count}</Text>}
       <View style={{ flex: 1 }} />
       {children}
@@ -133,8 +135,7 @@ function LocationSection({ location, branch, time, onStart, onOpen, onMore }: { 
   const worktree = location.kind === "worktree";
   return (
     <View>
-      <SectionTitle plain title={worktree ? location.label : branch ? `Main folder · ${branch}` : "Main folder"} count={location.sessions.length}>
-        {worktree && <Text variant="caption" color="textSubtle">worktree</Text>}
+      <SectionTitle plain mark={worktree ? "worktree" : "folder"} title={worktree ? location.label : branch ? `Main folder · ${branch}` : "Main folder"} count={location.sessions.length}>
         <Pressable accessibilityRole="button" accessibilityLabel={`New session in ${worktree ? location.label : "main folder"}`} hitSlop={8} onPress={() => onStart(location)} style={styles.plus}>
           <Icon name="plus" size={18} color="accentText" weight="semibold" />
         </Pressable>
@@ -142,7 +143,7 @@ function LocationSection({ location, branch, time, onStart, onOpen, onMore }: { 
       {location.sessions.length === 0 ? (
         <Text variant="secondary" color="textSubtle" style={styles.none}>No sessions here yet</Text>
       ) : (
-        location.sessions.map((agent) => <SessionRow key={agent.id} agent={agent} subtitle={worktree ? location.label : "Main folder"} time={time} onPress={onOpen} onLongPress={onMore} />)
+        location.sessions.map((agent) => <SessionRow key={agent.id} agent={agent} subtitle="" time={time} onPress={onOpen} onLongPress={onMore} />)
       )}
     </View>
   );
@@ -156,6 +157,8 @@ const styles = StyleSheet.create({
   buttons: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg },
   note: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: MIN_TOUCH, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  sectionTitle: { flexShrink: 1, fontWeight: "600" },
+  sectionTitleUppercase: { textTransform: "uppercase", letterSpacing: 0.4 },
   plus: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: "center", justifyContent: "center", marginRight: -spacing.sm },
   none: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   danger: { gap: spacing.sm, padding: spacing.lg, marginTop: spacing.xl },

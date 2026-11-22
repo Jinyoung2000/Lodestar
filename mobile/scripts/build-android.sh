@@ -13,6 +13,7 @@ ABIS="${ABIS:-arm64-v8a}"
 
 SIGN_DIR=".signing"
 KEYSTORE="$SIGN_DIR/lodestar-release.jks"
+umask 077
 mkdir -p "$SIGN_DIR"
 if [ ! -f "$KEYSTORE" ]; then
   PASSWORD="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24)"
@@ -21,12 +22,16 @@ if [ ! -f "$KEYSTORE" ]; then
   printf '%s\n' "$PASSWORD" > "$SIGN_DIR/password.txt"
   chmod 600 "$SIGN_DIR/password.txt" "$KEYSTORE"
 fi
-PASSWORD="$(cat "$SIGN_DIR/password.txt")"
+export ORG_GRADLE_PROJECT_LODESTAR_KEYSTORE="$PWD/$KEYSTORE"
+export ORG_GRADLE_PROJECT_LODESTAR_KEYSTORE_PASSWORD="$(cat "$SIGN_DIR/password.txt")"
+export ORG_GRADLE_PROJECT_LODESTAR_KEY_ALIAS=lodestar
+export ORG_GRADLE_PROJECT_LODESTAR_KEY_PASSWORD="$ORG_GRADLE_PROJECT_LODESTAR_KEYSTORE_PASSWORD"
 
 CI=1 npx expo prebuild --platform android --clean --no-install
-( cd android && NODE_ENV=production ./gradlew assembleRelease \
-    -PreactNativeArchitectures="$ABIS" \
-    -PLODESTAR_KEYSTORE="$(cd .. && pwd)/$KEYSTORE" -PLODESTAR_KEYSTORE_PASSWORD="$PASSWORD" -PLODESTAR_KEY_ALIAS=lodestar -PLODESTAR_KEY_PASSWORD="$PASSWORD" )
+( cd android && NODE_ENV=production ./gradlew assembleRelease --no-daemon \
+    '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1536m' \
+    '-Pkotlin.daemon.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=1g' \
+    -PreactNativeArchitectures="$ABIS" )
 
 mkdir -p dist
 cp android/app/build/outputs/apk/release/app-release.apk dist/lodestar-android.apk

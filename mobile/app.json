@@ -3,7 +3,7 @@
     "name": "Lodestar",
     "slug": "lodestar-mobile",
     "scheme": "lodestar",
-    "version": "0.1.0",
+    "version": "0.2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -20,6 +20,24 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "LodestarSymbols",
+                "fontDefinitions": [
+                  {
+                    "path": "./node_modules/@expo-google-fonts/material-symbols/400Regular/MaterialSymbols_400Regular.ttf",
+                    "weight": 400
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
       [
         "expo-camera",
         {
@@ -38,8 +56,8 @@
       "./plugins/android-release"
     ],
     "android": {
-      "package": "dev.gene.lodestar",
-      "versionCode": 1,
+      "package": "com.utillo.lodestar",
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#1f1f1f",
@@ -51,7 +69,31 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "runtimeVersion": {
+        "policy": "appVersion"
+      },
+      "splash": {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#ffffff",
+        "dark": {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#181818"
+        }
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d3b0ee81-7438-4fa8-a3ec-e39af42eac08"
+      }
+    },
+    "owner": "jinzero",
+    "updates": {
+      "url": "https://u.expo.dev/d3b0ee81-7438-4fa8-a3ec-e39af42eac08",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
     }
   }
 }

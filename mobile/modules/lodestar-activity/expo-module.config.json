@@ -1,0 +1,10 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": [
+      "com.utillo.lodestar.activity.SessionActivityModule",
+      "com.utillo.lodestar.activity.WindowSettingsModule",
+      "com.utillo.lodestar.activity.ComposerPasteModule"
+    ]
+  }
+}

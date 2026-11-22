@@ -21,7 +21,7 @@ export type Link = {
 
 export type GitSummary = { repoRoot: string | null; current: string | null; uncommitted: number };
 
-export type SessionTimeline = { items: TimelineItem[]; hasMore: boolean; synced: boolean; loadingOlder: boolean };
+export type SessionTimeline = { items: TimelineItem[]; hasMore: boolean; synced: boolean; cached: boolean; loading: boolean; loadingOlder: boolean };
 
 export type State = {
   conn: ConnStatus;
@@ -42,7 +42,7 @@ const SAVE_DELAY_MS = 400;
 const INDEX_KEY = "cache:v1:index";
 const timelineKey = (id: string) => `cache:v1:tl:${id}`;
 
-const EMPTY: SessionTimeline = { items: [], hasMore: false, synced: false, loadingOlder: false };
+const EMPTY: SessionTimeline = { items: [], hasMore: false, synced: false, cached: false, loading: false, loadingOlder: false };
 
 export class AppStore {
   private state: State = { conn: "idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null };
@@ -54,6 +54,7 @@ export class AppStore {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private dirty = new Set<string>();
   private syncing: Promise<void> | null = null;
+  private timelineRequests = new Map<string, Promise<void>>();
 
   constructor(private cache: Cache) {}
 
@@ -100,6 +101,7 @@ export class AppStore {
     for (const off of this.unsubscribers) off();
     this.unsubscribers = [];
     this.link = null;
+    this.timelineRequests.clear();
   }
 
   async reset() {
@@ -153,6 +155,7 @@ export class AppStore {
       case "agentRemoved": {
         const { [event.agentId]: _gone, ...timelines } = this.state.timelines;
         this.opened.delete(event.agentId);
+        this.timelineRequests.delete(event.agentId);
         this.set({ agents: this.state.agents.filter((a) => a.id !== event.agentId), timelines });
         this.touchIndex();
         break;
@@ -184,12 +187,17 @@ export class AppStore {
     markStart(`open:${agentId}`);
     this.opened.add(agentId);
     this.recent = [agentId, ...this.recent.filter((id) => id !== agentId)].slice(0, CACHE_SESSIONS);
-    if (!this.state.timelines[agentId]) {
+    const existing = this.state.timelines[agentId];
+    if (!existing?.synced && !existing?.cached && !existing?.items.length) {
       const raw = await this.cache.get(timelineKey(agentId)).catch(() => null);
-      if (raw && !this.state.timelines[agentId]) {
+      if (!this.opened.has(agentId)) return;
+      const current = this.state.timelines[agentId];
+      if (raw && !current?.synced && !current?.items.length) {
         try {
           const cached = JSON.parse(raw) as { items: TimelineItem[]; hasMore: boolean };
-          this.set({ timelines: { ...this.state.timelines, [agentId]: { items: cached.items, hasMore: cached.hasMore, synced: false, loadingOlder: false } } });
+          if (Array.isArray(cached.items)) {
+            this.set({ timelines: { ...this.state.timelines, [agentId]: { ...(current ?? EMPTY), items: cached.items, hasMore: cached.hasMore, cached: true } } });
+          }
           markEnd(`open:${agentId}`, `cache ${cached.items.length} items`);
           markStart(`open-sync:${agentId}`);
         } catch {
@@ -214,26 +222,36 @@ export class AppStore {
 
   async syncTimeline(agentId: string) {
     const link = this.link;
-    if (!link) return;
+    if (link?.status !== "online") return;
+    const pending = this.timelineRequests.get(agentId);
+    if (pending) return pending;
     const started = now();
-    try {
-      const page = (await link.call("agents.timelinePage", { agentId, limit: PAGE })) as Parameters<typeof mergeTail>[2];
-      const current = this.state.timelines[agentId] ?? EMPTY;
+    const request = link.call("agents.timelinePage", { agentId, limit: PAGE }, 8_000).then((result) => {
+      if (this.timelineRequests.get(agentId) !== request) return;
+      const page = result as Parameters<typeof mergeTail>[2];
+      const current = this.state.timelines[agentId];
       const merged = mergeTail(current.items, current.hasMore, page);
-      this.setTimeline(agentId, { items: merged.items, hasMore: merged.hasMore, synced: true, loadingOlder: false });
+      this.setTimeline(agentId, { ...current, items: merged.items, hasMore: merged.hasMore, synced: true, loading: false });
       const ms = Math.round((now() - started) * 10) / 10;
       record(`timeline-sync`, ms, `${page.items.length}/${page.total} items`);
       markEnd(`open-sync:${agentId}`);
       markEnd(`open:${agentId}`, "server");
-    } catch (error) {
-      this.set({ error: message(error) });
-    }
+    }).catch((error: unknown) => {
+      if (this.timelineRequests.get(agentId) !== request) return;
+      const current = this.state.timelines[agentId];
+      this.set({ timelines: { ...this.state.timelines, [agentId]: { ...current, loading: false } }, error: message(error) });
+    }).finally(() => {
+      if (this.timelineRequests.get(agentId) === request) this.timelineRequests.delete(agentId);
+    });
+    this.timelineRequests.set(agentId, request);
+    this.set({ timelines: { ...this.state.timelines, [agentId]: { ...(this.state.timelines[agentId] ?? EMPTY), loading: true } } });
+    return request;
   }
 
   async loadOlder(agentId: string) {
     const link = this.link;
     const current = this.state.timelines[agentId];
-    if (!link || !current || !current.hasMore || current.loadingOlder || current.items.length === 0) return;
+    if (link?.status !== "online" || !current || !current.hasMore || current.loadingOlder || current.items.length === 0) return;
     this.setTimeline(agentId, { ...current, loadingOlder: true });
     try {
       const page = (await link.call("agents.timelinePage", { agentId, limit: PAGE, beforeId: current.items[0].id })) as Parameters<typeof prependOlder>[1];

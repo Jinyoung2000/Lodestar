@@ -1,0 +1,9 @@
+{
+  "build": {
+    "production": {
+      "channel": "production",
+      "environment": "production",
+      "android": { "buildType": "apk" }
+    }
+  }
+}

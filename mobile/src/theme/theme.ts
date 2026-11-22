@@ -1,11 +1,13 @@
 import { createContext, useContext } from "react";
 import { Appearance, Platform, useColorScheme } from "react-native";
+import type { ThemeChoice } from "../state/themePrefs";
 import { palette, type PaletteName } from "./tokens.generated";
 
 export type Colors = Record<PaletteName, string>;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 export const radius = { sm: 6, md: 10, lg: 14, pill: 999 } as const;
+export const scrim = "rgba(0,0,0,0.5)";
 
 export const type = {
   largeTitle: { fontSize: 28, lineHeight: 34, fontWeight: "700" as const },
@@ -18,18 +20,28 @@ export const type = {
 } as const;
 export type TypeName = keyof typeof type;
 
-export const MIN_TOUCH = 44;
+export const MIN_TOUCH = Platform.OS === "android" ? 48 : 44;
 
-const ThemeContext = createContext<Colors>(palette.dark);
+const themes = {
+  light: { scheme: "light", colors: palette.light },
+  dark: { scheme: "dark", colors: palette.dark },
+} as const;
+export type Scheme = keyof typeof themes;
+const ThemeContext = createContext<{ scheme: Scheme; colors: Colors }>(themes.dark);
 export const ThemeProvider = ThemeContext.Provider;
 
 export function useColors(): Colors {
-  return useContext(ThemeContext);
+  return useContext(ThemeContext).colors;
 }
 
-export function useSchemeColors(): { colors: Colors; scheme: "dark" | "light" } {
-  const scheme = (useColorScheme() ?? Appearance.getColorScheme()) === "dark" ? "dark" : "light";
-  return { colors: palette[scheme], scheme };
+export function useScheme(): Scheme {
+  return useContext(ThemeContext).scheme;
+}
+
+export function useSchemeColors(choice: ThemeChoice | null): { colors: Colors; scheme: Scheme } {
+  const systemScheme = useColorScheme() ?? Appearance.getColorScheme();
+  const scheme = choice === "dark" || choice === "light" ? choice : systemScheme === "dark" ? "dark" : "light";
+  return themes[scheme];
 }
 
 export function withAlpha(hex: string, alpha: number): string {

@@ -8,18 +8,18 @@ import { client } from "./app";
 import { loadConnection } from "./storage";
 import { record, now } from "./perf";
 
-export type PickedAsset = { uri: string; width: number; height: number; fileName?: string | null };
+export type PickedAsset = { uri: string; width: number; height: number; fileName?: string | null; releaseSource?: () => void };
 
 let counter = 0;
 
 async function prepare(asset: PickedAsset) {
   const started = now();
   const target = resizeTarget(asset.width, asset.height);
-  const context = ImageManipulator.manipulate(asset.uri);
+  const context = ImageManipulator.manipulate(asset.uri, target ? { maxWidth: target.width, maxHeight: target.height } : undefined);
   if (target) context.resize(target);
   const rendered = await context.renderAsync();
   const out = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: JPEG_QUALITY });
-  const thumbContext = ImageManipulator.manipulate(out.uri).resize({ width: THUMB_EDGE });
+  const thumbContext = ImageManipulator.manipulate(out.uri, { maxWidth: THUMB_EDGE }).resize({ width: THUMB_EDGE });
   const thumbRendered = await thumbContext.renderAsync();
   const thumb = await thumbRendered.saveAsync({ format: SaveFormat.JPEG, compress: THUMB_QUALITY, base64: true });
   record("image-prepare", Math.round((now() - started) * 10) / 10, `${asset.width}x${asset.height} -> ${out.width}x${out.height}`);
@@ -28,7 +28,7 @@ async function prepare(asset: PickedAsset) {
 
 export type AttachmentsApi = {
   items: Attachment[];
-  addAssets: (assets: PickedAsset[]) => void;
+  addAssets: (assets: PickedAsset[]) => number;
   remove: (key: string) => void;
   clear: () => void;
   refs: () => ImageRef[];
@@ -39,58 +39,63 @@ export type AttachmentsApi = {
 export function useAttachments(): AttachmentsApi {
   const [items, setItems] = useState<Attachment[]>([]);
   const itemsRef = useRef(items);
-  itemsRef.current = items;
-  const cancelled = useRef(new Set<string>());
+  const update = useCallback((change: (all: Attachment[]) => Attachment[]) => {
+    itemsRef.current = change(itemsRef.current);
+    setItems(itemsRef.current);
+  }, []);
+  const contains = useCallback((key: string) => itemsRef.current.some((a) => a.key === key), []);
 
   const patch = useCallback((key: string, next: Partial<Attachment>) => {
-    setItems((all) => all.map((a) => (a.key === key ? { ...a, ...next } : a)));
-  }, []);
+    update((all) => all.map((a) => (a.key === key ? { ...a, ...next } : a)));
+  }, [update]);
 
   const run = useCallback(
     async (key: string, asset: PickedAsset) => {
       try {
         const prepared = await prepare(asset);
-        if (cancelled.current.has(key)) return;
-        patch(key, { status: "uploading", progress: 0, thumb: prepared.thumb });
+        if (!contains(key)) return;
+        patch(key, { status: "uploading", progress: 0, uri: prepared.uri, thumb: prepared.thumb });
         const saved = await loadConnection();
         const host = client.host ?? saved?.hosts[0] ?? null;
-        if (!saved || !host) throw new Error("Not connected to your Mac");
+        if (client.status !== "online" || !saved || !host) throw new Error("Not connected to your Mac");
+        if (!contains(key)) return;
         const started = now();
         const blob = await (await fetch(prepared.uri)).blob();
-        const { id } = await uploadImage({ host, port: saved.port, token: saved.token }, blob, asset.fileName || "photo.jpg", "image/jpeg", { onProgress: (progress) => !cancelled.current.has(key) && patch(key, { progress }) });
+        const { id } = await uploadImage({ host, port: saved.port, secure: saved.secure, token: saved.token }, blob, asset.fileName || "photo.jpg", "image/jpeg", { onProgress: (progress) => contains(key) && patch(key, { progress }) });
         record("image-upload", Math.round((now() - started) * 10) / 10, `${Math.round(blob.size / 1024)} KB`);
-        if (!cancelled.current.has(key)) patch(key, { status: "done", progress: 1, id });
+        if (contains(key)) patch(key, { status: "done", progress: 1, id });
       } catch (error) {
-        if (!cancelled.current.has(key)) patch(key, { status: "error", error: error instanceof Error ? error.message : String(error) });
+        if (contains(key)) patch(key, { status: "error", error: error instanceof Error ? error.message : String(error) });
+      } finally {
+        asset.releaseSource?.();
       }
     },
-    [patch],
+    [contains, patch],
   );
 
   const addAssets = useCallback(
     (assets: PickedAsset[]) => {
       const room = MAX_IMAGES - itemsRef.current.filter((a) => a.status !== "error").length;
       const accepted = assets.slice(0, Math.max(0, room));
+      assets.slice(accepted.length).forEach((asset) => asset.releaseSource?.());
+      if (accepted.length === 0) return 0;
       const created = accepted.map((asset) => ({ key: `att-${++counter}`, name: asset.fileName || "photo.jpg", uri: asset.uri, status: "processing" as const, progress: 0 }));
-      setItems((all) => [...all.filter((a) => a.status !== "error"), ...created]);
+      update((all) => [...all.filter((a) => a.status !== "error"), ...created]);
       created.forEach((a, i) => void run(a.key, accepted[i]));
+      return accepted.length;
     },
-    [run],
+    [run, update],
   );
 
   const remove = useCallback((key: string) => {
-    cancelled.current.add(key);
-    setItems((all) => all.filter((a) => a.key !== key));
-  }, []);
+    update((all) => all.filter((a) => a.key !== key));
+  }, [update]);
 
-  const clear = useCallback(() => {
-    for (const a of itemsRef.current) cancelled.current.add(a.key);
-    setItems([]);
-  }, []);
+  const clear = useCallback(() => update(() => []), [update]);
 
   const refs = useCallback(() => itemsRef.current.flatMap((a) => (a.status === "done" && a.id ? [{ id: a.id, label: a.name, thumb: a.thumb ?? "" }] : [])), []);
 
-  useEffect(() => () => void cancelled.current.clear(), []);
+  useEffect(() => () => { itemsRef.current = []; }, []);
   return { items, addAssets, remove, clear, refs, progress: uploadProgress(items), ready: items.length === 0 || allUploaded(items.filter((a) => a.status !== "error")) };
 }
 

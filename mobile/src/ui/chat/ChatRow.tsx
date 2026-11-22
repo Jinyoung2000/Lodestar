@@ -1,19 +1,21 @@
 import { memo } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Pressable, Image, StyleSheet, View } from "react-native";
 import type { Row } from "../../logic/timeline";
+import { messagePreviews, type Preview } from "../../logic/previews";
+import { PreviewRow } from "../Preview";
 import { radius, spacing, useColors } from "../../theme/theme";
 import { Icon } from "../Icon";
 import { MarkdownView } from "../MarkdownView";
 import { Text } from "../Text";
-import { AnsweredRow, ApprovalCard, PlanCard, QuestionCard, type Actions } from "./Cards";
+import { AnsweredRow } from "./Cards";
 import { StepsRow } from "./StepsRow";
 
-export const ChatRow = memo(function ChatRow({ row, actions }: { row: Row; actions: Actions }) {
+export const ChatRow = memo(function ChatRow({ row, showGallery, openPreview, agentId }: { row: Row; agentId: string; showGallery: () => void; openPreview: (file: Preview) => void }) {
   const colors = useColors();
   switch (row.type) {
     case "user": {
       const item = row.item;
-      const images = (item.attachments ?? []).filter((a): a is Extract<NonNullable<typeof item.attachments>[number], { kind: "image" }> => a.kind === "image");
+      const images = messagePreviews(item);
       const chips = (item.attachments ?? []).filter((a) => a.kind !== "image" && a.kind !== "screenshot");
       const text = item.shown ?? item.text;
       return (
@@ -21,8 +23,8 @@ export const ChatRow = memo(function ChatRow({ row, actions }: { row: Row; actio
           <View style={[styles.userBubble, { backgroundColor: colors.userBubble }]}>
             {images.length > 0 && (
               <View style={styles.thumbs}>
-                {images.map((image) => (
-                  <Image key={image.id} source={{ uri: image.thumb }} accessibilityLabel={image.label} style={[styles.thumb, { backgroundColor: colors.surfaceBase }]} />
+                {images.map((image, index) => (
+                  <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Open ${image.title}`} onPress={() => openPreview(image)}><Image source={{ uri: image.thumb }} style={[styles.thumb, { backgroundColor: colors.surfaceBase }]} /></Pressable>
                 ))}
               </View>
             )}
@@ -37,17 +39,21 @@ export const ChatRow = memo(function ChatRow({ row, actions }: { row: Row; actio
     case "assistant":
       return (
         <View style={styles.assistant}>
-          {row.item.text ? <MarkdownView text={row.item.text} /> : <Text color="textMuted">…</Text>}
+          {row.item.text ? <MarkdownView text={row.item.text} previewCards={!row.item.streaming} /> : <Text color="textMuted">…</Text>}
+          <AttachmentGroup files={messagePreviews(row.item)} agentId={agentId} open={openPreview} showGallery={showGallery} />
         </View>
       );
-    case "steps":
-      return <StepsRow steps={row.steps} running={row.running} failed={row.failed} />;
+    case "steps": {
+      const files = row.steps.flatMap(messagePreviews);
+      return <View style={{ gap: spacing.sm }}>
+        <StepsRow steps={row.steps} running={row.running} failed={row.failed} />
+        <AttachmentGroup files={files} agentId={agentId} open={openPreview} showGallery={showGallery} />
+      </View>;
+    }
     case "approval":
-      return <ApprovalCard key={row.item.id} item={row.item} tool={row.tool} reviewOnDesktop={row.reviewOnDesktop} actions={actions} />;
     case "question":
-      return <QuestionCard key={row.item.id} item={row.item} actions={actions} />;
     case "plan":
-      return <PlanCard key={row.item.id} item={row.item} actions={actions} />;
+      return null;
     case "answered":
       return <AnsweredRow item={row.item} />;
     case "notice":
@@ -66,14 +72,30 @@ export const ChatRow = memo(function ChatRow({ row, actions }: { row: Row; actio
   }
 });
 
+function AttachmentGroup({ files, agentId, open, showGallery }: { files: Preview[]; agentId: string; open: (file: Preview) => void; showGallery: () => void }) {
+  const colors = useColors();
+  if (!files.length) return null;
+  return <View style={[styles.group, { borderColor: colors.separator, backgroundColor: colors.surface }]}>
+    {files.slice(0, 3).map((file, i) => <View key={i} style={{ borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.separator }}>
+      <PreviewRow grouped file={file} agentId={agentId} open={open} />
+    </View>)}
+    {files.length > 3 && <Pressable accessibilityRole="button" onPress={showGallery} style={[styles.allPreviews, { borderColor: colors.separator }]}>
+      <Text variant="secondary" color="accentText" style={{ flex: 1, fontWeight: "600" }}>{`Show all ${files.length} previews`}</Text>
+      <Icon name="chevron.right" color="accentText" size={18} />
+    </Pressable>}
+  </View>;
+}
+
 export const rowType = (row: Row) => (row.type === "user" ? "user" : row.type === "assistant" ? "assistant" : row.type === "steps" ? "steps" : row.type === "approval" || row.type === "question" || row.type === "plan" ? "card" : "small");
 
 const styles = StyleSheet.create({
   userWrap: { alignItems: "flex-end" },
-  userBubble: { maxWidth: "88%", borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.xs },
+  userBubble: { maxWidth: "85%", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, gap: spacing.xs },
   thumbs: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   thumb: { width: 72, height: 72, borderRadius: radius.sm },
-  assistant: { paddingRight: spacing.sm },
+  group: { borderWidth: 1, borderRadius: radius.lg, overflow: "hidden" },
+  allPreviews: { minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.md, gap: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth },
+  assistant: { gap: spacing.sm },
   notice: { paddingVertical: spacing.xs },
   error: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start", borderWidth: 1, borderRadius: radius.md, padding: spacing.md },
 });

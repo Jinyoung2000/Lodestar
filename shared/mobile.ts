@@ -24,6 +24,7 @@ export const MOBILE_METHODS = [
   // 워크스페이스: 홈 아래 폴더 둘러보기와 추가, 목록에서 빼기(파일은 지우지 않는다), worktree 시작 전 브랜치 읽기, 세션 이름 바꾸기와 고정과 보관(done).
   // 세션 삭제(agents.remove)와 worktree 삭제는 되돌릴 수 없어 열지 않는다.
   "mobile.browse",
+  "mobile.preview",
   "workspaces.add",
   "workspaces.remove",
   "git.branches",
@@ -39,6 +40,8 @@ export const MOBILE_EVENT_TYPES = ["workspaces", "agent", "agentRemoved", "timel
 
 // 연결 직후 인증을 마치면 서버가 한 번 보내는 메시지
 export type MobileReady = { protocol: number; host: string; serverTime: number };
+
+export type MobilePreview = { kind: "html"; html: string } | { kind: "image"; uri: string } | { kind: "markdown" | "svg" | "csv"; text: string };
 
 export type MobileHost = { address: string; iface: string; kind: "lan" | "tailscale" };
 
@@ -108,8 +111,8 @@ function clipValue(value: unknown, max: number, depth = 0): unknown {
 export function compactTimelineItem(item: TimelineItem): TimelineItem {
   switch (item.kind) {
     case "tool": {
-      const { shots: _shots, ...rest } = item;
-      return { ...rest, input: clipValue(item.input, MOBILE_INPUT_CHARS) as Record<string, unknown>, output: item.output === null ? null : clip(item.output, MOBILE_OUTPUT_CHARS) };
+      const { shots, ...rest } = item;
+      return { ...rest, ...(shots?.length && { shotCount: shots.length }), input: clipValue(item.input, MOBILE_INPUT_CHARS) as Record<string, unknown>, output: item.output === null ? null : clip(item.output, MOBILE_OUTPUT_CHARS) };
     }
     case "thinking":
       return { ...item, text: clip(item.text, MOBILE_THINKING_CHARS) };

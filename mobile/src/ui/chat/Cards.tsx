@@ -1,13 +1,15 @@
-import { memo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { memo, useRef, useState } from "react";
+import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import type { PermissionItem, ToolItem } from "../../logic/timeline";
-import { answersOf, emptyQuestionState, isAnswered, planText, readQuestions, toggleOther, togglePick, type QuestionState } from "../../logic/questions";
+import { answersOf, emptyQuestionState, isAnswered, planText, readQuestions, QUESTION_TOOL, PLAN_TOOL, togglePick, type QuestionState } from "../../logic/questions";
 import { approvalTarget, describeTool, shortPath } from "../../logic/tools";
 import { MIN_TOUCH, radius, spacing, useColors, withAlpha } from "../../theme/theme";
 import { Button } from "../Button";
+import { useFoldLayout } from "../FoldLayout";
 import { Icon } from "../Icon";
 import { MarkdownView } from "../MarkdownView";
 import { Text } from "../Text";
+import { RequestDock, type DockLayout } from "./RequestDock";
 
 export type Actions = {
   allow: (itemId: string) => Promise<unknown>;
@@ -19,10 +21,14 @@ export type Actions = {
 function useBusy() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
   const run = (key: string, action: () => Promise<unknown>) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(key);
     setError(null);
     action().catch((e: Error) => {
+      inFlight.current = false;
       setBusy(null);
       setError(e.message);
     });
@@ -31,13 +37,12 @@ function useBusy() {
 }
 
 const MAX_DIFF_LINES = 14;
-const PLAN_PREVIEW_HEIGHT = 220;
 const clip = (text: string, max = MAX_DIFF_LINES) => {
   const lines = text.split("\n");
   return lines.length > max ? `${lines.slice(0, max).join("\n")}\n… ${lines.length - max} more lines` : text;
 };
 
-export const ApprovalCard = memo(function ApprovalCard({ item, tool, reviewOnDesktop, actions }: { item: PermissionItem; tool: ToolItem | null; reviewOnDesktop: boolean; actions: Actions }) {
+export const ApprovalCard = memo(function ApprovalCard({ item, tool, reviewOnDesktop, actions, ...layout }: DockLayout & { item: PermissionItem; tool: ToolItem | null; reviewOnDesktop: boolean; actions: Actions }) {
   const colors = useColors();
   const { busy, error, run } = useBusy();
   const input = item.input;
@@ -45,15 +50,18 @@ export const ApprovalCard = memo(function ApprovalCard({ item, tool, reviewOnDes
   const { verb } = describeTool(item.toolName, input, false);
   const isEdit = item.toolName === "Edit" || item.toolName === "MultiEdit";
   const edits = isEdit ? (Array.isArray(input.edits) ? (input.edits as { old_string?: string; new_string?: string }[]) : [{ old_string: String(input.old_string ?? ""), new_string: String(input.new_string ?? "") }]) : [];
+  const summary = reviewOnDesktop ? "Review on your Mac" : `${verb} ${item.toolName === "Bash" ? "this command" : tool ? "" : item.toolName}`.trim() + "?";
+  const locked = !!busy || layout.offline;
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: withAlpha(colors.warning, 0.6) }]}>
-      <View style={styles.cardHead}>
-        <Icon name="exclamationmark.shield" size={20} color="warning" />
-        <Text variant="title" color="textStrong" style={{ flex: 1 }} numberOfLines={2}>
-          {reviewOnDesktop ? "Review on your Mac" : `${verb} ${item.toolName === "Bash" ? "this command" : tool ? "" : item.toolName}`.trim()}
-          {!reviewOnDesktop && "?"}
-        </Text>
-      </View>
+    <RequestDock {...layout} label={`Approval · ${item.toolName}`} summary={summary} warning busy={!!busy}
+      footer={reviewOnDesktop ? null : <>
+        {error && <Text variant="secondary" color="danger">{error}</Text>}
+        <View style={styles.actions}>
+          <Button title="Deny" flex busy={busy === "deny"} disabled={locked} onPress={() => run("deny", () => actions.deny(item.id))} />
+          <Button title="Allow" kind="primary" style={{ flex: 2 }} busy={busy === "allow"} disabled={locked} onPress={() => run("allow", () => actions.allow(item.id))} />
+        </View>
+      </>}>
+      <Text variant="title" color="textStrong">{summary}</Text>
       {target && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.code, { backgroundColor: colors.surfaceBase, borderColor: colors.separator }]} nestedScrollEnabled>
           <Text variant="mono" selectable style={{ fontSize: 14, lineHeight: 21 }}>
@@ -84,138 +92,141 @@ export const ApprovalCard = memo(function ApprovalCard({ item, tool, reviewOnDes
       {!target && !isEdit && item.toolName !== "Write" && Object.keys(input).length > 0 && (
         <Text variant="mono" color="textMuted" numberOfLines={6} style={{ fontSize: 12, lineHeight: 18 }}>{JSON.stringify(input, null, 1)}</Text>
       )}
-      {reviewOnDesktop ? (
-        <Text variant="secondary" color="textMuted">This change to Notion needs a closer look. Approve it in Lodestar on your Mac.</Text>
-      ) : (
-        <View style={styles.actions}>
-          <Button title="Deny" flex busy={busy === "deny"} disabled={busy !== null && busy !== "deny"} onPress={() => run("deny", () => actions.deny(item.id))} />
-          <Button title="Allow" kind="primary" flex busy={busy === "allow"} disabled={busy !== null && busy !== "allow"} onPress={() => run("allow", () => actions.allow(item.id))} />
-        </View>
-      )}
-      {error && <Text variant="secondary" color="danger">{error}</Text>}
-    </View>
+      {reviewOnDesktop && <Text variant="secondary" color="textMuted">This change to Notion needs a closer look. Approve it in Lodestar on your Mac.</Text>}
+    </RequestDock>
   );
 });
 
-export const QuestionCard = memo(function QuestionCard({ item, actions }: { item: PermissionItem; actions: Actions }) {
+export const QuestionCard = memo(function QuestionCard({ item, actions, ...layout }: DockLayout & { item: PermissionItem; actions: Actions }) {
   const colors = useColors();
+  const { paneWidth } = useFoldLayout();
   const questions = readQuestions(item.input);
-  const [states, setStates] = useState<QuestionState[]>(() => questions.map(emptyQuestionState));
+  const [states, setStates] = useState<QuestionState[]>(() => layout.draft.states ?? questions.map(emptyQuestionState));
+  const [page, setCurrentPage] = useState(layout.draft.page);
+  const setPage = (next: number) => { layout.draft.page = next; setCurrentPage(next); };
   const { busy, error, run } = useBusy();
-  const update = (index: number, next: QuestionState) => setStates((all) => all.map((s, i) => (i === index ? next : s)));
-  const ready = isAnswered(questions, states);
+  const q = questions[page];
+  const last = page === questions.length - 1;
+  const locked = !!busy || layout.offline;
+  const state = states[page] ?? emptyQuestionState();
+  const update = (next: QuestionState) => {
+    const result = states.map((old, i) => i === page ? next : old);
+    layout.draft.states = result;
+    setStates(result);
+  };
+  const ready = q && (last ? isAnswered(questions, states) : isAnswered([q], [state]));
+  const advance = () => {
+    Keyboard.dismiss();
+    if (last) run("send", () => actions.answer(item.id, answersOf(questions, states)));
+    else setPage(page + 1);
+  };
+  const backOrSkip = () => {
+    Keyboard.dismiss();
+    if (page > 0) setPage(page - 1);
+    else run("skip", () => actions.answer(item.id, null));
+  };
+  const label = [questions.length > 1 ? `Question ${page + 1} of ${questions.length}` : "Question", q?.header].filter(Boolean).join(" · ");
+  const question = q?.question ?? "Review this question on your Mac.";
+  const backTitle = page > 0 ? "Back" : "Skip";
+  const icon = layout.short && paneWidth < 400 ? (last ? "arrow.up" : "arrow.right") : undefined;
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: withAlpha(colors.accent, 0.7) }]}>
-      {questions.map((q, qi) => {
-        const state = states[qi] ?? emptyQuestionState();
-        return (
-          <View key={qi} style={{ gap: spacing.sm }}>
-            {!!q.header && (
-              <Text variant="caption" color="accentText" style={{ textTransform: "uppercase", letterSpacing: 0.5 }}>
-                {q.header}
-              </Text>
-            )}
-            <Text variant="bodyStrong" color="textStrong">{q.question}</Text>
-            {q.multiSelect && <Text variant="caption" color="textMuted">Choose any that apply</Text>}
-            {q.options.map((option) => {
-              const on = state.picked.includes(option.label);
-              return (
-                <Pressable key={option.label} accessibilityRole={q.multiSelect ? "checkbox" : "radio"} accessibilityState={{ checked: on }} onPress={() => update(qi, togglePick(q, state, option.label))} style={[styles.option, { borderColor: on ? colors.accent : colors.border, backgroundColor: on ? withAlpha(colors.accent, 0.14) : "transparent" }]}>
-                  <Icon name={on ? (q.multiSelect ? "checkmark.square.fill" : "largecircle.fill.circle") : q.multiSelect ? "square" : "circle"} size={20} color={on ? "accentText" : "textSubtle"} />
-                  <View style={{ flex: 1 }}>
-                    <Text color="textStrong">{option.label}</Text>
-                    {!!option.description && <Text variant="secondary" color="textMuted">{option.description}</Text>}
-                  </View>
-                </Pressable>
-              );
-            })}
-            <Pressable accessibilityRole={q.multiSelect ? "checkbox" : "radio"} accessibilityState={{ checked: state.other }} onPress={() => update(qi, toggleOther(q, state))} style={[styles.option, { borderColor: state.other ? colors.accent : colors.border, backgroundColor: state.other ? withAlpha(colors.accent, 0.14) : "transparent" }]}>
-              <Icon name={state.other ? (q.multiSelect ? "checkmark.square.fill" : "largecircle.fill.circle") : q.multiSelect ? "square" : "circle"} size={20} color={state.other ? "accentText" : "textSubtle"} />
-              <Text color="textStrong">Other</Text>
-            </Pressable>
-            {state.other && <TextInput value={state.text} onChangeText={(text) => update(qi, { ...state, text })} placeholder="Type your answer" placeholderTextColor={colors.textSubtle} multiline style={[styles.input, { color: colors.textStrong, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]} />}
-          </View>
-        );
-      })}
-      <View style={styles.actions}>
-        <Button title="Skip" flex busy={busy === "skip"} disabled={busy !== null && busy !== "skip"} onPress={() => run("skip", () => actions.answer(item.id, null))} />
-        <Button title="Send answer" kind="primary" flex disabled={!ready || (busy !== null && busy !== "send")} busy={busy === "send"} onPress={() => run("send", () => actions.answer(item.id, answersOf(questions, states)))} />
+    <RequestDock {...layout} step={page} label={label} summary={q?.question ?? "Question"} shortTitle={question} shortPrefix={questions.length > 1 ? `${page + 1}/${questions.length} ` : undefined} busy={!!busy} footer={
+      <View style={[styles.controls, layout.short && styles.actions]}>
+        {layout.short && <Button title={backTitle} kind="plain" style={styles.shortSecondary} busy={busy === "skip"} disabled={locked} onPress={backOrSkip} />}
+        {q && <TextInput disableFullscreenUI key={page} value={state.text} accessibilityLabel="Your own answer" onChangeText={(text) => update({ picked: q.multiSelect ? state.picked : [], text, other: !!text.trim() })} editable={!busy} placeholder={q.multiSelect ? "Add your own answer" : "Or type your own answer"} placeholderTextColor={colors.textMuted} maxFontSizeMultiplier={1.25} multiline={!layout.short || Platform.OS === "ios"} style={[styles.answerInput, layout.short && styles.shortInput, { color: colors.textStrong, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]} />}
+        {!layout.short && error && <Text variant="secondary" color="danger" accessibilityLiveRegion="polite">{error}</Text>}
+        <View style={styles.actions}>
+          {!layout.short && <Button title={backTitle} flex busy={busy === "skip"} disabled={locked} onPress={backOrSkip} />}
+          {q && <Button title={last ? "Send answer" : "Next"} kind="primary" icon={icon} style={layout.short ? icon ? undefined : styles.shortPrimary : styles.widePrimary} disabled={locked || !ready} busy={busy === "send"} onPress={advance} />}
+        </View>
       </View>
-      {error && <Text variant="secondary" color="danger">{error}</Text>}
-    </View>
+    }>
+      {!layout.short && <Text variant="title" color="textStrong" maxFontSizeMultiplier={(layout.compact ? 20 : 22) / 17} style={layout.compact ? { lineHeight: 22 } : undefined}>{question}</Text>}
+      {!layout.short && q?.multiSelect && <Text variant="caption" color="textMuted">Choose any that apply</Text>}
+      {layout.short && error && <Text variant="secondary" color="danger" accessibilityLiveRegion="polite">{error}</Text>}
+      {q?.options.map((option, i) => {
+        const selected = state.picked.includes(option.label);
+        const icon = q.multiSelect ? (selected ? "checkmark.square.fill" : "square") : (selected ? "largecircle.fill.circle" : "circle");
+        return <Pressable key={i} accessibilityRole={q.multiSelect ? "checkbox" : "radio"} accessibilityState={{ checked: selected, disabled: !!busy }} disabled={!!busy}
+          onPress={() => { update(togglePick(q, state, option.label)); Keyboard.dismiss(); }}
+          style={({ pressed }) => [styles.option, { borderColor: selected ? colors.accent : colors.border, borderWidth: selected ? 1.5 : 1, backgroundColor: selected ? withAlpha(colors.accent, 0.1) : pressed ? colors.pressed : colors.surface }]}>
+          <Icon name={icon} size={20} color={selected ? "accentText" : "textSubtle"} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text variant="bodyStrong" color="textStrong" maxFontSizeMultiplier={1.25} style={{ fontWeight: "500" }}>{option.label}</Text>
+            {!!option.description && <Text variant="secondary" color="textMuted" maxFontSizeMultiplier={18 / 14}>{option.description}</Text>}
+          </View>
+        </Pressable>;
+      })}
+    </RequestDock>
   );
 });
 
-export const PlanCard = memo(function PlanCard({ item, actions }: { item: PermissionItem; actions: Actions }) {
+export const PlanCard = memo(function PlanCard({ item, actions, ...layout }: DockLayout & { item: PermissionItem; actions: Actions }) {
   const colors = useColors();
   const { busy, error, run } = useBusy();
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [feedback, setLocalFeedback] = useState(layout.draft.feedback);
+  const setFeedback = (value: string | null) => { layout.draft.feedback = value; setLocalFeedback(value); };
   const plan = planText(item.input);
+  const locked = !!busy || layout.offline;
+  const cancel = () => { Keyboard.dismiss(); setFeedback(null); };
+  const keepPlanning = () => {
+    Keyboard.dismiss();
+    const text = feedback?.trim();
+    run("keep", () => actions.plan(item.id, { approve: false, ...(text ? { feedback: text } : {}) }));
+  };
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: withAlpha(colors.accent, 0.7) }]}>
-      <View style={styles.cardHead}>
-        <Icon name="list.bullet.clipboard" size={20} color="accentText" />
-        <Text variant="title" color="textStrong">Plan ready</Text>
-      </View>
-      {plan ? (
-        <View>
-          <View style={expanded ? undefined : { maxHeight: PLAN_PREVIEW_HEIGHT, overflow: "hidden" }}>
-            <MarkdownView text={plan} />
-          </View>
-          <Pressable accessibilityRole="button" onPress={() => setExpanded((v) => !v)} style={{ minHeight: MIN_TOUCH, justifyContent: "center" }}>
-            <Text color="accentText">{expanded ? "Show less" : "Read the full plan"}</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <Text color="textMuted">The plan is on your Mac.</Text>
-      )}
-      {feedback === null ? (
-        <View style={{ gap: spacing.sm }}>
-          <Button title="Approve and edit automatically" kind="primary" busy={busy === "auto"} disabled={busy !== null && busy !== "auto"} onPress={() => run("auto", () => actions.plan(item.id, { approve: true, mode: "acceptEdits" }))} />
-          <Button title="Approve, ask before each edit" busy={busy === "ask"} disabled={busy !== null && busy !== "ask"} onPress={() => run("ask", () => actions.plan(item.id, { approve: true, mode: "default" }))} />
-          <Button title="Keep planning" kind="plain" disabled={busy !== null} onPress={() => setFeedback("")} />
-        </View>
-      ) : (
-        <View style={{ gap: spacing.sm }}>
-          <TextInput autoFocus value={feedback} onChangeText={setFeedback} placeholder="What should change in the plan?" placeholderTextColor={colors.textSubtle} multiline style={[styles.input, { color: colors.textStrong, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]} />
-          <View style={styles.actions}>
-            <Button title="Cancel" flex onPress={() => setFeedback(null)} />
-            <Button title="Send" kind="primary" flex busy={busy === "keep"} onPress={() => run("keep", () => actions.plan(item.id, { approve: false, ...(feedback.trim() ? { feedback: feedback.trim() } : {}) }))} />
-          </View>
-        </View>
-      )}
+    <RequestDock {...layout} label="Plan" summary="Plan ready for review" busy={!!busy} footer={<>
       {error && <Text variant="secondary" color="danger">{error}</Text>}
-    </View>
+      {feedback === null ? <View style={[styles.controls, layout.short && styles.actions]}>
+        <Button title="Approve and edit automatically" kind="primary" style={layout.short && styles.widePrimary} busy={busy === "auto"} disabled={locked} onPress={() => run("auto", () => actions.plan(item.id, { approve: true, mode: "acceptEdits" }))} />
+        <Button title="Approve, ask before each edit" flex={layout.short} busy={busy === "ask"} disabled={locked} onPress={() => run("ask", () => actions.plan(item.id, { approve: true, mode: "default" }))} />
+        <Button title="Keep planning" kind="plain" flex={layout.short} disabled={locked} onPress={() => setFeedback("")} />
+      </View> : <View style={[styles.controls, layout.short && styles.actions]}>
+        {layout.short && <Button title="Cancel" kind="plain" style={styles.shortSecondary} disabled={!!busy} onPress={cancel} />}
+        <TextInput disableFullscreenUI autoFocus value={feedback} onChangeText={setFeedback} accessibilityLabel="Plan feedback" placeholder="What should change in the plan?" placeholderTextColor={colors.textMuted} multiline={!layout.short || Platform.OS === "ios"} style={[styles.answerInput, layout.short && styles.shortInput, { color: colors.textStrong, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]} />
+        <View style={styles.actions}>
+          {!layout.short && <Button title="Cancel" flex disabled={!!busy} onPress={cancel} />}
+          <Button title="Send" kind="primary" style={layout.short ? styles.shortPrimary : styles.widePrimary} disabled={locked} busy={busy === "keep"} onPress={keepPlanning} />
+        </View>
+      </View>}
+    </>}>
+      {plan ? <MarkdownView text={plan} /> : <Text color="textMuted">The plan is on your Mac.</Text>}
+    </RequestDock>
   );
 });
 
 export const AnsweredRow = memo(function AnsweredRow({ item }: { item: PermissionItem }) {
   const colors = useColors();
-  const answers = item.outcome?.answers;
   const plan = item.outcome?.plan;
-  const text = answers
-    ? Object.entries(answers).map(([q, a]) => `${q}  ${a}`).join("\n")
-    : plan
-      ? plan.decision === "approved"
-        ? "Plan approved"
-        : `Kept planning${plan.feedback ? `: ${plan.feedback}` : ""}`
-      : item.status === "denied"
-        ? "Skipped"
-        : "Answered";
-  return (
-    <View style={[styles.answered, { backgroundColor: colors.userBubble }]}>
-      <Text variant="secondary" color="textMuted" selectable>{text}</Text>
-    </View>
-  );
+  const command = approvalTarget(item.toolName, item.input)?.text;
+  const answers = item.outcome?.answers;
+  const questions = readQuestions(item.input);
+  let entries: string[][];
+  if (item.toolName === QUESTION_TOOL) {
+    entries = questions.map(q => [q.question, answers?.[q.question] ?? (item.status === "denied" ? "Skipped" : "Answered")]);
+    if (!entries.length) entries = answers && Object.keys(answers).length ? Object.entries(answers) : [["Question", item.status === "denied" ? "Skipped" : "Answered"]];
+  } else if (item.toolName === PLAN_TOOL) {
+    entries = [["Plan", plan?.decision === "approved" ? "Plan approved" : plan?.feedback || "Kept planning"]];
+  } else {
+    entries = [[item.toolName === "Bash" && command ? `Run ${command}` : command ?? item.toolName, item.status === "denied" ? "Denied" : "Allowed"]];
+  }
+  return <View style={{ alignItems: "flex-end", gap: spacing.sm }}>
+    {entries.map(([question, answer], i) => <View key={i} style={[styles.answered, { backgroundColor: colors.userBubble }]}>
+      <Text variant="caption" color="textMuted" selectable>{question}</Text>
+      <Text color="textStrong" style={{ fontWeight: "500" }} selectable>{answer}</Text>
+    </View>)}
+  </View>;
 });
 
 const styles = StyleSheet.create({
-  card: { borderRadius: radius.lg, borderWidth: 1.5, padding: spacing.lg, gap: spacing.md },
-  cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  code: { borderRadius: radius.sm, borderWidth: StyleSheet.hairlineWidth, padding: spacing.sm },
+  code: { borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingVertical: 10 },
+  controls: { gap: spacing.sm },
   actions: { flexDirection: "row", gap: spacing.sm },
-  option: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: MIN_TOUCH + 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: 1 },
-  input: { minHeight: 80, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: spacing.md, fontSize: 16, lineHeight: 22, textAlignVertical: "top" },
-  answered: { borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, alignSelf: "flex-start", maxWidth: "92%" },
+  widePrimary: { flex: 2 },
+  shortSecondary: { minWidth: 64, paddingHorizontal: 0 },
+  shortPrimary: { minWidth: 96 },
+  shortInput: { flex: 1, minWidth: 0, minHeight: 48, maxHeight: 48, paddingHorizontal: spacing.md },
+  option: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: MIN_TOUCH, paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: radius.md },
+  answerInput: { minHeight: MIN_TOUCH, maxHeight: 90, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: 24, fontSize: 16, borderWidth: StyleSheet.hairlineWidth, textAlignVertical: "center" },
+  answered: { maxWidth: "85%", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, gap: 2 },
 });

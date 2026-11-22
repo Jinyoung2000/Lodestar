@@ -98,9 +98,9 @@ export function buildRows(items: readonly TimelineItem[]): Row[] {
         } else if (item.status === "pending") {
           flush();
           rows.push({ type: "approval", key: item.id, item, tool: item.toolUseId ? (toolById.get(item.toolUseId) ?? null) : null, reviewOnDesktop: NOTION_PROPOSE.test(item.toolName) });
-        } else if (item.status === "denied") {
+        } else {
           flush();
-          rows.push({ type: "notice", key: item.id, text: `Denied ${item.toolName}` });
+          rows.push({ type: "answered", key: item.id, item });
         }
         break;
       }

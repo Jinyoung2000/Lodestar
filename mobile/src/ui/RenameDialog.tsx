@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
-import { radius, spacing, useColors } from "../theme/theme";
+import { radius, scrim, spacing, useColors } from "../theme/theme";
 import { Button } from "./Button";
 import { Text } from "./Text";
 
@@ -30,7 +30,7 @@ export function RenameDialog({ initial, onSubmit, onClose }: { initial: string |
     }
   };
   return (
-    <Modal visible={initial !== null} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={initial !== null} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.fill}>
         <Pressable accessibilityLabel="Dismiss" style={[styles.fill, styles.scrim]} onPress={onClose}>
           <Pressable accessible={false} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -44,7 +44,7 @@ export function RenameDialog({ initial, onSubmit, onClose }: { initial: string |
               maxLength={200}
               returnKeyType="done"
               onSubmitEditing={() => void save()}
-              placeholderTextColor={colors.textSubtle}
+              placeholderTextColor={colors.textMuted}
               style={[styles.input, { color: colors.textStrong, borderColor: colors.border, backgroundColor: colors.background }]}
             />
             {error && <Text variant="secondary" color="danger">{error}</Text>}
@@ -61,7 +61,7 @@ export function RenameDialog({ initial, onSubmit, onClose }: { initial: string |
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  scrim: { backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "flex-start", paddingTop: "22%", paddingHorizontal: spacing.lg },
+  scrim: { backgroundColor: scrim, alignItems: "center", justifyContent: "flex-start", paddingTop: "22%", paddingHorizontal: spacing.lg },
   card: { width: "100%", maxWidth: 420, gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth },
   input: { minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, fontSize: 16 },
   buttons: { flexDirection: "row", gap: spacing.sm },

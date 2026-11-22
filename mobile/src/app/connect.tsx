@@ -1,7 +1,7 @@
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { parseFields, parsePairing, type PairingInfo } from "../logic/pairing";
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { normalizeCode, parseFields, parsePairing, type PairingInfo } from "../logic/pairing";
 import { pairAndConnect, useAppState, useConnection } from "../state/app";
 import { spacing, radius, useColors } from "../theme/theme";
 import { Button } from "../ui/Button";
@@ -23,10 +23,15 @@ export default function Connect() {
   const pair = async (info: PairingInfo) => {
     setBusy(true);
     setError(null);
-    const outcome = await pairAndConnect(info, deviceName());
-    setBusy(false);
-    if (!outcome.ok) return setError(outcome.message);
-    router.replace("/");
+    try {
+      const outcome = await pairAndConnect(info, deviceName());
+      if (!outcome.ok) return setError(outcome.message);
+      router.replace("/");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not save this connection.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -49,9 +54,13 @@ export default function Connect() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="automatic">
-        <Text variant="body" color="textMuted">
-          On your Mac, open Lodestar, go to Settings, turn on Mobile access and create a pairing code. Your phone must be on the same network.
-        </Text>
+        <View style={{ gap: spacing.md }}>
+          <Image source={require("../../assets/icon.png")} style={{ width: 56, height: 56, borderRadius: radius.lg }} />
+          <Text variant="largeTitle" color="textStrong" accessibilityRole="header">Connect to your Mac</Text>
+          <Text variant="body" color="textMuted">
+            In Lodestar on your Mac, turn on Mobile access in Settings and create a pairing code.
+          </Text>
+        </View>
         <Button title="Scan QR code" kind="primary" onPress={() => router.push("/scan")} disabled={busy} />
         <View style={styles.divider}>
           <View style={[styles.line, { backgroundColor: colors.separator }]} />
@@ -59,15 +68,16 @@ export default function Connect() {
           <View style={[styles.line, { backgroundColor: colors.separator }]} />
         </View>
         <View style={{ gap: spacing.xs }}>
-          <Text variant="secondary" color="textMuted">Address</Text>
+          <Text variant="secondary" color="textMuted">Server address</Text>
+          <Text variant="caption" color="textMuted">Use a Wi-Fi address, a Tailscale IP, or your HTTPS .ts.net URL.</Text>
           <TextInput
             value={address}
             onChangeText={setAddress}
             placeholder="192.168.0.5:7789"
-            placeholderTextColor={colors.textSubtle}
+            placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="numbers-and-punctuation"
+            keyboardType="url"
             returnKeyType="next"
             accessibilityLabel="Address"
             style={[styles.input, { color: colors.textStrong, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
@@ -75,11 +85,15 @@ export default function Connect() {
         </View>
         <View style={{ gap: spacing.xs }}>
           <Text variant="secondary" color="textMuted">Pairing code</Text>
+          <Text variant="caption" color="textMuted">Enter 8 characters. The hyphen appears automatically.</Text>
           <TextInput
             value={code}
-            onChangeText={(t) => setCode(t.toUpperCase())}
+            onChangeText={(value) => {
+              const letters = normalizeCode(value).slice(0, 8);
+              setCode(letters.length > 4 ? `${letters.slice(0, 4)}-${letters.slice(4)}` : letters);
+            }}
             placeholder="ABCD-EFGH"
-            placeholderTextColor={colors.textSubtle}
+            placeholderTextColor={colors.textMuted}
             autoCapitalize="characters"
             autoCorrect={false}
             returnKeyType="go"

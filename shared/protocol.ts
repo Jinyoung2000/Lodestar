@@ -153,6 +153,7 @@ export type TimelineItem =
       cancelled?: boolean;
       page?: { title: string; url: string };
       shots?: string[];
+      shotCount?: number;
       task?: SubagentTask;
       parentToolUseId?: string;
     }

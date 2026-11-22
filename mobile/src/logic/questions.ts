@@ -27,7 +27,7 @@ export function readQuestions(input: Record<string, unknown>): Question[] {
 export const emptyQuestionState = (): QuestionState => ({ picked: [], other: false, text: "" });
 
 export function togglePick(question: Question, state: QuestionState, label: string): QuestionState {
-  if (!question.multiSelect) return { picked: [label], other: false, text: state.text };
+  if (!question.multiSelect) return { picked: [label], other: false, text: "" };
   return { ...state, picked: state.picked.includes(label) ? state.picked.filter((l) => l !== label) : [...state.picked, label] };
 }
 

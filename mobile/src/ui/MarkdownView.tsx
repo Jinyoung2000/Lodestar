@@ -1,6 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import { memo, useCallback, useState, type ReactNode } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { tokenPreview } from "../logic/previews";
 import { isOpenableLink, parseMarkdown, type Token } from "../logic/markdown";
 import { radius, spacing, useColors } from "../theme/theme";
 import { Icon } from "./Icon";
@@ -9,8 +10,10 @@ import { Text } from "./Text";
 type Tokens = Token[] | undefined;
 type Any = Token & Record<string, unknown>;
 
-export const MarkdownView = memo(function MarkdownView({ text, selectable = true }: { text: string; selectable?: boolean }) {
-  const tokens = parseMarkdown(text);
+export const MarkdownView = memo(function MarkdownView({ text, selectable = true, previewCards = false }: { text: string; selectable?: boolean; previewCards?: boolean }) {
+  const source = parseMarkdown(text);
+  const tokens = previewCards ? source.flatMap(visibleBlock) : source;
+  if (tokens.length === 0) return null;
   return (
     <View>
       {tokens.map((token, index) => (
@@ -19,6 +22,14 @@ export const MarkdownView = memo(function MarkdownView({ text, selectable = true
     </View>
   );
 });
+
+function visibleBlock(token: Token): Token[] {
+  if (token.type === "space" || tokenPreview(token, "")) return [];
+  if (token.type !== "paragraph" || !token.tokens) return [token];
+  const inline = token.tokens.filter((child) => child.type !== "image" || !tokenPreview(child, ""));
+  if (inline.every((child) => child.type === "br" || !child.raw.trim() || !!tokenPreview(child, ""))) return [];
+  return inline.length === token.tokens.length ? [token] : [{ ...token, tokens: inline }];
+}
 
 function Block({ token, selectable, last }: { token: Any; selectable: boolean; last: boolean }): ReactNode {
   const colors = useColors();
@@ -165,8 +176,9 @@ function CodeBlock({ code, lang, marginBottom }: { code: string; lang: string; m
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const lines = code.split("\n");
-  const clipped = !expanded && lines.length > CODE_PREVIEW_LINES;
-  const shown = clipped ? lines.slice(0, CODE_PREVIEW_LINES).join("\n") : code;
+  const limit = /^html?$/i.test(lang) ? 3 : CODE_PREVIEW_LINES;
+  const clipped = !expanded && lines.length > limit;
+  const shown = clipped ? lines.slice(0, limit).join("\n") : code;
   const copy = useCallback(() => {
     void Clipboard.setStringAsync(code).then(() => {
       setCopied(true);

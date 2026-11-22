@@ -1,9 +1,11 @@
 import * as Haptics from "expo-haptics";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { useIsFocused } from "expo-router";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentRef } from "react";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View, findNodeHandle } from "react-native";
 import type { Agent, QueuedMessage } from "@shared/protocol";
 import { MAX_IMAGES } from "../logic/images";
-import { pickFromLibrary, takePhoto, useAttachments } from "../state/attach";
+import { pickFromLibrary, takePhoto, useAttachments, type PickedAsset } from "../state/attach";
+import { composerPaste, discardPastedImage, isPasteForeground, legacyPasteSupported, nextPasteBinding, readClipboardImage } from "../state/composerPaste";
 import { loadPref, savePref } from "../state/storage";
 import { MIN_TOUCH, radius, spacing, useColors, withAlpha } from "../theme/theme";
 import { showActionMenu } from "./actionMenu";
@@ -24,7 +26,7 @@ type Props = {
   draftKey?: string;
 };
 
-const MIN_HEIGHT = 44;
+const MIN_HEIGHT = 48;
 const MAX_HEIGHT = 144;
 
 export const Composer = memo(function Composer({ agent, disabled, placeholder = "Message", onSend, onStop, onDequeue, onSendQueuedNow, onCancelSteering, autoFocus, initialText, draftKey }: Props) {
@@ -36,7 +38,65 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const [pendingSend, setPendingSend] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const attachments = useAttachments();
-  const running = agent?.status === "running" || agent?.status === "waiting";
+  const focused = useIsFocused();
+  const input = useRef<ComponentRef<typeof TextInput>>(null);
+  const pasteScope = useRef<string | null>(null);
+  const pasteBatches = useRef(0);
+  const [pasting, setPasting] = useState(false);
+  const canSend = focused && !disabled;
+  const { addAssets } = attachments;
+  const bindPaste = useCallback(() => {
+    const token = pasteScope.current;
+    const tag = findNodeHandle(input.current);
+    if (token && tag != null) void composerPaste?.bind(tag, token).catch((error) => console.warn("Could not bind clipboard image paste", error));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!canSend) return;
+    const token = nextPasteBinding();
+    pasteScope.current = token;
+    const native = composerPaste;
+    const started = native?.addListener("pasteStarted", (event) => {
+      if (event.token !== token || pasteScope.current !== token) return;
+      pasteBatches.current++;
+      setPasting(true);
+    });
+    const finished = native?.addListener("pasteFinished", (event) => {
+      if (event.token !== token) return;
+      const assets = event.assets ?? [];
+      if (pasteScope.current !== token || !isPasteForeground()) {
+        assets.forEach((asset) => discardPastedImage(asset.uri));
+        setPendingSend(false);
+      } else if (event.full) {
+        setError("You can attach up to 5 images.");
+      } else {
+        const accepted = addAssets(assets.map((asset) => ({ ...asset, releaseSource: () => discardPastedImage(asset.uri) })));
+        if (event.failed) {
+          setPendingSend(false);
+          setError("Could not read the clipboard image. It may be too large or unavailable.");
+        } else if (accepted < assets.length) {
+          setError("You can attach up to 5 images.");
+        } else {
+          setError(null);
+        }
+      }
+      if (!event.full) {
+        pasteBatches.current = Math.max(0, pasteBatches.current - 1);
+        setPasting(pasteBatches.current > 0);
+      }
+    });
+    bindPaste();
+    return () => {
+      pasteScope.current = null;
+      pasteBatches.current = 0;
+      setPasting(false);
+      started?.remove();
+      finished?.remove();
+      void native?.unbind(token).catch((error) => console.warn("Could not unbind clipboard image paste", error));
+    };
+  }, [addAssets, bindPaste, canSend, draftKey]);
+
+  const running = agent?.status === "running";
   const hasContent = text.trim().length > 0 || attachments.items.some((a) => a.status === "done");
   const textRef = useRef(text);
   textRef.current = text;
@@ -44,11 +104,10 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const draftReady = useRef(!draftKey || !!initialText);
 
   useEffect(() => {
-    void loadPref("steer", false).then(setSteer);
+    let active = true;
+    void loadPref("steer", false).then((value) => { if (active) setSteer(value); });
+    return () => { active = false; };
   }, []);
-  useEffect(() => {
-    if (initialText) setText(initialText);
-  }, [initialText]);
   useEffect(() => {
     if (!draftKey || draftReady.current) return;
     let live = true;
@@ -74,7 +133,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   );
 
   const submit = useCallback(async () => {
-    if (inFlight.current) return;
+    if (inFlight.current || !canSend || pasteBatches.current > 0) return;
     const images = attachments.refs();
     const prompt = text.trim();
     if (!prompt && images.length === 0) return;
@@ -101,34 +160,58 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
       setSending(false);
       setPendingSend(false);
     }
-  }, [attachments, draftKey, onSend, running, steer, text]);
+  }, [attachments, canSend, draftKey, onSend, running, steer, text]);
 
   useEffect(() => {
-    if (pendingSend && attachments.ready && !sending) void submit();
-  }, [pendingSend, attachments.ready, sending, submit]);
+    if (!pendingSend) return;
+    if (!canSend || attachments.items.some((asset) => asset.status === "error")) {
+      setPendingSend(false);
+    } else if (!pasting && attachments.ready && !sending) {
+      void submit();
+    }
+  }, [pendingSend, attachments, canSend, pasting, sending, submit]);
 
   const press = () => {
-    if (!hasContent && !attachments.items.some((a) => a.status === "uploading" || a.status === "processing")) return;
-    if (!attachments.ready) {
+    if (!canSend) return;
+    if (!pasteBatches.current && !hasContent && !attachments.items.some((a) => a.status === "uploading" || a.status === "processing")) return;
+    if (pasteBatches.current > 0 || !attachments.ready) {
       setPendingSend(true);
       return;
     }
     void submit();
   };
 
-  const attach = async () => {
+  const attach = () => {
+    const scope = pasteScope.current;
     const room = MAX_IMAGES - attachments.items.filter((a) => a.status !== "error").length;
     if (room <= 0) return Alert.alert("Up to 5 images", "Remove one to attach another.");
-    const choose = async (pick: () => Promise<{ uri: string; width: number; height: number; fileName?: string | null }[]>) => {
+    const choose = async (pick: () => Promise<PickedAsset[]>) => {
+      if (!scope || pasteScope.current !== scope) return;
       try {
-        attachments.addAssets(await pick());
+        const assets = await pick();
+        if (pasteScope.current === scope && (pick !== readClipboardImage || isPasteForeground())) addAssets(assets);
       } catch (e) {
+        if (pasteScope.current !== scope) return;
+        if (pick === readClipboardImage) setPendingSend(false);
         Alert.alert("Could not attach", e instanceof Error ? e.message : String(e));
       }
     };
     showActionMenu("Attach an image", [
       { label: "Photo Library", onPress: () => void choose(() => pickFromLibrary(room)) },
       { label: "Take Photo", onPress: () => void choose(takePhoto) },
+      ...(legacyPasteSupported ? [{
+        label: "Paste image",
+        onPress: () => {
+          if (!scope || pasteScope.current !== scope || !isPasteForeground()) return;
+          pasteBatches.current++;
+          setPasting(true);
+          void choose(readClipboardImage).finally(() => {
+            if (pasteScope.current !== scope) return;
+            pasteBatches.current--;
+            setPasting(pasteBatches.current > 0);
+          });
+        },
+      }] : []),
     ]);
   };
 
@@ -139,8 +222,8 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
 
   const queue = agent?.queue ?? [];
   const steering = agent?.steering ?? [];
-  const busyUpload = attachments.progress !== null;
-  const sendDisabled = disabled || sending || (!hasContent && !busyUpload);
+  const busyUpload = pasting || attachments.progress !== null;
+  const sendDisabled = !canSend || sending || (!hasContent && !busyUpload);
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.background, borderTopColor: colors.separator }]}>
@@ -201,22 +284,27 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           <Icon name="plus.circle.fill" size={30} color="textMuted" />
         </Pressable>
         <TextInput
+          ref={input}
+          onLayout={bindPaste}
+          onFocus={bindPaste}
           autoFocus={autoFocus}
           value={text}
           onChangeText={setText}
-          onContentSizeChange={(e) => setHeight(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, Math.ceil(e.nativeEvent.contentSize.height) + 16)))}
+          onContentSizeChange={(e) => setHeight(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, Math.ceil(e.nativeEvent.contentSize.height))))}
           placeholder={placeholder}
-          placeholderTextColor={colors.textSubtle}
+          placeholderTextColor={colors.textMuted}
           multiline
+          disableFullscreenUI
           editable={!disabled}
           maxFontSizeMultiplier={1.6}
           accessibilityLabel="Message"
           style={[styles.input, { height, color: colors.textStrong, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
         />
-        <Pressable accessibilityRole="button" accessibilityLabel={running && steer ? "Steer" : running ? "Queue message" : "Send"} accessibilityState={{ disabled: sendDisabled }} onPress={press} disabled={sendDisabled} style={({ pressed }) => [styles.send, { backgroundColor: sendDisabled ? colors.overlay : colors.accent, opacity: pressed ? 0.8 : 1 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={running && steer ? "Steer" : running ? "Queue message" : "Send"} accessibilityState={{ disabled: sendDisabled }} hitSlop={4} onPress={press} disabled={sendDisabled} style={({ pressed }) => [styles.send, { backgroundColor: sendDisabled ? colors.overlay : colors.accent, opacity: pressed ? 0.8 : 1 }]}>
           {sending || pendingSend ? <ActivityIndicator color={colors.onAccent} /> : <Icon name="arrow.up" size={20} color={sendDisabled ? "textSubtle" : "onAccent"} weight="bold" />}
         </Pressable>
       </View>
+      {pasting && !pendingSend && <Text variant="caption" color="textMuted" style={styles.note}>Reading clipboard image…</Text>}
       {pendingSend && <Text variant="caption" color="textMuted" style={styles.note}>{`Sending when the upload finishes${attachments.progress !== null ? ` (${Math.round(attachments.progress * 100)}%)` : ""}`}</Text>}
       {error && <Text variant="caption" color="danger" style={styles.note}>{error}</Text>}
     </View>
@@ -245,15 +333,15 @@ function QueueChip({ message, label, onCancel, onNow }: { message: QueuedMessage
 }
 
 const styles = StyleSheet.create({
-  wrap: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.sm, gap: spacing.sm },
+  wrap: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.sm, gap: spacing.sm },
   row: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
-  input: { flex: 1, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.lg, paddingTop: 10, paddingBottom: 10, fontSize: 16, lineHeight: 22, textAlignVertical: "center" },
+  input: { flex: 1, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.lg, paddingTop: 10, paddingBottom: 10, fontSize: 16, lineHeight: 22, textAlignVertical: "center" },
   iconButton: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: "center", justifyContent: "center" },
-  send: { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: MIN_TOUCH / 2, alignItems: "center", justifyContent: "center" },
+  send: { width: 40, height: 40, margin: 4, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   modeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   segment: { flexDirection: "row", borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: 2 },
-  segmentItem: { minHeight: 36, minWidth: 72, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, paddingHorizontal: spacing.md },
-  stop: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.md, borderRadius: radius.md },
+  segmentItem: { minHeight: MIN_TOUCH, minWidth: 72, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, paddingHorizontal: spacing.md },
+  stop: { minHeight: MIN_TOUCH, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.md, borderRadius: radius.md },
   queue: { gap: spacing.xs },
   chip: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 40, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, paddingLeft: spacing.md, paddingRight: spacing.xs },
   chipButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },

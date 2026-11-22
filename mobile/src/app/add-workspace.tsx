@@ -72,7 +72,7 @@ export default function AddWorkspace() {
           returnKeyType="go"
           onSubmitEditing={() => void go(typed)}
           placeholder="~/Repos/my-app"
-          placeholderTextColor={colors.textSubtle}
+          placeholderTextColor={colors.textMuted}
           style={[styles.input, { color: colors.textStrong, borderColor: error ? colors.danger : colors.border, backgroundColor: colors.surface }]}
         />
         <Button title="Go" onPress={() => void go(typed)} disabled={conn !== "online" || !typed} style={styles.go} />

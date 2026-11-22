@@ -1,7 +1,7 @@
 import { FlashList } from "@shopify/flash-list";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { Alert, Keyboard, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { buildProjects, moveInOrder, orderOf, shortPath, type Project, type ProjectSort } from "../logic/workspaces";
 import { sortPrefs, store, useAppState, useSortPrefs } from "../state/app";
 import type { GitSummary } from "../state/store";
@@ -14,14 +14,13 @@ import { StatusDot } from "./StatusDot";
 import { Text } from "./Text";
 import { showActionMenu } from "./actionMenu";
 
-export function WorkspacesView({ query }: { query: string }) {
+export function WorkspacesView({ query, paneWidth, selectedId, onOpen }: { query: string; paneWidth?: number; selectedId?: string; onOpen?: (id: string) => void }) {
   const router = useRouter();
   const colors = useColors();
   const workspaces = useAppState((s) => s.workspaces);
   const agents = useAppState((s) => s.agents);
   const git = useAppState((s) => s.git);
   const conn = useAppState((s) => s.conn);
-  const loaded = useAppState((s) => s.loaded);
   const [refreshing, setRefreshing] = useState(false);
   const prefs = useSortPrefs();
   const [reordering, setReordering] = useState(false);
@@ -54,7 +53,13 @@ export function WorkspacesView({ query }: { query: string }) {
     setRefreshing(false);
   }, [topIds]);
 
-  const open = useCallback((id: string) => router.push({ pathname: "/workspace/[id]", params: { id } }), [router]);
+  const open = useCallback((id: string) => {
+    if (onOpen) {
+      Keyboard.dismiss();
+      onOpen(id);
+    }
+    else router.push({ pathname: "/workspace/[id]", params: { id } });
+  }, [onOpen, router]);
   const more = useCallback(
     (project: Project) => {
       const id = project.workspace.id;
@@ -77,18 +82,20 @@ export function WorkspacesView({ query }: { query: string }) {
       keyExtractor={(project) => project.workspace.id}
       contentInsetAdjustmentBehavior="automatic"
       keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps={onOpen ? "handled" : undefined}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={colors.textMuted} colors={[colors.accent]} progressBackgroundColor={colors.surface} />}
-      extraData={reordering && movable}
+      extraData={{ selectedId, reordering: reordering && movable }}
       ListHeaderComponent={
         <View>
-          <SortBar sort={sort} onChange={changeSort} reordering={reordering && movable} onToggleReorder={movable ? () => setReordering((on) => !on) : undefined} />
+          <SortBar paneWidth={paneWidth} sort={sort} onChange={changeSort} reordering={reordering && movable} onToggleReorder={movable ? () => setReordering((on) => !on) : undefined} />
           <AddRow onPress={() => router.push("/add-workspace")} />
         </View>
       }
-      ListEmptyComponent={<Empty loaded={loaded} syncing={conn === "connecting"} searching={query.length > 0} onAdd={() => router.push("/add-workspace")} />}
+      ListEmptyComponent={<Empty offline={conn !== "online" && workspaces.length === 0} searching={query.trim().length > 0} />}
       renderItem={({ item, index }) => (
         <ProjectRow
           project={item}
+          selected={onOpen ? selectedId === item.workspace.id : undefined}
           git={git[item.workspace.id]}
           onPress={open}
           onLongPress={more}
@@ -120,13 +127,13 @@ const SORT_OPTIONS: { value: ProjectSort; label: string }[] = [
   { value: "manual", label: "Manual" },
 ];
 
-function SortBar({ sort, onChange, reordering, onToggleReorder }: { sort: ProjectSort; onChange: (sort: ProjectSort) => void; reordering: boolean; onToggleReorder?: () => void }) {
+function SortBar({ paneWidth, sort, onChange, reordering, onToggleReorder }: { paneWidth?: number; sort: ProjectSort; onChange: (sort: ProjectSort) => void; reordering: boolean; onToggleReorder?: () => void }) {
   return (
     <View>
       <Text variant="caption" color="textSubtle" style={styles.sortCaption}>
         {sort === "activity" ? "Sort by most recent session" : sort === "name" ? "Sort by name" : "Your own order"}
       </Text>
-      <Segmented options={SORT_OPTIONS} value={sort} onChange={onChange} />
+      <Segmented paneWidth={paneWidth} options={SORT_OPTIONS} value={sort} onChange={onChange} />
       {onToggleReorder && (
         <View style={styles.reorderBar}>
           <Text variant="caption" color="textSubtle" style={{ flex: 1 }}>{reordering ? "Use the arrows to move a project." : "Long-press a project to move it."}</Text>
@@ -152,7 +159,7 @@ function AddRow({ onPress }: { onPress: () => void }) {
 
 type Reorder = { active: boolean; first: boolean; last: boolean; onMove: (id: string, direction: "up" | "down") => void };
 
-const ProjectRow = memo(function ProjectRow({ project, git, onPress, onLongPress, reorder }: { project: Project; git: GitSummary | undefined; onPress: (id: string) => void; onLongPress: (project: Project) => void; reorder?: Reorder }) {
+const ProjectRow = memo(function ProjectRow({ project, selected, git, onPress, onLongPress, reorder }: { project: Project; selected?: boolean; git: GitSummary | undefined; onPress: (id: string) => void; onLongPress: (project: Project) => void; reorder?: Reorder }) {
   const colors = useColors();
   const { workspace } = project;
   const gitLine = git === undefined ? null : git.repoRoot === null ? "Not a git repository" : `${git.current ?? "detached"}${git.uncommitted > 0 ? ` · ${git.uncommitted} uncommitted` : ""}`;
@@ -160,14 +167,15 @@ const ProjectRow = memo(function ProjectRow({ project, git, onPress, onLongPress
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={selected === undefined ? undefined : { selected }}
       accessibilityLabel={`${workspace.name}, ${project.active} sessions`}
       accessibilityActions={reorder ? MOVE_ACTIONS.filter((action) => (action.name === "moveUp" ? !reorder.first : !reorder.last)) : undefined}
       onAccessibilityAction={(event) => reorder?.onMove(workspace.id, event.nativeEvent.actionName === "moveUp" ? "up" : "down")}
       onPress={() => onPress(workspace.id)}
       onLongPress={() => onLongPress(project)}
-      style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.pressed : "transparent", borderBottomColor: colors.separator }]}
+      style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.pressed : selected ? colors.selected : "transparent", borderBottomColor: colors.separator }]}
     >
-      <ProjectIcon name={workspace.name} />
+      <ProjectIcon strong={selected} />
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="title" color="textStrong" numberOfLines={1}>{workspace.name}</Text>
         <Text variant="secondary" color="textMuted" numberOfLines={1}>{shortPath(workspace.dir)}</Text>
@@ -203,30 +211,21 @@ function MoveButton({ icon, label, disabled, onPress }: { icon: "chevron.up" | "
   );
 }
 
-function Empty({ loaded, syncing, searching, onAdd }: { loaded: boolean; syncing: boolean; searching: boolean; onAdd: () => void }) {
-  if (!loaded && syncing) {
-    return (
-      <View style={styles.empty}>
-        <ActivityIndicator />
-        <Text variant="secondary" color="textMuted">Loading workspaces…</Text>
-      </View>
-    );
-  }
+function Empty({ offline, searching }: { offline: boolean; searching: boolean }) {
   return (
     <View style={styles.empty}>
-      <Text variant="title" color="textStrong">{searching ? "No matching workspaces" : "No workspaces yet"}</Text>
-      {!searching && <Text variant="secondary" color="textMuted" style={{ textAlign: "center" }}>A workspace is a project folder on your Mac. Add one to start sessions in it.</Text>}
-      {!searching && <Button title="Add workspace" kind="primary" onPress={onAdd} />}
+      <Text variant="title" color="textStrong">{offline ? "No saved workspaces" : searching ? "No matching workspaces" : "No workspaces yet"}</Text>
+      {!offline && !searching && <Text variant="secondary" color="textMuted" style={{ textAlign: "center" }}>A workspace is a project folder on your Mac. Add one to start sessions in it.</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   add: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 64, marginHorizontal: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 76, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   trail: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: MIN_TOUCH },
   sortCaption: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   reorderBar: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg },
-  moveButton: { width: MIN_TOUCH, height: MIN_TOUCH - 4, alignItems: "center", justifyContent: "center", borderRadius: radius.md, marginLeft: spacing.xs },
+  moveButton: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: "center", justifyContent: "center", borderRadius: radius.md, marginLeft: spacing.xs },
   empty: { alignItems: "center", justifyContent: "center", gap: spacing.lg, padding: spacing.xl, paddingTop: 80 },
 });

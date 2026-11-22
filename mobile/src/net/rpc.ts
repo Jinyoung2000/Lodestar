@@ -1,14 +1,15 @@
-import type { MobileBrowseResult, MobileMethod, MobileReady, MobileWorktreeRequest } from "@shared/mobile";
+import type { MobileBrowseResult, MobileMethod, MobilePreview, MobileReady, MobileWorktreeRequest } from "@shared/mobile";
 import type { Agent, ImageRef, RpcMethods, ServerEvent } from "@shared/protocol";
 import { reconnectDelay } from "../logic/backoff";
 
-export type Endpoint = { hosts: string[]; port: number; token: string };
+export type Endpoint = { hosts: string[]; port: number; secure?: boolean; token: string };
 export type ConnStatus = "idle" | "connecting" | "online" | "offline" | "unauthorized";
 
 export type { MobileMethod };
 
 type MobileOnly = {
   "agents.create": { params: { workspaceId: string | null; prompt: string; images?: ImageRef[]; worktree?: MobileWorktreeRequest }; result: Agent };
+  "mobile.preview": { params: { agentId: string; itemId: string; target: string }; result: MobilePreview };
   "mobile.browse": { params: { path?: string }; result: MobileBrowseResult };
 };
 type MobileRpc = { [M in MobileMethod]: M extends keyof MobileOnly ? MobileOnly[M] : M extends keyof RpcMethods ? RpcMethods[M] : never };
@@ -91,6 +92,7 @@ export class RpcClient {
     this.attempt = 0;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+    this.setStatus("connecting");
     if (this.candidates.length === 0) this.open();
   }
 
@@ -173,7 +175,9 @@ export class RpcClient {
   private candidate(generation: number, host: string, endpoint: Endpoint) {
     let socket: SocketLike;
     try {
-      socket = this.makeSocket(`ws://${host.includes(":") ? `[${host}]` : host}:${endpoint.port}/mobile/ws`);
+      const authority = host.includes(":") ? `[${host}]` : host;
+      const port = endpoint.secure && endpoint.port === 443 ? "" : `:${endpoint.port}`;
+      socket = this.makeSocket(`${endpoint.secure ? "wss" : "ws"}://${authority}${port}/mobile/ws`);
     } catch {
       this.afterCandidateClosed(generation);
       return;
@@ -216,7 +220,7 @@ export class RpcClient {
       this.opts.log?.(`[rpc] socket closed ${host} code=${event.code}`);
       this.candidates = this.candidates.filter((c) => c !== socket);
       if (generation !== this.generation) return;
-      if (event.code === 4401) {
+      if (event.code === 4401 || event.code === 4001) {
         this.teardown();
         this.wanted = false;
         this.setStatus("unauthorized");

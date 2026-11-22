@@ -1,8 +1,8 @@
-export type UploadTarget = { host: string; port: number; token: string };
+export type UploadTarget = { host: string; port: number; secure?: boolean; token: string };
 export type UploadResult = { id: string };
 
 export function uploadUrl(target: UploadTarget) {
-  return `http://${target.host}:${target.port}/mobile/images`;
+  return `${target.secure ? "https" : "http"}://${target.host}:${target.port}/mobile/images`;
 }
 
 export function uploadHeaders(target: UploadTarget, name: string, mime: string): Record<string, string> {

@@ -10,6 +10,9 @@ import { SortPrefsStore, type SortPrefs } from "./sortPrefs";
 import { AppStore, type State } from "./store";
 import { markEnd, markStart, record } from "./perf";
 
+import { clearSessionViews } from "./sessionView";
+import { alertsEnabled, startAlerts, stopAlerts } from "./activity";
+
 markStart("launch-list");
 
 export const client = new RpcClient({
@@ -25,6 +28,7 @@ let bootstrapped = false;
 const connectionListeners = new Set<() => void>();
 const setConnection = (next: Connection | null) => {
   connection = next;
+  if (next && alertsEnabled() && AppState.currentState === "active") void startAlerts(next).catch(() => {});
   for (const listener of connectionListeners) listener();
 };
 
@@ -36,7 +40,7 @@ export function bootstrap(): Promise<void> {
     if (saved) {
       setConnection(saved);
       markStart("launch-sync");
-      client.configure({ hosts: saved.hosts, port: saved.port, token: saved.token });
+      client.configure(saved);
     }
     bootstrapped = true;
     for (const listener of connectionListeners) listener();
@@ -48,6 +52,7 @@ let offlineSince: number | null = null;
 let foregroundAt: number | null = null;
 client.onStatus((status) => {
   console.log(`[conn] ${status}${client.host ? ` via ${client.host}` : ""}`);
+  if (status === "unauthorized") stopAlerts();
   if (status === "offline" && offlineSince === null) offlineSince = Date.now();
   if (status === "online") {
     markEnd("launch-sync", "connected");
@@ -59,6 +64,7 @@ client.onStatus((status) => {
 
 AppState.addEventListener("change", (next) => {
   if (next !== "active") return;
+  if (connection && alertsEnabled()) void startAlerts(connection).catch(() => {});
   foregroundAt = Date.now();
   if (client.status === "online") {
     const started = Date.now();
@@ -70,10 +76,12 @@ AppState.addEventListener("change", (next) => {
 export async function pairAndConnect(info: PairingInfo, deviceName: string): Promise<PairOutcome> {
   const outcome = await pairWithHost(info, deviceName);
   if (!outcome.ok) return outcome;
+  clearSessionViews();
   await store.reset();
   const saved: Connection = {
     hosts: [outcome.host, ...info.hosts.filter((h) => h !== outcome.host)],
     port: info.port,
+    secure: info.secure,
     token: outcome.result.deviceToken,
     deviceId: outcome.result.deviceId,
     hostName: outcome.result.host,
@@ -83,12 +91,14 @@ export async function pairAndConnect(info: PairingInfo, deviceName: string): Pro
   setConnection(saved);
   store.attach(client);
   markStart("launch-sync");
-  client.configure({ hosts: saved.hosts, port: saved.port, token: saved.token });
+  client.configure(saved);
   return outcome;
 }
 
 export async function unpair() {
+  stopAlerts();
   client.configure(null);
+  clearSessionViews();
   await store.reset();
   await clearConnection();
   setConnection(null);
@@ -100,7 +110,7 @@ export async function updateHosts(hosts: string[], port: number) {
   const next = { ...connection, hosts, port };
   await saveConnection(next);
   setConnection(next);
-  client.configure({ hosts, port, token: next.token });
+  client.configure(next);
 }
 
 export function useAppState<T>(selector: (state: State) => T): T {

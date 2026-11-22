@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import type { Cache } from "./store";
 
-export type Connection = { hosts: string[]; port: number; token: string; deviceId: string; hostName: string; pairedAt: string };
+export type Connection = { hosts: string[]; port: number; secure?: boolean; token: string; deviceId: string; hostName: string; pairedAt: string };
 
 const TOKEN_KEY = "lodestar.token";
 const META_KEY = "lodestar.connection";

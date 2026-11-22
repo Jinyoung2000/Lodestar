@@ -128,7 +128,7 @@ export default function NewSession() {
                   autoCorrect={false}
                   spellCheck={false}
                   placeholder="feature/my-change"
-                  placeholderTextColor={colors.textSubtle}
+                  placeholderTextColor={colors.textMuted}
                   style={[styles.input, { color: colors.textStrong, borderColor: problem ? colors.danger : colors.border, backgroundColor: colors.background }]}
                 />
                 {problem ? <Text variant="secondary" color="danger">{problem}</Text> : <Text variant="caption" color="textSubtle">Creates {worktreePreview(info.repoRoot, branch)}</Text>}

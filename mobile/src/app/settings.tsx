@@ -1,17 +1,29 @@
+import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
 import { isLocalNetworkHost } from "../logic/pairing";
+import { activitySupported, alertsEnabled, enableAlerts, stopAlerts } from "../state/activity";
 import { durationLabel } from "../logic/time";
 import { allMetrics, subscribeMetrics, type Metric } from "../state/perf";
 import { client, store, unpair, updateHosts, useAppState, useConnection } from "../state/app";
+import { setThemeChoice, useThemeChoice, type ThemeChoice } from "../state/themePrefs";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Button } from "../ui/Button";
+import { KeyboardSpacer } from "../ui/KeyboardSpacer";
+import { Segmented, type SegmentedOption } from "../ui/Segmented";
 import { Text } from "../ui/Text";
+
+const themeOptions: SegmentedOption<ThemeChoice>[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
 
 export default function Settings() {
   const router = useRouter();
   const colors = useColors();
+  const theme = useThemeChoice() ?? "system";
   const { connection } = useConnection();
   const conn = useAppState((s) => s.conn);
   const hostName = useAppState((s) => s.hostName);
@@ -23,6 +35,46 @@ export default function Settings() {
     const off = subscribeMetrics(() => setMetrics([...allMetrics()]));
     return () => void off();
   }, []);
+
+  const [alerts, setAlerts] = useState(alertsEnabled);
+  const [changingAlerts, setChangingAlerts] = useState(false);
+  const toggleAlerts = async (enabled: boolean) => {
+    if (!connection || changingAlerts) return;
+    setChangingAlerts(true);
+    try {
+      if (enabled) await enableAlerts(connection);
+      else stopAlerts();
+    } catch (error) {
+      Alert.alert("Session alerts", error instanceof Error ? error.message : String(error), [
+        { text: "Close", style: "cancel" },
+        { text: "Android settings", onPress: () => void Linking.openSettings() },
+      ]);
+    } finally {
+      setAlerts(alertsEnabled());
+      setChangingAlerts(false);
+    }
+  };
+
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const checkUpdate = async () => {
+    setCheckingUpdate(true);
+    try {
+      if (!Updates.isEnabled) throw new Error("Install a release build to receive updates.");
+      if (!(await Updates.checkForUpdateAsync()).isAvailable) {
+        Alert.alert("Up to date", "This device has the latest compatible update.");
+        return;
+      }
+      await Updates.fetchUpdateAsync();
+      Alert.alert("Update ready", "Restart Lodestar to use the update.", [
+        { text: "Later", style: "cancel" },
+        { text: "Restart", onPress: () => void Updates.reloadAsync().catch(() => Alert.alert("Close and reopen Lodestar to update.")) },
+      ]);
+    } catch (error) {
+      Alert.alert("Could not check for updates", error instanceof Error ? error.message : String(error));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   const measure = async () => {
     const started = Date.now();
@@ -71,8 +123,22 @@ export default function Settings() {
   };
 
   const statusText = conn === "online" ? `Connected${client.host ? ` via ${client.host}` : ""}` : conn === "unauthorized" ? "Removed from your Mac" : conn === "idle" ? "Not connected" : "Reconnecting…";
-  return (
+  return <>
     <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
+      <Section title="Appearance">
+        <Text variant="bodyStrong">Theme</Text>
+        <Segmented flush options={themeOptions} value={theme} onChange={setThemeChoice} />
+        {theme === "system" && <Text variant="caption" color="textMuted">Follows your phone's setting.</Text>}
+      </Section>
+      {activitySupported && connection && <Section title="Notifications">
+        <View style={[styles.row, { alignItems: "center" }]}>
+          <View style={{ flex: 1, gap: spacing.xs }}>
+            <Text variant="bodyStrong">Session alerts</Text>
+            <Text variant="secondary" color="textMuted">See running sessions and get notified when your Mac needs a reply or finishes a turn.</Text>
+          </View>
+          <Switch accessibilityLabel="Session alerts" value={alerts} disabled={changingAlerts} trackColor={{ false: colors.border, true: colors.accent }} onValueChange={(value) => void toggleAlerts(value)} />
+        </View>
+      </Section>}
       <Section title="Connection">
         <Row label="Mac" value={hostName ?? connection?.hostName ?? "-"} />
         <Row label="Status" value={statusText} valueColor={conn === "online" ? "success" : conn === "unauthorized" ? "danger" : "warning"} />
@@ -89,6 +155,7 @@ export default function Settings() {
           <View style={{ gap: spacing.sm }}>
             <Text variant="caption" color="textSubtle">Use this when your Mac's address changed. Write the address, a space, then the port. Separate several addresses with commas.</Text>
             <TextInput
+              disableFullscreenUI
               value={addressDraft}
               onChangeText={setAddressDraft}
               autoFocus
@@ -104,6 +171,10 @@ export default function Settings() {
             </View>
           </View>
         )}
+      </Section>
+      <Section title="App updates">
+        <Row label="Runtime" value={Updates.runtimeVersion ?? "Development"} />
+        <Button title="Check for update" busy={checkingUpdate} onPress={() => void checkUpdate()} />
       </Section>
       <Section title="Diagnostics">
         <Text variant="caption" color="textSubtle">Times measured in this app session. A development build is slower than a release build.</Text>
@@ -122,7 +193,8 @@ export default function Settings() {
         <Text color="accentText">Done</Text>
       </Pressable>
     </ScrollView>
-  );
+    {Platform.OS === "android" && <KeyboardSpacer />}
+  </>;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

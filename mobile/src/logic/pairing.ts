@@ -1,7 +1,7 @@
 
 export const DEFAULT_PORT = 7789;
 
-export type PairingInfo = { hosts: string[]; port: number; code: string; name: string | null };
+export type PairingInfo = { secure?: boolean; hosts: string[]; port: number; code: string; name: string | null };
 
 const HOST_RE = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/;
 const CODE_RE = /^[A-HJ-NP-Z2-9]{8}$/;
@@ -54,11 +54,14 @@ function parseManual(text: string): PairingInfo | null {
   const match = /^([^\s#]+)[\s#]+([A-Za-z0-9-]{8,9})$/.exec(text);
   if (!match) return null;
   const [, address, rawCode] = match;
-  const [host, portText] = address.split(":");
-  const port = portText === undefined ? DEFAULT_PORT : Number(portText);
+  const secureAddress = /^https:\/\/([a-z0-9.-]+\.ts\.net)(?::(\d+))?\/?$/i.exec(address);
+  const parts = secureAddress ? secureAddress.slice(1) : address.split(":");
+  if (parts.length > 2) return null;
+  const [host, portText] = parts;
+  const port = portText === undefined ? (secureAddress ? 443 : DEFAULT_PORT) : Number(portText);
   const code = normalizeCode(rawCode);
   if (!HOST_RE.test(host) || !isLocalNetworkHost(host) || !validPort(port) || !CODE_RE.test(code)) return null;
-  return { hosts: [host], port, code, name: null };
+  return { hosts: [host], port, code, name: null, ...(secureAddress && { secure: true }) };
 }
 
 export function parseFields(addressText: string, codeText: string): PairingInfo | null {

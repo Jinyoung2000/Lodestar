@@ -7,7 +7,7 @@ import { dirname } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import { buildManualPairing, buildPairingUri, MOBILE_EVENT_TYPES, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileReady, type PairingOffer } from "../shared/mobile";
 import { MAX_IMAGE_BYTES, MAX_IMAGES } from "../shared/images";
-import type { ServerEvent } from "../shared/protocol";
+import type { Agent, ServerEvent } from "../shared/protocol";
 import { resolveAddable, resolveFolder } from "./mobileFolders";
 import { T } from "./strings";
 
@@ -260,6 +260,8 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
     }
     case "agents.markRead":
       return { agentId: idOf(p.agentId, "agentId"), read: p.read !== false };
+    case "mobile.preview":
+      return { agentId: idOf(p.agentId, "agentId"), itemId: idOf(p.itemId, "itemId"), target: textOf(p.target, "target", 2048) };
     case "mobile.browse": {
       const folder = resolveFolder(p.path, browseRoot);
       return { dir: folder.dir, display: folder.display };
@@ -320,10 +322,26 @@ const KEEPALIVE_MS = 15_000;
 const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 const MAX_FRAME_BYTES = 1024 * 1024;
 
+function activityAgent({ id, title, status, done }: Agent) {
+  return { id, title, status, done };
+}
+
+function activityEvent(event: ServerEvent) {
+  if (event.type === "agent") return { type: event.type, agent: activityAgent(event.agent) };
+  if (event.type === "agentRemoved") return event;
+  if (event.type === "timelineUpsert" && event.item.kind === "permission" && event.item.status === "pending") {
+    const entries = event.item.input.questions;
+    const question = Array.isArray(entries) && entries[0]?.question;
+    if (typeof question === "string") return { type: event.type, agentId: event.agentId, item: { kind: "permission", status: "pending", input: { questions: [{ question: question.slice(0, 400) }] } } };
+  }
+  return null;
+}
+
 export class MobileServer {
   private http: Server | null = null;
   private wss: WebSocketServer | null = null;
   private sockets = new Map<WebSocket, string>();
+  private activitySockets = new WeakSet<WebSocket>();
   private unauthenticated = 0;
   private alive = new WeakSet<WebSocket>();
   private keepalive: NodeJS.Timeout | null = null;
@@ -437,7 +455,7 @@ export class MobileServer {
       return;
     }
     this.flush();
-    this.send(JSON.stringify({ event: shaped }));
+    this.send(shaped);
   }
 
   private flush() {
@@ -445,11 +463,24 @@ export class MobileServer {
     this.flushTimer = null;
     const events = [...this.pending.values()];
     this.pending.clear();
-    for (const event of events) this.send(JSON.stringify({ event }));
+    for (const event of events) this.send(event);
   }
 
-  private send(text: string) {
-    for (const ws of this.sockets.keys()) this.sendTo(ws, text);
+  private send(event: ServerEvent) {
+    let full: string | undefined;
+    let summary: string | null | undefined;
+    for (const ws of this.sockets.keys()) {
+      if (this.activitySockets.has(ws)) {
+        if (summary === undefined) {
+          const activity = activityEvent(event);
+          summary = activity ? JSON.stringify({ event: activity }) : null;
+        }
+        if (summary) this.sendTo(ws, summary);
+      } else {
+        full ??= JSON.stringify({ event });
+        this.sendTo(ws, full);
+      }
+    }
   }
 
   private sendTo(ws: WebSocket, text: string) {
@@ -519,6 +550,7 @@ export class MobileServer {
         clearTimeout(timer);
         settle();
         this.sockets.set(ws, device.id);
+        if (message.feed === "activity") this.activitySockets.add(ws);
         this.alive.add(ws);
         this.deps.devices.touch(device.id);
         const ready: MobileReady = { protocol: MOBILE_PROTOCOL, host: this.deps.hostName, serverTime: Date.now() };
@@ -529,7 +561,10 @@ export class MobileServer {
       try {
         const method = typeof message.method === "string" ? message.method : "";
         const params = guardMobileCall(method, message.params);
-        this.sendTo(ws, JSON.stringify({ id, result: await this.deps.call(method, params, ws) }));
+        const activity = this.activitySockets.has(ws);
+        if (activity && method !== "agents.list" && method !== "mobile.ping") throw new Error(T.errMobileMethod(method));
+        const result = await this.deps.call(method, params, ws);
+        this.sendTo(ws, JSON.stringify({ id, result: activity && method === "agents.list" && Array.isArray(result) ? result.map(activityAgent) : result }));
       } catch (error) {
         this.sendTo(ws, JSON.stringify({ id, error: error instanceof Error ? error.message : String(error) }));
       }

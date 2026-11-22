@@ -1,22 +1,20 @@
-import { StyleSheet, View } from "react-native";
-import { radius, withAlpha } from "../theme/theme";
-import { Text } from "./Text";
+import { Image } from "react-native";
+import { useColors } from "../theme/theme";
 
-const HUES = ["#4C8DF6", "#8E6CF0", "#E0668C", "#E0883A", "#3DA877", "#2FA3B8"];
+const marks = {
+  folder: require("../../assets/project-marks/folder.png"),
+  worktree: require("../../assets/project-marks/worktree.png"),
+  pinned: require("../../assets/project-marks/pinned.png"),
+  archive: require("../../assets/project-marks/archive.png"),
+  chats: require("../../assets/project-marks/chats.png"),
+  claude: require("../../assets/project-marks/claude.png"),
+  codex: require("../../assets/project-marks/codex.png"),
+};
 
-export function projectHue(name: string): string {
-  let hash = 0;
-  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
-  return HUES[Math.abs(hash) % HUES.length];
+export type ProjectMark = "folder" | "worktree" | "pinned" | "archive" | "chats";
+
+export function ProjectIcon({ mark = "folder", size = 18, strong = false }: { mark?: keyof typeof marks; size?: number; strong?: boolean }) {
+  const colors = useColors();
+  return <Image accessible={false} importantForAccessibility="no" source={marks[mark]} resizeMode="contain"
+    style={{ width: size, height: size, tintColor: strong ? colors.textStrong : colors.textMuted }} />;
 }
-
-export function ProjectIcon({ name, size = 36 }: { name: string; size?: number }) {
-  const hue = projectHue(name);
-  return (
-    <View style={[styles.box, { width: size, height: size, backgroundColor: withAlpha(hue, 0.18), borderColor: withAlpha(hue, 0.4) }]}>
-      <Text variant="bodyStrong" style={{ color: hue, fontSize: size * 0.45, lineHeight: size * 0.6 }}>{name.trim().charAt(0).toUpperCase() || "?"}</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({ box: { alignItems: "center", justifyContent: "center", borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth } });

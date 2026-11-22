@@ -27,6 +27,7 @@ import { mediaKey, mentionedMedia, resolveMediaBatch, type MediaContext } from "
 import { handleMedia } from "./mediaHttp";
 import { handleUpload } from "./fileAttach";
 import { lanHosts, makeOffer, MobileDevices, MobileServer, PairingCodes } from "./mobileAccess";
+import { mobilePreview } from "./mobilePreview";
 import { listFolder } from "./mobileFolders";
 import { pageOfTimeline } from "../shared/mobile";
 import { resolveReadable, terminalDir } from "./files";
@@ -561,6 +562,11 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
     const agent = store.agent(agentId);
     if (agent.feedbackId) throw new Error(`Unknown agent: ${agentId}`);
     return pageOfTimeline(store.timeline(agent.id), limit, beforeId);
+  },
+  "mobile.preview": ({ agentId, itemId, target }: { agentId: string; itemId: string; target: string }) => {
+    const agent = phoneAgent(agentId);
+    const item = store.timeline(agentId).find((entry) => entry.id === itemId);
+    return mobilePreview(agent.workspaceId ? agent.worktree?.root ?? phoneWorkspace(agent.workspaceId).dir : null, item, target);
   },
   "mobile.browse": ({ dir, display }: { dir: string; display: string }) =>
     listFolder({ dir, display }, new Map(store.workspaces.filter((w) => !w.feedback && !w.parentId).map((w) => [w.dir, w.id]))),

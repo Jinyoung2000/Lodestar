@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lodestar Mobile Design</title>
+<style>
+:root{
+  --bg:#ffffff;--surface:#ffffff;--surfaceBase:#f8f8f8;--overlay:#ffffff;--pressed:#f0f0f0;--selected:#e4e6f1;--separator:#e5e5e5;--border:#cecece;
+  --textStrong:#1f1f1f;--text:#3b3b3b;--textMuted:#616161;--textSubtle:#6f6f6f;--accent:#005fb8;--onAccent:#ffffff;--accentText:#005fb8;
+  --running:#005fb8;--success:#1a7f37;--warning:#9a6700;--danger:#cf222e;--unread:#005fb8;--userBubble:rgba(173,214,255,.3);--input:#ffffff;--inputBorder:#d8d8d8;
+  --page:#eef0f3;--frame:#d5d8dd;--kb:#e3e5ea;--key:#ffffff;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#181818;--surface:#1f1f1f;--surfaceBase:#181818;--overlay:#2a2a2a;--pressed:#2a2d2e;--selected:#37373d;--separator:#2b2b2b;--border:#3c3c3c;
+  --textStrong:#e7e7e7;--text:#cccccc;--textMuted:#9d9d9d;--textSubtle:#858585;--accent:#0078d4;--onAccent:#ffffff;--accentText:#4daafc;
+  --running:#3794ff;--success:#3fb950;--warning:#cca700;--danger:#f85149;--unread:#4daafc;--userBubble:rgba(38,79,120,.3);--input:#313131;--inputBorder:#303031;
+  --page:#0f0f10;--frame:#2c2c2e;--kb:#232325;--key:#3a3a3d;color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#181818;--surface:#1f1f1f;--surfaceBase:#181818;--overlay:#2a2a2a;--pressed:#2a2d2e;--selected:#37373d;--separator:#2b2b2b;--border:#3c3c3c;
+  --textStrong:#e7e7e7;--text:#cccccc;--textMuted:#9d9d9d;--textSubtle:#858585;--accent:#0078d4;--onAccent:#ffffff;--accentText:#4daafc;
+  --running:#3794ff;--success:#3fb950;--warning:#cca700;--danger:#f85149;--unread:#4daafc;--userBubble:rgba(38,79,120,.3);--input:#313131;--inputBorder:#303031;
+  --page:#0f0f10;--frame:#2c2c2e;--kb:#232325;--key:#3a3a3d;color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--page);color:var(--text);font:14px/1.45 Roboto,"Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit;background:none;border:0}
+button{cursor:pointer;text-align:left}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accentText);outline-offset:2px}
+svg.i{width:22px;height:22px;fill:currentColor;flex:none}
+.wrap{max-width:1080px;margin:0 auto;padding:16px 16px 48px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:32px;align-items:start}
+@media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr);justify-items:center;gap:20px}}
+.controls{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;width:100%}
+.seg{display:flex;flex-wrap:wrap;padding:2px;border:1px solid var(--separator);border-radius:10px;background:var(--overlay)}
+.seg button{min-height:36px;padding:0 10px;border-radius:8px;color:var(--textMuted);font-weight:600;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--selected);color:var(--textStrong)}
+.phone{--fs:1;--w:360px;--h:780px;width:calc(var(--w) + 16px);max-width:100%;height:calc(var(--h) + 16px);border-radius:28px;border:8px solid var(--frame);background:var(--bg);overflow:hidden;position:relative;display:flex;flex-direction:column;font-size:calc(16px*var(--fs));line-height:1.5}
+.status{height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:12px;color:var(--textStrong);flex:none}
+.screen{flex:1;min-height:0;display:flex;flex-direction:column;position:relative;container:screen/size}
+.kb{flex:none;height:250px;background:var(--kb);padding:10px 6px;display:grid;grid-template-rows:repeat(4,1fr);gap:8px}
+.kb div{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:5px}
+.kb span{background:var(--key);border-radius:6px}
+.appbar{min-height:56px;display:flex;align-items:center;padding:4px;flex:none}
+.appbar h1{font-size:min(1.25em,26px);line-height:1.3;font-weight:600;color:var(--textStrong);flex:1;padding-left:12px}
+.iconbtn{width:48px;height:48px;display:grid;place-items:center;border-radius:24px;color:var(--textStrong);flex:none}
+.iconbtn:active{background:var(--pressed)}
+.appbar .t{flex:1;min-width:0;padding:0 4px}
+.appbar .t b{display:block;font-size:min(1.0625em,22px);line-height:1.4;font-weight:600;color:var(--textStrong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.appbar .t span{font-size:min(.75em,16px);line-height:1.35;color:var(--textMuted);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs{margin:4px 16px 4px;display:flex;padding:2px;border:1px solid var(--separator);border-radius:10px;background:var(--overlay);flex:none}
+.tabs button{flex:1 1 auto;min-width:0;min-height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:600;font-size:min(.875em,18px);color:var(--textMuted);padding:0 4px}
+.tabs button span.lb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs button[aria-selected="true"]{background:var(--selected);color:var(--textStrong)}
+.n{font-size:12px;line-height:18px;font-variant-numeric:tabular-nums;color:var(--textSubtle);font-weight:600}
+.n.pill{flex:none;background:var(--warning);color:var(--bg);min-width:18px;height:18px;border-radius:9px;padding:0 5px;text-align:center}
+.scroll{flex:1 1 0;min-height:40px;overflow-y:auto;position:relative}
+.gh{display:flex;align-items:center;min-height:48px;padding:4px 4px 0 16px;position:sticky;top:0;background:var(--bg);z-index:1}
+.gh .tog{flex:1;min-width:0;display:flex;align-items:center;gap:12px;min-height:44px}
+.gh .lane{width:20px;display:grid;place-items:center;color:var(--textSubtle);flex:none}
+.gh .lane svg{width:18px;height:18px}
+.gh .nm{min-width:0;font-size:min(.875em,18px);line-height:1.43;font-weight:600;color:var(--textStrong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gh .iconbtn{color:var(--textMuted)}
+.row{display:grid;grid-template-columns:20px minmax(0,1fr);column-gap:12px;width:100%;min-height:56px;padding:10px 16px;border-bottom:1px solid var(--separator);align-items:start}
+.row.one{align-items:center}
+.row:active{background:var(--pressed)}
+.lead{height:1.5em;display:grid;place-items:center}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.halo{width:16px;height:16px;border-radius:50%;display:grid;place-items:center}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid color-mix(in srgb,var(--running) 25%,transparent);border-top-color:var(--running);animation:r 1s linear infinite}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+@keyframes r{to{transform:rotate(360deg)}}
+.l1{display:flex;gap:8px;align-items:baseline}
+.title{flex:1;min-width:0;font-size:1em;line-height:1.5;font-weight:500;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.title.em{font-weight:700;color:var(--textStrong)}
+.title.done{color:var(--textMuted)}
+.time{font-size:min(.75em,16px);color:var(--textSubtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+.time.u{color:var(--unread);font-weight:600}
+.l2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:min(.875em,18px);line-height:1.43;color:var(--textMuted);overflow:hidden;overflow-wrap:anywhere}
+.l2 b{font-weight:600}
+.snip{font-size:.875em;line-height:1.43;color:var(--text);margin:2px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.snip code,.code{font-family:"Roboto Mono",ui-monospace,Menlo,monospace;font-size:.8125em}
+.pinic{width:14px;height:14px;color:var(--textSubtle);fill:currentColor;flex:none;align-self:center}
+.fab{position:absolute;right:16px;bottom:16px;min-height:56px;padding:0 20px 0 16px;border-radius:16px;background:var(--accent);color:var(--onAccent);display:flex;align-items:center;gap:8px;font-weight:600;font-size:min(1em,20px);box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:72px 32px;text-align:center;color:var(--textMuted);font-size:.875em}
+.empty b{font-size:1.2em;color:var(--textStrong)}
+.empty svg{width:28px;height:28px;color:var(--textSubtle);margin-bottom:4px}
+.chat{padding:16px}
+.msg{color:var(--text);margin-bottom:12px;overflow-wrap:anywhere}
+.bubble{margin:0 0 12px auto;max-width:85%;width:fit-content;background:var(--userBubble);border-radius:16px;padding:10px 14px;color:var(--textStrong);overflow-wrap:anywhere}
+.bubble small{display:block;font-size:.75em;line-height:1.35;color:var(--textMuted);margin-bottom:2px}
+.bubble small+b{font-weight:500}
+.atts{border:1px solid var(--separator);border-radius:14px;overflow:hidden;margin-bottom:12px;background:var(--surface)}
+.att{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:8px 8px 8px 8px}
+.att+.att,.att+.more,.more{border-top:1px solid var(--separator)}
+.att:active,.more:active,.card:active{background:var(--pressed)}
+.att .tx{flex:1;min-width:0}
+.att .tx b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font-size:.9375em;line-height:1.4;font-weight:600;color:var(--textStrong)}
+.att .tx span{display:block;font-size:.75em;line-height:1.35;color:var(--textMuted)}
+.att svg.i,.more svg.i{width:18px;height:18px;color:var(--textSubtle);margin-right:4px}
+.more{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:48px;padding:0 8px 0 16px;color:var(--accentText);font-weight:600;font-size:.875em}
+.thumb{position:relative;overflow:hidden;background:var(--surfaceBase);flex:none;display:block;pointer-events:none}
+.thumb.sq{width:48px;height:48px;border-radius:8px;border:1px solid var(--separator)}
+.thumb .sc{position:absolute;left:0;top:0;width:320px;transform-origin:0 0;display:block}
+.thumb svg.art{position:absolute;inset:0;width:100%;height:100%}
+.pg{background:#fff;color:#1f1f1f;font:14px/1.45 Roboto,system-ui,sans-serif;text-align:left}
+.pg.html{background:#eef5f1;color:#17362c;padding:20px;min-height:240px}
+.pg.html h2{font-size:24px;line-height:1.2;margin-bottom:6px}
+.pg.html p{margin-bottom:12px}
+.pg.html label,.pg.html .lbl{display:flex;gap:10px;align-items:center;min-height:44px;border-top:1px solid #cfe0d7}
+.pg.html input{width:18px;height:18px;accent-color:#17362c}
+.pg.html .ck{width:18px;height:18px;border:2px solid #17362c;border-radius:3px;flex:none}
+.pg.html .ck.on{background:#17362c}
+.pg.html button,.pg.html .cta{margin-top:12px;width:100%;min-height:44px;border-radius:10px;background:#17362c;color:#fff;text-align:center;font-weight:600;display:grid;place-items:center}
+.pg.html button:disabled,.pg.html .cta.off{opacity:.4}
+.pg.md{padding:16px}
+.pg.md h2{font-size:22px;margin-bottom:8px}
+.pg.md p,.pg.md ul{margin-bottom:10px}
+.pg.md ul{padding-left:20px}
+.pg.md pre{background:#f3f3f3;border-radius:6px;padding:10px;font:12px/1.5 ui-monospace,Menlo,monospace;overflow-x:auto}
+.pg.csv table{border-collapse:collapse;width:100%;font-size:13px}
+.pg.csv th,.pg.csv td{padding:10px 12px;border-bottom:1px solid #e5e5e5;text-align:left;white-space:nowrap}
+.pg.csv th{background:#f3f3f3;font-weight:600;position:sticky;top:0}
+.pg.csv td.num,.pg.csv th.num{text-align:right;font-variant-numeric:tabular-nums}
+.lib{padding:8px 16px 24px}
+.libhead{display:flex;align-items:center;min-height:48px;gap:8px}
+.libhead b{flex:1;font-size:.875em;color:var(--textStrong);font-weight:600}
+.link{color:var(--accentText);font-weight:600;font-size:.875em;min-height:48px;padding:0 8px;margin-right:-8px}
+.chips{display:flex;gap:8px;overflow-x:auto;margin:0 -16px 12px;padding:0 16px;scrollbar-width:none}
+.chips button{flex:none;min-height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--border);font-size:.8125em;font-weight:600;color:var(--textMuted);white-space:nowrap}
+.chips button[aria-pressed="true"]{background:var(--selected);border-color:transparent;color:var(--textStrong)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.grid.c1{grid-template-columns:minmax(0,1fr)}
+.card{border:1px solid var(--separator);border-radius:14px;overflow:hidden;background:var(--surface);display:block;width:100%}
+.card .thumb{width:100%;aspect-ratio:4/3;border-bottom:1px solid var(--separator)}
+.grid.c1 .card .thumb{aspect-ratio:16/9}
+.card .meta{display:block;padding:8px 12px 10px}
+.card .meta b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font-size:min(.875em,18px);line-height:1.43;font-weight:600;color:var(--textStrong)}
+.card .meta span{display:block;font-size:min(.75em,16px);line-height:1.35;color:var(--textMuted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.composer{flex:none;border-top:1px solid var(--separator);padding:8px 4px 8px;background:var(--bg)}
+.crun{display:flex;justify-content:space-between;align-items:center;padding:0 12px 8px}
+.mini{display:flex;padding:2px;border:1px solid var(--separator);border-radius:10px}
+.mini span{min-height:36px;min-width:64px;display:grid;place-items:center;border-radius:8px;font-size:.875em;color:var(--textMuted);padding:0 10px}
+.mini span.on{background:var(--selected);color:var(--textStrong)}
+.stop{min-height:36px;padding:0 12px;border-radius:10px;background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger);font-weight:600;font-size:.875em;display:flex;align-items:center;gap:4px}
+.stop svg{width:16px;height:16px;fill:currentColor}
+.cin{display:flex;align-items:flex-end}
+.field{flex:1;min-width:0;min-height:48px;border-radius:24px;border:1px solid var(--inputBorder);background:var(--input);padding:0 16px;color:var(--textStrong);font-size:min(1em,20px)}
+.field::placeholder{color:var(--textSubtle)}
+.send{width:40px;height:40px;margin:4px;border-radius:20px;background:var(--overlay);color:var(--textSubtle);display:grid;place-items:center;flex:none}
+.dock{flex:0 1 auto;min-height:0;display:flex;flex-direction:column;max-height:62%;background:var(--surface);border-top:1px solid var(--border);border-radius:16px 16px 0 0;box-shadow:0 -2px 10px rgba(0,0,0,.08)}
+.kbon .dock{max-height:none}
+.kbon .strip{display:none}
+.dockhead{display:flex;align-items:center;gap:8px;width:100%;min-height:48px;padding:0 4px 0 16px;flex:none}
+.dockhead .k{flex:1;min-width:0;font-size:min(.75em,16px);line-height:1.35;font-weight:600;color:var(--accentText);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dockhead .k.warn{color:var(--warning)}
+.dockhead .q1{flex:1;min-width:0;font-size:min(.9375em,20px);font-weight:600;color:var(--textStrong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dockhead .cv{width:48px;height:48px;display:grid;place-items:center;color:var(--textMuted)}
+.dockbody{overflow-y:auto;min-height:0;padding:0 16px 12px}
+.dockbody h3{font-size:min(1.0625em,22px);line-height:1.4;font-weight:600;color:var(--textStrong);overflow-wrap:anywhere;margin-bottom:4px}
+.dockbody .hint{font-size:min(.75em,16px);color:var(--textMuted);margin-bottom:8px}
+.opts{display:grid;gap:8px;margin-top:10px}
+.opt{display:grid;grid-template-columns:20px minmax(0,1fr);column-gap:12px;align-items:start;width:100%;min-height:48px;border:1px solid var(--border);border-radius:10px;padding:11px 12px}
+.opt[aria-checked="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 .5px var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.mark{width:20px;height:20px;margin-top:calc((1.375em - 20px)/2);border:2px solid var(--textSubtle);border-radius:50%;display:grid;place-items:center}
+.mark.box{border-radius:4px}
+.opt[aria-checked="true"] .mark{border-color:var(--accent)}
+.opt[aria-checked="true"] .mark:not(.box)::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.opt[aria-checked="true"] .mark.box{background:var(--accent)}
+.opt[aria-checked="true"] .mark.box::after{content:"";width:10px;height:5px;border:2px solid var(--onAccent);border-top:0;border-right:0;transform:rotate(-45deg) translateY(-1px)}
+.opt b{display:block;font-size:min(1em,20px);line-height:1.375;font-weight:500;color:var(--textStrong);overflow-wrap:anywhere}
+.opt span.d{display:block;font-size:min(.875em,18px);line-height:1.43;color:var(--textMuted);overflow-wrap:anywhere}
+.cmd{background:var(--surfaceBase);border:1px solid var(--separator);border-radius:8px;padding:10px 12px;color:var(--textStrong);overflow-x:auto;white-space:pre;margin-top:8px}
+.dockfoot{flex:none;padding:8px 16px 12px;border-top:1px solid var(--separator);display:grid;gap:8px}
+.acts{display:flex;gap:8px}
+.btn{flex:1;min-width:0;min-height:48px;border-radius:10px;font-weight:600;border:1px solid var(--border);color:var(--textStrong);text-align:center;padding:0 8px;font-size:min(1em,20px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn.p{flex:2;background:var(--accent);color:var(--onAccent);border-color:transparent}
+.btn.p:disabled{opacity:.4;cursor:default}
+.viewer{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;z-index:5}
+.vbar{min-height:56px;display:flex;align-items:center;padding:4px;border-bottom:1px solid var(--separator);flex:none}
+.vbody{flex:1;min-height:0;overflow:auto;background:var(--surfaceBase);position:relative}
+.vbody .pg{min-height:100%}
+.vbody svg.art{position:absolute;inset:0;width:100%;height:100%}
+.strip{flex:none;display:flex;gap:8px;overflow-x:auto;padding:8px 16px;border-top:1px solid var(--separator);background:var(--bg);scrollbar-width:none}
+.strip button{flex:none;padding:2px;border-radius:10px;border:2px solid transparent}
+.strip button[aria-current="true"]{border-color:var(--accent)}
+.strip .thumb.sq{width:44px;height:44px;border-radius:6px}
+@container screen (max-width:379px){
+  .tabs{margin:4px 12px}
+  .tabs button{gap:4px;padding:0 2px;font-size:min(.875em,16px)}
+}
+@container screen (max-height:479px){
+  .tabs.st{display:none}
+  .dockbody h3{font-size:min(1.0625em,20px);line-height:1.3}
+  .dockfoot{padding:8px 16px}
+}
+.wrap.wide{grid-template-columns:minmax(0,1fr);overflow-x:auto}
+.wrap.wide .phone{max-width:none}
+.panes{flex:1;min-height:0;display:flex}
+.pane{display:flex;flex-direction:column;position:relative;min-width:0;min-height:0;container:screen/size}
+.pane.list{flex:none;border-right:1px solid var(--separator)}
+.pane.detail{flex:1}
+.pane.detail .chat,.pane.detail .composer .cin,.pane.detail .lib{max-width:720px;margin-inline:auto;width:100%}
+.row[aria-current="true"]{background:var(--selected)}
+.empty .btn{flex:none;padding:0 16px;margin-top:8px}
+.menu{position:absolute;right:8px;top:52px;z-index:4;min-width:200px;background:var(--overlay);border:1px solid var(--separator);border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.16);overflow:hidden}
+.menu button{display:flex;align-items:center;width:100%;min-height:48px;padding:0 16px;color:var(--textStrong);font-size:min(1em,20px)}
+.menu button:active{background:var(--pressed)}
+@container screen (min-width:600px){.grid:not(.c1){grid-template-columns:repeat(3,minmax(0,1fr))}}
+.notes{max-width:60ch;width:100%}
+.notes h2{font-size:20px;color:var(--textStrong);line-height:1.25;margin-bottom:4px}
+.notes p{color:var(--textMuted);margin-bottom:12px}
+.notes ul{padding-left:18px;display:grid;gap:6px}
+.notes code{font:12px ui-monospace,Menlo,monospace;background:color-mix(in srgb,var(--textSubtle) 16%,transparent);padding:1px 4px;border-radius:4px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="settings" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></symbol>
+    <symbol id="edit" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></symbol>
+    <symbol id="search" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
+    <symbol id="chev" viewBox="0 0 24 24"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
+    <symbol id="down" viewBox="0 0 24 24"><path d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z"/></symbol>
+    <symbol id="upc" viewBox="0 0 24 24"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.59L18 14z"/></symbol>
+    <symbol id="back" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></symbol>
+    <symbol id="more" viewBox="0 0 24 24"><path d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm12 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></symbol>
+    <symbol id="pin" viewBox="0 0 24 24"><path d="M16 9V4h1a1 1 0 0 0 0-2H7a1 1 0 0 0 0 2h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><path d="M16.59 7.58 10 14.17l-3.59-3.58L5 12l5 5 8-8zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></symbol>
+    <symbol id="add" viewBox="0 0 24 24"><path d="M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></symbol>
+    <symbol id="plus" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+    <symbol id="close" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+    <symbol id="stop" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></symbol>
+    <symbol id="expand" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></symbol>
+    <symbol id="collapse" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></symbol>
+    <symbol id="up" viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/></symbol>
+  </defs>
+</svg>
+
+<main class="wrap">
+  <div class="controls" id="controls"></div>
+  <div class="phone" id="phone"></div>
+  <section class="notes" id="notes" aria-label="Spec for this screen"></section>
+</main>
+
+<script>
+const ic=(id,cls="i")=>`<svg class="${cls}" aria-hidden="true"><use href="#${id}"/></svg>`;
+const LONG="Rework the Android preview library so thumbnails, long file names and 200% font scale all stay aligned on a 320dp cover screen";
+const sessions=[
+  {id:1,title:"Review mobile previews",ws:"Mobile studio",state:"waiting",t:"now",ask:"Question",snip:"Which preview should we keep?"},
+  {id:2,title:"Fix pairing retry on resume",ws:"Lodestar",state:"running",t:"2m",queued:2},
+  {id:3,title:"Split server/index.ts handlers",ws:"Lodestar",state:"unread",t:"14m",harness:"Codex"},
+  {id:4,title:"Release notes for 0.3.3",ws:"Lodestar",state:"idle",t:"1h",pinned:true},
+  {id:5,title:"Migrate tokens to OKLCH",ws:"Design system",state:"waiting",t:"8m",ask:"Approval",snip:"Run <code>npm run lint:tokens -- --fix</code>"},
+  {id:6,title:"Audit icon contrast",ws:"Design system",state:"error",t:"3h"},
+  {id:7,title:"Archive old worktrees",ws:"Lodestar",state:"idle",t:"2d",done:true},
+];
+const questions=[
+  {header:"Release",q:"Which preview should we keep?",longQ:"Which preview should we keep for the 0.3.3 release notes, given that the wide layout still clips the session title at 200% font scale?",multi:false,opts:[["Phone layout","Keep the compact layout."],["Wide layout","Use the expanded layout.","Use the expanded two-pane layout on tablets and unfolded devices, and fall back to the compact layout below 600dp."],["Both","Ship both and pick by width."]]},
+  {header:"Checks",q:"Which checks should run before upload?",multi:true,opts:[["Typecheck",""],["Token lint",""],["Mobile tests","Runs the tsx scripts in mobile/."]]},
+];
+const shot=`<rect width="320" height="240" fill="#181818"/><rect x="16" y="16" width="120" height="14" rx="4" fill="#e7e7e7"/><rect x="16" y="44" width="288" height="28" rx="8" fill="#2a2a2a"/><rect x="18" y="46" width="94" height="24" rx="6" fill="#37373d"/>${[0,1,2,3].map(i=>`<circle cx="24" cy="${100+i*36}" r="4" fill="${["#cca700","#3794ff","#4daafc","#858585"][i]}"/><rect x="40" y="${94+i*36}" width="${[170,200,150,180][i]}" height="10" rx="3" fill="#cccccc"/><rect x="40" y="${109+i*36}" width="${[110,90,120,70][i]}" height="7" rx="3" fill="#6b6b6b"/>`).join("")}<rect x="232" y="196" width="72" height="32" rx="10" fill="#0078d4"/>`;
+const mark=`<rect width="320" height="240" fill="#f3f3f3"/><rect x="100" y="60" width="120" height="120" rx="28" fill="#1f1f1f"/><path transform="translate(100 60) scale(.1172)" d="M512 212 Q544 480 812 512 Q544 544 512 812 Q480 544 212 512 Q480 480 512 212 Z" fill="#4daafc"/>`;
+const previews=[
+  {kind:"html",label:"Interactive HTML",title:"Release review",t:"now"},
+  {kind:"image",label:"Image",title:"Sessions screen, dark",long:"android-020-session-previews-compact-width-large-font.png",t:"1m",art:shot},
+  {kind:"svg",label:"Vector graphic",title:"App mark",t:"1m",art:mark},
+  {kind:"markdown",label:"Markdown",title:"Preview notes",t:"2m"},
+  {kind:"csv",label:"Spreadsheet",title:"Fixture metrics",t:"2m"},
+];
+const filters=[["all","All"],["html","HTML"],["image","Images"],["doc","Documents"],["csv","Tables"]];
+const inFilter=(p,f)=>f==="all"||(f==="image"?p.kind==="image"||p.kind==="svg":f==="doc"?p.kind==="markdown":p.kind===f);
+const HEIGHTS={320:640,360:780,412:892,600:900,673:841,768:900,841:673};
+let two=false;
+const listW=()=>state.w>=840?360:state.w>=720||state.fs>=1.3?320:280;
+const state={screen:"home",tab:"sessions",sid:1,stab:"chat",collapsed:{},step:0,picks:[[],[]],other:["",""],dockClosed:false,answered:false,approval:null,kb:false,long:false,fs:1,w:360,theme:"system",viewer:0,full:false,menu:false,filter:"all",html:[true,false,false]};
+const phone=document.getElementById("phone");
+const live=()=>sessions.map(s=>s.id===1&&state.answered?{...s,state:"running",ask:null}:s.id===5&&state.approval?{...s,state:"running",ask:null}:s);
+const ttl=s=>state.long&&s.id===1?LONG:s.title;
+const pt=p=>state.long&&p.long?p.long:p.title;
+
+function page(p,full){
+  if(p.kind==="html"){const n=state.html.filter(Boolean).length,cta=n===3?"Ready to upload":`${n} of 3 checked`;return`<div class="pg html"><h2>Release review</h2><p>Check each layout before the upload.</p>${["Cover screen","Unfolded screen","Dark theme"].map((l,i)=>full?`<label><input type="checkbox" data-html="${i}" ${state.html[i]?"checked":""}>${l}</label>`:`<span class="lbl"><span class="ck ${state.html[i]?"on":""}"></span>${l}</span>`).join("")}${full?`<button ${n===3?"":"disabled"}>${cta}</button>`:`<span class="cta ${n===3?"":"off"}">${cta}</span>`}</div>`}
+  if(p.kind==="markdown")return`<div class="pg md"><h2>Preview notes</h2><p>The viewer opens the latest preview first and keeps the others one tap away in the strip.</p><ul><li>HTML runs sandboxed, scripts on</li><li>Images zoom to 4x</li><li>Tables keep the header row pinned</li></ul><pre>npm run typecheck\nnpm test</pre></div>`;
+  if(p.kind==="csv")return`<div class="pg csv"><table><tr><th>Screen</th><th class="num">Cold start</th><th class="num">Frames</th><th>Result</th></tr>${[["Sessions","412 ms","59.8","Pass"],["Waiting","398 ms","60.0","Pass"],["Conversation","640 ms","57.2","Pass"],["Previews","705 ms","54.9","Check"],["Viewer","530 ms","58.6","Pass"],["Settings","301 ms","60.0","Pass"],["Connect","288 ms","60.0","Pass"]].map(r=>`<tr><td>${r[0]}</td><td class="num">${r[1]}</td><td class="num">${r[2]}</td><td>${r[3]}</td></tr>`).join("")}</table></div>`;
+  return`<svg class="art" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid ${full?"meet":"slice"}" role="img" aria-label="${p.title}">${p.art}</svg>`;
+}
+const thumb=(p,cls="")=>`<span class="thumb ${cls}" aria-hidden="true">${p.art?page(p,false):`<span class="sc">${page(p,false)}</span>`}</span>`;
+function lead(s){
+  if(s==="running")return`<span class="spin"></span>`;
+  if(s==="waiting"||s==="error"){const c=s==="waiting"?"var(--warning)":"var(--danger)";return`<span class="halo" style="background:color-mix(in srgb,${c} 22%,transparent)"><span class="dot" style="background:${c}"></span></span>`}
+  if(s==="unread")return`<span class="dot" style="background:var(--unread)"></span>`;
+  return"";
+}
+const cur=a=>two&&state.screen!=="home"&&state.sid===a.id?` aria-current="true"`:"";
+const label={waiting:["Needs your reply","warning"],error:["Stopped with an error","danger"],running:["Working","accentText"]};
+function row(a,showWs){
+  const st=label[a.state];
+  const ctx=[showWs?a.ws:null,a.harness,a.queued?`${a.queued} queued`:null].filter(Boolean).join(" · ");
+  const em=a.state==="waiting"||a.state==="unread";
+  const l2=st||ctx;
+  return`<button class="row ${l2?"":"one"}" data-open="${a.id}"${cur(a)} aria-label="${[a.title,st?st[0]:a.state==="unread"?"Unread":null,ctx,a.t].filter(Boolean).join(", ")}">
+    <span class="lead">${lead(a.state)}</span>
+    <span><span class="l1"><span class="title ${em?"em":""} ${a.done?"done":""}">${ttl(a)}</span>${a.pinned?ic("pin","pinic"):""}<span class="time ${a.state==="unread"?"u":""}">${a.t}</span></span>
+    ${l2?`<span class="l2">${st?`<b style="color:var(--${st[1]})">${st[0]}</b>${ctx?" · ":""}`:""}${ctx}</span>`:""}</span></button>`;
+}
+function waitRow(a){
+  return`<button class="row" data-open="${a.id}"${cur(a)} aria-label="${a.title}, ${a.ask}, ${a.ws}, ${a.t}">
+    <span class="lead">${lead("waiting")}</span>
+    <span><span class="l1"><span class="title em">${ttl(a)}</span><span class="time">${a.t}</span></span>
+    <span class="snip">${a.id===1&&state.long?questions[0].longQ:a.snip}</span>
+    <span class="l2"><b style="color:var(--warning)">${a.ask}</b> · ${a.ws}${a.id===1?" · 2 questions":""}</span></span></button>`;
+}
+function home(){
+  const all=live(),waiting=all.filter(s=>s.state==="waiting");
+  let body="";
+  if(state.tab==="workspaces"){
+    body=["Lodestar","Mobile studio","Design system"].map(w=>`<button class="row" aria-label="${w}"><span class="lead"></span><span><span class="l1"><span class="title">${w}</span></span><span class="l2">${all.filter(s=>s.ws===w).length} sessions</span></span></button>`).join("");
+  }else if(state.tab==="waiting"){
+    body=waiting.length?waiting.map(waitRow).join("")+`<div style="height:${two?24:88}px"></div>`:`<div class="empty">${ic("check")}<b>No replies needed</b><span>Questions and approvals from your sessions show up here.</span></div>`;
+  }else{
+    for(const g of ["Pinned","Mobile studio","Lodestar","Design system","Done"]){
+      const items=all.filter(s=>g==="Pinned"?s.pinned:g==="Done"?s.done:s.ws===g&&!s.pinned&&!s.done);
+      if(!items.length)continue;
+      const ws=!["Pinned","Done"].includes(g),shut=state.collapsed[g];
+      body+=`<div class="gh"><button class="tog" data-group="${g}" aria-expanded="${!shut}"><span class="lane">${ic(shut?"chev":"down")}</span><span class="nm">${g}</span><span class="n">${items.length}</span></button>${ws?`<button class="iconbtn" aria-label="New session in ${g}">${ic("plus")}</button>`:""}</div>`+(shut?"":items.map(a=>row(a,!ws)).join(""));
+    }
+    body+=`<div style="height:${two?24:88}px"></div>`;
+  }
+  const tab=(v,l,n)=>`<button role="tab" data-tab="${v}" aria-selected="${state.tab===v}" aria-label="${n?`${l}, ${n}`:l}"><span class="lb">${l}</span>${n?`<span class="n pill">${n}</span>`:""}</button>`;
+  return`<div class="appbar"><h1>Lodestar</h1><button class="iconbtn" aria-label="Search sessions">${ic("search")}</button>${two?`<button class="iconbtn" aria-label="New session">${ic("edit")}</button>`:""}<button class="iconbtn" aria-label="Settings">${ic("settings")}</button></div>
+  <div class="tabs" role="tablist">${tab("sessions","Sessions")}${tab("waiting","Waiting",waiting.length)}${tab("workspaces","Workspaces")}</div>
+  <div class="scroll">${body}</div>
+  ${state.tab!=="workspaces"&&!two?`<button class="fab" aria-label="New session">${ic("edit")}New</button>`:""}`;
+}
+function dock(a){
+  if(a.id===5){
+    return`<section class="dock" aria-label="Approval"><div class="dockhead"><span class="k warn">Approval · Bash</span></div>
+    <div class="dockbody"><h3>Run this command?</h3><div class="cmd code">npm run lint:tokens -- --fix</div></div>
+    <div class="dockfoot"><div class="acts"><button class="btn" data-approve="denied">Deny</button><button class="btn p" data-approve="allowed">Allow</button></div></div></section>`;
+  }
+  const i=state.step,q=questions[i],last=i===questions.length-1;
+  const text=state.long&&q.longQ?q.longQ:q.q;
+  if(state.dockClosed)return`<section class="dock"><button class="dockhead" data-dock aria-expanded="false" aria-label="Show question"><span class="q1">${text}</span><span class="cv">${ic("upc")}</span></button></section>`;
+  const ready=state.picks[i].length>0||state.other[i].trim()!=="";
+  return`<section class="dock" role="group" aria-label="Question ${i+1} of ${questions.length}: ${q.q}">
+  <button class="dockhead" data-dock aria-expanded="true" aria-label="Hide question"><span class="k">Question ${i+1} of ${questions.length} · ${q.header}</span><span class="cv">${ic("down")}</span></button>
+  <div class="dockbody"><h3>${text}</h3>${q.multi?`<div class="hint">Choose any that apply</div>`:""}
+  <div class="opts" role="${q.multi?"group":"radiogroup"}">${q.opts.map((o,k)=>`<button class="opt" role="${q.multi?"checkbox":"radio"}" data-pick="${k}" aria-checked="${state.picks[i].includes(k)}"><span class="mark ${q.multi?"box":""}"></span><span><b>${o[0]}</b>${o[1]?`<span class="d">${state.long&&o[2]?o[2]:o[1]}</span>`:""}</span></button>`).join("")}</div></div>
+  <div class="dockfoot"><input class="field" id="other" value="${state.other[i]}" placeholder="${q.multi?"Add your own answer":"Or type your own answer"}" aria-label="Your own answer">
+  <div class="acts"><button class="btn" data-step="${i?"back":"skip"}">${i?"Back":"Skip"}</button><button class="btn p" id="go" data-step="next" ${ready?"":"disabled"}>${last?"Send answer":"Next"}</button></div></div></section>`;
+}
+function composer(a){
+  return`<div class="composer">${a.state==="running"?`<div class="crun"><span class="mini"><span class="on">Queue</span><span>Steer</span></span><button class="stop">${ic("stop","")}Stop</button></div>`:""}
+  <div class="cin"><button class="iconbtn" aria-label="Attach">${ic("add")}</button><input class="field" id="msg" placeholder="Message" aria-label="Message"><button class="send" aria-label="Send">${ic("up")}</button></div></div>`;
+}
+function attRow(p,i){return`<button class="att" data-view="${i}" aria-label="Open ${pt(p)}, ${p.label}">${thumb(p,"sq")}<span class="tx"><b>${pt(p)}</b><span>${p.label}</span></span>${ic("chev")}</button>`}
+function session(){
+  const a=live().find(s=>s.id===state.sid),st=label[a.state],pending=a.state==="waiting";
+  const head=`<div class="appbar">${two?"":`<button class="iconbtn" data-home aria-label="Back">${ic("back")}</button>`}
+  <div class="t"${two?` style="padding-left:12px"`:""}><b>${ttl(a)}</b><span>${st?`<span class="dot" style="background:var(--${st[1]})"></span>${st[0]} · `:""}${a.ws}</span></div>
+  <button class="iconbtn" ${two?"data-menu":""} aria-label="Session actions">${ic("more")}</button></div>${two&&state.menu?`<div class="menu" role="menu"><button role="menuitem">Rename</button><button role="menuitem">Pin</button><button role="menuitem" data-home>Close conversation</button></div>`:""}
+  <div class="tabs st" role="tablist"><button role="tab" data-stab="chat" aria-selected="${state.stab==="chat"}"><span class="lb">Conversation</span></button><button role="tab" data-stab="previews" aria-selected="${state.stab==="previews"}" aria-label="Previews, ${previews.length}"><span class="lb">Previews</span><span class="n">${previews.length}</span></button></div>`;
+  if(state.stab==="previews"){
+    const list=previews.map((p,i)=>[p,i]).filter(([p])=>inFilter(p,state.filter));
+    const one=state.fs>=1.3||state.w<340||list.length===1;
+    return head+`<div class="scroll"><div class="lib"><div class="libhead"><b>${list.length} ${list.length===1?"preview":"previews"}</b><button class="link">New preview</button></div>
+    <div class="chips" role="group" aria-label="Filter previews">${filters.map(f=>`<button data-filter="${f[0]}" aria-pressed="${state.filter===f[0]}">${f[1]}</button>`).join("")}</div>
+    <div class="grid ${one?"c1":""}">${list.map(([p,i])=>`<button class="card" data-view="${i}" aria-label="Open ${pt(p)}, ${p.label}">${thumb(p)}<span class="meta"><b>${pt(p)}</b><span>${p.label} · ${p.t}</span></span></button>`).join("")}</div></div></div>`;
+  }
+  const answered=a.id===1&&state.answered?questions.map((q,i)=>{const ans=[...q.opts.filter((o,k)=>state.picks[i].includes(k)).map(o=>o[0]),state.other[i].trim()].filter(Boolean).join(", ");return`<div class="bubble"><small>${q.q}</small><b>${ans||"Skipped"}</b></div>`}).join(""):"";
+  const body=a.id===1?`<div class="bubble">Review the mobile previews before release</div>
+    <p class="msg">The release build is ready. I attached the review page, a capture of the dark sessions screen and the app mark.</p>
+    <div class="atts">${previews.slice(0,3).map(attRow).join("")}<button class="more" data-stab="previews">Show all ${previews.length} previews${ic("chev")}</button></div>${answered}`
+    :a.id===5?`<div class="bubble">Convert the color tokens to OKLCH and fix what the lint finds</div><p class="msg">The tokens are converted. The token lint reports 4 spacing values it can fix on its own.</p>${state.approval?`<div class="bubble"><small>Run npm run lint:tokens -- --fix</small><b>${state.approval==="allowed"?"Allowed":"Denied"}</b></div>`:""}`
+    :`<div class="bubble">${a.title}</div><p class="msg">Reading the affected files now. I will post the change as a diff once the checks pass.</p>`;
+  return head+`<div class="scroll"><div class="chat">${body}</div></div>${pending?dock(a):composer(a)}`;
+}
+const emptyDetail=()=>`<div class="scroll"><div class="empty">${ic("edit")}<b>No session selected</b><span>Choose a session from the list, or start a new one.</span><button class="btn">New session</button></div></div>`;
+const viewer=()=>session()+overlay();
+function overlay(){
+  const p=previews[state.viewer];
+  return`<div class="viewer" role="dialog" aria-label="${p.title}"><div class="vbar"><button class="iconbtn" data-close aria-label="Close preview">${ic("close")}</button><div class="appbar" style="flex:1;min-width:0;min-height:0;padding:0"><div class="t"><b>${pt(p)}</b><span>${p.label} · ${state.viewer+1} of ${previews.length}</span></div></div>${two?`<button class="iconbtn" data-full aria-label="${state.full?"Exit full screen":"Full screen"}">${ic(state.full?"collapse":"expand")}</button>`:""}<button class="iconbtn" aria-label="Preview actions">${ic("more")}</button></div>
+  <div class="vbody">${page(p,true)}</div>
+  <div class="strip" role="tablist" aria-label="Previews">${previews.map((x,i)=>`<button role="tab" data-view="${i}" aria-current="${i===state.viewer}" aria-label="${x.title}">${thumb(x,"sq")}</button>`).join("")}</div></div>`;
+}
+const specs={
+  home:["Sessions","Every row sits on one grid: 16dp gutter, 20dp status lane, 12dp gap, text from x=48.",["App bar 56dp: title at x=16, then Search and Settings (48dp targets, <code>textStrong</code> icons).","Tabs size to their labels and share the leftover width equally. Label 14/20, capped at 18; under 380dp wide: 12dp side margin, 4dp gap, 2dp padding, cap 16.","Group header 48dp: chevron in the status lane toggles collapse; trailing + starts a session in that workspace.","Row min 56dp, padding 10/16. Title 16/24, up to 2 lines. Second line only when there is a state, harness or queue.","Workspace name is not repeated under its own header; it shows in Pinned and Done.","Unread: 8dp dot, 700 title, accent time. Waiting: warning halo. Error: danger halo. Running: 14dp spinner.","New: extended FAB 56dp, radius 16, 16dp from the edges."]],
+  waiting:["Waiting","A triage inbox: read the question here, tap to answer in the session.",["Tab count is a filled pill: <code>warning</code> background, <code>background</code> text, 18dp high, min 18dp wide, never stretches, hidden at 0.","Row: title (700, 2 lines), the question or command (14/20, 2 lines, <code>text</code>), then kind · workspace · question count.","Commands render in monospace inside the snippet.","Tap opens the session with the dock expanded.","Empty: check icon 28dp, title 19, body 14, centered with 72dp top padding."]],
+  question:["Pending question","The question docks above the keyboard and replaces the composer until it is answered or skipped.",["Dock max height 62% of the area between status bar and keyboard. With the keyboard open it takes what is left under the app bar and tabs, always leaving 40dp of conversation.","When that area is under 480dp high (320x640 with the keyboard), the Conversation and Previews tabs hide, the question is 20/26 and the footer padding is 8.","Text caps under large fonts: head 16, question 22, option 20, description 18, field 20, buttons 20.","Head 48dp: Question n of m · header (12/16, 600, <code>accentText</code>); tap to collapse to a one-line bar.","One question per step. Body scrolls; question 17/24 600, wraps freely.","Option min 48dp, radius 10, padding 11/12, 20dp mark, 12dp gap. Selected: accent border and 10% accent fill.","Footer is fixed: own-answer field 48dp, then Skip or Back (flex 1) and Next or Send answer (flex 2), both 48dp.","Typing an own answer clears a single-choice pick; with multi-choice it is added to the picks.","After sending, the answers appear as right-aligned bubbles: question 12/16 muted, answer 16/24."]],
+  chat:["Conversation","User content on the right, agent content full width, files as one grouped list.",["App bar title is left-aligned; second line is state dot + state + workspace.","User bubble max 85%, radius 16, padding 10/14.","Attachments: one bordered group (radius 14), rows 64dp with a 48dp live thumbnail, title up to 2 lines.","More than 3 files in a message: show 3 and a 48dp Show all n previews row that opens the Previews tab.","Composer: 48dp field, radius 24; Queue/Steer and Stop appear only while the session is working."]],
+  previews:["Previews library","Each card shows the file itself, not an icon.",["Header 48dp: count on the left, New preview on the right.","Filter chips 36dp, shown when there are 6 or more previews or more than 2 kinds.","Grid: 2 columns, 12dp gap, 16dp gutter. Cover 4:3. Title 14/20 600 up to 2 lines (cap 18), then kind · age 12/16 on one line (cap 16).","One column with 16:9 covers when font scale is 1.3 or more, width is under 340dp, or there is a single file.","Covers render the content at 320dp wide and scale it down; images and vectors fill with cover fit.","A cover is a picture of the file: nothing inside it is focusable or pressable, so the card stays one button."]],
+  fold:["Two panes (Fold, tablets, wide windows)","From 600dp of window width (640dp at 130% text and up) the list stays on the left and the selected session opens on the right. The spec of each screen below still applies inside its pane.",["List width: 280dp from 600, 320dp from 720 or at 130% text and up, 360dp from 840. It includes a 1dp <code>separator</code> border. The detail gets the rest and is never under 320dp.","Widths are the window's, so split screen and pop-up view fall back to one pane under 600dp.","List pane: same app bar, tabs, groups and rows. New session moves from the FAB to a 48dp app bar button. The selected row has the <code>selected</code> fill.","Detail pane: the session screen without Back. Tabs, composer and dock stay inside the pane. Width rules (compact tabs under 380dp, one-column library under 340dp) read the pane width.","Nothing selected: No session selected, one line of help and a New session button. No auto-select.","Switching swaps the detail at once. Draft, question step and picks, tab and scroll are kept per session.","Close conversation is the last item of the session menu. System back exits viewer full screen, closes the viewer, then leaves the app.","The viewer opens inside the detail pane; Full screen expands it over both panes.","Keyboard spans the window and both panes shrink. In 841 landscape the detail falls under 480dp high, so the compact dock rules apply.","No hinge handling: the inner display is continuous, the divider is not aligned to the fold.","Touch targets stay 48dp, rows 56dp, gutter 16dp, text from x=48 in both panes."]],
+  viewer:["Full preview","Full-screen, content first, other previews one tap away.",["Top bar 56dp: Close, title 17/24 one line, kind · n of m, overflow.","Body uses the whole width. HTML is interactive; try the checkboxes.","Image and vector: contain fit on <code>surfaceBase</code>, pinch to 4x, double tap toggles 2x.","Table: header row pinned, cells 10/12, numbers right-aligned, horizontal scroll.","Strip 64dp: 44dp thumbnails, current one has a 2dp accent ring. Hidden with a single preview and while the keyboard is open."]],
+};
+function controls(){
+  const cur=state.screen==="viewer"?"viewer":state.screen==="home"?(state.tab==="waiting"?"waiting":"home"):state.stab==="previews"?"previews":live().find(s=>s.id===state.sid).state==="waiting"?"question":"chat";
+  const seg=(name,items,val)=>`<div class="seg" role="group" aria-label="${name}">${items.map(([v,l])=>`<button data-c="${name}" data-v="${v}" aria-pressed="${String(v)===String(val)}">${l}</button>`).join("")}</div>`;
+  document.getElementById("controls").innerHTML=seg("screen",[["home","Sessions"],["waiting","Waiting"],["question","Question"],["chat","Conversation"],["previews","Previews"],["viewer","Viewer"]],cur)+seg("theme",[["system","System"],["light","Light"],["dark","Dark"]],state.theme)+seg("fs",[[1,"Text 100%"],[1.3,"130%"],[1.6,"160%"]],state.fs)+seg("w",[[320,"320dp"],[360,"360dp"],[412,"412dp"],[600,"600dp"],[673,"673dp"],[768,"768dp"],[841,"841 landscape"]],state.w)+seg("kb",[[0,"Keyboard off"],[1,"On"]],state.kb?1:0)+seg("long",[[0,"Short content"],[1,"Long"]],state.long?1:0);
+  const note=s=>`<h2>${s[0]}</h2><p>${s[1]}</p><ul>${s[2].map(x=>`<li>${x}</li>`).join("")}</ul>`;
+  document.getElementById("notes").innerHTML=(two?note(specs.fold)+`<div style="height:24px"></div>`:"")+note(specs[cur]);
+}
+function render(){
+  phone.style.setProperty("--fs",state.fs);phone.style.setProperty("--w",state.w+"px");phone.style.setProperty("--h",HEIGHTS[state.w]+"px");
+  two=state.w>=(state.fs>=1.3?640:600);
+  document.querySelector(".wrap").classList.toggle("wide",state.w>=600);
+  if(!two){state.full=false;state.menu=false}
+  const detail=state.screen==="home"?emptyDetail():session()+(state.screen==="viewer"&&!state.full?overlay():"");
+  const body=two?`<div class="panes"><div class="pane list" style="width:${listW()}px">${home()}</div><div class="pane detail">${detail}</div></div>${state.screen==="viewer"&&state.full?overlay():""}`:{home,session,viewer}[state.screen]();
+  phone.innerHTML=`<div class="status"><span>9:41</span><span>5G</span></div><div class="screen ${state.kb?"kbon":""}">${body}</div>${state.kb?`<div class="kb" aria-hidden="true">${[10,9,7,5].map(n=>`<div>${"<span></span>".repeat(n)}</div>`).join("")}</div>`:""}`;
+  phone.querySelectorAll(".thumb .sc").forEach(el=>{el.style.transform=`scale(${el.parentElement.clientWidth/320})`});
+  controls();
+}
+phone.addEventListener("click",e=>{
+  const t=e.target.closest("[data-tab],[data-open],[data-home],[data-stab],[data-group],[data-pick],[data-step],[data-dock],[data-approve],[data-view],[data-close],[data-filter],[data-html],[data-menu],[data-full],.field");
+  if(!t)return;
+  const d=t.dataset,i=state.step,hadMenu=state.menu;
+  state.menu="menu" in d&&!hadMenu;
+  if("full" in d)state.full=!state.full;
+  if(t.classList.contains("field")){if(!state.kb){const id=t.id;state.kb=true;render();document.getElementById(id)?.focus()}return}
+  if(d.html!==undefined){state.html[+d.html]=t.checked;render();return}
+  if(d.tab)state.tab=d.tab;
+  if(d.open){state.screen="session";state.sid=+d.open;state.stab="chat";state.dockClosed=false}
+  if("home" in d){state.screen="home";state.kb=false;state.full=false}
+  if(d.stab){state.stab=d.stab;state.kb=false}
+  if(d.group)state.collapsed[d.group]=!state.collapsed[d.group];
+  if(d.pick!==undefined){const k=+d.pick,p=state.picks[i];if(questions[i].multi)state.picks[i]=p.includes(k)?p.filter(x=>x!==k):[...p,k];else{state.picks[i]=[k];state.other[i]=""}}
+  if(d.step==="back")state.step--;
+  if(d.step==="skip"){state.picks=[[],[]];state.other=["",""];state.answered=true;state.kb=false}
+  if(d.step==="next"){if(i<questions.length-1)state.step++;else{state.answered=true;state.kb=false}}
+  if("dock" in d)state.dockClosed=!state.dockClosed;
+  if(d.approve){state.approval=d.approve}
+  if(d.view!==undefined){state.screen="viewer";state.viewer=+d.view;state.kb=false}
+  if("close" in d){state.screen="session";state.full=false}
+  if(d.filter)state.filter=d.filter;
+  render();
+});
+phone.addEventListener("input",e=>{
+  if(e.target.id!=="other")return;
+  const i=state.step;state.other[i]=e.target.value;
+  if(!questions[i].multi&&e.target.value.trim()&&state.picks[i].length){state.picks[i]=[];phone.querySelectorAll(".opt").forEach(o=>o.setAttribute("aria-checked","false"))}
+  document.getElementById("go").disabled=!(state.picks[i].length||e.target.value.trim());
+});
+document.getElementById("controls").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  const {c,v}=b.dataset;
+  if(c==="theme"){state.theme=v;if(v==="system")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",v)}
+  if(c==="fs")state.fs=+v;
+  if(c==="w")state.w=+v;
+  if(c==="kb")state.kb=v==="1";
+  if(c==="long")state.long=v==="1";
+  if(c==="screen"){
+    state.kb=false;
+    if(v==="home"||v==="waiting"){state.screen="home";state.tab=v==="waiting"?"waiting":"sessions"}
+    else if(v==="viewer"){state.screen="viewer";state.sid=1}
+    else{state.screen="session";state.stab=v==="previews"?"previews":"chat";state.sid=v==="chat"?2:1;if(v==="question"){state.answered=false;state.step=0;state.picks=[[],[]];state.other=["",""];state.dockClosed=false}}
+  }
+  render();
+});
+addEventListener("resize",render);
+render();
+</script>
+</body>
+</html>

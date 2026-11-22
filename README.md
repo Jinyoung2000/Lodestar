@@ -99,6 +99,20 @@ npm run dist    # release/mac-arm64/Lodestar.app, ad-hoc signed, not notarized
 
 The phone client and the VS Code extension have their own `package.json`; see `mobile/package.json` (`npm start`, `npm test`) and [vscode-extension/README.md](vscode-extension/README.md).
 
+### Android companion
+
+The signed ARM64 build uses the application ID `com.utillo.lodestar`. From `mobile/`, run `npm ci` and `sh scripts/build-android.sh`. Install `dist/lodestar-android.apk` on the phone. Keep the private `.signing/` directory for subsequent APK upgrades.
+
+In Lodestar on the Mac, enable **Settings → Mobile access** and create a pairing code. Scan the QR code on the phone or enter the address and code. On the same Wi-Fi, use the Mac's LAN address. For private access away from home, connect both devices to the same Tailscale network and enter the Mac's Tailscale IP with the mobile port (default 7789).
+
+The phone also accepts an explicit HTTPS address such as `https://mac.example-tailnet.ts.net`. To use an existing Tailscale reverse proxy, forward it to the mobile listener on `127.0.0.1:7789`. Start the daemon with `AGENT_NAV_MOBILE_BIND=127.0.0.1` and `AGENT_NAV_MOBILE_ALLOW_ORIGIN=https://mac.example-tailnet.ts.net`, substituting the actual HTTPS origin (including a non-default port). Pair using that HTTPS address and the one-time code. Tailscale Serve requires tailnet access on the phone. Tailscale Funnel makes the mobile pairing and device-authenticated endpoints reachable from the public internet. Forward only the mobile port.
+
+**Waiting** shows sessions that need a reply. To follow running sessions while using another Android app, turn on **Settings → Notifications → Session alerts**. The phone connects directly to the paired Mac, shows ongoing activity, and posts a notification for questions, errors and finished turns. Tap a notification to return to the session. Reopen Lodestar after force-stopping it or restarting the phone to resume alerts.
+
+Open **Previews → New preview** in a session to request a prototype, diagram, document or table. The phone renders named `lodestar-preview` or `html`, `svg`, `markdown` and `csv` blocks directly from the reply. The same gallery includes images, tool screenshots and supported workspace files linked or changed in the conversation. HTML supports embedded images, CSS and scripts. Original images and workspace file reads require a Mac build with `mobile.preview`. File previews support up to 5 MB, or 256 KB for SVG, Markdown and CSV. CSV shows up to 200 rows and 40 columns.
+
+**Over-the-air updates.** The Android build checks the EAS Update `production` channel at launch. Downloaded changes take effect on the next launch. **Settings → App updates → Check for update** can download and apply an update immediately. To publish compatible JavaScript and asset changes from `mobile/`, run `npm run update:android -- --message "Describe the change"` using an EAS CLI signed in to the Lodestar project. For native module, SDK or native configuration changes, increment `expo.version` and `android.versionCode` before building the next APK. The Android runtime version follows `expo.version`.
+
 ## Tests and checks
 
 ```bash

@@ -72,18 +72,21 @@ Every installed `@codemirror/*` package (autocomplete, commands, lang-css, lang-
 | expo-status-bar | 58.0.3 | MIT |
 | expo-symbols | 58.0.4 | MIT |
 | expo-system-ui | 58.0.6 | MIT |
+| expo-updates | 58.0.22 | MIT |
 | marked | 18.1.0 | MIT |
 | react | 19.3.0 | MIT |
 | react-native | 0.88.0 | MIT |
 | react-native-safe-area-context | 5.10.1 | MIT |
 | react-native-screens | 4.30.0 | MIT |
+| react-native-webview | 14.0.1 | MIT |
 
 ## Fonts and icon sets in this repository
 
 | Asset | Where | License |
 | --- | --- | --- |
-| Codicons font (`codicon.ttf`) | bundled from `@vscode/codicons` via `web/fonts.css` | CC-BY-4.0, Copyright Microsoft Corporation |
+| Codicons font and mobile icons | bundled from `@vscode/codicons` via `web/fonts.css` and SVG-derived icons in `mobile/assets/project-marks/` | CC-BY-4.0, Copyright Microsoft Corporation |
 | Geist and Geist Mono | `@fontsource-variable/geist`, `@fontsource-variable/geist-mono`, declared in `web/fonts.css` (currently not used by the UI) | SIL Open Font License 1.1, Copyright The Geist Project Authors |
+| Material Symbols (Android UI) | `@expo-google-fonts/material-symbols/400Regular`, embedded with `expo-font` | Apache-2.0, distributed with the font in `@expo-google-fonts/material-symbols/LICENSE_FONT` |
 | Material Icon Theme file icons | `public/material-icons/*.svg`, `web/material-icons/theme.json` (theme version 5.39.0) | MIT, Copyright (c) 2025 Material Extensions; full text in `public/material-icons/LICENSE.txt` |
 
 ## Visual Studio Code (Code - OSS)

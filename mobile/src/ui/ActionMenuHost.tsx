@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { registerActionMenuHost, type ActionMenuRequest } from "./actionMenu";
-import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
+import { MIN_TOUCH, radius, scrim, spacing, useColors } from "../theme/theme";
 import { Text } from "./Text";
 
 export function ActionMenuHost() {
@@ -15,7 +15,7 @@ export function ActionMenuHost() {
   return (
     <Modal visible={request !== null} transparent animationType="fade" onRequestClose={close} statusBarTranslucent navigationBarTranslucent>
       <Pressable accessibilityLabel="Dismiss" style={styles.scrim} onPress={close}>
-        <Pressable accessible={false} style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Pressable accessible={false} style={[styles.sheet, { backgroundColor: colors.overlay, borderColor: colors.border }]}>
           <Text variant="secondary" color="textMuted" numberOfLines={2} style={styles.title}>{request?.title}</Text>
           {request?.choices.map((choice) => (
             <Pressable
@@ -41,8 +41,8 @@ export function ActionMenuHost() {
 }
 
 const styles = StyleSheet.create({
-  scrim: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
+  scrim: { flex: 1, justifyContent: "flex-end", backgroundColor: scrim },
+  sheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: 1, overflow: "hidden" },
   title: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   item: { minHeight: MIN_TOUCH + 8, justifyContent: "center", paddingHorizontal: spacing.lg, borderTopWidth: StyleSheet.hairlineWidth },
 });

@@ -13,7 +13,7 @@ export async function pairWithHost(info: PairingInfo, deviceName: string, opts: 
     controllers.push(controller);
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 5000);
     try {
-      const response = await doFetch(`http://${host}:${info.port}/mobile/pair`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: info.code, deviceName }), signal: controller.signal });
+      const response = await doFetch(`${info.secure ? "https" : "http"}://${host}:${info.port}/mobile/pair`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: info.code, deviceName }), signal: controller.signal });
       const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
       if (response.status === 200 && typeof body.deviceToken === "string") return { kind: "ok" as const, host, result: body as unknown as PairResult };
       return { kind: "rejected" as const, message: typeof body.error === "string" ? body.error : `The Mac answered ${response.status}` };
@@ -32,7 +32,7 @@ export async function pairWithHost(info: PairingInfo, deviceName: string, opts: 
         if (outcome.kind === "rejected") rejected ??= outcome.message;
         if (--pending > 0) return;
         if (rejected !== null) resolve({ ok: false, reason: "rejected", message: rejected });
-        else resolve({ ok: false, reason: "unreachable", message: "Could not reach your Mac. Check that this phone is on the same Wi-Fi and Mobile access is on." });
+        else resolve({ ok: false, reason: "unreachable", message: "Could not reach your Mac. Check the server address, network connection and Mobile access setting." });
       });
     }
   });
