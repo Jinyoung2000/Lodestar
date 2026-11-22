@@ -1,6 +1,6 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BackHandler, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
 import type { MobileModelSelection } from "@shared/mobile";
 import type { BranchesResult, ImageRef } from "@shared/protocol";
 import { pickableWorkspaces } from "../logic/agents";
@@ -8,10 +8,10 @@ import { baseChoices, branchLabel, canStartWorktree, defaultBaseBranch, shortPat
 import { store, useAppState } from "../state/app";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Composer } from "../ui/Composer";
+import { useFoldLayout } from "../ui/FoldLayout";
 import { Icon } from "../ui/Icon";
 import { KeyboardSpacer, useKeyboardTop } from "../ui/KeyboardSpacer";
-import { ModelPicker, ModelSubtitle, modelPickerLabel, useModelPicker } from "../ui/ModelPicker";
-import { PROVIDER_NAMES } from "../ui/ProviderMark";
+import { ModelPicker, useModelPicker } from "../ui/ModelPicker";
 import { Text } from "../ui/Text";
 
 type Place = "here" | "worktree" | { existing: string };
@@ -19,7 +19,9 @@ type Place = "here" | "worktree" | { existing: string };
 export default function NewSession() {
   const router = useRouter();
   const colors = useColors();
+  const { expanded } = useFoldLayout();
   const params = useLocalSearchParams<{ draft?: string; workspace?: string; place?: string; location?: string }>();
+  const [contextOpen, setContextOpen] = useState(params.place === "worktree");
   const workspaces = useAppState((s) => s.workspaces);
   const agents = useAppState((s) => s.agents);
   const conn = useAppState((s) => s.conn);
@@ -30,10 +32,14 @@ export default function NewSession() {
   const keyboardTop = useKeyboardTop();
   const { height: windowHeight } = useWindowDimensions();
   useFocusEffect(useCallback(() => {
-    if (!modelOpen) return;
-    const back = BackHandler.addEventListener("hardwareBackPress", () => { closeModel(); return true; });
+    if (!modelOpen && !contextOpen) return;
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (modelOpen) closeModel();
+      else setContextOpen(false);
+      return true;
+    });
     return () => back.remove();
-  }, [modelOpen, closeModel]));
+  }, [modelOpen, contextOpen, closeModel]));
   const choices = useMemo(() => pickableWorkspaces(workspaces, agents), [workspaces, agents]);
   const fromLink = params.workspace ? topWorkspace(workspaces, params.workspace)?.id : undefined;
   const [picked, setPicked] = useState<string | null | undefined>(undefined);
@@ -90,6 +96,9 @@ export default function NewSession() {
 
   const worktreeOk = canStartWorktree(info);
   const disabledReason = worktreeDisabledReason(info);
+  const existingWorktree = typeof effectivePlace === "object" ? worktrees.find((w) => w.id === effectivePlace.existing) : undefined;
+  const locationLabel = existingWorktree ? branchLabel(existingWorktree, agents) : wantsWorktree ? branch.trim() || "New worktree" : info?.current;
+  const contextLabel = project ? [project.name, locationLabel].filter(Boolean).join(" · ") : "Chat";
 
   const start = async (text: string, images: ImageRef[]) => {
     let workspaceId = selected;
@@ -114,81 +123,87 @@ export default function NewSession() {
   const sub = (dir: string) => shortPath(dir);
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ gestureEnabled: !modelOpen, headerRight: () => <Pressable accessibilityRole="button" onPress={modelOpen ? closeModel : () => router.back()} hitSlop={8} style={{ minHeight: MIN_TOUCH, justifyContent: "center" }}><Text color="accentText">Cancel</Text></Pressable> }} />
-      <View style={{ flex: 1 }} accessibilityElementsHidden={modelOpen} importantForAccessibility={modelOpen ? "no-hide-descendants" : "auto"}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
-        <Text variant="secondary" color="textMuted" style={styles.label}>Folder</Text>
-        {choices.map((w) => (
-          <Choice key={w.id} title={w.name} subtitle={sub(w.dir)} selected={selected === w.id} onPress={() => { setPicked(w.id); setPlace(undefined); }} />
-        ))}
-        <Choice title="Chat" subtitle="No folder, no files" selected={selected === null} onPress={() => setPicked(null)} />
-        {choices.length === 0 && (
-          <Pressable accessibilityRole="button" onPress={() => router.push("/add-workspace")} style={styles.link}>
-            <Text color="accentText">Add a workspace first</Text>
+      <Stack.Screen options={{ headerShown: !modelOpen, gestureEnabled: !modelOpen, headerRight: () => <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={8} style={{ minHeight: MIN_TOUCH, justifyContent: "center" }}><Text color="accentText">Cancel</Text></Pressable> }} />
+      <View style={styles.fill} pointerEvents={modelOpen ? "none" : "auto"} accessibilityElementsHidden={modelOpen} importantForAccessibility={modelOpen ? "no-hide-descendants" : "auto"}>
+        <View style={styles.fill}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Workspace and location, ${contextLabel}`} accessibilityState={{ expanded: contextOpen }}
+            onPress={() => { Keyboard.dismiss(); setContextOpen(!contextOpen); }}
+            style={({ pressed }) => [styles.context, pressed && { backgroundColor: colors.pressed }]}>
+            <Icon name={wantsWorktree || existingWorktree ? "arrow.triangle.branch" : "folder"} size={16} color="textMuted" />
+            <Text variant="secondary" color="textStrong" numberOfLines={1} style={styles.contextLabel}>{contextLabel}</Text>
+            <Icon name={contextOpen ? "chevron.up" : "chevron.down"} size={14} color="textMuted" />
           </Pressable>
-        )}
-
-        {project && (
-          <View style={{ gap: spacing.sm }}>
-            <Text variant="secondary" color="textMuted" style={[styles.label, { marginTop: spacing.md }]}>Start in</Text>
-            <Choice title="This folder" subtitle={info ? (info.current ? `Branch ${info.current}${info.uncommitted > 0 ? ` · ${info.uncommitted} uncommitted` : ""}` : "The folder as it is") : "The folder as it is"} selected={effectivePlace === "here"} onPress={() => setPlace("here")} />
-            <Choice title="New worktree" subtitle={disabledReason ?? "A separate copy on its own new branch"} selected={wantsWorktree} disabled={!worktreeOk} onPress={() => setPlace("worktree")} />
-            {worktrees.map((w) => (
-              <Choice key={w.id} title={branchLabel(w, agents)} subtitle="Existing worktree" icon="arrow.triangle.branch" selected={typeof effectivePlace === "object" && effectivePlace.existing === w.id} onPress={() => setPlace({ existing: w.id })} />
+          {contextOpen && <ScrollView style={styles.fill} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+            <Text variant="secondary" color="textMuted" style={styles.label}>Folder</Text>
+            {choices.map((w) => (
+              <Choice key={w.id} title={w.name} subtitle={sub(w.dir)} selected={selected === w.id} onPress={() => { setPicked(w.id); setPlace(undefined); }} />
             ))}
+            <Choice title="Chat" subtitle="No folder, no files" selected={selected === null} onPress={() => setPicked(null)} />
+            {choices.length === 0 && (
+              <Pressable accessibilityRole="button" onPress={() => router.push("/add-workspace")} style={styles.link}>
+                <Text color="accentText">Add a workspace first</Text>
+              </Pressable>
+            )}
 
-            {wantsWorktree && info?.repoRoot && (
-              <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text variant="secondary" color="textMuted" style={styles.label}>New branch name</Text>
-                <TextInput
-                  accessibilityLabel="Branch name"
-                  value={branch}
-                  onChangeText={setBranch}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  spellCheck={false}
-                  placeholder="feature/my-change"
-                  placeholderTextColor={colors.textMuted}
-                  style={[styles.input, { color: colors.textStrong, borderColor: problem ? colors.danger : colors.border, backgroundColor: colors.background }]}
-                />
-                {problem ? <Text variant="secondary" color="danger">{problem}</Text> : <Text variant="caption" color="textSubtle">Creates {worktreePreview(info.repoRoot, branch)}</Text>}
-                <Text variant="secondary" color="textMuted" style={[styles.label, { marginTop: spacing.sm }]}>Start from</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Start from ${base}`} onPress={() => setPickingBase((open) => !open)} style={[styles.baseRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
-                  <Icon name="arrow.triangle.branch" size={16} color="textMuted" />
-                  <Text color="textStrong" style={{ flex: 1 }} numberOfLines={1}>{base || "Pick a branch"}</Text>
-                  <Icon name={pickingBase ? "chevron.up" : "chevron.down"} size={13} color="textSubtle" />
-                </Pressable>
-                {pickingBase && (
-                  <View style={[styles.baseList, { borderColor: colors.border }]}>
-                    <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
-                      {baseChoices(info).map((name) => (
-                        <Pressable key={name} accessibilityRole="radio" accessibilityState={{ checked: name === base }} onPress={() => { setBase(name); setPickingBase(false); }} style={[styles.baseItem, { borderBottomColor: colors.separator }]}>
-                          <Text style={{ flex: 1 }} numberOfLines={1} color={name === base ? "accentText" : "text"}>{name}</Text>
-                          {name === base && <Icon name="checkmark" size={16} color="accentText" weight="bold" />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
+            {project && (
+              <View style={{ gap: spacing.sm }}>
+                <Text variant="secondary" color="textMuted" style={[styles.label, { marginTop: spacing.md }]}>Start in</Text>
+                <Choice title="This folder" subtitle={info ? (info.current ? `Branch ${info.current}${info.uncommitted > 0 ? ` · ${info.uncommitted} uncommitted` : ""}` : "The folder as it is") : "The folder as it is"} selected={effectivePlace === "here"} onPress={() => setPlace("here")} />
+                <Choice title="New worktree" subtitle={disabledReason ?? "A separate copy on its own new branch"} selected={wantsWorktree} disabled={!worktreeOk} onPress={() => setPlace("worktree")} />
+                {worktrees.map((w) => (
+                  <Choice key={w.id} title={branchLabel(w, agents)} subtitle="Existing worktree" icon="arrow.triangle.branch" selected={typeof effectivePlace === "object" && effectivePlace.existing === w.id} onPress={() => setPlace({ existing: w.id })} />
+                ))}
+
+                {wantsWorktree && info?.repoRoot && (
+                  <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Text variant="secondary" color="textMuted" style={styles.label}>New branch name</Text>
+                    <TextInput
+                      accessibilityLabel="Branch name"
+                      value={branch}
+                      onChangeText={setBranch}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      spellCheck={false}
+                      placeholder="feature/my-change"
+                      placeholderTextColor={colors.textMuted}
+                      style={[styles.input, { color: colors.textStrong, borderColor: problem ? colors.danger : colors.border, backgroundColor: colors.background }]}
+                    />
+                    {problem ? <Text variant="secondary" color="danger">{problem}</Text> : <Text variant="caption" color="textSubtle">Creates {worktreePreview(info.repoRoot, branch)}</Text>}
+                    <Text variant="secondary" color="textMuted" style={[styles.label, { marginTop: spacing.sm }]}>Start from</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Start from ${base}`} onPress={() => setPickingBase((open) => !open)} style={[styles.baseRow, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                      <Icon name="arrow.triangle.branch" size={16} color="textMuted" />
+                      <Text color="textStrong" style={{ flex: 1 }} numberOfLines={1}>{base || "Pick a branch"}</Text>
+                      <Icon name={pickingBase ? "chevron.up" : "chevron.down"} size={13} color="textSubtle" />
+                    </Pressable>
+                    {pickingBase && (
+                      <View style={[styles.baseList, { borderColor: colors.border }]}>
+                        <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
+                          {baseChoices(info).map((name) => (
+                            <Pressable key={name} accessibilityRole="radio" accessibilityState={{ checked: name === base }} onPress={() => { setBase(name); setPickingBase(false); }} style={[styles.baseItem, { borderBottomColor: colors.separator }]}>
+                              <Text style={{ flex: 1 }} numberOfLines={1} color={name === base ? "accentText" : "text"}>{name}</Text>
+                              {name === base && <Icon name="checkmark" size={16} color="accentText" weight="bold" />}
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
                   </View>
                 )}
               </View>
             )}
-          </View>
-        )}
-      </ScrollView>
-      <Composer
-        agent={undefined}
-        initialText={params.draft}
-        draftKey="new"
-        disabled={conn !== "online" || modelOpen}
-        placeholder={`What should ${PROVIDER_NAMES[model.selection.harness]} do?`}
-        autoFocus={!wantsWorktree}
-        onSend={(text, images) => start(text, images)}
-        promptOptions={<Pressable accessibilityRole="button" accessibilityLabel={modelPickerLabel(model.name, model.effort)} disabled={conn !== "online" || starting} onPress={model.show}
-          style={({ pressed }) => [styles.modelChip, { borderColor: colors.border, backgroundColor: pressed ? colors.pressed : colors.surfaceBase }]}>
-          <ModelSubtitle name={model.name} effort={model.effort} draft />
-        </Pressable>}
-      />
-      <KeyboardSpacer />
+          </ScrollView>}
+        </View>
+        <Composer
+          agent={undefined}
+          initialText={params.draft}
+          draftKey="new"
+          disabled={conn !== "online" || modelOpen}
+          placeholder="Describe the task"
+          autoFocus={!contextOpen}
+          onSend={(text, images) => start(text, images)}
+          modelControl={{ harness: model.selection.harness, name: model.name, effort: model.effort, onPress: model.show, disabled: starting }}
+        />
+        {!expanded && <KeyboardSpacer />}
       </View>
       {modelOpen && <ModelPicker
         selection={model.selection}
@@ -196,7 +211,7 @@ export default function NewSession() {
         onResetDraft={() => setModelChoice(undefined)}
         onCatalog={model.setCatalog}
         close={model.close}
-        keyboardInset={keyboardTop === undefined ? 0 : Math.max(0, windowHeight - keyboardTop)}
+        keyboardInset={expanded || keyboardTop === undefined ? 0 : Math.max(0, windowHeight - keyboardTop)}
         apply={async (selection) => {
           setModelChoice(selection.harness === "claude" && selection.model === null && selection.effort === null ? undefined : selection);
           return selection;
@@ -221,7 +236,10 @@ function Choice({ title, subtitle, selected: on, disabled, icon, onPress }: { ti
 }
 
 const styles = StyleSheet.create({
-  list: { padding: spacing.lg, gap: spacing.sm },
+  fill: { flex: 1 },
+  context: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: MIN_TOUCH, marginHorizontal: spacing.sm, paddingHorizontal: spacing.sm, borderRadius: radius.md },
+  contextLabel: { flexShrink: 1, minWidth: 0 },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.sm },
   label: { fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: spacing.xs },
   link: { minHeight: MIN_TOUCH, justifyContent: "center", alignItems: "center" },
   choice: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 60, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: 1.5 },
@@ -230,5 +248,4 @@ const styles = StyleSheet.create({
   baseRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
   baseList: { borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
   baseItem: { flexDirection: "row", alignItems: "center", minHeight: 44, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth },
-  modelChip: { alignSelf: "flex-start", maxWidth: "100%", minHeight: 32, justifyContent: "center", paddingHorizontal: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderRadius: 8 },
 });

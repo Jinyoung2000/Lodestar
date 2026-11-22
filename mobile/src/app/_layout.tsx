@@ -31,7 +31,7 @@ export default function RootLayout() {
   const { connection, bootstrapped } = useConnection();
   const { width } = useWindowDimensions();
   const fontScale = useWindowFontScale();
-  const detail = route === "session" || route === "workspace";
+  const detail = route === "session" || route === "workspace" || route === "new";
   const primary = !route || detail;
   const railWidth = bootstrapped && connection ? foldRailWidth(width, fontScale) : 0;
   const expanded = primary && railWidth > 0;
@@ -106,7 +106,7 @@ export default function RootLayout() {
             <View style={styles.detail}>
               <SafeAreaProvider style={styles.detail}>
                 <Stack
-                  screenLayout={({ route: screen, children }) => screen.name === "new" || screen.name === "settings" || screen.name === "connect"
+                  screenLayout={({ route: screen, children }) => screen.name === "settings" || screen.name === "connect"
                     ? <View style={styles.form}>{children}</View>
                     : <>{children}</>}
                   screenOptions={{
@@ -121,7 +121,7 @@ export default function RootLayout() {
                   <Stack.Screen name="session/[id]" options={{ title: "", headerBackButtonDisplayMode: "minimal", animation: expanded ? "none" : "default" }} />
                   <Stack.Screen name="workspace/[id]" options={{ title: "", headerBackButtonDisplayMode: "minimal" }} />
                   <Stack.Screen name="add-workspace" options={{ title: "Add workspace", presentation: "modal" }} />
-                  <Stack.Screen name="new" options={{ title: "New session", presentation: "modal" }} />
+                  <Stack.Screen name="new" options={{ title: "New session", animation: expanded ? "none" : "default" }} />
                   <Stack.Screen name="settings" options={{ title: "Settings", presentation: "modal" }} />
                   <Stack.Screen name="connect" options={{ title: "Lodestar", headerBackVisible: false, gestureEnabled: false }} />
                   <Stack.Screen name="scan" options={{ title: "Scan QR code", presentation: "modal" }} />

@@ -23,7 +23,7 @@ import { useFoldLayout } from "../../ui/FoldLayout";
 import { Icon } from "../../ui/Icon";
 import { RenameDialog } from "../../ui/RenameDialog";
 import { KeyboardSpacer, useKeyboardTop } from "../../ui/KeyboardSpacer";
-import { ModelPicker, ModelSubtitle, modelPickerLabel, useModelPicker } from "../../ui/ModelPicker";
+import { ModelPicker, useModelPicker } from "../../ui/ModelPicker";
 import { Text } from "../../ui/Text";
 import { ChatRow, rowType } from "../../ui/chat/ChatRow";
 import { ApprovalCard, QuestionCard, PlanCard, type Actions } from "../../ui/chat/Cards";
@@ -162,6 +162,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   const hasTimeline = !!timeline && (timeline.synced || timeline.cached || timeline.items.length > 0);
   const loading = !hasTimeline && conn === "online" && timeline?.loading === true;
   const state = agent ? stateOf(agent) : "idle";
+  const workspace = agent ? workspaceName(agent, workspaces) : "";
   const hideChatToolbar = !!pending && availableHeight < 200 && !galleryOpen;
 
   return (
@@ -172,20 +173,17 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
         <View>
           {!hideChatToolbar && <View style={[styles.bar, expanded && styles.expandedBar]} pointerEvents={galleryOpen ? "none" : "auto"} accessibilityElementsHidden={galleryOpen} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"}>
             {!expanded && <ToolbarButton icon="chevron.left" label="Back" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />}
-            <Pressable
-              accessibilityRole={agent ? "button" : "header"}
-              accessibilityLabel={agent ? [agent.title, sessionIdentity(agent.harness, state), modelPickerLabel(model.name, model.effort)].join(". ") : "Session"}
-              accessibilityState={{ disabled: !agent || conn !== "online" }}
-              disabled={!agent || conn !== "online"}
-              onPress={model.show}
-              style={({ pressed }) => [styles.title, styles.titleButton, pressed && { backgroundColor: colors.pressed }]}
+            <View
+              accessible accessibilityRole="header"
+              accessibilityLabel={agent ? [agent.title, sessionIdentity(agent.harness, state), workspace].filter(Boolean).join(", ") : "Session"}
+              style={styles.title}
             >
               <View style={styles.titleLine}>
                 {agent && <ProviderMark harness={agent.harness} state={state} selected />}
                 <Text style={styles.titleText} color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.3}>{agent?.title ?? "Session"}</Text>
               </View>
-              {agent && <ModelSubtitle name={model.name} effort={model.effort} />}
-            </Pressable>
+              {!!workspace && <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3}>{workspace}</Text>}
+            </View>
             {files.length > 0 && <ToolbarButton icon="photo.on.rectangle" count={files.length} label={`Open previews, ${files.length} ${files.length === 1 ? "preview" : "previews"}`} onPress={showGallery} />}
             {(agent || createPreview) && <ToolbarButton icon="ellipsis" label="Session actions" onPress={() => sessionActions.open(agent, { closeConversation: expanded ? () => router.dismissTo("/") : undefined, createPreview })} />}
           </View>}
@@ -257,6 +255,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
             initialText={draft}
             draftKey={id}
             disabled={conn !== "online" || !!pending || galleryOpen || previewOpen || modelOpen}
+            modelControl={agent ? { harness: model.selection.harness, name: model.name, effort: model.effort, onPress: model.show } : undefined}
             onSend={send}
             onStop={() => void store.interrupt(id).catch(() => {})}
             onDequeue={async (queueId) => (await store.dequeue(id, queueId))?.text ?? null}
@@ -320,7 +319,6 @@ const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
   count: { fontVariant: ["tabular-nums"] },
   title: { flex: 1, minWidth: 0 },
-  titleButton: { height: 48, justifyContent: "center", borderRadius: 8 },
   titleText: { flexShrink: 1, fontSize: 16, lineHeight: 22, fontWeight: "600" },
   titleLine: { flexDirection: "row", alignItems: "center", gap: 8 },
   centeredText: { textAlign: "center" },

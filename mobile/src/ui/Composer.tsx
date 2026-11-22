@@ -1,15 +1,18 @@
 import * as Haptics from "expo-haptics";
 import { useIsFocused } from "expo-router";
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentRef } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View, findNodeHandle } from "react-native";
-import type { Agent, QueuedMessage } from "@shared/protocol";
+import type { Agent, EffortLevel, Harness, QueuedMessage } from "@shared/protocol";
 import { MAX_IMAGES } from "../logic/images";
 import { pickFromLibrary, takePhoto, useAttachments, type PickedAsset } from "../state/attach";
 import { composerPaste, discardPastedImage, isPasteForeground, legacyPasteSupported, nextPasteBinding, readClipboardImage } from "../state/composerPaste";
 import { loadPref, savePref } from "../state/storage";
-import { radius, spacing, useColors, withAlpha } from "../theme/theme";
+import { MIN_TOUCH, radius, spacing, useColors, withAlpha } from "../theme/theme";
 import { showActionMenu } from "./actionMenu";
+import { useWindowFontScale } from "./FoldLayout";
 import { Icon } from "./Icon";
+import { ModelSubtitle, modelPickerLabel } from "./ModelPicker";
+import { ProviderMark, PROVIDER_NAMES } from "./ProviderMark";
 import { Text } from "./Text";
 
 type Props = {
@@ -24,16 +27,26 @@ type Props = {
   autoFocus?: boolean;
   initialText?: string;
   draftKey?: string;
-  promptOptions?: ReactNode;
+  modelControl?: { harness: Harness; name: string; effort: EffortLevel | null; onPress: () => void; disabled?: boolean };
 };
 
-const MIN_HEIGHT = 40;
-const MAX_HEIGHT = 144;
+const MIN_HEIGHT = MIN_TOUCH;
+const INPUT_LINE_HEIGHT = 22;
+const INPUT_FONT_LIMIT = 1.6;
+const INPUT_PADDING = spacing.xs;
+const MAX_INPUT_LINES = 4;
 
-export const Composer = memo(function Composer({ agent, disabled, placeholder = "Message", onSend, onStop, onDequeue, onSendQueuedNow, onCancelSteering, autoFocus, initialText, draftKey, promptOptions }: Props) {
+export const Composer = memo(function Composer({ agent, disabled, placeholder = "Message", onSend, onStop, onDequeue, onSendQueuedNow, onCancelSteering, autoFocus, initialText, draftKey, modelControl }: Props) {
   const colors = useColors();
+  const fontScale = Math.min(useWindowFontScale(), INPUT_FONT_LIMIT);
   const [text, setText] = useState(initialText ?? "");
   const [height, setHeight] = useState(MIN_HEIGHT);
+  const maxInputHeight = Math.ceil(INPUT_LINE_HEIGHT * fontScale * MAX_INPUT_LINES) + INPUT_PADDING * 2;
+  const editorHeight = Math.min(Math.max(MIN_HEIGHT, maxInputHeight), height);
+  const [wraps, setWraps] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [selection, setSelection] = useState(() => ({ start: initialText?.length ?? 0, end: initialText?.length ?? 0 }));
+  const [nextSelection, setNextSelection] = useState<typeof selection>();
   const [queueExpanded, setQueueExpanded] = useState(false);
   const [steer, setSteer] = useState(false);
   const [sending, setSending] = useState(false);
@@ -175,6 +188,11 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
 
   const press = () => {
     if (!canSend) return;
+    if (modelControl && !modelControl.disabled && text.trim().toLowerCase() === "/model") {
+      const start = text.toLowerCase().indexOf("/model");
+      openModelCommand(start, start + "/model".length);
+      return;
+    }
     if (!pasteBatches.current && !hasContent && !attachments.items.some((a) => a.status === "uploading" || a.status === "processing")) return;
     if (pasteBatches.current > 0 || !attachments.ready) {
       setPendingSend(true);
@@ -229,9 +247,26 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const pendingCount = queue.length + steering.length;
   const showQueue = pendingCount < 3 || queueExpanded;
   const sendDisabled = !canSend || sending || (!hasContent && !busyUpload);
+  const modelAvailable = !!modelControl && !modelControl.disabled && !disabled;
+  const showStop = !!(running && onStop);
+  const showSend = !showStop || hasDraft || pendingSend;
+  const compactStart = MIN_TOUCH + spacing.xs;
+  const compactEnd = MIN_TOUCH * (Number(!!modelControl) + Number(showStop) + Number(showSend)) + spacing.xs;
+  const expanded = !!text.length && (wraps || text.includes("\n"));
+  const token = editing && modelAvailable && selection.start === selection.end ? text.slice(0, selection.start).match(/(?:^|\s)(\/[a-z]*)$/i)?.[1] : undefined;
+  const modelCommand = token && "/model".startsWith(token.toLowerCase()) && !/\w/.test(text[selection.end] ?? "") ? token : undefined;
+
+  const openModelCommand = (start: number, end: number) => {
+    if (!modelControl) return;
+    const cursor = { start, end: start };
+    setNextSelection(cursor);
+    setSelection(cursor);
+    setText(text.slice(0, start) + text.slice(end));
+    modelControl.onPress();
+  };
 
   return (
-    <View style={[styles.wrap, { backgroundColor: colors.background, borderTopColor: colors.separator }]}>
+    <View style={[styles.wrap, { backgroundColor: colors.background }]}>
       {pendingCount >= 3 && <Pressable accessibilityRole="button" accessibilityState={{ expanded: queueExpanded }} onPress={() => setQueueExpanded((expanded) => !expanded)} style={styles.queueToggle}>
         <Text variant="caption" color="accentText">{`${pendingCount} queued`}</Text>
         <Icon name={queueExpanded ? "chevron.up" : "chevron.down"} size={12} color="textMuted" />
@@ -281,37 +316,60 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           ))}
         </ScrollView>
       )}
-      <View style={styles.row}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Attach image" hitSlop={4} onPress={attach} disabled={disabled} style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
-          <Icon name="plus.circle.fill" size={22} color="textMuted" />
-        </Pressable>
-        <TextInput
-          ref={input}
-          onLayout={bindPaste}
-          onFocus={bindPaste}
-          autoFocus={autoFocus}
-          value={text}
-          onChangeText={setText}
-          onContentSizeChange={(e) => setHeight(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, Math.ceil(e.nativeEvent.contentSize.height))))}
-          placeholder={placeholder}
-          placeholderTextColor={colors.textMuted}
-          multiline
-          disableFullscreenUI
-          editable={!disabled}
-          maxFontSizeMultiplier={1.6}
-          accessibilityLabel="Message"
-          style={[styles.input, { height, color: colors.textStrong, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
-        />
-        {running && onStop && <Pressable accessibilityRole="button" accessibilityLabel="Stop" hitSlop={4} disabled={!canSend} onPress={onStop} style={styles.iconButton}>
-          <View style={[styles.send, { backgroundColor: withAlpha(colors.danger, 0.16) }]}><Icon name="stop.fill" size={12} color="danger" /></View>
-        </Pressable>}
-        {(!running || !onStop || hasDraft || pendingSend) && <Pressable accessibilityRole="button" hitSlop={4} accessibilityLabel={running && steer ? "Steer" : running ? "Queue message" : "Send"} accessibilityState={{ disabled: sendDisabled }} onPress={press} disabled={sendDisabled} style={styles.iconButton}>
-          {({ pressed }) => <View style={[styles.send, { backgroundColor: sendDisabled ? colors.overlay : colors.accent, opacity: pressed ? 0.8 : 1 }]}>
-            {sending || pendingSend ? <ActivityIndicator color={colors.onAccent} /> : <Icon name="arrow.up" size={18} color={sendDisabled ? "textSubtle" : "onAccent"} weight="bold" />}
-          </View>}
-        </Pressable>}
+      {modelCommand && <Pressable accessibilityRole="button" accessibilityLabel="/model, Switch model" onPress={() => openModelCommand(selection.start - modelCommand.length, selection.end)}
+        style={({ pressed }) => [styles.command, { backgroundColor: pressed ? colors.pressed : colors.surface, borderColor: colors.separator }]}>
+        <Text variant="secondary" color="textStrong">/model</Text>
+        <Text variant="caption" color="textMuted" numberOfLines={1}>Switch model</Text>
+      </Pressable>}
+      <View style={[styles.surface, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}>
+        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.measure, { start: compactStart, end: compactEnd }]}>
+          <Text variant="body" maxFontSizeMultiplier={INPUT_FONT_LIMIT} style={styles.inputType} onTextLayout={(event) => setWraps(event.nativeEvent.lines.length > 1)}>{text}</Text>
+        </View>
+        <View style={[styles.row, expanded && { paddingTop: editorHeight }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Attach image" onPress={attach} disabled={disabled} style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
+            <Icon name="plus" size={22} color="textMuted" />
+          </Pressable>
+          <TextInput
+            ref={input}
+            onLayout={bindPaste}
+            onFocus={() => { setEditing(true); bindPaste(); }}
+            onBlur={() => setEditing(false)}
+            autoFocus={autoFocus}
+            value={text}
+            onChangeText={setText}
+            selection={nextSelection}
+            onSelectionChange={({ nativeEvent }) => {
+              setSelection(nativeEvent.selection);
+              if (nextSelection?.start === nativeEvent.selection.start && nextSelection.end === nativeEvent.selection.end) setNextSelection(undefined);
+            }}
+            onContentSizeChange={(e) => setHeight(Math.max(MIN_HEIGHT, Math.ceil(e.nativeEvent.contentSize.height)))}
+            placeholder={placeholder}
+            placeholderTextColor={colors.textMuted}
+            multiline
+            disableFullscreenUI
+            editable={!disabled}
+            maxFontSizeMultiplier={INPUT_FONT_LIMIT}
+            accessibilityLabel="Message"
+            style={[styles.input, styles.inputType, { color: colors.textStrong, start: expanded ? spacing.md : compactStart, end: expanded ? spacing.md : compactEnd, height: expanded ? editorHeight : MIN_HEIGHT, bottom: expanded ? MIN_TOUCH : 0 }]}
+          />
+          <View style={styles.controls}>
+            {modelControl && <Pressable accessibilityRole="button" accessibilityLabel={`${PROVIDER_NAMES[modelControl.harness]}, ${modelPickerLabel(modelControl.name, modelControl.effort)}`}
+              accessibilityState={{ disabled: !modelAvailable }} disabled={!modelAvailable} onPress={modelControl.onPress}
+              style={({ pressed }) => [styles.model, expanded ? styles.modelExpanded : styles.modelCompact, pressed && { backgroundColor: colors.pressed }]}>
+              <ProviderMark harness={modelControl.harness} state="idle" size={18} selected />
+              {expanded ? <ModelSubtitle name={modelControl.name} effort={modelControl.effort} /> : <Icon name="chevron.down" size={12} color="textMuted" />}
+            </Pressable>}
+            {showStop && <Pressable accessibilityRole="button" accessibilityLabel="Stop" disabled={!canSend} onPress={onStop} style={styles.iconButton}>
+              <View style={[styles.send, { backgroundColor: withAlpha(colors.danger, 0.16) }]}><Icon name="stop.fill" size={12} color="danger" /></View>
+            </Pressable>}
+            {showSend && <Pressable accessibilityRole="button" accessibilityLabel={running && steer ? "Steer" : running ? "Queue message" : "Send"} accessibilityState={{ disabled: sendDisabled }} onPress={press} disabled={sendDisabled} style={styles.iconButton}>
+              {({ pressed }) => <View style={[styles.send, { backgroundColor: sendDisabled ? colors.overlay : colors.accent, opacity: pressed ? 0.8 : 1 }]}>
+                {sending || pendingSend ? <ActivityIndicator color={colors.onAccent} /> : <Icon name="arrow.up" size={18} color={sendDisabled ? "textSubtle" : "onAccent"} weight="bold" />}
+              </View>}
+            </Pressable>}
+          </View>
+        </View>
       </View>
-      {promptOptions}
       {pasting && !pendingSend && <Text variant="caption" color="textMuted" style={styles.note}>Reading clipboard image…</Text>}
       {pendingSend && <Text variant="caption" color="textMuted" style={styles.note}>{`Sending when the upload finishes${attachments.progress !== null ? ` (${Math.round(attachments.progress * 100)}%)` : ""}`}</Text>}
       {error && <Text variant="caption" color="danger" style={styles.note}>{error}</Text>}
@@ -341,10 +399,18 @@ function QueueChip({ message, label, onCancel, onNow }: { message: QueuedMessage
 }
 
 const styles = StyleSheet.create({
-  wrap: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, gap: spacing.xs },
-  row: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
-  input: { flex: 1, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: 8, paddingBottom: 8, fontSize: 16, lineHeight: 22, textAlignVertical: "center" },
-  iconButton: { width: MIN_HEIGHT, height: MIN_HEIGHT, alignItems: "center", justifyContent: "center" },
+  wrap: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.xs },
+  surface: { borderRadius: 24, borderWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: "row", alignItems: "center", minHeight: MIN_TOUCH },
+  measure: { position: "absolute", opacity: 0 },
+  input: { position: "absolute", paddingHorizontal: 0, paddingVertical: INPUT_PADDING, textAlignVertical: "center" },
+  inputType: { fontSize: 16, lineHeight: INPUT_LINE_HEIGHT, includeFontPadding: false },
+  iconButton: { width: MIN_TOUCH, height: MIN_TOUCH, flexShrink: 0, alignItems: "center", justifyContent: "center" },
+  controls: { marginStart: "auto", flexDirection: "row", alignItems: "center", flexShrink: 1, minWidth: 0 },
+  model: { minWidth: MIN_TOUCH, height: MIN_TOUCH, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, borderRadius: radius.md },
+  modelCompact: { width: MIN_TOUCH, flexShrink: 0 },
+  modelExpanded: { flexShrink: 1, maxWidth: 190, paddingHorizontal: spacing.sm },
+  command: { minHeight: MIN_TOUCH, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, paddingHorizontal: spacing.md },
   send: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   modeRow: { alignItems: "flex-end" },
   segment: { flexDirection: "row", borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: 2 },
