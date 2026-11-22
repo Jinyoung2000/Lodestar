@@ -17,7 +17,7 @@ import { Button } from "../../ui/Button";
 import { createFrameMeter } from "../../state/frames";
 import { radius, spacing, useColors } from "../../theme/theme";
 import { ProviderMark, sessionIdentity } from "../../ui/ProviderMark";
-import { ConnectionBanner } from "../../ui/Banner";
+import { ConnectionTitle } from "../../ui/ConnectionTitle";
 import { Composer } from "../../ui/Composer";
 import { useFoldLayout } from "../../ui/FoldLayout";
 import { Icon } from "../../ui/Icon";
@@ -40,7 +40,7 @@ export default function Session() {
 function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id: string; draft?: string; focusQuestion: boolean; galleryOpen: boolean; viewerOpen: boolean }) {
   const router = useRouter();
   const navigation = useNavigation<NativeStackNavigationProp<{ "session/[id]": SessionParams }, "session/[id]">>();
-  const { expanded, paneWidth, sharedConnectionStrip } = useFoldLayout();
+  const { expanded, paneWidth, connectionInRail } = useFoldLayout();
   const colors = useColors();
   const agent = useAppState((s) => s.agents.find((a) => a.id === id));
   const conn = useAppState((s) => s.conn);
@@ -160,7 +160,9 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
 
   const running = agent?.status === "running";
   const hasTimeline = !!timeline && (timeline.synced || timeline.cached || timeline.items.length > 0);
-  const loading = !hasTimeline && conn === "online" && timeline?.loading === true;
+  const timelineError = !hasTimeline && conn === "online" ? timeline?.error : undefined;
+  const reloadMessages = timelineError ? () => void store.syncTimeline(id) : undefined;
+  const title = agent?.title ?? "Session";
   const state = agent ? stateOf(agent) : "idle";
   const workspace = agent ? workspaceName(agent, workspaces) : "";
   const hideChatToolbar = !!pending && availableHeight < 200 && !galleryOpen;
@@ -169,45 +171,39 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: !galleryOpen && !previewOpen && !modelOpen }} />
       <View style={{ flex: 1, paddingRight: expanded ? insets.right : 0, paddingBottom: expanded && keyboardTop === undefined ? insets.bottom : 0 }} pointerEvents={previewOpen || modelOpen ? "none" : "auto"} accessibilityElementsHidden={previewOpen || modelOpen} importantForAccessibility={previewOpen || modelOpen ? "no-hide-descendants" : "auto"}>
-      <SafeAreaView edges={sharedConnectionStrip ? [] : expanded ? ["top"] : ["top", "left", "right"]} style={{ backgroundColor: colors.background }}>
+      <SafeAreaView edges={expanded ? ["top"] : ["top", "left", "right"]} style={{ backgroundColor: colors.background }}>
         <View>
           {!hideChatToolbar && <View style={[styles.bar, expanded && styles.expandedBar]} pointerEvents={galleryOpen ? "none" : "auto"} accessibilityElementsHidden={galleryOpen} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"}>
             {!expanded && <ToolbarButton icon="chevron.left" label="Back" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />}
-            <View
-              accessible accessibilityRole="header"
-              accessibilityLabel={agent ? [agent.title, sessionIdentity(agent.harness, state), workspace].filter(Boolean).join(", ") : "Session"}
-              style={styles.title}
-            >
-              <View style={styles.titleLine}>
+            <ConnectionTitle title={title} subtitle={workspace} hidden={connectionInRail || galleryOpen || previewOpen || modelOpen} style={styles.title}>
+              <View accessible accessibilityRole="header" accessibilityLabel={agent ? `${title}, ${sessionIdentity(agent.harness, state)}` : title} style={styles.titleLine}>
                 {agent && <ProviderMark harness={agent.harness} state={state} selected />}
-                <Text style={styles.titleText} color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.3}>{agent?.title ?? "Session"}</Text>
+                <Text style={styles.titleText} color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
               </View>
-              {!!workspace && <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3}>{workspace}</Text>}
-            </View>
+            </ConnectionTitle>
             {files.length > 0 && <ToolbarButton icon="photo.on.rectangle" count={files.length} label={`Open previews, ${files.length} ${files.length === 1 ? "preview" : "previews"}`} onPress={showGallery} />}
-            {(agent || createPreview) && <ToolbarButton icon="ellipsis" label="Session actions" onPress={() => sessionActions.open(agent, { closeConversation: expanded ? () => router.dismissTo("/") : undefined, createPreview })} />}
+            {(agent || createPreview || reloadMessages) && <ToolbarButton icon="ellipsis" label="Session actions" onPress={() => sessionActions.open(agent, { closeConversation: expanded ? () => router.dismissTo("/") : undefined, createPreview, reloadMessages })} />}
           </View>}
           {galleryOpen && <View style={[styles.bar, StyleSheet.absoluteFill, { backgroundColor: colors.background }]} onAccessibilityEscape={closeGallery}>
             <ToolbarButton icon="chevron.left" label="Close previews" onPress={closeGallery} />
-            <View style={styles.galleryTitle} accessible accessibilityRole="header" accessibilityLabel={`Previews, ${files.length}`}>
-              <Text variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.shrink}>Previews</Text>
-              <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.count}>{files.length}</Text>
-            </View>
+            <ConnectionTitle title="Previews" hidden={connectionInRail || previewOpen || modelOpen} style={styles.title}>
+              <View style={styles.galleryTitle} accessible accessibilityRole="header" accessibilityLabel={`Previews, ${files.length}`}>
+                <Text variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.shrink}>Previews</Text>
+                <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.count}>{files.length}</Text>
+              </View>
+            </ConnectionTitle>
             <ToolbarButton icon="plus" label="New preview" onPress={createPreview} />
           </View>}
         </View>
       </SafeAreaView>
-      {!sharedConnectionStrip && <ConnectionBanner />}
       <View style={{ flex: 1 }}>
         <View onLayout={({ nativeEvent }) => setChatHeight(nativeEvent.layout.height)} style={[{ flex: 1 }, paneWidth > 752 && styles.readingWidth]} pointerEvents={galleryOpen ? "none" : "auto"} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={galleryOpen}>
-          {loading ? (
-            <View style={styles.center}>
-              <ActivityIndicator />
-            </View>
-          ) : !hasTimeline ? (
-            <View style={styles.unavailable}>
-              <Text variant="secondary" color="textMuted" style={styles.centeredText}>Session unavailable</Text>
-              {conn === "online" && <Button title="Try again" kind="plain" onPress={() => void store.syncTimeline(id)} />}
+          {!hasTimeline ? (
+            <View style={[styles.opening, { paddingHorizontal: chatPadding }]}>
+              {conn === "online" && !timelineError && <ActivityIndicator size="small" color={colors.textMuted} />}
+              {conn === "online" && <Text variant="secondary" color="textMuted" accessibilityLiveRegion="polite" style={styles.openingText}>
+                {timelineError ?? "Opening session…"}
+              </Text>}
             </View>
           ) : (
             <View style={{ flex: 1 }}>
@@ -254,7 +250,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
             agent={agent}
             initialText={draft}
             draftKey={id}
-            disabled={conn !== "online" || !!pending || galleryOpen || previewOpen || modelOpen}
+            disabled={conn !== "online" || !agent || !!pending || galleryOpen || previewOpen || modelOpen}
             modelControl={agent ? { harness: model.selection.harness, name: model.name, effort: model.effort, onPress: model.show } : undefined}
             onSend={send}
             onStop={() => void store.interrupt(id).catch(() => {})}
@@ -314,16 +310,15 @@ const styles = StyleSheet.create({
   countButton: { width: "auto", minWidth: 48, flexDirection: "row", gap: spacing.xs, paddingHorizontal: spacing.sm },
   bar: { minHeight: 48, paddingHorizontal: spacing.xs, flexDirection: "row", gap: spacing.xs, alignItems: "center" },
   expandedBar: { paddingLeft: spacing.lg },
-  galleryTitle: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  galleryTitle: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   shrink: { flexShrink: 1 },
   count: { fontVariant: ["tabular-nums"] },
   title: { flex: 1, minWidth: 0 },
   titleText: { flexShrink: 1, fontSize: 16, lineHeight: 22, fontWeight: "600" },
   titleLine: { flexDirection: "row", alignItems: "center", gap: 8 },
-  centeredText: { textAlign: "center" },
-  unavailable: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.sm, padding: spacing.lg },
+  opening: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.md },
+  openingText: { flex: 1 },
   readingWidth: { width: 720, alignSelf: "center" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   working: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingTop: spacing.md },
   latestTarget: { position: "absolute", bottom: spacing.xs, width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   latest: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },

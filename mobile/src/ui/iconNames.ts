@@ -8,6 +8,7 @@ export const MATERIAL_ICONS: Record<string, readonly [AndroidSymbol, number]> = 
   "arrow.down": ["arrow_downward", 0xe5db],
   "arrow.right": ["arrow_forward", 0xe5c8],
   "arrow.up": ["arrow_upward", 0xe5d8],
+  "arrow.up.arrow.down": ["sort", 0xe164],
   "arrow.triangle.branch": ["fork_right", 0xebac],
   "arrow.up.circle": ["arrow_circle_up", 0xf182],
   "rectangle.and.hand.point.up.left": ["touch_app", 0xe913],

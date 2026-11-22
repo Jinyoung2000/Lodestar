@@ -29,7 +29,7 @@ export function foldRailWidth(width: number, fontScale: number) {
   return width >= 720 || largeText ? 320 : 280;
 }
 
-export const FoldLayoutContext = createContext({ sharedConnectionStrip: false, wide: false, expanded: false, railWidth: 0, paneWidth: 0, fontScale: 1 });
+export const FoldLayoutContext = createContext({ connectionInRail: false, wide: false, expanded: false, railWidth: 0, paneWidth: 0, fontScale: 1 });
 
 export function useFoldLayout() {
   return useContext(FoldLayoutContext);

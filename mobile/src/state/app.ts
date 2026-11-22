@@ -72,6 +72,7 @@ AppState.addEventListener("change", (next) => {
   foregroundAt = Date.now();
   void client.resume()?.then((ms) => {
     if (ms === undefined) return;
+    void store.syncOpenTimelines();
     record("foreground-check", ms, "socket alive");
     foregroundAt = null;
   });

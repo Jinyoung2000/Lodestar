@@ -5,14 +5,14 @@ import type { Agent, SessionSort } from "@shared/protocol";
 import { buildProject, compareAgents, shortPath, topWorkspace, type Location } from "../../logic/workspaces";
 import { sortPrefs, store, useAppState, useSessionSort } from "../../state/app";
 import { MIN_TOUCH, radius, spacing, useColors } from "../../theme/theme";
-import { ConnectionBanner } from "../../ui/Banner";
+import { ConnectionTitle } from "../../ui/ConnectionTitle";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import { useFoldLayout } from "../../ui/FoldLayout";
 import { ProjectIcon, type ProjectMark } from "../../ui/ProjectIcon";
 import { RenameDialog } from "../../ui/RenameDialog";
-import { Segmented } from "../../ui/Segmented";
 import { SessionRow } from "../../ui/SessionRow";
+import { SESSION_SORT_OPTIONS, SortButton } from "../../ui/SortButton";
 import { Text } from "../../ui/Text";
 import { confirmRemove } from "../../ui/WorkspacesView";
 import { useSessionActions } from "../../ui/sessionActions";
@@ -25,7 +25,7 @@ export default function WorkspaceScreen() {
   const agents = useAppState((s) => s.agents);
   const git = useAppState((s) => s.git);
   const conn = useAppState((s) => s.conn);
-  const { sharedConnectionStrip } = useFoldLayout();
+  const { connectionInRail } = useFoldLayout();
   const loaded = useAppState((s) => s.loaded);
   const actions = useSessionActions();
   const [refreshing, setRefreshing] = useState(false);
@@ -46,9 +46,17 @@ export default function WorkspaceScreen() {
   }, [top]);
 
   const open = useCallback((agentId: string) => router.push({ pathname: "/session/[id]", params: { id: agentId } }), [router]);
+  const title = top?.name ?? "Workspace";
+  const header = <Stack.Screen options={{
+    title,
+    headerTitle: () => <ConnectionTitle title={title} hidden={connectionInRail} maxFontSizeMultiplier={1.1}>
+      <Text accessibilityRole="header" variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.1}>{title}</Text>
+    </ConnectionTitle>,
+    headerRight: top ? () => <SortButton label="Sort sessions" value={sessionSort} options={SESSION_SORT_OPTIONS} onChange={(next) => sortPrefs.setSessionSort(top.id, next)} /> : undefined,
+  }} />;
 
   if (!project || !top) {
-    return loaded && conn === "online" ? <Redirect href="/" /> : <View style={{ flex: 1 }}>{!sharedConnectionStrip && <ConnectionBanner />}</View>;
+    return loaded && conn === "online" ? <Redirect href="/" /> : <View style={{ flex: 1 }}>{header}</View>;
   }
 
   const startHere = (location: Location) => router.push({ pathname: "/new", params: { workspace: top.id, ...(location.kind === "worktree" ? { location: location.workspace.id } : {}) } });
@@ -58,8 +66,7 @@ export default function WorkspaceScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: top.name }} />
-      {!sharedConnectionStrip && <ConnectionBanner />}
+      {header}
       <ScrollView
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
@@ -87,9 +94,6 @@ export default function WorkspaceScreen() {
         </View>
         {notGit && <Text variant="caption" color="textSubtle" style={styles.note}>A worktree needs a git repository.</Text>}
 
-        <Text variant="caption" color="textSubtle" style={styles.note}>Sort sessions by</Text>
-        <Segmented options={SESSION_SORT_OPTIONS} value={sessionSort} onChange={(next) => sortPrefs.setSessionSort(top.id, next)} />
-
         {[project.main, ...project.worktrees].map((location) => (
           <LocationSection key={location.workspace.id} location={location} branch={location.kind === "main" ? (info?.current ?? null) : null} time={sessionSort} onStart={startHere} onOpen={open} onMore={actions.open} />
         ))}
@@ -112,11 +116,6 @@ export default function WorkspaceScreen() {
     </View>
   );
 }
-
-const SESSION_SORT_OPTIONS: { value: SessionSort; label: string }[] = [
-  { value: "updated", label: "Updated" },
-  { value: "created", label: "Created" },
-];
 
 function SectionTitle({ title, count, mark, plain, children }: { mark: ProjectMark; title: string; count?: number; plain?: boolean; children?: ReactNode }) {
   const colors = useColors();

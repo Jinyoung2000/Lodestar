@@ -9,9 +9,9 @@ import { loadThemeChoice, useThemeChoice } from "../state/themePrefs";
 import { applySystemTheme } from "../theme/systemTheme";
 import { ThemeProvider, useSchemeColors } from "../theme/theme";
 import { ActionMenuHost } from "../ui/ActionMenuHost";
+import { ConnectionStatusProvider } from "../ui/ConnectionTitle";
 import { foldRailWidth, FoldLayoutContext, useWindowFontScale } from "../ui/FoldLayout";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
-import { ConnectionBanner } from "../ui/Banner";
 import { SessionsList } from "../ui/SessionsList";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -27,7 +27,6 @@ export default function RootLayout() {
   const router = useRouter();
   const [route] = useSegments();
   const { id } = useGlobalSearchParams<{ id?: string }>();
-  const offline = useAppState((state) => state.conn !== "online");
   const { connection, bootstrapped } = useConnection();
   const { width } = useWindowDimensions();
   const fontScale = useWindowFontScale();
@@ -40,15 +39,14 @@ export default function RootLayout() {
   const showRail = expanded && (!sessionId || previewOwner !== sessionId);
   const missingSession = useAppState((state) => !!sessionId && state.conn === "online" &&
     !state.agents.some((agent) => agent.id === sessionId));
-  const sharedConnectionStrip = showRail && offline;
   const layout = useMemo(() => ({
-    sharedConnectionStrip,
+    connectionInRail: showRail,
     wide: railWidth > 0,
     fontScale,
     expanded,
     railWidth: showRail ? railWidth : 0,
     paneWidth: showRail ? width - railWidth : width,
-  }), [expanded, fontScale, railWidth, sharedConnectionStrip, showRail, width]);
+  }), [expanded, fontScale, railWidth, showRail, width]);
 
   const openDetail = useCallback((href: Href) => {
     if (detail) router.replace(href);
@@ -91,12 +89,12 @@ export default function RootLayout() {
       <NavigationThemeProvider value={navigationTheme}>
       <SafeAreaProvider>
         <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+        <ConnectionStatusProvider>
         <FoldLayoutContext.Provider value={layout}>
           <View onLayout={SplashScreen.hide} style={[styles.shell, { backgroundColor: colors.background }]}>
-            {sharedConnectionStrip && <SafeAreaView edges={["top", "left", "right"]}><ConnectionBanner /></SafeAreaView>}
             <View style={styles.panes}>
             {railWidth > 0 && (
-              <SafeAreaView edges={sharedConnectionStrip ? ["left", "bottom"] : ["top", "left", "bottom"]} pointerEvents={showRail ? "auto" : "none"}
+              <SafeAreaView edges={["top", "left", "bottom"]} pointerEvents={showRail ? "auto" : "none"}
                 accessibilityElementsHidden={!showRail} importantForAccessibility={showRail ? "auto" : "no-hide-descendants"}
                 style={[styles.rail, { width: railWidth, display: showRail ? "flex" : "none", borderRightColor: colors.separator }]}>
                 <SessionsList docked sessionId={sessionId} workspaceId={route === "workspace" ? id : undefined}
@@ -134,6 +132,7 @@ export default function RootLayout() {
           {expanded && <KeyboardSpacer keyboardOnly />}
           <ActionMenuHost />
         </FoldLayoutContext.Provider>
+        </ConnectionStatusProvider>
       </SafeAreaProvider>
       </NavigationThemeProvider>
     </ThemeProvider>

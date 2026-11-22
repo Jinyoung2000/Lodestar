@@ -6,15 +6,14 @@ import { buildProjects, moveInOrder, orderOf, shortPath, type Project, type Proj
 import { sortPrefs, store, useAppState, useSortPrefs } from "../state/app";
 import type { GitSummary } from "../state/store";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
-import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { ProjectIcon } from "./ProjectIcon";
-import { Segmented } from "./Segmented";
+import { SortButton } from "./SortButton";
 import { StatusDot } from "./StatusDot";
 import { Text } from "./Text";
 import { showActionMenu } from "./actionMenu";
 
-export function WorkspacesView({ query, paneWidth, selectedId, onOpen }: { query: string; paneWidth?: number; selectedId?: string; onOpen?: (id: string) => void }) {
+export function WorkspacesView({ query, selectedId, onOpen }: { query: string; selectedId?: string; onOpen?: (id: string) => void }) {
   const router = useRouter();
   const colors = useColors();
   const workspaces = useAppState((s) => s.workspaces);
@@ -86,9 +85,10 @@ export function WorkspacesView({ query, paneWidth, selectedId, onOpen }: { query
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={colors.textMuted} colors={[colors.accent]} progressBackgroundColor={colors.surface} />}
       extraData={{ selectedId, reordering: reordering && movable }}
       ListHeaderComponent={
-        <View>
-          <SortBar paneWidth={paneWidth} sort={sort} onChange={changeSort} reordering={reordering && movable} onToggleReorder={movable ? () => setReordering((on) => !on) : undefined} />
+        <View style={styles.listActions}>
           <AddRow onPress={() => router.push("/add-workspace")} />
+          <SortButton label="Sort workspaces" value={sort} options={SORT_OPTIONS} onChange={changeSort}
+            action={movable ? { label: reordering ? "Done reordering" : "Reorder", onPress: () => setReordering((on) => !on) } : undefined} />
         </View>
       }
       ListEmptyComponent={<Empty offline={conn !== "online" && workspaces.length === 0} searching={query.trim().length > 0} />}
@@ -126,23 +126,6 @@ const SORT_OPTIONS: { value: ProjectSort; label: string }[] = [
   { value: "name", label: "Name" },
   { value: "manual", label: "Manual" },
 ];
-
-function SortBar({ paneWidth, sort, onChange, reordering, onToggleReorder }: { paneWidth?: number; sort: ProjectSort; onChange: (sort: ProjectSort) => void; reordering: boolean; onToggleReorder?: () => void }) {
-  return (
-    <View>
-      <Text variant="caption" color="textSubtle" style={styles.sortCaption}>
-        {sort === "activity" ? "Sort by most recent session" : sort === "name" ? "Sort by name" : "Your own order"}
-      </Text>
-      <Segmented paneWidth={paneWidth} options={SORT_OPTIONS} value={sort} onChange={onChange} />
-      {onToggleReorder && (
-        <View style={styles.reorderBar}>
-          <Text variant="caption" color="textSubtle" style={{ flex: 1 }}>{reordering ? "Use the arrows to move a project." : "Long-press a project to move it."}</Text>
-          <Button title={reordering ? "Done" : "Reorder"} kind={reordering ? "primary" : "plain"} onPress={onToggleReorder} />
-        </View>
-      )}
-    </View>
-  );
-}
 
 function AddRow({ onPress }: { onPress: () => void }) {
   const colors = useColors();
@@ -221,11 +204,10 @@ function Empty({ offline, searching }: { offline: boolean; searching: boolean })
 }
 
 const styles = StyleSheet.create({
-  add: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 64, marginHorizontal: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
+  listActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingLeft: spacing.lg, paddingRight: spacing.sm, paddingVertical: spacing.sm },
+  add: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   trail: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: MIN_TOUCH },
-  sortCaption: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
-  reorderBar: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg },
   moveButton: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: "center", justifyContent: "center", borderRadius: radius.md, marginLeft: spacing.xs },
   empty: { alignItems: "center", justifyContent: "center", gap: spacing.lg, padding: spacing.xl, paddingTop: 80 },
 });

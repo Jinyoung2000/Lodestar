@@ -15,6 +15,7 @@ import { Icon } from "./Icon";
 import { MarkdownView } from "./MarkdownView";
 import { Text } from "./Text";
 import { Button } from "./Button";
+import { ConnectionTitle } from "./ConnectionTitle";
 import { useFoldLayout } from "./FoldLayout";
 import { useKeyboardTop } from "./KeyboardSpacer";
 
@@ -203,7 +204,7 @@ function PreviewViewer({ file, content: original, error, thumbnail, files, agent
   open: (file: Preview) => void;
 }) {
   const colors = useColors();
-  const { expanded } = useFoldLayout();
+  const { expanded, connectionInRail } = useFoldLayout();
   const full = useExpandedPreview() === agentId && expanded;
   useEffect(() => () => releasePreview(agentId), [agentId]);
   const exactIndex = files.findIndex(candidate => samePreview(candidate, file));
@@ -299,10 +300,9 @@ function PreviewViewer({ file, content: original, error, thumbnail, files, agent
       <SafeAreaView style={[styles.fill, { backgroundColor: colors.surfaceBase }]}>
         {!hidden && <View style={[styles.bar, { backgroundColor: colors.background, borderColor: colors.separator }]}>
           <PreviewControl icon="xmark" label="Close preview" action={close} />
-          <View style={styles.title}>
-            <Text variant="title" color="textStrong" numberOfLines={1}>{file.title}</Text>
-            <Text variant="caption" color="textMuted" numberOfLines={1}>{formatLabel[file.kind]}{rail.length > 1 ? ` · ${index + 1} of ${rail.length}` : ""}</Text>
-          </View>
+          <ConnectionTitle title={file.title} subtitle={rail.length > 1 ? `${formatLabel[file.kind]} · ${index + 1} of ${rail.length}` : formatLabel[file.kind]} hidden={connectionInRail} style={styles.title}>
+            <Text accessibilityRole="header" variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>{file.title}</Text>
+          </ConnectionTitle>
           {expanded && <PreviewControl icon={full ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"} label={full ? "Exit full screen" : "Full screen"} action={() => expandPreview(full ? null : agentId)} />}
           {(file.kind === "html" || !!file.path) && <PreviewControl icon="ellipsis" label="Preview options" action={details} />}
         </View>}

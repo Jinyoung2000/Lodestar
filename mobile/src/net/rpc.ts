@@ -42,6 +42,8 @@ type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => vo
 
 const OPEN = 1;
 
+export class TransportError extends Error {}
+
 export class RpcClient {
   status: ConnStatus = "idle";
   host: string | null = null;
@@ -109,7 +111,7 @@ export class RpcClient {
 
   call<M extends MobileMethod>(method: M, params: MobileRpc[M]["params"], timeoutMs = 15_000): Promise<MobileRpc[M]["result"]> {
     const socket = this.socket;
-    if (!socket || socket.readyState !== OPEN || this.status !== "online") return Promise.reject(new Error("Not connected to your Mac"));
+    if (!socket || socket.readyState !== OPEN || this.status !== "online") return Promise.reject(new TransportError("Not connected to your Mac"));
     return this.request(socket, method, params, timeoutMs).reply;
   }
 
@@ -118,7 +120,7 @@ export class RpcClient {
     const started = Date.now();
     const done = this.opts.onCall;
     const reply = new Promise<MobileRpc[M]["result"]>((resolve, reject) => {
-      const timer = setTimeout(() => this.rejectRequest(id, new Error("The Mac did not answer in time")), timeoutMs);
+      const timer = setTimeout(() => this.rejectRequest(id, new TransportError("The Mac did not answer in time")), timeoutMs);
       this.pending.set(id, {
         resolve: (value) => {
           done?.(method, Date.now() - started, true);
@@ -133,7 +135,7 @@ export class RpcClient {
       try {
         socket.send(JSON.stringify({ id, method, params }));
       } catch (error) {
-        this.rejectRequest(id, error instanceof Error ? error : new Error(String(error)));
+        this.rejectRequest(id, new TransportError(error instanceof Error ? error.message : String(error)));
       }
     });
     return { id, reply };
@@ -363,7 +365,7 @@ export class RpcClient {
   private rejectPending() {
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
-      pending.reject(new Error("Disconnected from your Mac"));
+      pending.reject(new TransportError("Disconnected from your Mac"));
     }
     this.pending.clear();
   }

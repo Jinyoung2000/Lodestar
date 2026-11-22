@@ -9,6 +9,7 @@ import { baseChoices, branchLabel, canStartWorktree, defaultBaseBranch, shortPat
 import { store, useAppState } from "../state/app";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Composer } from "../ui/Composer";
+import { ConnectionTitle } from "../ui/ConnectionTitle";
 import { useFoldLayout } from "../ui/FoldLayout";
 import { Icon } from "../ui/Icon";
 import { KeyboardSpacer, useKeyboardTop } from "../ui/KeyboardSpacer";
@@ -20,7 +21,7 @@ type Place = "here" | "worktree" | { existing: string };
 export default function NewSession() {
   const router = useRouter();
   const colors = useColors();
-  const { expanded, sharedConnectionStrip } = useFoldLayout();
+  const { expanded, connectionInRail } = useFoldLayout();
   const params = useLocalSearchParams<{ draft?: string; workspace?: string; place?: string; location?: string }>();
   const [contextOpen, setContextOpen] = useState(params.place === "worktree");
   const workspaces = useAppState((s) => s.workspaces);
@@ -126,17 +127,16 @@ export default function NewSession() {
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: !modelOpen }} />
       <View style={styles.fill} pointerEvents={modelOpen ? "none" : "auto"} accessibilityElementsHidden={modelOpen} importantForAccessibility={modelOpen ? "no-hide-descendants" : "auto"}>
-        {!modelOpen && <SafeAreaView edges={sharedConnectionStrip ? ["left", "right"] : ["top", "left", "right"]}>
+        {!modelOpen && <SafeAreaView edges={["top", "left", "right"]}>
           <View style={styles.appBar}>
             <Pressable accessibilityRole="button" accessibilityLabel={expanded ? "Close new session" : "Back"}
               onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
               style={({ pressed }) => [styles.barButton, pressed && { backgroundColor: colors.pressed }]}>
               <Icon name={expanded ? "xmark" : "chevron.left"} size={20} color="textStrong" />
             </Pressable>
-            <View style={styles.appBarLabels} accessible accessibilityRole="header" accessibilityLabel={`New session, ${contextLabel}`}>
-              <Text variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>New session</Text>
-              <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.2}>{contextLabel}</Text>
-            </View>
+            <ConnectionTitle title="New session" subtitle={contextLabel} hidden={connectionInRail} style={styles.appBarLabels}>
+              <Text accessibilityRole="header" variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>New session</Text>
+            </ConnectionTitle>
             <Pressable accessibilityRole="button" accessibilityLabel={`Workspace and location, ${contextLabel}`} accessibilityState={{ expanded: contextOpen }}
               onPress={() => { Keyboard.dismiss(); setContextOpen((open) => !open); }}
               style={({ pressed }) => [styles.barButton, pressed && { backgroundColor: colors.pressed }]}>

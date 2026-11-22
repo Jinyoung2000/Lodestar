@@ -1,6 +1,6 @@
 import type { MobileBrowseResult, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
 import type { Agent, BranchesResult, Harness, ImageRef, PermissionDecision, ServerEvent, TimelineItem, Workspace } from "@shared/protocol";
-import type { ConnStatus } from "../net/rpc";
+import { TransportError, type ConnStatus } from "../net/rpc";
 import { mergeTail, prependOlder, remove, upsert } from "../logic/timeline";
 import { markEnd, markStart, now, record } from "./perf";
 
@@ -21,7 +21,7 @@ export type Link = {
 
 export type GitSummary = { repoRoot: string | null; current: string | null; uncommitted: number };
 
-export type SessionTimeline = { items: TimelineItem[]; hasMore: boolean; synced: boolean; cached: boolean; loading: boolean; loadingOlder: boolean };
+export type SessionTimeline = { items: TimelineItem[]; hasMore: boolean; synced: boolean; cached: boolean; loading: boolean; loadingOlder: boolean; error?: string };
 
 type ModelProviders = Partial<Record<Harness, MobileModelProvider | null>>;
 
@@ -61,6 +61,7 @@ export class AppStore {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private dirty = new Set<string>();
   private syncing: Promise<void> | null = null;
+  private timelineRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private timelineRequests = new Map<string, Promise<void>>();
 
   private providerRequests = new Map<Harness, Promise<void>>();
@@ -118,6 +119,7 @@ export class AppStore {
     this.link = null;
     this.syncing = null;
     this.timelineRequests.clear();
+    for (const id of this.timelineRetryTimers.keys()) this.clearTimelineRetry(id);
     this.connectionGeneration++;
     this.providerRequests.clear();
     this.providerFreshUntil.clear();
@@ -138,11 +140,15 @@ export class AppStore {
 
   sync(): Promise<void> {
     if (this.syncing) return this.syncing;
-    const request = this.runSync().finally(() => {
+    const request = Promise.all([this.runSync(), this.syncOpenTimelines()]).then(() => {}).finally(() => {
       if (this.syncing === request) this.syncing = null;
     });
     this.syncing = request;
     return request;
+  }
+
+  async syncOpenTimelines() {
+    await Promise.all(Array.from(this.opened, (id) => this.syncTimeline(id)));
   }
 
   private async runSync() {
@@ -157,7 +163,6 @@ export class AppStore {
       markEnd("list-sync", `${agents.length} sessions`);
       this.touchIndex();
       if (this.opened.size > 0) void link.call("agents.setOpen", { agentIds: [...this.opened] }).catch(() => {});
-      await Promise.all([...this.opened].filter((id) => agents.some((a) => a.id === id)).map((id) => this.syncTimeline(id)));
     } catch (error) {
       if (this.connectionGeneration !== generation) return;
       markEnd("list-sync", "failed");
@@ -186,6 +191,7 @@ export class AppStore {
         const { [event.agentId]: _gone, ...timelines } = this.state.timelines;
         this.opened.delete(event.agentId);
         this.timelineRequests.delete(event.agentId);
+        this.clearTimelineRetry(event.agentId);
         this.set({ agents: this.state.agents.filter((a) => a.id !== event.agentId), timelines });
         this.touchIndex();
         break;
@@ -217,46 +223,60 @@ export class AppStore {
     markStart(`open:${agentId}`);
     this.opened.add(agentId);
     this.recent = [agentId, ...this.recent.filter((id) => id !== agentId)].slice(0, CACHE_SESSIONS);
-    const existing = this.state.timelines[agentId];
-    if (!existing?.synced && !existing?.cached && !existing?.items.length) {
-      const raw = await this.cache.get(timelineKey(agentId)).catch(() => null);
-      if (!this.opened.has(agentId)) return;
-      const current = this.state.timelines[agentId];
-      if (raw && !current?.synced && !current?.items.length) {
-        try {
-          const cached = JSON.parse(raw) as { items: TimelineItem[]; hasMore: boolean };
-          if (Array.isArray(cached.items)) {
-            this.set({ timelines: { ...this.state.timelines, [agentId]: { ...(current ?? EMPTY), items: cached.items, hasMore: cached.hasMore, cached: true } } });
-          }
-          markEnd(`open:${agentId}`, `cache ${cached.items.length} items`);
-          markStart(`open-sync:${agentId}`);
-        } catch {
-        }
-      }
-    }
+    const generation = this.connectionGeneration;
+    const cached = this.readSavedTimeline(agentId, generation);
     const link = this.link;
     if (link?.status === "online") {
       void link.call("agents.setOpen", { agentIds: [...this.opened] }).catch(() => {});
       const agent = this.state.agents.find((a) => a.id === agentId);
       if (agent?.unread) void link.call("agents.markRead", { agentId, read: true }).catch(() => {});
-      await this.syncTimeline(agentId);
+      await Promise.all([cached, this.syncTimeline(agentId)]);
+    } else {
+      await cached;
     }
+  }
+
+  private async readSavedTimeline(agentId: string, generation: number) {
+    const existing = this.state.timelines[agentId];
+    if (existing?.synced || existing?.cached || existing?.items.length) return;
+    const raw = await this.cache.get(timelineKey(agentId)).catch(() => null);
+    const current = this.state.timelines[agentId];
+    if (!raw || generation !== this.connectionGeneration || !this.opened.has(agentId) || current?.synced) return;
+    try {
+      const cached = JSON.parse(raw) as { items: TimelineItem[]; hasMore: boolean };
+      if (!Array.isArray(cached.items)) return;
+      const byId = new Map(cached.items.map((item) => [item.id, item]));
+      for (const item of current?.items ?? []) byId.set(item.id, item);
+      this.set({ timelines: { ...this.state.timelines, [agentId]: { ...(current ?? EMPTY), items: [...byId.values()], hasMore: cached.hasMore, cached: true } } });
+      markEnd(`open:${agentId}`, `cache ${cached.items.length} items`);
+      markStart(`open-sync:${agentId}`);
+    } catch {
+    }
+  }
+
+  private clearTimelineRetry(agentId: string) {
+    const timer = this.timelineRetryTimers.get(agentId);
+    if (timer !== undefined) clearTimeout(timer);
+    this.timelineRetryTimers.delete(agentId);
   }
 
   closeSession(agentId: string) {
     this.opened.delete(agentId);
+    this.clearTimelineRetry(agentId);
     const link = this.link;
     if (link?.status === "online") void link.call("agents.setOpen", { agentIds: [...this.opened] }).catch(() => {});
     void this.flushSave();
   }
 
-  async syncTimeline(agentId: string) {
+  async syncTimeline(agentId: string, attempt = 0) {
     const link = this.link;
     if (link?.status !== "online") return;
     const pending = this.timelineRequests.get(agentId);
     if (pending) return pending;
+    this.clearTimelineRetry(agentId);
     const started = now();
-    const request = link.call("agents.timelinePage", { agentId, limit: PAGE }, 8_000).then((result) => {
+    const limit = attempt > 0 && !this.state.timelines[agentId]?.synced ? 16 : PAGE;
+    const request = link.call("agents.timelinePage", { agentId, limit }, attempt > 0 ? 30_000 : 8_000).then((result) => {
       if (this.timelineRequests.get(agentId) !== request) return;
       const page = result as Parameters<typeof mergeTail>[2];
       const current = this.state.timelines[agentId];
@@ -269,12 +289,21 @@ export class AppStore {
     }).catch((error: unknown) => {
       if (this.timelineRequests.get(agentId) !== request) return;
       const current = this.state.timelines[agentId];
-      this.set({ timelines: { ...this.state.timelines, [agentId]: { ...current, loading: false } }, error: message(error) });
+      const transient = error instanceof TransportError;
+      if (transient && this.opened.has(agentId) && link.status === "online") {
+        const delay = Math.min(30_000, 1000 * 2 ** Math.min(attempt, 5));
+        const timer = setTimeout(() => {
+          this.timelineRetryTimers.delete(agentId);
+          void this.syncTimeline(agentId, attempt + 1);
+        }, delay);
+        this.timelineRetryTimers.set(agentId, timer);
+      }
+      this.set({ timelines: { ...this.state.timelines, [agentId]: { ...current, loading: false, error: transient ? undefined : message(error) } } });
     }).finally(() => {
       if (this.timelineRequests.get(agentId) === request) this.timelineRequests.delete(agentId);
     });
     this.timelineRequests.set(agentId, request);
-    this.set({ timelines: { ...this.state.timelines, [agentId]: { ...(this.state.timelines[agentId] ?? EMPTY), loading: true } } });
+    this.set({ timelines: { ...this.state.timelines, [agentId]: { ...(this.state.timelines[agentId] ?? EMPTY), loading: true, error: undefined } } });
     return request;
   }
 
@@ -487,6 +516,7 @@ export class AppStore {
       }
       const timeline = this.state.timelines[key];
       if (!timeline || !this.recent.includes(key)) continue;
+      if (!timeline.synced && !timeline.cached && !timeline.items.length) continue;
       const tail = timeline.items.slice(-CACHE_ITEMS);
       writes.push(this.cache.set(timelineKey(key), JSON.stringify({ items: tail, hasMore: timeline.hasMore || tail.length < timeline.items.length })));
     }

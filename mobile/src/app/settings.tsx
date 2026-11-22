@@ -10,6 +10,7 @@ import { client, store, unpair, updateHosts, useAppState, useConnection } from "
 import { setThemeChoice, useThemeChoice, type ThemeChoice } from "../state/themePrefs";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Button } from "../ui/Button";
+import { useReconnect } from "../ui/ConnectionTitle";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
 import { Segmented, type SegmentedOption } from "../ui/Segmented";
 import { Text } from "../ui/Text";
@@ -33,6 +34,7 @@ export default function Settings() {
   const theme = useThemeChoice() ?? "system";
   const { connection } = useConnection();
   const conn = useAppState((s) => s.conn);
+  const reconnect = useReconnect();
   const hostName = useAppState((s) => s.hostName);
   const syncedAt = useAppState((s) => s.syncedAt);
   const [rtt, setRtt] = useState<number | null>(null);
@@ -128,7 +130,7 @@ export default function Settings() {
     ]);
   };
 
-  const statusText = conn === "online" ? `Connected${client.host ? ` via ${client.host}` : ""}` : conn === "unauthorized" ? "Removed from your Mac" : conn === "idle" ? "Not connected" : "Reconnecting…";
+  const statusText = conn === "online" ? `Connected${client.host ? ` via ${client.host}` : ""}` : conn === "unauthorized" ? "Removed from your Mac" : conn === "idle" ? "Not connected" : conn === "offline" ? "Offline · Retrying" : "Reconnecting…";
   return <>
     <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
       <Section title="Appearance">
@@ -151,7 +153,7 @@ export default function Settings() {
         <Row label="Round trip" value={rtt === null ? "Tap Measure" : durationLabel(rtt)} />
         <View style={styles.buttons}>
           <Button title="Measure" onPress={() => void measure()} style={styles.actionButton} disabled={conn !== "online"} />
-          <Button title="Reconnect" onPress={() => client.resume()} style={styles.actionButton} />
+          <Button title={conn === "unauthorized" ? "Pair again" : "Reconnect"} onPress={reconnect} style={styles.actionButton} />
         </View>
         {addressDraft === null ? (
           <Button title="Change address" kind="plain" onPress={editAddress} />
