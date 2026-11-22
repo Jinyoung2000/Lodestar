@@ -8,6 +8,7 @@ import { loadPref, savePref } from "../state/storage";
 import { store } from "../state/app";
 import { spacing, useColors } from "../theme/theme";
 import { Button } from "./Button";
+import { useFoldLayout } from "./FoldLayout";
 import { Icon } from "./Icon";
 import { PROVIDER_NAMES, ProviderMark } from "./ProviderMark";
 import { Text } from "./Text";
@@ -83,6 +84,8 @@ type Props = {
 export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, onCatalog, close, keyboardInset = 0, apply }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { paneWidth, fontScale } = useFoldLayout();
+  const searchHint = paneWidth < 360 && fontScale >= 1.3 ? "Search" : "Find a model";
   const [catalog, setCatalog] = useState<MobileModelCatalog | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -192,7 +195,7 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, o
         {page === "models" && <>
           <View style={[styles.search, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}>
             <Icon name="magnifyingglass" size={16} color="textMuted" />
-            <TextInput value={query} onChangeText={setQuery} accessibilityLabel="Find a model" placeholder="Find a model" placeholderTextColor={colors.textMuted} autoCorrect={false} autoCapitalize="none" returnKeyType="search" style={[styles.searchInput, { color: colors.textStrong }]} />
+            <TextInput value={query} onChangeText={setQuery} accessibilityLabel="Find a model" placeholder={searchHint} placeholderTextColor={colors.textMuted} autoCorrect={false} autoCapitalize="none" returnKeyType="search" style={[styles.searchInput, { color: colors.textStrong }]} />
             {!!query && <Pressable accessibilityRole="button" accessibilityLabel="Clear model search" hitSlop={6} style={styles.clear} onPress={() => setQuery("")}><Icon name="xmark" size={14} color="textMuted" /></Pressable>}
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Model filters" style={styles.target} onPress={() => { Keyboard.dismiss(); setPage("filter"); }}>
