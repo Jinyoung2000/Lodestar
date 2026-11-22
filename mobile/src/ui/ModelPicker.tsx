@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, BackHandler, Image, Keyboard, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SwitchBlock } from "@shared/harnessSwitch";
 import type { MobileModelCatalog, MobileModelProvider, MobileModelSelection } from "@shared/mobile";
@@ -222,10 +222,11 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, o
                 {!narrowed && <Choice label={entry.harness === "claude" ? "Mac default" : `${name} default`} checked={entry.harness === displayed.harness && displayed.model === null} disabled={locked} onPress={() => choose(entry, null)} />}
                 {models.map((model) => {
                   const key = `${entry.harness}/${model.value}`;
+                  const starred = favorites?.includes(key) ?? false;
                   return <View key={key} style={styles.modelRow}>
                     <Choice label={model.displayName} checked={entry.harness === displayed.harness && displayed.model !== null && model.value === current?.value} disabled={locked} onPress={() => choose(entry, model.value)} />
-                    <Pressable accessibilityRole="button" accessibilityLabel={`${favorites?.includes(key) ? "Unfavorite" : "Favorite"} ${model.displayName}`} accessibilityState={{ selected: favorites?.includes(key) ?? false }} disabled={!favorites} style={styles.target} onPress={() => favorite(key)}>
-                      <Icon name={favorites?.includes(key) ? "star.fill" : "star"} size={17} color={favorites?.includes(key) ? "accentText" : "textMuted"} />
+                    <Pressable accessibilityRole="button" accessibilityLabel={`${starred ? "Unfavorite" : "Favorite"} ${model.displayName}`} accessibilityState={{ selected: starred }} disabled={!favorites} style={styles.target} onPress={() => favorite(key)}>
+                      <Image accessible={false} importantForAccessibility="no" source={starred ? require("../../assets/model-picker/favorite.png") : require("../../assets/model-picker/favorite-outline.png")} style={{ width: 17, height: 17, tintColor: starred ? colors.accentText : colors.textMuted }} />
                     </Pressable>
                   </View>;
                 })}

@@ -4,8 +4,6 @@ export const MATERIAL_ICONS: Record<string, readonly [AndroidSymbol, number]> = 
   "arrow.down.right.and.arrow.up.left": ["fullscreen_exit", 0xe5d1],
   "arrow.up.left.and.arrow.down.right": ["fullscreen", 0xe5d0],
   "line.3.horizontal.decrease": ["filter_list", 0xe152],
-  star: ["star_border", 0xe83a],
-  "star.fill": ["star", 0xe838],
   magnifyingglass: ["search", 0xe8b6],
   "arrow.down": ["arrow_downward", 0xe5db],
   "arrow.right": ["arrow_forward", 0xe5c8],
