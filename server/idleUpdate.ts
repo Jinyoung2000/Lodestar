@@ -139,7 +139,18 @@ export class IdleUpdater {
     writeFileSync(script, installScript(this.releaseApp(), this.deps.home, source));
     chmodSync(script, 0o755);
     this.note("install: the app quits, is replaced and relaunches");
-    spawn("/bin/bash", [script], { detached: true, stdio: "ignore" }).unref();
+    const installer = spawn("/bin/bash", [script], { detached: true, stdio: "ignore" });
+    installer.once("error", (error) => {
+      this.working = false;
+      this.lastFailure = { at: Date.now(), step: "install", source };
+      this.note(`install could not start: ${error.message}`);
+    });
+    installer.once("exit", (code, signal) => {
+      this.working = false;
+      if (code !== 0) this.lastFailure = { at: Date.now(), step: "install", source };
+      this.note(`installer exited (code ${code}, signal ${signal})`);
+    });
+    installer.unref();
   }
 }
 
@@ -182,10 +193,12 @@ export function installScript(release: string, home: string, source: string) {
 LOG=${q(log)}
 say() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) install: $*" >> "$LOG"; }
 launch() { env -i HOME="$HOME" USER="$USER" LOGNAME="$USER" SHELL=/bin/zsh LANG=ko_KR.UTF-8 PATH="$(/bin/zsh -lc 'printf %s "$PATH"')" /usr/bin/open -g ${q(INSTALLED_APP)}; }
-P=$(pgrep -f "${INSTALLED_APP}/Contents/MacOS/Lodestar$")
-[ -n "$P" ] && kill -TERM $P
+APP_EXE=${q(join(INSTALLED_APP, "Contents", "MacOS", "Lodestar"))}
+P=${process.ppid}
+if [ "$(/bin/ps -p "$P" -o comm=)" != "$APP_EXE" ]; then say "cannot identify running app, giving up"; exit 1; fi
+kill -TERM "$P" || { say "could not quit running app"; exit 1; }
 t0=$(date +%s)
-while pgrep -f "${INSTALLED_APP}/Contents/MacOS/Lodestar" >/dev/null; do sleep 2; [ $(( $(date +%s)-t0 )) -gt 300 ] && { say "app did not quit, giving up"; exit 1; }; done
+while kill -0 "$P" 2>/dev/null; do sleep 2; [ $(( $(date +%s)-t0 )) -gt 300 ] && { say "app did not quit, giving up"; exit 1; }; done
 rm -rf ${q(prev)}; mkdir -p ${q(join(home, "previous"))}
 mv ${q(INSTALLED_APP)} ${q(prev)} || { say "could not move the old app"; launch; exit 1; }
 cp -R ${q(release)} ${q(INSTALLED_APP)} || { say "copy failed, restoring"; rm -rf ${q(INSTALLED_APP)}; mv ${q(prev)} ${q(INSTALLED_APP)}; launch; exit 1; }

@@ -1,49 +1,53 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, type NativeStackNavigationProp } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Keyboard, Pressable, useWindowDimensions, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { ActivityIndicator, BackHandler, Keyboard, Pressable, useWindowDimensions, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ImageRef } from "@shared/protocol";
 import { stateOf, workspaceName } from "../../logic/agents";
 import { buildRows, stabilizeRows, type Row } from "../../logic/timeline";
-import { requestDraft, sessionViewState, type SessionTab } from "../../state/sessionView";
+import { requestDraft, sessionViewState } from "../../state/sessionView";
+import { releasePreview, useExpandedPreview } from "../../state/expandedPreview";
 import { store, useAppState } from "../../state/app";
-import { sessionPreviews } from "../../logic/previews";
+import { sessionPreviews, type Preview } from "../../logic/previews";
 import { PreviewGallery, PreviewModal, usePreview } from "../../ui/Preview";
 import { CreatePreview } from "../../ui/CreatePreview";
 import { Button } from "../../ui/Button";
-import { Segmented } from "../../ui/Segmented";
 import { createFrameMeter } from "../../state/frames";
-import { spacing, useColors } from "../../theme/theme";
+import { radius, spacing, useColors } from "../../theme/theme";
 import { ProviderMark, sessionIdentity } from "../../ui/ProviderMark";
-import { ConnectionBanner, useReconnect } from "../../ui/Banner";
+import { ConnectionBanner } from "../../ui/Banner";
 import { Composer } from "../../ui/Composer";
 import { useFoldLayout } from "../../ui/FoldLayout";
 import { Icon } from "../../ui/Icon";
 import { RenameDialog } from "../../ui/RenameDialog";
 import { KeyboardSpacer, useKeyboardTop } from "../../ui/KeyboardSpacer";
+import { ModelPicker, ModelSubtitle, modelPickerLabel, useModelPicker } from "../../ui/ModelPicker";
 import { Text } from "../../ui/Text";
 import { ChatRow, rowType } from "../../ui/chat/ChatRow";
 import { ApprovalCard, QuestionCard, PlanCard, type Actions } from "../../ui/chat/Cards";
 import { useSessionActions } from "../../ui/sessionActions";
 
 const NEAR_BOTTOM = 120;
+type SessionParams = { id: string; draft?: string; focusQuestion?: string; gallery?: string; viewer?: string };
 
 export default function Session() {
-  const params = useLocalSearchParams<{ id: string; draft?: string; focusQuestion?: string }>();
-  return <SessionView key={params.id} id={params.id} draft={params.draft} focusQuestion={params.focusQuestion === "1"} />;
+  const params = useLocalSearchParams<SessionParams>();
+  return <SessionView key={params.id} id={params.id} draft={params.draft} focusQuestion={params.focusQuestion === "1"} galleryOpen={params.gallery === "1"} viewerOpen={params.viewer === "1"} />;
 }
 
-function SessionView({ id, draft, focusQuestion }: { id: string; draft?: string; focusQuestion: boolean }) {
+function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id: string; draft?: string; focusQuestion: boolean; galleryOpen: boolean; viewerOpen: boolean }) {
   const router = useRouter();
+  const navigation = useNavigation<NativeStackNavigationProp<{ "session/[id]": SessionParams }, "session/[id]">>();
   const { expanded, paneWidth, sharedConnectionStrip } = useFoldLayout();
   const colors = useColors();
   const agent = useAppState((s) => s.agents.find((a) => a.id === id));
+  const conn = useAppState((s) => s.conn);
+  const model = useModelPicker(conn === "online" && !!agent, agent);
+  const { open: modelOpen, close: closeModel } = model;
   const workspaces = useAppState((s) => s.workspaces);
   const timeline = useAppState((s) => s.timelines[id]);
-  const conn = useAppState((s) => s.conn);
-  const reconnect = useReconnect();
   const listRef = useRef<FlashListRef<Row>>(null);
   const [atBottom, setAtBottom] = useState(true);
   const atBottomRef = useRef(true);
@@ -59,23 +63,56 @@ function SessionView({ id, draft, focusQuestion }: { id: string; draft?: string;
 
   const [memory] = useState(() => sessionViewState(id));
   const restoreOffset = useRef(memory.offset);
-  const [tab, setLocalTab] = useState<SessionTab>(focusQuestion ? "chat" : memory.tab);
-  const setTab = useCallback((next: SessionTab) => {
-    memory.tab = next;
-    setLocalTab(next);
-  }, [memory]);
-  const { height: windowHeight } = useWindowDimensions();
+  const showGallery = useCallback(() => {
+    Keyboard.dismiss();
+    navigation.setParams({ gallery: "1" });
+  }, [navigation]);
+  const closeGallery = useCallback(() => navigation.setParams({ gallery: undefined }), [navigation]);
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const chatPadding = (paneWidth || windowWidth) < 360 ? spacing.md : spacing.lg;
   const keyboardTop = useKeyboardTop();
   const insets = useSafeAreaInsets();
   const availableHeight = (keyboardTop ?? windowHeight) - insets.top;
   const compactDock = availableHeight < 480;
   const shortDock = availableHeight < 320;
   const [chatHeight, setChatHeight] = useState(windowHeight);
-  const showGallery = useCallback(() => { Keyboard.dismiss(); setTab("previews"); }, [setTab]);
   const [creatingPreview, setCreatingPreview] = useState(false);
+  const createPreview = conn === "online" ? () => { Keyboard.dismiss(); setCreatingPreview(true); } : undefined;
   const items = timeline?.items;
   const files = useMemo(() => sessionPreviews(items ?? []), [items]);
   const preview = usePreview(id, files);
+  const { open, close } = preview;
+  const previewOpen = viewerOpen && !!preview.selected;
+  const fullPreview = useExpandedPreview() === id;
+  const openPreview = useCallback((file: Preview) => {
+    navigation.setParams({ viewer: "1" });
+    void open(file);
+  }, [navigation, open]);
+  const closePreview = useCallback(() => {
+    navigation.setParams({ viewer: undefined });
+    close();
+  }, [close, navigation]);
+  useFocusEffect(useCallback(() => {
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (modelOpen) {
+        closeModel();
+        return true;
+      }
+      if (previewOpen) {
+        if (fullPreview && expanded) releasePreview(id);
+        else closePreview();
+        return true;
+      }
+      if (galleryOpen) {
+        closeGallery();
+        return true;
+      }
+      if (!expanded) return false;
+      BackHandler.exitApp();
+      return true;
+    });
+    return () => back.remove();
+  }, [closeGallery, closeModel, closePreview, expanded, fullPreview, galleryOpen, id, modelOpen, previewOpen]));
   const rows = useMemo(() => {
     const next = stabilizeRows(previousRows.current, buildRows(items ?? []));
     previousRows.current = next;
@@ -107,9 +144,9 @@ function SessionView({ id, draft, focusQuestion }: { id: string; draft?: string;
 
   const toEnd = useCallback((animated = true) => listRef.current?.scrollToEnd({ animated }), []);
 
-  const normalDockLimit = keyboardTop === undefined ? Math.min(availableHeight * 0.62, chatHeight - 40) : chatHeight - 40;
+  const normalDockLimit = keyboardTop === undefined ? Math.min(availableHeight * 0.5, chatHeight - 40) : chatHeight - 40;
   const dockLimit = shortDock ? chatHeight : Math.max(120, normalDockLimit);
-  const dock = pending ? { draft: requestDraft(memory, pending.item.id), limit: dockLimit, compact: compactDock, short: shortDock, offline: conn !== "online", focusOnOpen: focusQuestion, onOpen: () => { if (focusQuestion || restoreOffset.current === null) toEnd(false); } } : null;
+  const dock = pending ? { draft: requestDraft(memory, pending.item.id), limit: dockLimit, compact: compactDock, short: shortDock, offline: conn !== "online", focusOnOpen: focusQuestion && !galleryOpen && !previewOpen, onOpen: () => { if (focusQuestion || restoreOffset.current === null) toEnd(false); } } : null;
 
   const send = useCallback(
     async (text: string, images: ImageRef[], steer: boolean) => {
@@ -124,48 +161,55 @@ function SessionView({ id, draft, focusQuestion }: { id: string; draft?: string;
   const running = agent?.status === "running";
   const hasTimeline = !!timeline && (timeline.synced || timeline.cached || timeline.items.length > 0);
   const loading = !hasTimeline && conn === "online" && timeline?.loading === true;
-  const tryAgain = () => {
-    if (conn === "online") void store.syncTimeline(id);
-    else reconnect();
-  };
   const state = agent ? stateOf(agent) : "idle";
+  const hideChatToolbar = !!pending && availableHeight < 200 && !galleryOpen;
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <View style={{ flex: 1, paddingRight: expanded ? insets.right : 0, paddingBottom: expanded && keyboardTop === undefined ? insets.bottom : 0 }} accessibilityElementsHidden={!!preview.selected} importantForAccessibility={preview.selected ? "no-hide-descendants" : "auto"}>
-      <SafeAreaView edges={sharedConnectionStrip ? [] : ["top"]} style={{ backgroundColor: colors.background }}>
-        {!(tab === "chat" && pending && availableHeight < 200) && <View style={[styles.bar, expanded && { paddingLeft: spacing.lg }]}>
-          {!expanded && <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={styles.headerButton}>
-            <Icon name="chevron.left" size={24} color="textStrong" />
-          </Pressable>}
-          <View style={styles.title} accessibilityRole="header" accessibilityLabel={agent ? [agent.title, sessionIdentity(agent.harness, state), workspaceName(agent, workspaces)].filter(Boolean).join(", ") : undefined}>
-            <View style={styles.titleLine}>
-              {agent && <ProviderMark harness={agent.harness} state={state} selected />}
-              <Text style={{ flexShrink: 1 }} variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.3}>{agent?.title ?? "Session"}</Text>
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: !galleryOpen && !previewOpen && !modelOpen }} />
+      <View style={{ flex: 1, paddingRight: expanded ? insets.right : 0, paddingBottom: expanded && keyboardTop === undefined ? insets.bottom : 0 }} pointerEvents={previewOpen || modelOpen ? "none" : "auto"} accessibilityElementsHidden={previewOpen || modelOpen} importantForAccessibility={previewOpen || modelOpen ? "no-hide-descendants" : "auto"}>
+      <SafeAreaView edges={sharedConnectionStrip ? [] : expanded ? ["top"] : ["top", "left", "right"]} style={{ backgroundColor: colors.background }}>
+        <View>
+          {!hideChatToolbar && <View style={[styles.bar, expanded && styles.expandedBar]} pointerEvents={galleryOpen ? "none" : "auto"} accessibilityElementsHidden={galleryOpen} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"}>
+            {!expanded && <ToolbarButton icon="chevron.left" label="Back" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />}
+            <Pressable
+              accessibilityRole={agent ? "button" : "header"}
+              accessibilityLabel={agent ? [agent.title, sessionIdentity(agent.harness, state), modelPickerLabel(model.name, model.effort)].join(". ") : "Session"}
+              accessibilityState={{ disabled: !agent || conn !== "online" }}
+              disabled={!agent || conn !== "online"}
+              onPress={model.show}
+              style={({ pressed }) => [styles.title, styles.titleButton, pressed && { backgroundColor: colors.pressed }]}
+            >
+              <View style={styles.titleLine}>
+                {agent && <ProviderMark harness={agent.harness} state={state} selected />}
+                <Text style={styles.titleText} color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.3}>{agent?.title ?? "Session"}</Text>
+              </View>
+              {agent && <ModelSubtitle name={model.name} effort={model.effort} />}
+            </Pressable>
+            {files.length > 0 && <ToolbarButton icon="photo.on.rectangle" count={files.length} label={`Open previews, ${files.length} ${files.length === 1 ? "preview" : "previews"}`} onPress={showGallery} />}
+            {(agent || createPreview) && <ToolbarButton icon="ellipsis" label="Session actions" onPress={() => sessionActions.open(agent, { closeConversation: expanded ? () => router.dismissTo("/") : undefined, createPreview })} />}
+          </View>}
+          {galleryOpen && <View style={[styles.bar, StyleSheet.absoluteFill, { backgroundColor: colors.background }]} onAccessibilityEscape={closeGallery}>
+            <ToolbarButton icon="chevron.left" label="Close previews" onPress={closeGallery} />
+            <View style={styles.galleryTitle} accessible accessibilityRole="header" accessibilityLabel={`Previews, ${files.length}`}>
+              <Text variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.shrink}>Previews</Text>
+              <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.count}>{files.length}</Text>
             </View>
-            {agent && <View style={styles.titleSub}>
-              <Text variant="caption" color="textMuted" numberOfLines={1} style={{ flexShrink: 1 }}>{[state === "waiting" ? "Needs your reply" : state === "running" ? "Working" : state === "error" ? "Stopped with an error" : null, workspaceName(agent, workspaces)].filter(Boolean).join(" · ")}</Text>
-            </View>}
-          </View>
-          {agent && <Pressable accessibilityRole="button" accessibilityLabel="Session actions" onPress={() => sessionActions.open(agent, expanded ? () => router.dismissTo("/") : undefined)} style={styles.headerButton}>
-            <Icon name="ellipsis" size={22} color="textStrong" />
-          </Pressable>}
-        </View>}
+            <ToolbarButton icon="plus" label="New preview" onPress={createPreview} />
+          </View>}
+        </View>
       </SafeAreaView>
       {!sharedConnectionStrip && <ConnectionBanner />}
-      {!(tab === "chat" && pending && compactDock) && <Segmented paneWidth={paneWidth} options={[{ value: "chat", label: "Conversation" }, { value: "previews", label: "Previews", count: files.length }]} value={tab} onChange={(next) => { Keyboard.dismiss(); setTab(next); }} />}
       <View style={{ flex: 1 }}>
-        <View onLayout={({ nativeEvent }) => setChatHeight(nativeEvent.layout.height)} style={[{ flex: 1 }, paneWidth > 752 && styles.readingWidth]} pointerEvents={tab === "chat" ? "auto" : "none"} importantForAccessibility={tab === "chat" ? "auto" : "no-hide-descendants"} accessibilityElementsHidden={tab !== "chat"}>
+        <View onLayout={({ nativeEvent }) => setChatHeight(nativeEvent.layout.height)} style={[{ flex: 1 }, paneWidth > 752 && styles.readingWidth]} pointerEvents={galleryOpen ? "none" : "auto"} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={galleryOpen}>
           {loading ? (
             <View style={styles.center}>
               <ActivityIndicator />
             </View>
           ) : !hasTimeline ? (
             <View style={styles.unavailable}>
-              <Text variant="title" color="textStrong" style={styles.centeredText}>Can’t load this session</Text>
-              <Text variant="secondary" color="textMuted" style={styles.centeredText}>It opens when your Mac is reachable.</Text>
-              <Button title="Try again" onPress={tryAgain} />
+              <Text variant="secondary" color="textMuted" style={styles.centeredText}>Session unavailable</Text>
+              {conn === "online" && <Button title="Try again" kind="plain" onPress={() => void store.syncTimeline(id)} />}
             </View>
           ) : (
             <View style={{ flex: 1 }}>
@@ -174,9 +218,9 @@ function SessionView({ id, draft, focusQuestion }: { id: string; draft?: string;
                 data={messages}
                 keyExtractor={(row) => row.key}
                 getItemType={rowType}
-                renderItem={({ item }) => <ChatRow agentId={id} row={item} showGallery={showGallery} openPreview={preview.open} />}
+                renderItem={({ item }) => <ChatRow agentId={id} row={item} showGallery={showGallery} openPreview={openPreview} />}
                 ItemSeparatorComponent={Gap}
-                contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.lg }}
+                contentContainerStyle={{ paddingHorizontal: chatPadding, paddingVertical: spacing.sm }}
                 maintainVisibleContentPosition={{ autoscrollToBottomThreshold: 0.25, startRenderingFromBottom: true, animateAutoScrollToBottom: false }}
                 onLoad={() => {
                   const offset = restoreOffset.current;
@@ -196,9 +240,10 @@ function SessionView({ id, draft, focusQuestion }: { id: string; draft?: string;
                 ListFooterComponent={running ? <Working /> : null}
               />
               {!atBottom && (
-                <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => toEnd(true)} style={[styles.latest, { backgroundColor: colors.overlay, borderColor: colors.border }]}>
-                  <Icon name="arrow.down" size={16} color="textStrong" weight="semibold" />
-                  <Text variant="secondary" color="textStrong">Latest</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => toEnd(true)} style={[styles.latestTarget, { right: chatPadding - 6 }]}>
+                  {({ pressed }) => <View style={[styles.latest, { backgroundColor: pressed ? colors.pressed : colors.overlay, borderColor: colors.border }]}>
+                    <Icon name="arrow.down" size={18} color="textStrong" weight="semibold" />
+                  </View>}
                 </Pressable>
               )}
             </View>
@@ -211,8 +256,7 @@ function SessionView({ id, draft, focusQuestion }: { id: string; draft?: string;
             agent={agent}
             initialText={draft}
             draftKey={id}
-            disabled={conn !== "online"}
-            placeholder={conn === "online" ? "Message" : "Offline"}
+            disabled={conn !== "online" || !!pending || galleryOpen || previewOpen || modelOpen}
             onSend={send}
             onStop={() => void store.interrupt(id).catch(() => {})}
             onDequeue={async (queueId) => (await store.dequeue(id, queueId))?.text ?? null}
@@ -224,23 +268,39 @@ function SessionView({ id, draft, focusQuestion }: { id: string; draft?: string;
           />
           </View>
         </View>
-        {tab === "previews" && <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}>
-          <PreviewGallery agentId={id} files={files} open={preview.open}
-            canCreate={conn === "online"} onCreate={() => setCreatingPreview(true)}
+        {galleryOpen && <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} onAccessibilityEscape={closeGallery}>
+          <PreviewGallery agentId={id} files={files} open={openPreview}
             footer={timeline?.hasMore ? <Button title="Load earlier messages" kind="plain" busy={timeline.loadingOlder} disabled={conn !== "online"} onPress={() => void store.loadOlder(id)} /> : undefined}
           />
         </View>}
       </View>
-      {creatingPreview && <CreatePreview close={() => setCreatingPreview(false)} send={async (prompt) => { await store.send(id, prompt, { steer: false, images: [] }); setTab("chat"); }} />}
+      {creatingPreview && <CreatePreview close={() => setCreatingPreview(false)} send={async (prompt) => { await store.send(id, prompt, { steer: false, images: [] }); closeGallery(); }} />}
       {!expanded && <KeyboardSpacer />}
       </View>
-      <PreviewModal {...preview} />
+      {previewOpen && <PreviewModal {...preview} close={closePreview} />}
+      {modelOpen && agent && <ModelPicker
+        agentId={id}
+        selection={model.selection}
+        onCatalog={model.setCatalog}
+        close={model.close}
+        keyboardInset={expanded || keyboardTop === undefined ? 0 : Math.max(0, windowHeight - keyboardTop)}
+        apply={(selection) => store.setModel(id, selection)}
+      />}
       <RenameDialog initial={sessionActions.renaming?.title ?? null} onSubmit={sessionActions.submitRename} onClose={sessionActions.closeRename} />
     </View>
   );
 }
 
-const Gap = () => <View style={{ height: spacing.md }} />;
+function ToolbarButton({ icon, label, count, onPress }: { icon: ComponentProps<typeof Icon>["name"]; label: string; count?: number; onPress?: () => void }) {
+  const colors = useColors();
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !onPress }} disabled={!onPress} onPress={onPress}
+    style={({ pressed }) => [styles.headerButton, count !== undefined && styles.countButton, pressed && { backgroundColor: colors.pressed }]}>
+    <Icon name={icon} size={20} color={onPress ? "textStrong" : "textSubtle"} />
+    {count !== undefined && <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.count}>{count}</Text>}
+  </Pressable>;
+}
+
+const Gap = () => <View style={{ height: spacing.sm }} />;
 
 function Working() {
   return (
@@ -252,15 +312,22 @@ function Working() {
 }
 
 const styles = StyleSheet.create({
-  headerButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
-  bar: { minHeight: 56, paddingHorizontal: spacing.xs, flexDirection: "row", gap: spacing.xs, alignItems: "center" },
+  headerButton: { width: 48, height: 48, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  countButton: { width: "auto", minWidth: 48, flexDirection: "row", gap: spacing.xs, paddingHorizontal: spacing.sm },
+  bar: { minHeight: 48, paddingHorizontal: spacing.xs, flexDirection: "row", gap: spacing.xs, alignItems: "center" },
+  expandedBar: { paddingLeft: spacing.lg },
+  galleryTitle: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  shrink: { flexShrink: 1 },
+  count: { fontVariant: ["tabular-nums"] },
   title: { flex: 1, minWidth: 0 },
+  titleButton: { height: 48, justifyContent: "center", borderRadius: 8 },
+  titleText: { flexShrink: 1, fontSize: 16, lineHeight: 22, fontWeight: "600" },
   titleLine: { flexDirection: "row", alignItems: "center", gap: 8 },
   centeredText: { textAlign: "center" },
   unavailable: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.sm, padding: spacing.lg },
-  titleSub: { flexDirection: "row", alignItems: "center", gap: 2 },
   readingWidth: { width: 720, alignSelf: "center" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   working: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingTop: spacing.md },
-  latest: { position: "absolute", alignSelf: "center", bottom: spacing.lg, flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 40, paddingHorizontal: spacing.lg, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth },
+  latestTarget: { position: "absolute", bottom: spacing.xs, width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  latest: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
 });

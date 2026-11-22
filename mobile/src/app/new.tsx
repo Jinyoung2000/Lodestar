@@ -1,6 +1,7 @@
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BackHandler, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import type { MobileModelSelection } from "@shared/mobile";
 import type { BranchesResult, ImageRef } from "@shared/protocol";
 import { pickableWorkspaces } from "../logic/agents";
 import { baseChoices, branchLabel, canStartWorktree, defaultBaseBranch, shortPath, topWorkspace, worktreeDisabledReason, worktreePreview } from "../logic/workspaces";
@@ -8,7 +9,9 @@ import { store, useAppState } from "../state/app";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Composer } from "../ui/Composer";
 import { Icon } from "../ui/Icon";
-import { KeyboardSpacer } from "../ui/KeyboardSpacer";
+import { KeyboardSpacer, useKeyboardTop } from "../ui/KeyboardSpacer";
+import { ModelPicker, ModelSubtitle, modelPickerLabel, useModelPicker } from "../ui/ModelPicker";
+import { PROVIDER_NAMES } from "../ui/ProviderMark";
 import { Text } from "../ui/Text";
 
 type Place = "here" | "worktree" | { existing: string };
@@ -20,6 +23,17 @@ export default function NewSession() {
   const workspaces = useAppState((s) => s.workspaces);
   const agents = useAppState((s) => s.agents);
   const conn = useAppState((s) => s.conn);
+  const [modelChoice, setModelChoice] = useState<MobileModelSelection>();
+  const [starting, setStarting] = useState(false);
+  const model = useModelPicker(conn === "online", undefined, modelChoice);
+  const { open: modelOpen, close: closeModel } = model;
+  const keyboardTop = useKeyboardTop();
+  const { height: windowHeight } = useWindowDimensions();
+  useFocusEffect(useCallback(() => {
+    if (!modelOpen) return;
+    const back = BackHandler.addEventListener("hardwareBackPress", () => { closeModel(); return true; });
+    return () => back.remove();
+  }, [modelOpen, closeModel]));
   const choices = useMemo(() => pickableWorkspaces(workspaces, agents), [workspaces, agents]);
   const fromLink = params.workspace ? topWorkspace(workspaces, params.workspace)?.id : undefined;
   const [picked, setPicked] = useState<string | null | undefined>(undefined);
@@ -88,14 +102,20 @@ export default function NewSession() {
     } else if (selected && typeof effectivePlace === "object") {
       workspaceId = effectivePlace.existing;
     }
-    const agent = await store.createSession(workspaceId, text, images, worktree);
-    router.replace({ pathname: "/session/[id]", params: { id: agent.id } });
+    setStarting(true);
+    try {
+      const agent = await store.createSession(workspaceId, text, images, worktree, modelChoice);
+      router.replace({ pathname: "/session/[id]", params: { id: agent.id } });
+    } finally {
+      setStarting(false);
+    }
   };
 
   const sub = (dir: string) => shortPath(dir);
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ headerRight: () => <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={8} style={{ minHeight: MIN_TOUCH, justifyContent: "center" }}><Text color="accentText">Cancel</Text></Pressable> }} />
+      <Stack.Screen options={{ gestureEnabled: !modelOpen, headerRight: () => <Pressable accessibilityRole="button" onPress={modelOpen ? closeModel : () => router.back()} hitSlop={8} style={{ minHeight: MIN_TOUCH, justifyContent: "center" }}><Text color="accentText">Cancel</Text></Pressable> }} />
+      <View style={{ flex: 1 }} accessibilityElementsHidden={modelOpen} importantForAccessibility={modelOpen ? "no-hide-descendants" : "auto"}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
         <Text variant="secondary" color="textMuted" style={styles.label}>Folder</Text>
         {choices.map((w) => (
@@ -154,11 +174,34 @@ export default function NewSession() {
             )}
           </View>
         )}
-        <View style={{ height: spacing.lg }} />
-        <Text variant="secondary" color="textSubtle">The new session asks before it edits files, and you answer on this phone.</Text>
       </ScrollView>
-      <Composer agent={undefined} initialText={params.draft} draftKey="new" disabled={conn !== "online"} placeholder="What should Claude do?" autoFocus={!wantsWorktree} onSend={(text, images) => start(text, images)} />
+      <Composer
+        agent={undefined}
+        initialText={params.draft}
+        draftKey="new"
+        disabled={conn !== "online" || modelOpen}
+        placeholder={`What should ${PROVIDER_NAMES[model.selection.harness]} do?`}
+        autoFocus={!wantsWorktree}
+        onSend={(text, images) => start(text, images)}
+        promptOptions={<Pressable accessibilityRole="button" accessibilityLabel={modelPickerLabel(model.name, model.effort)} disabled={conn !== "online" || starting} onPress={model.show}
+          style={({ pressed }) => [styles.modelChip, { borderColor: colors.border, backgroundColor: pressed ? colors.pressed : colors.surfaceBase }]}>
+          <ModelSubtitle name={model.name} effort={model.effort} draft />
+        </Pressable>}
+      />
       <KeyboardSpacer />
+      </View>
+      {modelOpen && <ModelPicker
+        selection={model.selection}
+        canResetDraft={!!modelChoice}
+        onResetDraft={() => setModelChoice(undefined)}
+        onCatalog={model.setCatalog}
+        close={model.close}
+        keyboardInset={keyboardTop === undefined ? 0 : Math.max(0, windowHeight - keyboardTop)}
+        apply={async (selection) => {
+          setModelChoice(selection.harness === "claude" && selection.model === null && selection.effort === null ? undefined : selection);
+          return selection;
+        }}
+      />}
     </View>
   );
 }
@@ -187,4 +230,5 @@ const styles = StyleSheet.create({
   baseRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
   baseList: { borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
   baseItem: { flexDirection: "row", alignItems: "center", minHeight: 44, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth },
+  modelChip: { alignSelf: "flex-start", maxWidth: "100%", minHeight: 32, justifyContent: "center", paddingHorizontal: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderRadius: 8 },
 });

@@ -45,7 +45,7 @@ export default function Settings() {
       if (enabled) await enableAlerts(connection);
       else stopAlerts();
     } catch (error) {
-      Alert.alert("Session alerts", error instanceof Error ? error.message : String(error), [
+      Alert.alert("Background connection", error instanceof Error ? error.message : String(error), [
         { text: "Close", style: "cancel" },
         { text: "Android settings", onPress: () => void Linking.openSettings() },
       ]);
@@ -130,16 +130,14 @@ export default function Settings() {
         <Segmented flush options={themeOptions} value={theme} onChange={setThemeChoice} />
         {theme === "system" && <Text variant="caption" color="textMuted">Follows your phone's setting.</Text>}
       </Section>
-      {activitySupported && connection && <Section title="Notifications">
-        <View style={[styles.row, { alignItems: "center" }]}>
-          <View style={{ flex: 1, gap: spacing.xs }}>
-            <Text variant="bodyStrong">Session alerts</Text>
-            <Text variant="secondary" color="textMuted">See running sessions and get notified when your Mac needs a reply or finishes a turn.</Text>
-          </View>
-          <Switch accessibilityLabel="Session alerts" value={alerts} disabled={changingAlerts} trackColor={{ false: colors.border, true: colors.accent }} onValueChange={(value) => void toggleAlerts(value)} />
-        </View>
-      </Section>}
       <Section title="Connection">
+        {activitySupported && connection && <View style={[styles.row, { alignItems: "center" }]}>
+          <View style={{ flex: 1 }}>
+            <Text variant="bodyStrong">Keep connected in background</Text>
+            <Text variant="caption" color="textMuted">Includes session alerts.</Text>
+          </View>
+          <Switch accessibilityLabel="Keep connected in background" value={alerts} disabled={changingAlerts} trackColor={{ false: colors.border, true: colors.accent }} onValueChange={(value) => void toggleAlerts(value)} />
+        </View>}
         <Row label="Mac" value={hostName ?? connection?.hostName ?? "-"} />
         <Row label="Status" value={statusText} valueColor={conn === "online" ? "success" : conn === "unauthorized" ? "danger" : "warning"} />
         <Row label="Addresses" value={connection ? `${connection.hosts.join(", ")}:${connection.port}` : "-"} />

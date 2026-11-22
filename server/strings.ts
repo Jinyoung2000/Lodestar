@@ -3,6 +3,10 @@ import { SLACK_NOT_CONNECTED_PREFIX } from "../shared/mcp";
 export const T = {
   errMobileMethod: (method: string) => `The phone app cannot call ${method}`,
   errMobileParam: (name: string) => `Invalid ${name}`,
+  errMobileProviderUnavailable: "That provider is unavailable on your Mac",
+  errMobileModelUnavailable: "That model is unavailable on your Mac",
+  errMobileEffortUnavailable: "That model does not support this effort",
+  errMobileModelBusy: "A model change is already in progress",
   errMobilePairInvalid: "That pairing code is not valid",
   errMobilePairExpired: "That pairing code has expired. Create a new one in Settings",
   errMobilePairLocked: "Too many wrong codes. Create a new pairing code in Settings",

@@ -19,6 +19,7 @@ export const client = new RpcClient({
   log: (line) => console.log(line),
   onCall: (method, ms, ok) => method !== "mobile.ping" && record(`rpc ${method}`, ms, ok ? undefined : "failed"),
 });
+if (AppState.currentState === "background" || AppState.currentState === "inactive") client.pause();
 export const store = new AppStore(asyncCache);
 store.attach(client);
 export const sortPrefs = new SortPrefsStore(asyncCache);
@@ -63,14 +64,17 @@ client.onStatus((status) => {
 });
 
 AppState.addEventListener("change", (next) => {
-  if (next !== "active") return;
-  if (connection && alertsEnabled()) void startAlerts(connection).catch(() => {});
-  foregroundAt = Date.now();
-  if (client.status === "online") {
-    const started = Date.now();
-    void client.call("mobile.ping", {}, 1500).then(() => record("foreground-check", Date.now() - started, "socket alive")).catch(() => {});
+  if (next !== "active") {
+    client.pause();
+    return;
   }
-  client.resume();
+  if (connection && alertsEnabled()) void startAlerts(connection).catch((error) => console.warn("Could not resume session alerts", error));
+  foregroundAt = Date.now();
+  void client.resume()?.then((ms) => {
+    if (ms === undefined) return;
+    record("foreground-check", ms, "socket alive");
+    foregroundAt = null;
+  });
 });
 
 export async function pairAndConnect(info: PairingInfo, deviceName: string): Promise<PairOutcome> {

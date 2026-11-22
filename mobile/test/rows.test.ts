@@ -28,10 +28,11 @@ test("실행 중인 도구가 있으면 steps.running, 마지막이 오류면 fa
 test("승인 대기 요청은 그 도구 줄을 대신해 카드가 되고, 응답한 요청은 기록에 남는다", () => {
   const items = [tool("t0"), perm("p0", "Bash", "allowed", { toolUseId: "t0" }), tool("t1", "Write"), perm("p1", "Write", "pending", { toolUseId: "t1" })];
   const rows = buildRows(items);
-  expect(rows.map((r) => r.type).join() === "steps,answered,approval", rows.map((r) => r.type).join());
-  const card = rows[2];
+  expect(rows.map((r) => r.type).join() === "steps,approval", rows.map((r) => r.type).join());
+  const card = rows[1];
+  expect(rows[0].type === "steps" && rows[0].decisions[0]?.id === "p0", "decision belongs to the tool");
   expect(card.type === "approval" && card.tool?.id === "t1", "card knows its tool");
-  expect(shape([perm("p", "Bash", "denied")]) === "answered", "denied request stays in history");
+  expect(shape([perm("p", "Bash", "denied")]) === "steps", "denied request stays in history");
   return "ok";
 });
 

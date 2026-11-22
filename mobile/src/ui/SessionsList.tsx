@@ -146,13 +146,13 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
             <Text color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.3} style={[styles.appTitle, styles.railTitle]}>Lodestar</Text>
             <Pressable accessibilityRole="button" accessibilityLabel={railSearch ? "Close search" : searchLabel}
               onPress={() => { if (railSearch) setQuery(""); setRailSearch(!railSearch); }} style={styles.headerButton}>
-              <Icon name={railSearch ? "xmark" : "magnifyingglass"} size={22} color="textStrong" />
+              <Icon name={railSearch ? "xmark" : "magnifyingglass"} size={20} color="textStrong" />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="New session" onPress={() => router.push("/new")} style={styles.headerButton}>
-              <Icon name="pencil" size={22} color="textStrong" />
+              <Icon name="pencil" size={20} color="textStrong" />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => router.push("/settings")} style={styles.headerButton}>
-              <Icon name="gearshape" size={22} color="textStrong" />
+              <Icon name="gearshape" size={20} color="textStrong" />
             </Pressable>
           </View>
           {railSearch && <TextInput disableFullscreenUI autoFocus accessibilityLabel={searchLabel} placeholder={searchLabel} placeholderTextColor={colors.textMuted}
@@ -166,29 +166,33 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
           headerSearchBarOptions: Platform.OS !== "android" || androidSearch ? { ref: searchBar, autoFocus: androidSearch, onClose: () => { setQuery(""); setAndroidSearch(false); }, placeholder: searchLabel, onChangeText: (e) => setQuery(e.nativeEvent.text), autoCapitalize: "none", hideWhenScrolling: false, barTintColor: colors.inputBackground, tintColor: colors.accentText, headerIconColor: colors.textStrong, textColor: colors.textStrong, hintTextColor: colors.textMuted, shouldShowHintSearchIcon: false } : undefined,
           headerRight: () => androidSearch ? null : <View style={styles.headerActions}>
             <Pressable accessibilityRole="button" accessibilityLabel={tab === "workspaces" ? "Search workspaces" : "Search sessions"} onPress={() => Platform.OS === "android" ? setAndroidSearch(true) : searchBar.current?.focus()} style={styles.headerButton}>
-              <Icon name="magnifyingglass" size={22} color="textStrong" />
+              <Icon name="magnifyingglass" size={20} color="textStrong" />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => router.push("/settings")} style={styles.headerButton}>
-              <Icon name="gearshape" size={22} color="textStrong" />
+              <Icon name="gearshape" size={20} color="textStrong" />
             </Pressable>
           </View>,
         }}
       />}
       <View style={{ paddingTop: Platform.OS === "ios" ? headerHeight : 0 }}>
         {!docked && <ConnectionBanner />}
-        <Segmented options={[{ value: "sessions", label: "Sessions" }, { value: "waiting", label: "Waiting", count: waitingAgents.length, countTone: "attention" }, { value: "workspaces", label: "Workspaces" }]} value={tab} onChange={setTab} paneWidth={paneWidth} />
+        <Segmented underline options={[{ value: "sessions", label: "Sessions" }, { value: "waiting", label: "Waiting", count: waitingAgents.length, countTone: "attention" }, { value: "workspaces", label: "Workspaces" }]} value={tab} onChange={setTab} paneWidth={paneWidth} />
       </View>
       {scopedWorkspace && (
         <View style={styles.scope}>
-          <Button title="Back to workspaces" kind="plain" onPress={() => setScopedId(undefined)} />
-          <View style={styles.projectTitle}><ProjectIcon /><Text variant="title" color="textStrong" numberOfLines={2} style={{ flex: 1 }}>{scopedWorkspace.name}</Text></View>
-          <Button title="New in workspace" onPress={() => router.push({ pathname: "/new", params: { workspace: scopedWorkspace.id } })} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to workspaces" style={styles.headerButton} onPress={() => setScopedId(undefined)}>
+            <Icon name="chevron.left" size={20} color="textMuted" />
+          </Pressable>
+          <View style={styles.projectTitle}><ProjectIcon /><Text variant="bodyStrong" color="textStrong" numberOfLines={2} style={{ flex: 1 }}>{scopedWorkspace.name}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel="New in workspace" style={styles.headerButton} onPress={() => router.push({ pathname: "/new", params: { workspace: scopedWorkspace.id } })}>
+            <Icon name="plus" size={20} color="textMuted" />
+          </Pressable>
         </View>
       )}
       {tab === "workspaces" && !scopedWorkspace ? (
         <WorkspacesView query={query} paneWidth={paneWidth} selectedId={workspaceId} onOpen={docked ? setScopedId : undefined} />
       ) : tab === "waiting" && waitingAgents.length === 0 && loaded && (conn === "online" || agents.length > 0) ? (
-        <View style={styles.waitingEmpty}><Icon name="checkmark.circle" size={28} color="textSubtle" /><Text variant="title" color="textStrong" style={{ fontSize: 19 }}>No replies needed</Text><Text variant="secondary" color="textMuted" style={styles.emptyBody}>Questions and approvals from your sessions show up here.</Text></View>
+        <View style={styles.waitingEmpty}><Icon name="checkmark.circle" size={28} color="textSubtle" /><Text variant="title" color="textStrong" style={{ fontSize: 19 }}>No replies needed</Text></View>
       ) : data.length === 0 ? (
         <Empty offline={conn !== "online" && agents.length === 0} searching={query.trim().length > 0} onNew={() => router.push("/new")} />
       ) : (
@@ -264,16 +268,12 @@ function WaitingRow({ agent, selected, workspace, pending, onPress, onLongPress 
   const verb = pending && describeTool(pending.toolName, pending.input, false).verb;
   const kind = pending && (pending.toolName === QUESTION_TOOL ? "Question" : plan ? "Plan" : "Approval");
   const request = questions[0]?.question ?? (plan ? "Plan ready for review" : target ? `${verb} ${target.text}` : verb);
+  const context = [workspace, questions.length > 1 ? `${questions.length} questions` : null].filter(Boolean).join(" · ");
   return <SessionRowFrame detailsLabel={[kind, request, workspace].filter(Boolean).join(", ")} agent={agent} selected={selected} state="waiting" stamp={relativeTime(agent.updatedAt)} emphasized onPress={onPress} onLongPress={onLongPress}>
-    {pending && <Text variant="secondary" numberOfLines={2} style={{ marginVertical: 2 }}>
-      {questions[0]?.question ?? (plan ? "Plan ready for review" : target?.kind === "command"
-        ? <>Run <Text variant="mono">{target.text}</Text></>
-        : target ? `${verb} ${target.text}` : verb)}
+    {(request || context) && <Text variant="caption" color="textMuted" numberOfLines={2}>
+      {!!request && <Text variant="caption" color="textStrong">{request}</Text>}
+      {request && context ? " · " : ""}{context}
     </Text>}
-    <Text variant="secondary" color="textMuted" numberOfLines={2} maxFontSizeMultiplier={18 / 14}>
-      {kind && <Text variant="secondary" color="warning" maxFontSizeMultiplier={18 / 14} style={{ fontWeight: "600" }}>{kind}</Text>}
-      {kind ? " · " : ""}{workspace}{questions.length > 1 ? ` · ${questions.length} questions` : ""}
-    </Text>
   </SessionRowFrame>;
 }
 
@@ -287,10 +287,10 @@ function Empty({ offline, searching, onNew }: { offline: boolean; searching: boo
 }
 
 const styles = StyleSheet.create({
-  projectTitle: { flexDirection: "row", alignItems: "center", gap: 8 },
-  scope: { paddingHorizontal: spacing.lg, gap: spacing.sm },
-  railHeader: { minHeight: 56, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingLeft: spacing.lg },
-  railTitle: { flex: 1 },
+  projectTitle: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },
+  scope: { flexDirection: "row", alignItems: "center" },
+  railHeader: { minHeight: 48, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingLeft: spacing.lg },
+  railTitle: { flex: 1, minWidth: 0 },
   searchInput: { marginHorizontal: spacing.md, marginBottom: spacing.sm, paddingHorizontal: spacing.md, minHeight: 48, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm },
   headerButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   headerActions: { flexDirection: "row" },
@@ -298,10 +298,9 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: "row", alignItems: "center", minHeight: 48 },
   sectionToggle: { flex: 1, minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 16 },
   sectionMark: { marginRight: 8 },
-  sectionLane: { width: 20, marginRight: 12, alignItems: "center" },
+  sectionLane: { width: 16, marginRight: 6, alignItems: "center" },
   sectionTitle: { fontWeight: "600", flexShrink: 1 },
   sectionCount: { marginLeft: 8, fontVariant: ["tabular-nums"] },
   waitingEmpty: { flex: 1, alignItems: "center", paddingTop: 72, gap: spacing.md, paddingHorizontal: 16 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
-  emptyBody: { textAlign: "center", maxWidth: 280 },
 });

@@ -1,7 +1,6 @@
-import { useFocusEffect } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { useEffect, useCallback, useMemo, useRef, useState, type ComponentProps, type ReactElement } from "react";
-import { ActivityIndicator, Alert, BackHandler, FlatList, Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type GestureResponderEvent } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Image, Keyboard, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type GestureResponderEvent } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import type { MobilePreview } from "@shared/mobile";
@@ -10,7 +9,7 @@ import { escapeHtml, spreadsheet, thumbnailDocument, vectorDocument } from "../l
 import { expandPreview, releasePreview, useExpandedPreview } from "../state/expandedPreview";
 import { relativeTime } from "../logic/time";
 import { client } from "../state/app";
-import { radius, spacing, useColors } from "../theme/theme";
+import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { palette } from "../theme/tokens.generated";
 import { Icon } from "./Icon";
 import { MarkdownView } from "./MarkdownView";
@@ -25,17 +24,18 @@ function renderDocument(content: MobilePreview, title: string, width: number, he
   return <PreviewContent content={content} title={title} tile={{ width, height }} />;
 }
 
-export function PreviewRow({ file, open, agentId, grouped }: { file: Preview; open: (file: Preview) => void; agentId?: string; grouped?: boolean }) {
+export function PreviewRow({ file, open, agentId, grouped, inGallery, visible }: { file: Preview; open: (file: Preview) => void; agentId?: string; grouped?: boolean; inGallery?: boolean; visible?: boolean }) {
   const colors = useColors();
+  const title = file.path?.split("/").pop() || file.title;
   return (
-    <Pressable onPress={() => open(file)} accessibilityRole="button" accessibilityLabel={`Open ${file.title}, ${formatLabel[file.kind]}`}
-      style={({ pressed }) => [!grouped && styles.card, styles.row, { borderColor: colors.separator, backgroundColor: pressed ? colors.pressed : colors.surface }]}>
-      <View style={[styles.thumb, { borderColor: colors.separator }]}><PreviewThumbnail file={file} agentId={agentId} renderDocument={renderDocument} /></View>
+    <Pressable onPress={() => open(file)} accessibilityRole="button" accessibilityLabel={`Open ${title}, ${formatLabel[file.kind]}`}
+      style={({ pressed }) => [!grouped && styles.card, styles.row, inGallery && styles.galleryRow, { borderColor: colors.separator, backgroundColor: pressed ? colors.pressed : colors.surface }]}>
+      <View style={[styles.thumb, inGallery && styles.galleryThumb, { borderColor: colors.separator }]}><PreviewThumbnail file={file} agentId={agentId} visible={visible} renderDocument={renderDocument} /></View>
       <View style={styles.title}>
-        <Text variant="bodyStrong" color="textStrong" numberOfLines={2} style={styles.rowTitle}>{file.title}</Text>
-        <Text variant="caption" color="textMuted">{formatLabel[file.kind]}</Text>
+        <Text variant="secondary" color="textStrong" numberOfLines={1} ellipsizeMode="middle" style={styles.weight}>{title}</Text>
+        <Text variant="caption" color="textMuted" numberOfLines={1}>{formatLabel[file.kind]}</Text>
       </View>
-      <Icon name="chevron.right" color="textSubtle" size={18} />
+      <Icon name="chevron.right" color="textSubtle" size={16} />
     </Pressable>
   );
 }
@@ -55,18 +55,17 @@ const filters: { label: string; kinds?: PreviewKind[] }[] = [
   { label: "Documents", kinds: ["markdown"] }, { label: "Tables", kinds: ["csv"] },
 ];
 
-export function PreviewGallery({ files, open, onCreate, canCreate, footer, agentId }: {
+export function PreviewGallery({ files, open, footer, agentId }: {
   files: readonly Preview[];
   open: (file: Preview) => void;
-  onCreate: () => void;
-  canCreate: boolean;
   footer?: ReactElement;
   agentId: string;
 }) {
   const colors = useColors();
-  const window = useWindowDimensions();
-  const { paneWidth, fontScale } = useFoldLayout();
-  const width = paneWidth || window.width;
+  const { width: windowWidth } = useWindowDimensions();
+  const { paneWidth } = useFoldLayout();
+  const [layoutWidth, setLayoutWidth] = useState(0);
+  const width = layoutWidth || paneWidth || windowWidth;
   const [filter, setFilter] = useState(0);
   const showFilters = files.length >= 6 || new Set(files.map(({ kind }) => kind)).size > 2;
   const activeFilter = showFilters ? filter : 0;
@@ -74,24 +73,19 @@ export function PreviewGallery({ files, open, onCreate, canCreate, footer, agent
     const kinds = filters[activeFilter].kinds;
     return kinds ? files.filter(({ kind }) => kinds.includes(kind)) : files;
   }, [files, activeFilter]);
-  const columns = width < 340 || fontScale >= 1.3 || matching.length === 1 ? 1 : width >= 600 ? 3 : 2;
+  const columns = width < 340 ? 1 : width >= 600 ? 3 : 2;
   const { visible: visibleRows, onViewableItemsChanged } = useVisibleRows();
   const pairs = useMemo(() => {
     const rows: Preview[][] = [];
     for (let index = 0; index < matching.length; index += columns) rows.push(matching.slice(index, index + columns));
     return rows;
   }, [matching, columns]);
-  const create = <Button title="New preview" kind="plain" disabled={!canCreate} onPress={onCreate} />;
   return <FlatList
     style={styles.fill}
+    onLayout={({ nativeEvent }) => setLayoutWidth(nativeEvent.layout.width)}
     contentContainerStyle={styles.gallery}
     data={pairs}
-    ListHeaderComponent={<>
-      <View style={styles.galleryHead}>
-        <Text variant="secondary" color="textStrong" style={styles.weight}>{matching.length} {matching.length === 1 ? "preview" : "previews"}</Text>
-        {files.length > 0 && create}
-      </View>
-      {showFilters && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips} contentContainerStyle={styles.chipContent}>
+    ListHeaderComponent={showFilters ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips} contentContainerStyle={styles.chipContent}>
         {filters.map(({ label }, index) => {
           const selected = index === activeFilter;
           return <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setFilter(index)}
@@ -99,34 +93,29 @@ export function PreviewGallery({ files, open, onCreate, canCreate, footer, agent
             <Text variant="secondary" color={selected ? "textStrong" : "textMuted"} style={styles.chipLabel}>{label}</Text>
           </Pressable>;
         })}
-      </ScrollView>}
-    </>}
+      </ScrollView> : undefined}
     ListEmptyComponent={<View style={styles.emptyGallery}>
-      <Text variant="title" color="textStrong">{files.length ? "No matching previews" : "No previews yet"}</Text>
-      {!files.length && <>
-        <Text variant="secondary" color="textMuted" style={styles.centerText}>Create a prototype, diagram, document or table for this session.</Text>
-        {create}
-      </>}
+      <Text variant="secondary" color="textMuted" style={styles.centerText}>{files.length ? "No matching previews" : "No previews yet"}</Text>
     </View>}
     ListFooterComponent={footer}
-    ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
+    ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
     extraData={visibleRows}
     onViewableItemsChanged={onViewableItemsChanged}
     initialNumToRender={4}
     maxToRenderPerBatch={4}
     windowSize={5}
     keyExtractor={([file], index) => `${file.itemId}:${index}`}
-    renderItem={({ item, index }) => (
+    renderItem={({ item, index }) => columns === 1 ? <PreviewRow inGallery file={item[0]} agentId={agentId} open={open} visible={visibleRows.has(index)} /> : (
       <View style={styles.pair}>
         {item.map((file, column) => (
           <Pressable key={column} accessibilityRole="button" accessibilityLabel={`Open ${file.title}, ${formatLabel[file.kind]}`} onPress={() => open(file)}
             style={({ pressed }) => [styles.card, styles.tile, { borderColor: colors.separator, backgroundColor: pressed ? colors.pressed : colors.surface }]}>
-            <View style={[styles.cover, { aspectRatio: columns === 1 ? 16 / 9 : 4 / 3, borderColor: colors.separator }]}>
+            <View style={[styles.cover, { borderColor: colors.separator }]}>
               <PreviewThumbnail file={file} agentId={agentId} visible={visibleRows.has(index)} renderDocument={renderDocument} />
             </View>
             <View style={styles.tileText}>
-              <Text variant="secondary" color="textStrong" numberOfLines={2} maxFontSizeMultiplier={18 / 14} textBreakStrategy="simple" lineBreakStrategyIOS="none" style={styles.weight}>{file.title}</Text>
-              <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={16 / 12}>{formatLabel[file.kind]}{file.at ? ` · ${relativeTime(file.at)}` : ""}</Text>
+              <Text variant="secondary" color="textStrong" numberOfLines={2} textBreakStrategy="simple" lineBreakStrategyIOS="none" style={styles.weight}>{file.title}</Text>
+              <Text variant="caption" color="textMuted" numberOfLines={1}>{formatLabel[file.kind]}{file.at ? ` · ${relativeTime(file.at)}` : ""}</Text>
             </View>
           </Pressable>
         ))}
@@ -145,6 +134,7 @@ type OpenPreview = { file: Preview; content?: MobilePreview; error?: string; thu
 export function usePreview(agentId: string, files: readonly Preview[] = []) {
   const [selected, setSelected] = useState<OpenPreview | null>(null);
   const open = useCallback(async (file: Preview) => {
+    Keyboard.dismiss();
     const request = { file, content: "content" in file ? file.content : undefined };
     setSelected(request);
     if (!("target" in file)) return;
@@ -288,11 +278,6 @@ function PreviewViewer({ file, content: original, error, thumbnail, files, agent
     }
     tap.current = setTimeout(() => { tap.current = null; setHidden(value => !value); }, 250);
   };
-  useFocusEffect(useCallback(() => {
-    const back = BackHandler.addEventListener("hardwareBackPress", () => { if (full) releasePreview(agentId); else close(); return true; });
-    return () => back.remove();
-  }, [agentId, close, full]));
-
   const details = () => {
     const path = file.path;
     Alert.alert(file.title, undefined, [
@@ -371,26 +356,26 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   card: { borderWidth: 1, borderRadius: radius.lg, overflow: "hidden" },
   gallery: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
-  pair: { flexDirection: "row", gap: spacing.md },
+  pair: { flexDirection: "row", gap: spacing.sm },
   tile: { flex: 1, minWidth: 0 },
-  cover: { borderBottomWidth: StyleSheet.hairlineWidth },
+  cover: { aspectRatio: 4 / 3, borderBottomWidth: StyleSheet.hairlineWidth },
   tileText: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 10 },
-  row: { minHeight: 64, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.md },
-  thumb: { width: 48, height: 48, borderRadius: 8, borderWidth: 1, overflow: "hidden" },
+  row: { minHeight: MIN_TOUCH, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  galleryRow: { minHeight: 56 },
+  thumb: { width: 32, height: 32, borderRadius: radius.sm, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
+  galleryThumb: { width: 40, height: 40 },
   title: { flex: 1, minWidth: 0 },
   bar: { minHeight: 56, flexDirection: "row", alignItems: "center", borderBottomWidth: StyleSheet.hairlineWidth, gap: spacing.xs },
   navigation: { height: 64, flexGrow: 0, borderTopWidth: StyleSheet.hairlineWidth },
   control: { width: 48, height: 48, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: spacing.xl, gap: spacing.md },
   document: { width: "100%", maxWidth: 720, alignSelf: "center", padding: spacing.lg },
-  galleryHead: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   weight: { fontWeight: "600" },
   chips: { marginHorizontal: -16, marginBottom: 12 },
   chipContent: { paddingHorizontal: 16, gap: 8 },
-  chip: { minHeight: 36, borderRadius: 18, paddingHorizontal: 12, justifyContent: "center" },
+  chip: { minHeight: MIN_TOUCH, borderRadius: radius.pill, paddingHorizontal: spacing.md, justifyContent: "center" },
   chipLabel: { fontWeight: "600", fontSize: 13 },
-  rowTitle: { fontSize: 15, lineHeight: 21 },
-  emptyGallery: { alignItems: "center", gap: 8, paddingVertical: 40 },
+  emptyGallery: { alignItems: "center", paddingVertical: spacing.xl },
   centerText: { textAlign: "center" },
   notice: { minHeight: 36, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
   stripContent: { paddingHorizontal: 16, alignItems: "center" },

@@ -1,45 +1,16 @@
-import { CLAUDE_EFFORT_LEVELS, HARNESS_VALUES, type CodexMeta, type EffortLevel, type Harness, type ModelInfo } from "../shared/protocol";
+import { HARNESS_VALUES, type Harness } from "../shared/protocol";
+import { isModel, type PickerModel } from "../shared/modelChoices";
+
+export { carryLevel, claudeModels, isModel, toolModels, type PickerModel } from "../shared/modelChoices";
 
 export type ProviderTab = "pinned" | Harness;
 export const PROVIDER_TABS: readonly ProviderTab[] = ["pinned", ...HARNESS_VALUES];
 
-export type PickerModel = { tool: Harness; value: string; resolved: string | null; displayName: string; levels: EffortLevel[]; defaultLevel: EffortLevel | null; isDefault: boolean };
 export type Provider = { tool: Harness; models: PickerModel[]; status: string | null };
 export type PickerRow = { kind: "header"; tool: Harness } | { kind: "status"; tool: Harness; text: string } | { kind: "model"; model: PickerModel } | { kind: "custom"; tool: Harness; value: string };
 export type ChoiceRow = Extract<PickerRow, { kind: "model" | "custom" }>;
 
-const CLAUDE_BUILTIN_LEVEL: EffortLevel = "high";
 const CUSTOM_NAME = /^[\w.[\]:/-]+$/;
-
-export function claudeModels(models: ModelInfo[], defaultModel: string | null): PickerModel[] {
-  return models.map((m) => {
-    const levels = m.supportedEffortLevels.length ? m.supportedEffortLevels : [...CLAUDE_EFFORT_LEVELS];
-    return {
-      tool: "claude",
-      value: m.value,
-      resolved: m.resolvedModel,
-      displayName: m.displayName,
-      levels,
-      defaultLevel: levels.includes(CLAUDE_BUILTIN_LEVEL) ? CLAUDE_BUILTIN_LEVEL : (levels.at(-1) ?? null),
-      isDefault: m.value !== "default" && m.value === defaultModel,
-    };
-  });
-}
-
-export function toolModels(tool: Harness, meta: CodexMeta | null): PickerModel[] {
-  const fallback = meta?.defaultModel ?? meta?.models.find((m) => m.isDefault)?.value ?? null;
-  return (meta?.models ?? []).map((m) => ({
-    tool,
-    value: m.value,
-    resolved: null,
-    displayName: m.displayName,
-    levels: m.supportedEffortLevels,
-    defaultLevel: m.defaultEffort ?? (m.value === fallback ? (meta?.defaultEffort ?? null) : null),
-    isDefault: m.value === fallback,
-  }));
-}
-
-export const isModel = (model: PickerModel, value: string | null) => value !== null && (model.value === value || model.resolved === value);
 
 export const pinKey = (tool: Harness, value: string) => (tool === "claude" ? value : `${tool}:${value}`);
 
@@ -90,11 +61,6 @@ export function pickerRows(providers: Provider[], tab: ProviderTab, query: strin
 }
 
 export const choiceRows = (rows: PickerRow[]): ChoiceRow[] => rows.filter((r): r is ChoiceRow => r.kind === "model" || r.kind === "custom");
-
-export function carryLevel(current: EffortLevel | null, levels: readonly EffortLevel[], fallback: EffortLevel | null): EffortLevel | null {
-  if (levels.length === 0) return null;
-  return current && levels.includes(current) ? current : fallback;
-}
 
 export function stepTab(tab: ProviderTab, direction: 1 | -1): ProviderTab {
   const index = PROVIDER_TABS.indexOf(tab);

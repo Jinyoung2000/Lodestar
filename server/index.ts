@@ -6,8 +6,9 @@ import { homedir, hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { extname, join, resolve } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { MobileStatus } from "../shared/mobile";
-import { type ImageRef, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
+import type { MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileStatus } from "../shared/mobile";
+import { HARNESS_VALUES, harnessOf, type Harness, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
+import { switchBlock } from "../shared/harnessSwitch";
 import { AgentRunner } from "./agents";
 import { BoardStore } from "./board";
 import { NoteStore } from "./notes";
@@ -29,6 +30,7 @@ import { handleUpload } from "./fileAttach";
 import { lanHosts, makeOffer, MobileDevices, MobileServer, PairingCodes } from "./mobileAccess";
 import { mobilePreview } from "./mobilePreview";
 import { listFolder } from "./mobileFolders";
+import { mobileModels } from "./mobileModels";
 import { pageOfTimeline } from "../shared/mobile";
 import { resolveReadable, terminalDir } from "./files";
 import * as gitOps from "./git";
@@ -554,6 +556,24 @@ function phoneAgent(id: string) {
   return agent;
 }
 
+const phoneModels = mobileModels(store, runner, metaService);
+const phoneModelChanges = new Set<string>();
+
+async function createPhoneSession({ workspaceId, prompt, images, worktree }: MobileSessionRequest, selection?: MobileModelSelection) {
+  const workspace = workspaceId === null ? null : phoneWorkspace(workspaceId);
+  const resolved = defaultsReader.resolve(store.settings);
+  const choice = selection ? await phoneModels.select(selection) : { model: resolved.model.value, effort: resolved.effort.value };
+  let target = workspaceId;
+  if (worktree && workspace) {
+    const top = workspace.parentId ? phoneWorkspace(workspace.parentId) : workspace;
+    const info = await gitOps.branches(top.dir);
+    if (!info.repoRoot) throw new Error(T.errNotGitRepoForWorktree);
+    if (!info.branches.includes(worktree.base)) throw new Error(T.errMobileParam("base"));
+    target = top.id;
+  }
+  return runner.create({ ...choice, workspaceId: target, prompt, permissionMode: resolved.permissionMode.value, worktree: worktree ?? null, ...(images?.length ? { images } : {}) });
+}
+
 const mobileHandlers: Record<string, (params: never, client: WebSocket) => unknown> = {
   "mobile.ping": () => ({ now: Date.now() }),
   "workspaces.list": () => store.workspaces.filter((w) => !w.feedback),
@@ -588,19 +608,25 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
     runner.rename(phoneAgent(agentId).id, title);
     return null;
   },
-  "agents.create": async ({ workspaceId, prompt, images, worktree }: { workspaceId: string | null; prompt: string; images?: ImageRef[]; worktree?: { branch: string; base: string } }) => {
-    const workspace = workspaceId === null ? null : phoneWorkspace(workspaceId);
-    const resolved = defaultsReader.resolve(store.settings);
-    const mode = resolved.permissionMode.value;
-    let target = workspaceId;
-    if (worktree && workspace) {
-      const top = workspace.parentId ? phoneWorkspace(workspace.parentId) : workspace;
-      const info = await gitOps.branches(top.dir);
-      if (!info.repoRoot) throw new Error(T.errNotGitRepoForWorktree);
-      if (!info.branches.includes(worktree.base)) throw new Error(T.errMobileParam("base"));
-      target = top.id;
+  "agents.create": (params: MobileSessionRequest) => createPhoneSession(params),
+  "mobile.createSession": ({ selection, ...params }: MobileSessionRequest & { selection: MobileModelSelection }) => createPhoneSession(params, selection),
+  "mobile.models": async ({ agentId, harness }: { agentId?: string; harness?: Harness }): Promise<MobileModelCatalog> => {
+    if (agentId) phoneAgent(agentId);
+    const providers = await Promise.all((harness ? [harness] : HARNESS_VALUES).map((target) => phoneModels.provider(target)));
+    return { providers: providers.filter((provider) => provider !== null), switchBlock: agentId ? switchBlock(phoneAgent(agentId), store.timeline(agentId)) : null };
+  },
+  "mobile.setModel": async ({ agentId, selection }: { agentId: string; selection: MobileModelSelection }): Promise<MobileModelSelection> => {
+    phoneAgent(agentId);
+    if (phoneModelChanges.has(agentId)) throw new Error(T.errMobileModelBusy);
+    phoneModelChanges.add(agentId);
+    try {
+      const { harness, model, effort } = await phoneModels.select(selection);
+      await runner.switchHarness(agentId, harness, model, effort);
+      const agent = phoneAgent(agentId);
+      return { harness: harnessOf(agent), model: agent.model, effort: agent.effort };
+    } finally {
+      phoneModelChanges.delete(agentId);
     }
-    return runner.create({ workspaceId: target, prompt, permissionMode: mode === "auto" || mode === "bypassPermissions" ? "default" : mode, model: resolved.model.value, effort: resolved.effort.value, worktree: worktree ?? null, ...(images?.length ? { images } : {}) });
   },
 };
 

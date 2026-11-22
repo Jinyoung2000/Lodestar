@@ -1,5 +1,5 @@
-import type { MobileBrowseResult, MobileWorktreeRequest } from "@shared/mobile";
-import type { Agent, BranchesResult, ImageRef, PermissionDecision, ServerEvent, TimelineItem, Workspace } from "@shared/protocol";
+import type { MobileBrowseResult, MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
+import type { Agent, BranchesResult, Harness, ImageRef, PermissionDecision, ServerEvent, TimelineItem, Workspace } from "@shared/protocol";
 import type { ConnStatus } from "../net/rpc";
 import { mergeTail, prependOlder, remove, upsert } from "../logic/timeline";
 import { markEnd, markStart, now, record } from "./perf";
@@ -38,6 +38,7 @@ export type State = {
 const PAGE = 60;
 const CACHE_ITEMS = 40;
 const CACHE_SESSIONS = 8;
+const MODEL_TIMEOUT_MS = 75_000;
 const SAVE_DELAY_MS = 400;
 const INDEX_KEY = "cache:v1:index";
 const timelineKey = (id: string) => `cache:v1:tl:${id}`;
@@ -273,8 +274,33 @@ export class AppStore {
     return this.call("agents.send", { agentId, prompt, steer: opts.steer === true, ...(opts.images?.length ? { images: opts.images } : {}) }) as Promise<{ queued: boolean }>;
   }
 
-  createSession(workspaceId: string | null, prompt: string, images?: ImageRef[], worktree?: MobileWorktreeRequest) {
-    return this.call("agents.create", { workspaceId, prompt, ...(images?.length ? { images } : {}), ...(worktree ? { worktree } : {}) }, worktree ? 90_000 : undefined) as Promise<Agent>;
+  createSession(workspaceId: string | null, prompt: string, images?: ImageRef[], worktree?: MobileWorktreeRequest, selection?: MobileModelSelection) {
+    const params: MobileSessionRequest = { workspaceId, prompt, ...(images?.length ? { images } : {}), ...(worktree ? { worktree } : {}) };
+    if (!selection) return this.call("agents.create", params, worktree ? 90_000 : undefined) as Promise<Agent>;
+    return this.modelCall<Agent>("mobile.createSession", { ...params, selection }, MODEL_TIMEOUT_MS + (worktree ? 90_000 : 0));
+  }
+
+  models(agentId?: string, harness?: Harness) {
+    return this.modelCall<MobileModelCatalog>("mobile.models", { agentId, harness }, MODEL_TIMEOUT_MS);
+  }
+
+  async setModel(agentId: string, selection: MobileModelSelection) {
+    const before = this.state.agents.find((agent) => agent.id === agentId);
+    const saved = await this.modelCall<MobileModelSelection>("mobile.setModel", { agentId, selection }, MODEL_TIMEOUT_MS);
+    if (before && this.state.agents.includes(before)) {
+      this.set({ agents: this.state.agents.map((agent) => agent === before ? { ...before, ...saved } : agent) });
+      this.touchIndex();
+    }
+    return saved;
+  }
+
+  private async modelCall<T>(method: "mobile.models" | "mobile.setModel" | "mobile.createSession", params: unknown, timeoutMs: number) {
+    try {
+      return (await this.call(method, params, timeoutMs)) as T;
+    } catch (error) {
+      if (error instanceof Error && error.message === `The phone app cannot call ${method}`) throw new Error("Update Lodestar on your Mac to change models.");
+      throw error;
+    }
   }
 
   interrupt(agentId: string) {

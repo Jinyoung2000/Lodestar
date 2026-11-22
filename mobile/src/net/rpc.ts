@@ -1,5 +1,5 @@
-import type { MobileBrowseResult, MobileMethod, MobilePreview, MobileReady, MobileWorktreeRequest } from "@shared/mobile";
-import type { Agent, ImageRef, RpcMethods, ServerEvent } from "@shared/protocol";
+import type { MobileBrowseResult, MobileMethod, MobileModelCatalog, MobileModelSelection, MobilePreview, MobileReady, MobileSessionRequest } from "@shared/mobile";
+import type { Agent, Harness, RpcMethods, ServerEvent } from "@shared/protocol";
 import { reconnectDelay } from "../logic/backoff";
 
 export type Endpoint = { hosts: string[]; port: number; secure?: boolean; token: string };
@@ -8,7 +8,10 @@ export type ConnStatus = "idle" | "connecting" | "online" | "offline" | "unautho
 export type { MobileMethod };
 
 type MobileOnly = {
-  "agents.create": { params: { workspaceId: string | null; prompt: string; images?: ImageRef[]; worktree?: MobileWorktreeRequest }; result: Agent };
+  "agents.create": { params: MobileSessionRequest; result: Agent };
+  "mobile.createSession": { params: MobileSessionRequest & { selection: MobileModelSelection }; result: Agent };
+  "mobile.models": { params: { agentId?: string; harness?: Harness }; result: MobileModelCatalog };
+  "mobile.setModel": { params: { agentId: string; selection: MobileModelSelection }; result: MobileModelSelection };
   "mobile.preview": { params: { agentId: string; itemId: string; target: string }; result: MobilePreview };
   "mobile.browse": { params: { path?: string }; result: MobileBrowseResult };
 };
@@ -52,8 +55,10 @@ export class RpcClient {
   private lastGoodHost: string | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private pingProbe: { id: number; result: Promise<number | undefined> } | null = null;
   private connectTimer: ReturnType<typeof setTimeout> | null = null;
   private wanted = false;
+  private foreground = true;
   private startNextHost: (() => boolean) | null = null;
   private generation = 0;
   private eventListeners = new Set<(event: ServerEvent) => void>();
@@ -82,11 +87,17 @@ export class RpcClient {
     this.setStatus("idle");
   }
 
+  pause() {
+    this.foreground = false;
+    this.stopPing();
+  }
+
   resume() {
+    this.foreground = true;
     if (!this.wanted || !this.endpoint) return;
     if (this.status === "online") {
-      void this.call("mobile.ping", {}, this.opts.pingTimeoutMs ?? 1500).catch(() => this.dropAndReconnect());
-      return;
+      this.startPing();
+      return this.checkPing();
     }
     if (this.status === "unauthorized") return;
     this.attempt = 0;
@@ -99,14 +110,15 @@ export class RpcClient {
   call<M extends MobileMethod>(method: M, params: MobileRpc[M]["params"], timeoutMs = 15_000): Promise<MobileRpc[M]["result"]> {
     const socket = this.socket;
     if (!socket || socket.readyState !== OPEN || this.status !== "online") return Promise.reject(new Error("Not connected to your Mac"));
+    return this.request(socket, method, params, timeoutMs).reply;
+  }
+
+  private request<M extends MobileMethod>(socket: SocketLike, method: M, params: MobileRpc[M]["params"], timeoutMs: number) {
     const id = this.nextId++;
     const started = Date.now();
     const done = this.opts.onCall;
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error("The Mac did not answer in time"));
-      }, timeoutMs);
+    const reply = new Promise<MobileRpc[M]["result"]>((resolve, reject) => {
+      const timer = setTimeout(() => this.rejectRequest(id, new Error("The Mac did not answer in time")), timeoutMs);
       this.pending.set(id, {
         resolve: (value) => {
           done?.(method, Date.now() - started, true);
@@ -118,8 +130,21 @@ export class RpcClient {
         },
         timer,
       });
-      socket.send(JSON.stringify({ id, method, params }));
+      try {
+        socket.send(JSON.stringify({ id, method, params }));
+      } catch (error) {
+        this.rejectRequest(id, error instanceof Error ? error : new Error(String(error)));
+      }
     });
+    return { id, reply };
+  }
+
+  private rejectRequest(id: number, error: Error) {
+    const pending = this.pending.get(id);
+    if (!pending) return;
+    this.pending.delete(id);
+    clearTimeout(pending.timer);
+    pending.reject(error);
   }
 
   onEvent(listener: (event: ServerEvent) => void) {
@@ -251,18 +276,37 @@ export class RpcClient {
   }
 
   private startPing() {
-    if (this.pingTimer) clearInterval(this.pingTimer);
-    this.pingTimer = setInterval(() => {
-      const started = Date.now();
-      void this.call("mobile.ping", {}, this.opts.pingTimeoutMs ?? 4000).then(() => (this.rttMs = Date.now() - started)).catch(() => this.dropAndReconnect());
-    }, this.opts.pingIntervalMs ?? 10_000);
+    if (!this.foreground || this.pingTimer) return;
+    this.pingTimer = setInterval(() => void this.checkPing(), this.opts.pingIntervalMs ?? 10_000);
   }
 
-  private dropAndReconnect() {
-    if (!this.socket) return;
+  private checkPing() {
     const socket = this.socket;
-    this.lost();
-    socket.close();
+    if (!this.foreground || !socket) return;
+    if (this.pingProbe) return this.pingProbe.result;
+    const started = Date.now();
+    const { id, reply } = this.request(socket, "mobile.ping", {}, this.opts.pingTimeoutMs ?? 4000);
+    const result = reply.then(() => {
+      if (this.pingProbe?.id !== id) return;
+      this.pingProbe = null;
+      this.rttMs = Date.now() - started;
+      return this.rttMs;
+    }, (error: Error): undefined => {
+      if (this.pingProbe?.id !== id || socket !== this.socket) return;
+      this.pingProbe = null;
+      this.opts.log?.(`[rpc] connection check failed ${this.host ?? ""}: ${error.message}`);
+      this.lost();
+    });
+    this.pingProbe = { id, result };
+    return result;
+  }
+
+  private stopPing() {
+    if (this.pingTimer) clearInterval(this.pingTimer);
+    this.pingTimer = null;
+    const probe = this.pingProbe;
+    this.pingProbe = null;
+    if (probe) this.rejectRequest(probe.id, new Error("Connection check canceled"));
   }
 
   private lost() {
@@ -290,8 +334,7 @@ export class RpcClient {
 
   private teardownSocket() {
     this.generation++;
-    if (this.pingTimer) clearInterval(this.pingTimer);
-    this.pingTimer = null;
+    this.stopPing();
     if (this.connectTimer) clearTimeout(this.connectTimer);
     this.connectTimer = null;
     const sockets = new Set([...this.candidates, ...(this.socket ? [this.socket] : [])]);
@@ -307,6 +350,7 @@ export class RpcClient {
       }
     }
     this.host = null;
+    this.rttMs = null;
   }
 
   private teardown() {

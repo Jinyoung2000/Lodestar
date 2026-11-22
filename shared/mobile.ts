@@ -1,5 +1,7 @@
 // MOBILE: iOS 클라이언트(mobile/)가 데몬의 모바일 포트와 주고받는 값. 데몬(server/mobileAccess.ts), 웹 Settings, 모바일 앱이 같은 모양을 쓴다.
-import type { TimelineItem } from "./protocol";
+import type { SwitchBlock } from "./harnessSwitch";
+import type { PickerModel } from "./modelChoices";
+import type { EffortLevel, Harness, ImageRef, TimelineItem } from "./protocol";
 
 export const MOBILE_PROTOCOL = 1;
 
@@ -25,6 +27,9 @@ export const MOBILE_METHODS = [
   // 세션 삭제(agents.remove)와 worktree 삭제는 되돌릴 수 없어 열지 않는다.
   "mobile.browse",
   "mobile.preview",
+  "mobile.models",
+  "mobile.setModel",
+  "mobile.createSession",
   "workspaces.add",
   "workspaces.remove",
   "git.branches",
@@ -89,6 +94,16 @@ export type MobileBrowseResult = {
 
 // agents.create 에 폰이 보내는 worktree. 기준 브랜치(base)에서 새 브랜치(branch)로 갈라진다.
 export type MobileWorktreeRequest = { branch: string; base: string };
+
+export type MobileModelSelection = { harness: Harness; model: string | null; effort: EffortLevel | null };
+export type MobileModel = Pick<PickerModel, "value" | "resolved" | "displayName" | "levels" | "defaultLevel">;
+export type MobileModelProvider = { harness: Harness; models: MobileModel[]; defaultModel: string | null; defaultModelKnown: boolean };
+export type MobileModelCatalog = { providers: MobileModelProvider[]; switchBlock: SwitchBlock | null };
+export type MobileSessionRequest = { workspaceId: string | null; prompt: string; images?: ImageRef[]; worktree?: MobileWorktreeRequest };
+
+export function mobileModelId(value: unknown): value is string {
+  return typeof value === "string" && /^[\w.[\]:/-]{1,200}$/.test(value) && !value.startsWith("-");
+}
 
 export type TimelinePage = { items: TimelineItem[]; hasMore: boolean; total: number };
 

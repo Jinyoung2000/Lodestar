@@ -1,13 +1,13 @@
 import * as Haptics from "expo-haptics";
 import { useIsFocused } from "expo-router";
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentRef } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View, findNodeHandle } from "react-native";
 import type { Agent, QueuedMessage } from "@shared/protocol";
 import { MAX_IMAGES } from "../logic/images";
 import { pickFromLibrary, takePhoto, useAttachments, type PickedAsset } from "../state/attach";
 import { composerPaste, discardPastedImage, isPasteForeground, legacyPasteSupported, nextPasteBinding, readClipboardImage } from "../state/composerPaste";
 import { loadPref, savePref } from "../state/storage";
-import { MIN_TOUCH, radius, spacing, useColors, withAlpha } from "../theme/theme";
+import { radius, spacing, useColors, withAlpha } from "../theme/theme";
 import { showActionMenu } from "./actionMenu";
 import { Icon } from "./Icon";
 import { Text } from "./Text";
@@ -24,15 +24,17 @@ type Props = {
   autoFocus?: boolean;
   initialText?: string;
   draftKey?: string;
+  promptOptions?: ReactNode;
 };
 
-const MIN_HEIGHT = 48;
+const MIN_HEIGHT = 40;
 const MAX_HEIGHT = 144;
 
-export const Composer = memo(function Composer({ agent, disabled, placeholder = "Message", onSend, onStop, onDequeue, onSendQueuedNow, onCancelSteering, autoFocus, initialText, draftKey }: Props) {
+export const Composer = memo(function Composer({ agent, disabled, placeholder = "Message", onSend, onStop, onDequeue, onSendQueuedNow, onCancelSteering, autoFocus, initialText, draftKey, promptOptions }: Props) {
   const colors = useColors();
   const [text, setText] = useState(initialText ?? "");
   const [height, setHeight] = useState(MIN_HEIGHT);
+  const [queueExpanded, setQueueExpanded] = useState(false);
   const [steer, setSteer] = useState(false);
   const [sending, setSending] = useState(false);
   const [pendingSend, setPendingSend] = useState(false);
@@ -223,11 +225,18 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const queue = agent?.queue ?? [];
   const steering = agent?.steering ?? [];
   const busyUpload = pasting || attachments.progress !== null;
+  const hasDraft = hasContent || busyUpload;
+  const pendingCount = queue.length + steering.length;
+  const showQueue = pendingCount < 3 || queueExpanded;
   const sendDisabled = !canSend || sending || (!hasContent && !busyUpload);
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.background, borderTopColor: colors.separator }]}>
-      {(queue.length > 0 || steering.length > 0) && (
+      {pendingCount >= 3 && <Pressable accessibilityRole="button" accessibilityState={{ expanded: queueExpanded }} onPress={() => setQueueExpanded((expanded) => !expanded)} style={styles.queueToggle}>
+        <Text variant="caption" color="accentText">{`${pendingCount} queued`}</Text>
+        <Icon name={queueExpanded ? "chevron.up" : "chevron.down"} size={12} color="textMuted" />
+      </Pressable>}
+      {pendingCount > 0 && showQueue && (
         <View style={styles.queue}>
           {steering.map((m) => (
             <QueueChip key={m.id} message={m} label="Steering" onCancel={onCancelSteering ? async () => { const back = await onCancelSteering(m.id); if (back) setText((t) => (t ? `${t}\n${back}` : back)); } : undefined} />
@@ -237,23 +246,16 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           ))}
         </View>
       )}
-      {running && (
+      {running && hasDraft && (
         <View style={styles.modeRow}>
           <View style={[styles.segment, { backgroundColor: colors.surfaceBase, borderColor: colors.separator }]}>
-            <Pressable accessibilityRole="button" accessibilityState={{ selected: !steer }} onPress={() => setMode(false)} style={[styles.segmentItem, !steer && { backgroundColor: colors.selected }]}>
-              <Text variant="secondary" color={!steer ? "textStrong" : "textMuted"}>Queue</Text>
+            <Pressable accessibilityRole="button" accessibilityState={{ selected: !steer }} hitSlop={{ top: 6, bottom: 2 }} onPress={() => setMode(false)} style={[styles.segmentItem, !steer && { backgroundColor: colors.selected }]}>
+              <Text variant="secondary" style={styles.modeLabel} color={!steer ? "textStrong" : "textMuted"}>Queue</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityState={{ selected: steer }} onPress={() => setMode(true)} style={[styles.segmentItem, steer && { backgroundColor: colors.selected }]}>
-              <Text variant="secondary" color={steer ? "textStrong" : "textMuted"}>Steer</Text>
+            <Pressable accessibilityRole="button" accessibilityState={{ selected: steer }} hitSlop={{ top: 6, bottom: 2 }} onPress={() => setMode(true)} style={[styles.segmentItem, steer && { backgroundColor: colors.selected }]}>
+              <Text variant="secondary" style={styles.modeLabel} color={steer ? "textStrong" : "textMuted"}>Steer</Text>
             </Pressable>
           </View>
-          <View style={{ flex: 1 }} />
-          {onStop && (
-            <Pressable accessibilityRole="button" accessibilityLabel="Stop" onPress={onStop} style={[styles.stop, { backgroundColor: withAlpha(colors.danger, 0.16) }]}>
-              <Icon name="stop.fill" size={14} color="danger" />
-              <Text variant="secondary" color="danger" style={{ fontWeight: "600" }}>Stop</Text>
-            </Pressable>
-          )}
         </View>
       )}
       {attachments.items.length > 0 && (
@@ -280,8 +282,8 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
         </ScrollView>
       )}
       <View style={styles.row}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Attach image" onPress={attach} disabled={disabled} style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
-          <Icon name="plus.circle.fill" size={30} color="textMuted" />
+        <Pressable accessibilityRole="button" accessibilityLabel="Attach image" hitSlop={4} onPress={attach} disabled={disabled} style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
+          <Icon name="plus.circle.fill" size={22} color="textMuted" />
         </Pressable>
         <TextInput
           ref={input}
@@ -300,10 +302,16 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           accessibilityLabel="Message"
           style={[styles.input, { height, color: colors.textStrong, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
         />
-        <Pressable accessibilityRole="button" accessibilityLabel={running && steer ? "Steer" : running ? "Queue message" : "Send"} accessibilityState={{ disabled: sendDisabled }} hitSlop={4} onPress={press} disabled={sendDisabled} style={({ pressed }) => [styles.send, { backgroundColor: sendDisabled ? colors.overlay : colors.accent, opacity: pressed ? 0.8 : 1 }]}>
-          {sending || pendingSend ? <ActivityIndicator color={colors.onAccent} /> : <Icon name="arrow.up" size={20} color={sendDisabled ? "textSubtle" : "onAccent"} weight="bold" />}
-        </Pressable>
+        {running && onStop && <Pressable accessibilityRole="button" accessibilityLabel="Stop" hitSlop={4} disabled={!canSend} onPress={onStop} style={styles.iconButton}>
+          <View style={[styles.send, { backgroundColor: withAlpha(colors.danger, 0.16) }]}><Icon name="stop.fill" size={12} color="danger" /></View>
+        </Pressable>}
+        {(!running || !onStop || hasDraft || pendingSend) && <Pressable accessibilityRole="button" hitSlop={4} accessibilityLabel={running && steer ? "Steer" : running ? "Queue message" : "Send"} accessibilityState={{ disabled: sendDisabled }} onPress={press} disabled={sendDisabled} style={styles.iconButton}>
+          {({ pressed }) => <View style={[styles.send, { backgroundColor: sendDisabled ? colors.overlay : colors.accent, opacity: pressed ? 0.8 : 1 }]}>
+            {sending || pendingSend ? <ActivityIndicator color={colors.onAccent} /> : <Icon name="arrow.up" size={18} color={sendDisabled ? "textSubtle" : "onAccent"} weight="bold" />}
+          </View>}
+        </Pressable>}
       </View>
+      {promptOptions}
       {pasting && !pendingSend && <Text variant="caption" color="textMuted" style={styles.note}>Reading clipboard image…</Text>}
       {pendingSend && <Text variant="caption" color="textMuted" style={styles.note}>{`Sending when the upload finishes${attachments.progress !== null ? ` (${Math.round(attachments.progress * 100)}%)` : ""}`}</Text>}
       {error && <Text variant="caption" color="danger" style={styles.note}>{error}</Text>}
@@ -320,12 +328,12 @@ function QueueChip({ message, label, onCancel, onNow }: { message: QueuedMessage
       <Text variant="secondary" numberOfLines={1} style={{ flex: 1 }}>{shown}</Text>
       {onNow && (
         <Pressable accessibilityRole="button" accessibilityLabel="Send now" hitSlop={8} onPress={onNow} style={styles.chipButton}>
-          <Icon name="arrow.up.circle" size={22} color="accentText" />
+          <Icon name="arrow.up.circle" size={18} color="accentText" />
         </Pressable>
       )}
       {onCancel && (
         <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${label.toLowerCase()} message`} hitSlop={8} onPress={onCancel} style={styles.chipButton}>
-          <Icon name="xmark.circle.fill" size={22} color="textSubtle" />
+          <Icon name="xmark.circle.fill" size={18} color="textSubtle" />
         </Pressable>
       )}
     </View>
@@ -333,17 +341,18 @@ function QueueChip({ message, label, onCancel, onNow }: { message: QueuedMessage
 }
 
 const styles = StyleSheet.create({
-  wrap: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.sm, gap: spacing.sm },
+  wrap: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, gap: spacing.xs },
   row: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
-  input: { flex: 1, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.lg, paddingTop: 10, paddingBottom: 10, fontSize: 16, lineHeight: 22, textAlignVertical: "center" },
-  iconButton: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: "center", justifyContent: "center" },
-  send: { width: 40, height: 40, margin: 4, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  modeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  input: { flex: 1, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: 8, paddingBottom: 8, fontSize: 16, lineHeight: 22, textAlignVertical: "center" },
+  iconButton: { width: MIN_HEIGHT, height: MIN_HEIGHT, alignItems: "center", justifyContent: "center" },
+  send: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  modeRow: { alignItems: "flex-end" },
   segment: { flexDirection: "row", borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: 2 },
-  segmentItem: { minHeight: MIN_TOUCH, minWidth: 72, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, paddingHorizontal: spacing.md },
-  stop: { minHeight: MIN_TOUCH, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.md, borderRadius: radius.md },
+  segmentItem: { minHeight: 24, minWidth: 56, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, paddingHorizontal: spacing.md },
+  modeLabel: { fontSize: 13, lineHeight: 18 },
+  queueToggle: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 32 },
   queue: { gap: spacing.xs },
-  chip: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 40, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, paddingLeft: spacing.md, paddingRight: spacing.xs },
+  chip: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 32, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, paddingLeft: spacing.md, paddingRight: spacing.xs },
   chipButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   thumbRow: { gap: spacing.sm, paddingTop: spacing.xs, paddingRight: spacing.sm },
   thumbWrap: { width: 64, height: 64 },

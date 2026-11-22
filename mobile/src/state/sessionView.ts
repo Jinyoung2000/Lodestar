@@ -1,14 +1,13 @@
 import type { QuestionState } from "../logic/questions";
 
-export type SessionTab = "chat" | "previews";
 export type RequestDraft = { id: string; states?: QuestionState[]; page: number; expanded: boolean; feedback: string | null };
-type SessionViewState = { tab: SessionTab; offset: number | null; request?: RequestDraft };
+type SessionViewState = { offset: number | null; request?: RequestDraft };
 const sessions = new Map<string, SessionViewState>();
 
 export function sessionViewState(id: string): SessionViewState {
   const saved = sessions.get(id);
   if (saved) return saved;
-  const state: SessionViewState = { tab: "chat", offset: null };
+  const state: SessionViewState = { offset: null };
   sessions.set(id, state);
   return state;
 }

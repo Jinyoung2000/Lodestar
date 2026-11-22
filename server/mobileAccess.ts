@@ -5,9 +5,9 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 import { dirname } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { buildManualPairing, buildPairingUri, MOBILE_EVENT_TYPES, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileReady, type PairingOffer } from "../shared/mobile";
+import { buildManualPairing, buildPairingUri, MOBILE_EVENT_TYPES, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, mobileModelId, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileModelSelection, type MobileReady, type PairingOffer } from "../shared/mobile";
 import { MAX_IMAGE_BYTES, MAX_IMAGES } from "../shared/images";
-import type { Agent, ServerEvent } from "../shared/protocol";
+import { HARNESS_VALUES, isEffortLevel, type Agent, type Harness, type ServerEvent } from "../shared/protocol";
 import { resolveAddable, resolveFolder } from "./mobileFolders";
 import { T } from "./strings";
 
@@ -217,6 +217,19 @@ function worktreeOf(value: unknown) {
   return { branch: refOf(w.branch, "branch"), base: refOf(w.base, "base") };
 }
 
+function harnessOfParam(value: unknown): Harness {
+  if (typeof value !== "string" || !HARNESS_VALUES.includes(value as Harness)) fail(T.errMobileParam("provider"));
+  return value as Harness;
+}
+
+function modelSelectionOf(value: unknown): MobileModelSelection {
+  const { harness, model, effort } = asObject(value);
+  const provider = harnessOfParam(harness);
+  if (model !== null && !mobileModelId(model)) fail(T.errMobileParam("model"));
+  if (effort !== null && !isEffortLevel(effort)) fail(T.errMobileParam("effort"));
+  return { harness: provider, model, effort };
+}
+
 export function guardMobileCall(method: string, raw: unknown, browseRoot?: string): Record<string, unknown> {
   if (!METHOD_SET.has(method)) fail(T.errMobileMethod(method));
   const p = asObject(raw);
@@ -225,15 +238,20 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
     case "workspaces.list":
     case "agents.list":
       return {};
+    case "mobile.models":
+      return { ...(p.agentId === undefined ? {} : { agentId: idOf(p.agentId, "agentId") }), ...(p.harness === undefined ? {} : { harness: harnessOfParam(p.harness) }) };
+    case "mobile.setModel":
+      return { agentId: idOf(p.agentId, "agentId"), selection: modelSelectionOf(p.selection) };
     case "agents.timelinePage": {
       const limit = typeof p.limit === "number" && Number.isInteger(p.limit) && p.limit >= 1 && p.limit <= 200 ? p.limit : fail(T.errMobileParam("limit"));
       return { agentId: idOf(p.agentId, "agentId"), limit, ...(p.beforeId === undefined ? {} : { beforeId: idOf(p.beforeId, "beforeId") }) };
     }
-    case "agents.create": {
+    case "agents.create":
+    case "mobile.createSession": {
       const workspaceId = p.workspaceId === null ? null : idOf(p.workspaceId, "workspaceId");
       const worktree = worktreeOf(p.worktree);
       if (worktree && workspaceId === null) fail(T.errMobileParam("worktree"));
-      return { workspaceId, prompt: textOf(p.prompt, "prompt"), ...(p.images === undefined ? {} : { images: imagesOf(p.images) }), ...(worktree ? { worktree } : {}) };
+      return { workspaceId, prompt: textOf(p.prompt, "prompt"), ...(p.images === undefined ? {} : { images: imagesOf(p.images) }), ...(worktree ? { worktree } : {}), ...(method === "mobile.createSession" ? { selection: modelSelectionOf(p.selection) } : {}) };
     }
     case "agents.send":
       return { agentId: idOf(p.agentId, "agentId"), prompt: textOf(p.prompt, "prompt"), steer: p.steer === true, ...(p.images === undefined ? {} : { images: imagesOf(p.images) }) };

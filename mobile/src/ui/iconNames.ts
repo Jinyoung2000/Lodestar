@@ -15,6 +15,7 @@ export const MATERIAL_ICONS: Record<string, readonly [AndroidSymbol, number]> = 
   tablecells: ["table_chart", 0xe265],
   doc: ["description", 0xe873],
   photo: ["image", 0xe3f4],
+  "photo.on.rectangle": ["collections", 0xe3b6],
   archivebox: ["inventory_2", 0xe1a1],
   checkmark: ["check", 0xe5ca],
   "checkmark.circle": ["check_circle", 0xe86c],

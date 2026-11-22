@@ -1,7 +1,7 @@
 import { DarkTheme, DefaultTheme, SplashScreen, Stack, ThemeProvider as NavigationThemeProvider, useGlobalSearchParams, useRouter, useSegments, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useEffectEvent, useMemo } from "react";
-import { BackHandler, StyleSheet, useWindowDimensions, View } from "react-native";
+import { useCallback, useEffect, useMemo } from "react";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { bootstrap, store, useAppState, useConnection } from "../state/app";
 import { releasePreview, useExpandedPreview } from "../state/expandedPreview";
@@ -56,21 +56,12 @@ export default function RootLayout() {
   }, [detail, router]);
 
   const openSession = useCallback((nextId: string, focusQuestion: boolean) => {
-    if (route === "session" && id === nextId) return;
+    if (route === "session" && id === nextId) {
+      if (focusQuestion) router.setParams({ focusQuestion: "1", gallery: undefined, viewer: undefined });
+      return;
+    }
     openDetail({ pathname: "/session/[id]", params: focusQuestion ? { id: nextId, focusQuestion: "1" } : { id: nextId } });
-  }, [id, openDetail, route]);
-
-  const leaveWideSession = useEffectEvent(() => {
-    if (!expanded || !sessionId) return false;
-    BackHandler.exitApp();
-    return true;
-  });
-
-  useEffect(() => {
-    if (!bootstrapped) return;
-    const listener = BackHandler.addEventListener("hardwareBackPress", leaveWideSession);
-    return () => listener.remove();
-  }, [bootstrapped]);
+  }, [id, openDetail, route, router]);
 
   useEffect(() => {
     if (!expanded || !sessionId || !missingSession) return;

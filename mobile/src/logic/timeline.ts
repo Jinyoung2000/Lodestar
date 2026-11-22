@@ -47,12 +47,12 @@ export type ThinkingItem = Extract<TimelineItem, { kind: "thinking" }>;
 export type PermissionItem = Extract<TimelineItem, { kind: "permission" }>;
 export type NoticeItem = Extract<TimelineItem, { kind: "notice" }>;
 export type ErrorItem = Extract<TimelineItem, { kind: "error" }>;
-export type Step = ToolItem | ThinkingItem;
+export type Step = ToolItem | ThinkingItem | PermissionItem;
 
 export type Row =
   | { type: "user"; key: string; item: UserItem }
   | { type: "assistant"; key: string; item: AssistantItem }
-  | { type: "steps"; key: string; steps: Step[]; running: boolean; failed: boolean }
+  | { type: "steps"; key: string; steps: Step[]; decisions: PermissionItem[]; running: boolean; failed: boolean }
   | { type: "approval"; key: string; item: PermissionItem; tool: ToolItem | null; reviewOnDesktop: boolean }
   | { type: "question"; key: string; item: PermissionItem }
   | { type: "plan"; key: string; item: PermissionItem }
@@ -63,8 +63,13 @@ export type Row =
 const NOTION_PROPOSE = /^mcp__lodestar_notion__notion_(update_page|create_pages)$/;
 
 export function buildRows(items: readonly TimelineItem[]): Row[] {
+  const decisions = new Map<string, PermissionItem>();
   const pendingTool = new Map<string, PermissionItem>();
-  for (const item of items) if (item.kind === "permission" && item.status === "pending" && item.toolUseId) pendingTool.set(item.toolUseId, item);
+  for (const item of items) {
+    if (item.kind !== "permission" || !item.toolUseId) continue;
+    if (item.status === "pending") pendingTool.set(item.toolUseId, item);
+    else decisions.set(item.toolUseId, item);
+  }
   const toolById = new Map<string, ToolItem>();
   for (const item of items) if (item.kind === "tool") toolById.set(item.id, item);
 
@@ -73,7 +78,11 @@ export function buildRows(items: readonly TimelineItem[]): Row[] {
   const flush = () => {
     if (steps.length === 0) return;
     const last = steps[steps.length - 1];
-    rows.push({ type: "steps", key: `steps:${steps[0].id}`, steps, running: steps.some((s) => s.kind === "tool" && s.status === "running"), failed: last.kind === "tool" && last.status === "error" });
+    const toolDecisions = steps.flatMap((step) => {
+      const decision = step.kind === "tool" ? decisions.get(step.id) : undefined;
+      return decision ? [decision] : [];
+    });
+    rows.push({ type: "steps", key: `steps:${steps[0].id}`, steps, decisions: toolDecisions, running: steps.some((s) => s.kind === "tool" && s.status === "running"), failed: last.kind === "tool" && last.status === "error" });
     steps = [];
   };
 
@@ -89,18 +98,17 @@ export function buildRows(items: readonly TimelineItem[]): Row[] {
         if (item.text.trim()) steps.push(item);
         break;
       case "permission": {
-        if (item.toolName === QUESTION_TOOL) {
+        if (item.status === "pending") {
           flush();
-          rows.push(item.status === "pending" ? { type: "question", key: item.id, item } : { type: "answered", key: item.id, item });
-        } else if (item.toolName === PLAN_TOOL) {
-          flush();
-          rows.push(item.status === "pending" ? { type: "plan", key: item.id, item } : { type: "answered", key: item.id, item });
-        } else if (item.status === "pending") {
-          flush();
-          rows.push({ type: "approval", key: item.id, item, tool: item.toolUseId ? (toolById.get(item.toolUseId) ?? null) : null, reviewOnDesktop: NOTION_PROPOSE.test(item.toolName) });
-        } else {
+          if (item.toolName === QUESTION_TOOL) rows.push({ type: "question", key: item.id, item });
+          else if (item.toolName === PLAN_TOOL) rows.push({ type: "plan", key: item.id, item });
+          else rows.push({ type: "approval", key: item.id, item, tool: item.toolUseId ? (toolById.get(item.toolUseId) ?? null) : null, reviewOnDesktop: NOTION_PROPOSE.test(item.toolName) });
+        } else if (item.toolName === QUESTION_TOOL && Object.keys(item.outcome?.answers ?? {}).length > 0) {
           flush();
           rows.push({ type: "answered", key: item.id, item });
+        } else {
+          const tool = item.toolUseId ? toolById.get(item.toolUseId) : undefined;
+          if (!tool || tool.parentToolUseId || tool.name === PLAN_TOOL || tool.name === QUESTION_TOOL) steps.push(item);
         }
         break;
       }
@@ -141,7 +149,7 @@ export function sameRow(a: Row, b: Row): boolean {
   switch (a.type) {
     case "steps": {
       const other = b as typeof a;
-      return a.running === other.running && a.failed === other.failed && a.steps.length === other.steps.length && a.steps.every((step, i) => step === other.steps[i]);
+      return a.running === other.running && a.failed === other.failed && a.steps.length === other.steps.length && a.steps.every((step, i) => step === other.steps[i]) && a.decisions.length === other.decisions.length && a.decisions.every((decision, i) => decision === other.decisions[i]);
     }
     case "approval": {
       const other = b as typeof a;
