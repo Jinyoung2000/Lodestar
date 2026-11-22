@@ -47,9 +47,9 @@ T3 원본에는 음성 입력, 터미널, Runtime 편집도 있다. 이 표에�
 | --- | --- |
 | 공식 T3 813, 750dp와 390dp | 같은 초안에서 Fold의 왼쪽 목록, 접은 화면의 뒤로가기, 두 줄 입력과 키보드 위의 모델 버튼을 확인했다. |
 | Lodestar Fold 750dp | 기존 대화에서 모델 검색과 필터를 열었다. 다른 모델을 고르고 닫았을 때 원래 모델과 두 줄 초안이 남았다. 새 대화에서는 제목과 작업 위치가 같은 바에 표시됐다. |
-| 격리한 Mac 데몬 | 모델과 effort를 저장한 뒤 데몬에서 같은 세션을 다시 조회했다. 저장값은 `gpt-fixture-mini`와 `medium`이었다. 대화 기록에 `/model` 전송 내역은 없었다. |
-| Lodestar 390dp와 320dp | 390dp에서 키보드 위에 입력창이 표시됐다. 320dp, 글꼴 160%에서 모델 검색창, 필터와 확인 버튼을 동시에 볼 수 있었다. |
-| 기존 Android 0.2.1 설치 | APK를 재설치하지 않고 업데이트했다. Settings에서 `0.2.1 · OTA 03f0df90`과 이전 Mac 연결을 확인했다. |
-| 개인 S3 설치 파일 | `lodestar-4798b2c1.apk`를 다시 내려받아 35,966,333바이트 전체의 SHA-256이 서명한 로컬 APK와 같은지 확인했다. |
+| 격리한 Mac 데몬 | 모델과 effort를 저장한 뒤 데몬에서 같은 세션을 다시 조회했다. 저장값은 `gpt-fixture-mini`와 `medium`이었다. 입력창에서 `/model` 제안을 눌러 모델 화면을 열고 닫았을 때 앞에 입력한 글이 남았다. 대화 기록에 명령 전송 내역은 없었다. |
+| Lodestar 390dp와 320dp | 390dp에서 키보드 위에 입력창이 표시됐다. 320dp, 글꼴 160%에서는 검색 안내 `Search` 전체와 필터, 확인 버튼이 한 줄에 들어갔다. |
+| 기존 Android 0.2.1 설치 | APK를 재설치하지 않고 업데이트했다. Settings에서 `0.2.1 · OTA eb8acc4b`과 이전 Mac 연결을 확인했다. |
+| 개인 S3 설치 파일 | 고정 경로 `android/latest/lodestar.apk`에서 최신 빌드 `897eb090`을 다시 내려받아 35,966,521바이트 전체의 SHA-256이 서명한 로컬 APK와 같은지 확인했다. |
 
-[배포한 Android OTA](https://expo.dev/accounts/jinzero/projects/lodestar-mobile/updates/fd79dc2b-6cfe-449d-9ae0-2d7c5d9296e3)
+[배포한 Android OTA](https://expo.dev/accounts/jinzero/projects/lodestar-mobile/updates/3d448a67-3f6e-41f6-9db7-73d8cd300ab3)
