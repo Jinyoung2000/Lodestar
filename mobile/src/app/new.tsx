@@ -1,6 +1,7 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import type { MobileModelSelection } from "@shared/mobile";
 import type { BranchesResult, ImageRef } from "@shared/protocol";
 import { pickableWorkspaces } from "../logic/agents";
@@ -19,7 +20,7 @@ type Place = "here" | "worktree" | { existing: string };
 export default function NewSession() {
   const router = useRouter();
   const colors = useColors();
-  const { expanded } = useFoldLayout();
+  const { expanded, sharedConnectionStrip } = useFoldLayout();
   const params = useLocalSearchParams<{ draft?: string; workspace?: string; place?: string; location?: string }>();
   const [contextOpen, setContextOpen] = useState(params.place === "worktree");
   const workspaces = useAppState((s) => s.workspaces);
@@ -123,16 +124,27 @@ export default function NewSession() {
   const sub = (dir: string) => shortPath(dir);
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ headerShown: !modelOpen, gestureEnabled: !modelOpen, headerRight: () => <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={8} style={{ minHeight: MIN_TOUCH, justifyContent: "center" }}><Text color="accentText">Cancel</Text></Pressable> }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: !modelOpen }} />
       <View style={styles.fill} pointerEvents={modelOpen ? "none" : "auto"} accessibilityElementsHidden={modelOpen} importantForAccessibility={modelOpen ? "no-hide-descendants" : "auto"}>
+        {!modelOpen && <SafeAreaView edges={sharedConnectionStrip ? ["left", "right"] : ["top", "left", "right"]}>
+          <View style={styles.appBar}>
+            <Pressable accessibilityRole="button" accessibilityLabel={expanded ? "Close new session" : "Back"}
+              onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
+              style={({ pressed }) => [styles.barButton, pressed && { backgroundColor: colors.pressed }]}>
+              <Icon name={expanded ? "xmark" : "chevron.left"} size={20} color="textStrong" />
+            </Pressable>
+            <View style={styles.appBarLabels} accessible accessibilityRole="header" accessibilityLabel={`New session, ${contextLabel}`}>
+              <Text variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>New session</Text>
+              <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.2}>{contextLabel}</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Workspace and location, ${contextLabel}`} accessibilityState={{ expanded: contextOpen }}
+              onPress={() => { Keyboard.dismiss(); setContextOpen((open) => !open); }}
+              style={({ pressed }) => [styles.barButton, pressed && { backgroundColor: colors.pressed }]}>
+              <Icon name="folder" size={20} color={contextOpen ? "accentText" : "textStrong"} />
+            </Pressable>
+          </View>
+        </SafeAreaView>}
         <View style={styles.fill}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Workspace and location, ${contextLabel}`} accessibilityState={{ expanded: contextOpen }}
-            onPress={() => { Keyboard.dismiss(); setContextOpen(!contextOpen); }}
-            style={({ pressed }) => [styles.context, pressed && { backgroundColor: colors.pressed }]}>
-            <Icon name={wantsWorktree || existingWorktree ? "arrow.triangle.branch" : "folder"} size={16} color="textMuted" />
-            <Text variant="secondary" color="textStrong" numberOfLines={1} style={styles.contextLabel}>{contextLabel}</Text>
-            <Icon name={contextOpen ? "chevron.up" : "chevron.down"} size={14} color="textMuted" />
-          </Pressable>
           {contextOpen && <ScrollView style={styles.fill} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
             <Text variant="secondary" color="textMuted" style={styles.label}>Folder</Text>
             {choices.map((w) => (
@@ -237,8 +249,9 @@ function Choice({ title, subtitle, selected: on, disabled, icon, onPress }: { ti
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  context: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: MIN_TOUCH, marginHorizontal: spacing.sm, paddingHorizontal: spacing.sm, borderRadius: radius.md },
-  contextLabel: { flexShrink: 1, minWidth: 0 },
+  appBar: { flexDirection: "row", alignItems: "center", minHeight: 48, paddingHorizontal: spacing.xs, gap: spacing.xs },
+  barButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: radius.pill },
+  appBarLabels: { flex: 1, minWidth: 0 },
   list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.sm },
   label: { fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: spacing.xs },
   link: { minHeight: MIN_TOUCH, justifyContent: "center", alignItems: "center" },
