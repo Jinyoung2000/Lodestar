@@ -54,14 +54,26 @@ function parseManual(text: string): PairingInfo | null {
   const match = /^([^\s#]+)[\s#]+([A-Za-z0-9-]{8,9})$/.exec(text);
   if (!match) return null;
   const [, address, rawCode] = match;
-  const secureAddress = /^https:\/\/([a-z0-9.-]+\.ts\.net)(?::(\d+))?\/?$/i.exec(address);
-  const parts = secureAddress ? secureAddress.slice(1) : address.split(":");
-  if (parts.length > 2) return null;
-  const [host, portText] = parts;
-  const port = portText === undefined ? (secureAddress ? 443 : DEFAULT_PORT) : Number(portText);
+  const endpoint = parseServerAddress(address);
   const code = normalizeCode(rawCode);
-  if (!HOST_RE.test(host) || !isLocalNetworkHost(host) || !validPort(port) || !CODE_RE.test(code)) return null;
-  return { hosts: [host], port, code, name: null, ...(secureAddress && { secure: true }) };
+  if (!endpoint || endpoint.hosts.length !== 1 || !CODE_RE.test(code)) return null;
+  return { ...endpoint, code, name: null };
+}
+
+export function parseServerAddress(raw: string, defaultPort = DEFAULT_PORT, preferSecure = false): Pick<PairingInfo, "hosts" | "port" | "secure"> | null {
+  const address = raw.trim();
+  const https = /^https:\/\/([a-z0-9.-]+\.ts\.net)(?::(\d+))?\/?$/i.exec(address);
+  if (https) {
+    const port = Number(https[2] ?? 443);
+    return isLocalNetworkHost(https[1]) && validPort(port) ? { hosts: [https[1]], port, secure: true } : null;
+  }
+  const local = /^([a-z0-9.,-]+)(?:[:\s](\d+))?$/i.exec(address);
+  if (!local) return null;
+  const hosts = local[1].split(",");
+  const port = Number(local[2] ?? defaultPort);
+  if (!hosts.every(isLocalNetworkHost) || !validPort(port)) return null;
+  const secure = preferSecure && hosts.every((host) => host.toLowerCase().endsWith(".ts.net"));
+  return { hosts, port, ...(secure && { secure: true }) };
 }
 
 export function parseFields(addressText: string, codeText: string): PairingInfo | null {

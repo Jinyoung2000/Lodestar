@@ -2,7 +2,7 @@ import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
-import { isLocalNetworkHost } from "../logic/pairing";
+import { parseServerAddress } from "../logic/pairing";
 import { activitySupported, alertsEnabled, enableAlerts, stopAlerts } from "../state/activity";
 import { durationLabel } from "../logic/time";
 import { allMetrics, subscribeMetrics, type Metric } from "../state/perf";
@@ -86,20 +86,19 @@ export default function Settings() {
     }
   };
 
-  const editAddress = () => {
-    if (connection) setAddressDraft(`${connection.hosts.join(",")} ${connection.port}`);
-  };
+  const currentAddress = connection ? `${connection.secure ? "https://" : ""}${connection.hosts.join(",")}:${connection.port}` : "";
+  const editAddress = () => setAddressDraft(currentAddress);
 
-  const saveAddress = () => {
+  const saveAddress = async () => {
     if (!connection || addressDraft === null) return;
-    const [hostsText, portText] = addressDraft.trim().split(/\s+/);
-    const hosts = (hostsText ?? "").split(",").map((h) => h.trim().replace(/:\d+$/, "")).filter(Boolean);
-    const port = Number(portText ?? connection.port);
-    if (hosts.length === 0 || !Number.isInteger(port) || port < 1 || port > 65535 || !hosts.every(isLocalNetworkHost)) {
-      return Alert.alert("That is not an address", "Use your Mac's address on this network, like 192.168.0.5 7789. A .local name works too.");
+    const address = parseServerAddress(addressDraft, connection.port, connection.secure);
+    if (!address) return Alert.alert("Check the server address", "Enter a local address or an HTTPS .ts.net URL.");
+    try {
+      await updateHosts(address);
+      setAddressDraft(null);
+    } catch (error) {
+      Alert.alert("Could not save the address", error instanceof Error ? error.message : String(error));
     }
-    void updateHosts(hosts, port);
-    setAddressDraft(null);
   };
 
   const clearSaved = async () => {
@@ -151,7 +150,7 @@ export default function Settings() {
           <Button title="Change address" kind="plain" onPress={editAddress} />
         ) : (
           <View style={{ gap: spacing.sm }}>
-            <Text variant="caption" color="textSubtle">Use this when your Mac's address changed. Write the address, a space, then the port. Separate several addresses with commas.</Text>
+            <Text variant="caption" color="textSubtle">Enter your Mac’s local address or its HTTPS .ts.net URL.</Text>
             <TextInput
               disableFullscreenUI
               value={addressDraft}

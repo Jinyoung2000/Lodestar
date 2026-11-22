@@ -109,9 +109,9 @@ export async function unpair() {
   store.attach(client);
 }
 
-export async function updateHosts(hosts: string[], port: number) {
+export async function updateHosts({ hosts, port, secure }: Pick<Connection, "hosts" | "port" | "secure">) {
   if (!connection) return;
-  const next = { ...connection, hosts, port };
+  const next = { ...connection, hosts, port, secure };
   await saveConnection(next);
   setConnection(next);
   client.configure(next);
