@@ -20,6 +20,13 @@ const themeOptions: SegmentedOption<ThemeChoice>[] = [
   { value: "dark", label: "Dark" },
 ];
 
+function appVersionLabel() {
+  const { runtimeVersion, isEmbeddedLaunch, updateId } = Updates;
+  if (!runtimeVersion) return "Development";
+  if (isEmbeddedLaunch) return `${runtimeVersion} · Built in`;
+  return `${runtimeVersion} · OTA${updateId ? ` ${updateId.slice(-8)}` : ""}`;
+}
+
 export default function Settings() {
   const router = useRouter();
   const colors = useColors();
@@ -170,7 +177,7 @@ export default function Settings() {
         )}
       </Section>
       <Section title="App updates">
-        <Row label="Runtime" value={Updates.runtimeVersion ?? "Development"} />
+        <Row label="Version" value={appVersionLabel()} />
         <Button title="Check for update" busy={checkingUpdate} onPress={() => void checkUpdate()} />
       </Section>
       <Section title="Diagnostics">
