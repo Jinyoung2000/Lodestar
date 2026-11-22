@@ -9,6 +9,8 @@ export function uiTypeVars(current: Partial<UiTypeSettings> | null | undefined):
     "--font-sans": settings.uiFontFamily,
     "--text-chat": `${settings.chatFontSize}px`,
     "--leading-chat": `${settings.chatLineHeight}px`,
+    "--chat-font-scale": String(settings.chatFontSize / UI_TYPE_DEFAULTS.chatFontSize),
+    "--chat-line-height-scale": String(settings.chatLineHeight / UI_TYPE_DEFAULTS.chatLineHeight),
   };
 }
 

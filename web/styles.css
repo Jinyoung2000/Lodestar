@@ -757,6 +757,18 @@ body[data-electron="1"] .titlebar > button {
   letter-spacing: var(--ui-letter-spacing, -0.02em);
   color: var(--fg);
 }
+.plan-markdown,
+.step-plan {
+  font-size: var(--text-chat);
+  line-height: var(--leading-chat);
+}
+
+.markdown:is(.row-user-text, .row-assistant, .side-assistant, .plan-markdown, .step-plan, .agent-result) {
+  --markdown-font-scale: var(--chat-font-scale, 1);
+  --markdown-line-height-scale: var(--chat-line-height-scale, 1);
+  --markdown-code-size: var(--text-code);
+  --markdown-code-leading: var(--leading-code);
+}
 
 .markdown > :first-child {
   margin-top: 0;
@@ -778,8 +790,8 @@ body[data-electron="1"] .titlebar > button {
 }
 .markdown code {
   font-family: var(--editor-font-family);
-  font-size: var(--text-code-inline);
-  line-height: var(--leading-code-inline);
+  font-size: calc(var(--text-code-inline) * var(--markdown-font-scale, 1));
+  line-height: calc(var(--leading-code-inline) * var(--markdown-line-height-scale, 1));
   padding: var(--space-0_5) var(--space-1);
   border-radius: var(--radius-code-inline);
   background: var(--inline-code-bg);
@@ -990,8 +1002,8 @@ body[data-electron="1"] .titlebar > button {
   font-family: var(--editor-font-family);
   background: none;
   color: var(--fg);
-  font-size: var(--editor-font-size);
-  line-height: var(--editor-line-height);
+  font-size: calc(var(--markdown-code-size, var(--editor-font-size)) * var(--markdown-font-scale, 1));
+  line-height: calc(var(--markdown-code-leading, var(--editor-line-height)) * var(--markdown-line-height-scale, 1));
 }
 .markdown pre .cm-syn-kw { color: var(--syntax-keyword); }
 .markdown pre .cm-syn-control { color: var(--syntax-keyword-control); }
@@ -1018,7 +1030,7 @@ body[data-electron="1"] .titlebar > button {
   overflow-x: auto;
   border-collapse: collapse;
   margin: var(--space-2) 0;
-  font-size: var(--text-ui);
+  font-size: calc(var(--text-ui) * var(--markdown-font-scale, 1));
 }
 .markdown th,
 .markdown td {
@@ -1052,6 +1064,10 @@ a,
   font-family: var(--editor-font-family);
   font-size: var(--editor-font-size-sm);
   line-height: var(--editor-line-height-sm);
+}
+.markdown .file-link {
+  font-size: calc(var(--editor-font-size-sm) * var(--markdown-font-scale, 1));
+  line-height: calc(var(--editor-line-height-sm) * var(--markdown-line-height-scale, 1));
 }
 .file-link:hover,
 .session-link:hover {
@@ -3007,11 +3023,12 @@ div.tree-node[role="button"] > :first-child {
   border: 1px solid var(--border-subtle);
   color: var(--fg-strong);
   white-space: pre-wrap;
-  font-size: var(--text-ui-sm);
-  line-height: var(--leading-ui-sm);
+  font-size: calc(var(--text-ui-sm) * var(--chat-font-scale, 1));
+  line-height: calc(var(--leading-ui-sm) * var(--chat-line-height-scale, 1));
 }
 .side-assistant {
-  font-size: var(--text-ui);
+  font-size: var(--text-chat);
+  line-height: var(--leading-chat);
 }
 .side-input {
   padding: var(--space-3);
@@ -3502,13 +3519,13 @@ div.tree-node[role="button"] > :first-child {
 }
 .markdown h1,
 .markdown h2 {
-  font-size: var(--text-title);
-  line-height: var(--leading-title);
+  font-size: calc(var(--text-title) * var(--markdown-font-scale, 1));
+  line-height: calc(var(--leading-title) * var(--markdown-line-height-scale, 1));
 }
 .markdown h3,
 .markdown h4 {
-  font-size: var(--text-body);
-  line-height: var(--leading-body);
+  font-size: calc(var(--text-body) * var(--markdown-font-scale, 1));
+  line-height: calc(var(--leading-body) * var(--markdown-line-height-scale, 1));
 }
 .markdown ul {
   list-style: disc;
@@ -5735,9 +5752,10 @@ html[data-compact-view="true"] .session-twistie {
 .turn-user[data-stuck] .row-user-text :is(pre, table, blockquote, hr) {
   display: none;
 }
-.turn-user[data-stuck] .row-user-text :is(p, ul, ol, li) {
+.turn-user[data-stuck] .row-user-text :is(h1, h2, h3, h4, p, ul, ol, li) {
   margin-top: 0;
   margin-bottom: 0;
+  line-height: inherit;
 }
 .row-user-text > :last-child {
   margin-bottom: 0;
@@ -9495,8 +9513,8 @@ button[data-variant]:disabled .codicon {
 .agent-result {
   padding: var(--space-0_5) 0;
   color: var(--fg-muted);
-  font-size: var(--text-ui-sm);
-  line-height: var(--leading-ui-sm);
+  font-size: calc(var(--text-ui-sm) * var(--chat-font-scale, 1));
+  line-height: calc(var(--leading-ui-sm) * var(--chat-line-height-scale, 1));
 }
 .agent-result strong {
   color: var(--fg);
