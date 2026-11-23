@@ -29,6 +29,12 @@ Run typecheck, both lints and the tests that cover your change before reporting 
 - The installed app can rebuild from `~/Repository/agent-nav` when idle (`AGENT_NAV_SRC`, Settings "Update when idle"; off by default, on in builds from before that default changed). It finds new source with `git ls-files`, so the folder must be a git repository for it to act. Do not leave half-finished changes in that folder while an app with the setting on is running; work in a worktree instead.
 - Do not run `npm run dist` or the packaging steps unless asked.
 
+## Commits
+
+- Commit each unit of work as soon as it is done and its checks pass, before reporting it or starting the next one. A fix, a feature or a rule change is one commit; do not leave finished work uncommitted in the working tree. You do not need to ask first. Do not push unless asked.
+- Several sessions work in this folder at once, so the working tree often holds other sessions' unfinished edits, sometimes in the same files as yours. Stage only your own changes: add whole files by path when they are yours alone, and for a shared file stage just your hunks (filter `git diff` to them and `git apply --cached` the patch). Never commit, stash, revert or reformat another session's changes, and check `git diff --cached` before committing.
+- The message is one English sentence in the style of `git log`: what changed for the user, no type prefix, no emojis, no co-author lines.
+
 ## Rules
 
 - Keep every listener of the main daemon on `127.0.0.1`. Sessions use the account the user's Claude Code CLI is signed in to. Provider environment variables (`ANTHROPIC_API_KEY` and the others in `server/claude.ts`) reach the CLI only when the `useProviderEnv` setting is on, which is off by default; never read, store or ask for a key, and never add another billing path. Never run provider login or logout, and never read, copy or edit provider auth files.
