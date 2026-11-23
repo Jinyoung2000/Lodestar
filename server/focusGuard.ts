@@ -20,9 +20,24 @@ export function splitSegments(command: string): Segment[] {
     if (tokens.length) segments.push({ tokens, end });
     tokens = [];
   };
+  const heredocs: { delimiter: string; stripTabs: boolean }[] = [];
   let i = 0;
   while (i < command.length) {
     const c = command[i];
+    if (c === "<" && command[i + 1] === "<" && command[i + 2] !== "<" && command[i - 1] !== "<") {
+      const heredoc = readHeredocStart(command, i + 2);
+      if (heredoc) {
+        flushToken(i);
+        heredocs.push(heredoc);
+        i = heredoc.next;
+        continue;
+      }
+    }
+    if (c === "\n" && heredocs.length) {
+      flushSegment(i);
+      i = skipHeredocBodies(command, i + 1, heredocs.splice(0));
+      continue;
+    }
     if (c === "'") {
       if (start < 0) start = i;
       const close = command.indexOf("'", i + 1);
@@ -92,6 +107,35 @@ export function splitSegments(command: string): Segment[] {
   }
   flushSegment(command.length);
   return segments;
+}
+
+function readHeredocStart(command: string, from: number): { delimiter: string; stripTabs: boolean; next: number } | null {
+  let at = from;
+  const stripTabs = command[at] === "-";
+  if (stripTabs) at++;
+  while (command[at] === " " || command[at] === "\t") at++;
+  const quote = command[at];
+  if (quote === "'" || quote === '"') {
+    const close = command.indexOf(quote, at + 1);
+    if (close < 0) return null;
+    return { delimiter: command.slice(at + 1, close), stripTabs, next: close + 1 };
+  }
+  const word = /^\\?([A-Za-z0-9_.-]+)/.exec(command.slice(at));
+  return word ? { delimiter: word[1], stripTabs, next: at + word[0].length } : null;
+}
+
+function skipHeredocBodies(command: string, from: number, heredocs: { delimiter: string; stripTabs: boolean }[]): number {
+  let at = from;
+  for (const { delimiter, stripTabs } of heredocs) {
+    while (at < command.length) {
+      const lineEnd = command.indexOf("\n", at);
+      const end = lineEnd < 0 ? command.length : lineEnd;
+      const line = command.slice(at, end);
+      at = end + 1;
+      if ((stripTabs ? line.replace(/^\t+/, "") : line) === delimiter) break;
+    }
+  }
+  return Math.min(at, command.length);
 }
 
 const RESERVED = new Set(["then", "do", "else", "elif", "if", "while", "until", "!", "{", "}", "time", "nohup", "command", "exec", "builtin", "sudo", "nice", "caffeinate"]);
