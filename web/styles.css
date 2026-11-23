@@ -10850,6 +10850,15 @@ button[data-variant]:disabled .codicon {
   line-height: 1;
   letter-spacing: 0;
 }
+.provider-claude {
+  color: var(--provider-claude);
+}
+.provider-codex {
+  color: var(--provider-codex);
+}
+.provider-antigravity {
+  color: var(--provider-antigravity);
+}
 .provider-mark[data-small] {
   width: var(--size-provider-mark-sm);
   height: var(--size-provider-mark-sm);

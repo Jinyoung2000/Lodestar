@@ -64,12 +64,12 @@ export const ModelIcon = make("claude");
 export function ProviderIcon({ harness, size = 16 }: { harness: "claude" | "codex" | "antigravity"; size?: number }) {
   if (harness === "antigravity") {
     return (
-      <span className="provider-mark" data-small={size < 16 || undefined} aria-hidden="true">
+      <span className="provider-mark provider-antigravity" data-small={size < 16 || undefined} aria-hidden="true">
         A
       </span>
     );
   }
-  return <Codicon name={harness === "codex" ? "openai" : "claude"} size={size} />;
+  return <Codicon name={harness === "codex" ? "openai" : "claude"} size={size} className={`provider-${harness}`} />;
 }
 
 
