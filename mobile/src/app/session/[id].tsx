@@ -118,12 +118,15 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
     return () => back.remove();
   }, [closeGallery, closeModel, closePreview, expanded, fullPreview, galleryOpen, id, modelOpen, previewOpen]));
   const listGeneration = useRef(0);
+  const [listReset, setListReset] = useState(0);
   const rows = useMemo(() => {
     const previous = previousRows.current;
     const next = stabilizeRows(previous, buildRows(items ?? []));
     const previousKeys = new Set(previous.map((row) => row.key));
     if (previous.length > 0 && !next.some((row) => previousKeys.has(row.key))) {
       listGeneration.current += 1;
+      scrollOffset.current = 0;
+      contentHeight.current = 0;
       restoreOffset.current = null;
       followEnd.current = true;
       atBottomRef.current = true;
@@ -237,7 +240,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
           ) : (
             <View style={{ flex: 1 }} onLayout={keepBottomEdge}>
               <FlashList
-                key={listGeneration.current}
+                key={`${listGeneration.current}:${listReset}`}
                 ref={listRef}
                 data={messages}
                 keyExtractor={(row) => row.key}
@@ -246,7 +249,19 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
                 ItemSeparatorComponent={Gap}
                 contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm, paddingBottom: spacing.lg }}
                 onContentSizeChange={(_, height) => {
+                  const viewport = listHeight.current;
+                  const shrankPastEnd = viewport !== null && height < contentHeight.current && height < scrollOffset.current + viewport / 2;
                   contentHeight.current = height;
+                  if (shrankPastEnd) {
+                    scrollOffset.current = 0;
+                    contentHeight.current = 0;
+                    restoreOffset.current = null;
+                    followEnd.current = true;
+                    atBottomRef.current = true;
+                    memory.offset = null;
+                    setListReset((count) => count + 1);
+                    return;
+                  }
                   if (followEnd.current && listHeight.current !== null) void listRef.current?.scrollToOffset({ offset: Math.max(0, height - listHeight.current), animated: false });
                 }}
                 maintainVisibleContentPosition={{ autoscrollToBottomThreshold: 0.25, startRenderingFromBottom: true, animateAutoScrollToBottom: false }}
