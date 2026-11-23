@@ -23,12 +23,29 @@ const USAGE = `Usage: lodestar <path>[:line[:column]] ...   Open folders or file
   wait <ref> [--timeout SECONDS]         Wait until the session is idle, then print its last reply (default 600)
   move <folder>                          Move this chat (one without a folder) into <folder>; the next message starts there
   id                                     Print this session's own reference
+       lodestar automation <command>
 
-<ref> is lodestar://session/<id>, a full uuid, or a unique id prefix of 6+ hex chars.`;
+  list [--json]                          Automations with their state, next run and last run
+  show <automation> [--json]             Settings and recent runs of one automation
+  create <schedule> [target] [options] <prompt...>
+                                         Run a prompt on a schedule (reads stdin when no prompt is given)
+      schedule: --every MINUTES | --daily HH:MM [--days mon,tue,...|weekdays|weekends|all]
+                | --once "YYYY-MM-DD HH:MM" (local time)
+      target:   --workspace <name|folder> (default: the workspace containing this folder)
+                [--worktree] [--base BRANCH]
+                | --session <ref> (message an existing session instead of starting one)
+      options:  --title TEXT --model ID --effort LEVEL --permission MODE --paused
+  run <automation>                       Run it now
+  pause <automation> | resume <automation>
+  delete <automation>
+
+<ref> is lodestar://session/<id>, a full uuid, or a unique id prefix of 6+ hex chars.
+<automation> is an automation id, a unique id prefix, or its exact title.`;
 
 async function main() {
   const [group, command, ...rest] = process.argv.slice(2);
   if (!group || group === "help" || group === "--help" || group === "-h") return console.log(USAGE);
+  if (group === "automation" || group === "automations") return automationCommand(command, rest);
   if (group !== "session") return openPaths(process.argv.slice(2));
   if (!command) return usage();
   const args = parseArgs(rest);
@@ -245,6 +262,217 @@ function ago(iso) {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+const AUTOMATION_VALUE_FLAGS = new Set(["--every", "--daily", "--days", "--once", "--workspace", "--base", "--session", "--title", "--model", "--effort", "--permission"]);
+const WEEKDAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+async function automationCommand(command, argv) {
+  if (!command) usage();
+  const args = parseAutomationArgs(argv);
+  await rpc("automations.list").catch((error) => {
+    if (/Unknown method/.test(error.message)) fail("the running Lodestar app predates automations. Let it update (Settings > Update when idle) or restart it, then try again.");
+    throw error;
+  });
+  if (command === "list") return automationList(args);
+  if (command === "show") return automationShow(args);
+  if (command === "create" || command === "add") return automationCreate(args);
+  if (command === "run") return automationRun(args);
+  if (command === "pause") return automationSetEnabled(args, false);
+  if (command === "resume") return automationSetEnabled(args, true);
+  if (command === "delete" || command === "rm") return automationDelete(args);
+  usage();
+}
+
+function parseAutomationArgs(argv) {
+  const flags = {};
+  const positional = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (AUTOMATION_VALUE_FLAGS.has(arg)) {
+      const value = argv[++i];
+      if (value === undefined) fail(`${arg} needs a value`);
+      flags[arg.slice(2)] = value;
+    } else if (arg === "--worktree" || arg === "--json" || arg === "--paused") flags[arg.slice(2)] = true;
+    else positional.push(arg);
+  }
+  return { flags, positional };
+}
+
+function scheduleFrom(flags) {
+  const given = ["every", "daily", "once"].filter((key) => flags[key] !== undefined);
+  if (given.length !== 1) fail('give exactly one schedule: --every MINUTES, --daily HH:MM or --once "YYYY-MM-DD HH:MM"');
+  if (flags.every !== undefined) {
+    const minutes = Number(flags.every);
+    if (!Number.isInteger(minutes)) fail("--every needs whole minutes");
+    return { kind: "interval", minutes };
+  }
+  if (flags.daily !== undefined) return { kind: "daily", time: flags.daily, weekdays: weekdaysFrom(flags.days) };
+  const at = localDateTime(flags.once);
+  if (!at) fail(`--once needs "YYYY-MM-DD HH:MM" in local time, got "${flags.once}"`);
+  return { kind: "once", at: at.toISOString() };
+}
+
+function weekdaysFrom(text) {
+  if (text === undefined || text === "weekdays") return [1, 2, 3, 4, 5];
+  if (text === "all" || text === "everyday") return [0, 1, 2, 3, 4, 5, 6];
+  if (text === "weekends") return [0, 6];
+  const days = text.split(",").map((part) => WEEKDAY_NAMES.indexOf(part.trim().slice(0, 3).toLowerCase()));
+  if (!days.length || days.includes(-1)) fail(`--days takes mon,tue,wed,thu,fri,sat,sun, weekdays, weekends or all, got "${text}"`);
+  return [...new Set(days)].sort();
+}
+
+function localDateTime(text) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})$/.exec(String(text).trim());
+  if (!match) return null;
+  const [, y, mo, d, h, mi] = match.map(Number);
+  const date = new Date(y, mo - 1, d, h, mi, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function targetFrom(flags) {
+  if (flags.session !== undefined) {
+    if (flags.workspace !== undefined || flags.worktree || flags.base !== undefined) fail("--session cannot be combined with --workspace, --worktree or --base");
+    const agent = resolve(flags.session, await rpc("agents.list"));
+    return { kind: "session", agentId: agent.id };
+  }
+  if (flags.base !== undefined && !flags.worktree) fail("--base only applies with --worktree");
+  const workspace = await workspaceFor(flags.workspace);
+  return { kind: "newSession", workspaceId: workspace.id, worktree: flags.worktree ? { base: flags.base ?? "" } : null };
+}
+
+async function workspaceFor(input) {
+  const workspaces = (await rpc("workspaces.list")).filter((w) => !w.feedback && !w.archived);
+  const realOf = (dir) => (existsSync(dir) ? realpathSync(dir) : dir);
+  if (input !== undefined) {
+    const dir = realOf(resolvePath(process.cwd(), input.replace(/^~(?=\/|$)/, homedir())));
+    const byDir = workspaces.find((w) => realOf(w.dir) === dir);
+    if (byDir) return byDir;
+    const byName = workspaces.filter((w) => w.name === input);
+    if (byName.length === 1) return byName[0];
+    fail(`no single workspace matches "${input}". Workspaces:\n${workspaces.map((w) => `  ${w.name}  ${w.dir}`).join("\n")}`);
+  }
+  const here = realOf(process.cwd());
+  const containing = workspaces
+    .map((w) => ({ w, dir: realOf(w.dir) }))
+    .filter(({ dir }) => here === dir || here.startsWith(`${dir}/`))
+    .sort((a, b) => b.dir.length - a.dir.length);
+  if (containing[0]) return containing[0].w;
+  fail("this folder is not inside a Lodestar workspace; pass --workspace <name|folder> or --session <ref>");
+}
+
+async function automationCreate({ flags, positional }) {
+  let prompt = positional.join(" ").trim();
+  if (!prompt && !process.stdin.isTTY) prompt = readFileSync(0, "utf8").trim();
+  if (!prompt) fail("give the prompt to run as the last argument or on stdin");
+  const schedule = scheduleFrom(flags);
+  const target = await targetFrom(flags);
+  const permissionMode = flags.permission ?? (await rpc("defaults.get")).permissionMode.value;
+  const created = await rpc("automations.create", {
+    title: (flags.title ?? prompt.split("\n")[0]).slice(0, 120).trim(),
+    prompt,
+    enabled: !flags.paused,
+    schedule,
+    target,
+    harness: "claude",
+    model: flags.model ?? null,
+    effort: flags.effort ?? null,
+    permissionMode,
+  });
+  console.log(`Created automation ${shortId(created.id)} "${created.title}": ${scheduleText(created.schedule)}, ${created.enabled ? `next run ${whenText(created.nextRunAt)}` : "paused"}, permission mode ${created.permissionMode}.`);
+  await done();
+}
+
+function resolveAutomation(input, automations) {
+  if (!input) usage();
+  const exact = automations.find((a) => a.id === input || a.title === input);
+  if (exact) return exact;
+  const matches = automations.filter((a) => a.id.startsWith(input.toLowerCase()));
+  if (matches.length === 1) return matches[0];
+  if (!matches.length) fail(`no automation matches "${input}". Run \`lodestar automation list\` to see them.`);
+  fail(`"${input}" matches ${matches.length} automations, use a longer prefix`);
+}
+
+function scheduleText(schedule) {
+  if (schedule.kind === "interval") return `every ${schedule.minutes} min`;
+  if (schedule.kind === "once") return `once on ${localStamp(schedule.at)}`;
+  const days = schedule.weekdays.length === 7 ? "every day" : schedule.weekdays.map((d) => WEEKDAY_NAMES[d]).join(",");
+  return `${days} at ${schedule.time}`;
+}
+
+function localStamp(iso) {
+  const date = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+const whenText = (iso) => (iso ? localStamp(iso) : "none");
+
+function latestRun(runs, automationId) {
+  return runs.filter((r) => r.automationId === automationId).sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+}
+
+async function automationList({ flags }) {
+  const { automations, runs } = await rpc("automations.list");
+  if (flags.json) {
+    console.log(JSON.stringify(automations.map((a) => ({ ...a, lastRun: latestRun(runs, a.id) ?? null })), null, 2));
+    return done();
+  }
+  if (!automations.length) console.log("No automations. Create one with `lodestar automation create`.");
+  for (const a of automations) {
+    const last = latestRun(runs, a.id);
+    const active = last && (last.status === "running" || last.status === "needsInput");
+    const state = active ? last.status : a.enabled ? `next ${whenText(a.nextRunAt)}` : "paused";
+    const lastText = last ? `last ${last.status} ${localStamp(last.startedAt)}` : "never ran";
+    console.log([shortId(a.id), state.padEnd(22), scheduleText(a.schedule).padEnd(28), lastText.padEnd(34), a.title].join("  "));
+  }
+  await done();
+}
+
+async function automationShow({ flags, positional }) {
+  const automation = resolveAutomation(positional[0], (await rpc("automations.list")).automations);
+  const runs = await rpc("automations.runs", { automationId: automation.id });
+  if (flags.json) {
+    console.log(JSON.stringify({ ...automation, runs }, null, 2));
+    return done();
+  }
+  const { target } = automation;
+  const workspaceName = target.kind === "newSession" ? ((await rpc("workspaces.list")).find((w) => w.id === target.workspaceId)?.name ?? target.workspaceId) : null;
+  const targetText = target.kind === "session" ? `existing session ${refOf(target.agentId)}` : `new session in ${workspaceName}${target.worktree ? `, new worktree from ${target.worktree.base || "the default branch"}` : ""}`;
+  console.log(`${automation.title} (${automation.id})
+Schedule: ${scheduleText(automation.schedule)}
+State: ${automation.enabled ? `on, next run ${whenText(automation.nextRunAt)}` : "paused"}
+Target: ${targetText}
+Model: ${automation.model ?? "default"}  Effort: ${automation.effort ?? "default"}  Permission mode: ${automation.permissionMode}
+
+Prompt:
+${automation.prompt}
+
+Runs:`);
+  if (!runs.length) console.log("  none yet");
+  for (const run of runs) console.log(`  ${localStamp(run.startedAt)}  ${run.trigger.padEnd(9)}  ${run.status.padEnd(10)}  ${run.agentId ? refOf(run.agentId) : ""}${run.error ? `  ${run.error}` : ""}`);
+  await done();
+}
+
+async function automationRun({ positional }) {
+  const automation = resolveAutomation(positional[0], (await rpc("automations.list")).automations);
+  const run = await rpc("automations.runNow", { id: automation.id });
+  console.log(`Ran "${automation.title}": ${run.status}${run.agentId ? ` in ${refOf(run.agentId)}` : ""}${run.error ? ` (${run.error})` : ""}`);
+  await done();
+}
+
+async function automationSetEnabled({ positional }, enabled) {
+  const automation = resolveAutomation(positional[0], (await rpc("automations.list")).automations);
+  const updated = await rpc("automations.setEnabled", { id: automation.id, enabled });
+  console.log(enabled ? `Resumed "${updated.title}", next run ${whenText(updated.nextRunAt)}` : `Paused "${updated.title}"`);
+  await done();
+}
+
+async function automationDelete({ positional }) {
+  const automation = resolveAutomation(positional[0], (await rpc("automations.list")).automations);
+  await rpc("automations.delete", { id: automation.id });
+  console.log(`Deleted "${automation.title}"`);
+  await done();
 }
 
 main().catch((error) => fail(error.message));

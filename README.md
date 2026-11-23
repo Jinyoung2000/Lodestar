@@ -145,7 +145,7 @@ See [SECURITY.md](SECURITY.md) for how to report a problem.
 | `design-system/` | Design tokens (`tokens.json`), component specs and previews |
 | `scripts/` | Token build and lint, icon build, build stamp |
 | `test/` | `tsx` test scripts and fixtures |
-| `bin/lodestar.mjs` | CLI: `lodestar <path>[:line[:column]]` opens a folder or file in the app, `lodestar session list` lists sessions, and `lodestar session move <folder>` moves a chat without a folder into that folder. Link it onto your `PATH`, for example `ln -s "$PWD/bin/lodestar.mjs" ~/.local/bin/lodestar` |
+| `bin/lodestar.mjs` | CLI: `lodestar <path>[:line[:column]]` opens a folder or file in the app, `lodestar session list` lists sessions, `lodestar session move <folder>` moves a chat without a folder into that folder, and `lodestar automation create|list|show|run|pause|resume|delete` manages scheduled prompts. Link it onto your `PATH`, for example `ln -s "$PWD/bin/lodestar.mjs" ~/.local/bin/lodestar` |
 | `docs/` | Feature reference |
 
 ## Naming
