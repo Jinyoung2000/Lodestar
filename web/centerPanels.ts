@@ -1,5 +1,5 @@
 
-export type CenterViewName = "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "notes" | "skills";
+export type CenterViewName = "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "notes" | "skills" | "automations";
 
 export const sessionPanelShown = (centerView: CenterViewName, rightOpen: boolean): boolean => centerView === "sessions" && rightOpen;
 

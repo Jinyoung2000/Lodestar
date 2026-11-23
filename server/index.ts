@@ -67,8 +67,10 @@ import { runAnalysis } from "./mentionAnalyze";
 import { judgeMentions } from "./mentionJudge";
 import { MentionPipeline } from "./mentions";
 import { MorningReviewService } from "./morningReview";
+import { AutomationService } from "./automations";
+import { automationHandlers } from "./automationHandlers";
 import { ReleaseCheck } from "./releaseCheck";
-import { mentionCollectionBlocked, morningReviewAutoBlocked } from "./mentionGate";
+import { automationsAutoBlocked, mentionCollectionBlocked, morningReviewAutoBlocked } from "./mentionGate";
 import { MetaService } from "./meta";
 import { localCommands } from "./skills";
 import { liveGroupLeaders, systemKillDeps, terminateGroups } from "./processGroups";
@@ -161,8 +163,10 @@ const repoMirrors = new RepoMirrors(join(homedir(), "Repository"), join(HOME, "r
 repoMirrors.start();
 const reviewCheckouts = new ReviewCheckouts(join(HOME, "review-checkouts.json"));
 const folderCodeAllowed = (dir: string) => runsFolderCode(dir, { workspaces: store.workspaces, reviews: reviewCheckouts.list(), downloads: repoMirrors.createdDirs() });
+let automations: AutomationService | null = null;
 const broadcast = (event: ServerEvent) => {
   repoMirrors.observe(event);
+  automations?.observe(event);
   coalescer.push(event);
 };
 const deliver = (event: ServerEvent) => {
@@ -259,6 +263,15 @@ const morningReview = new MorningReviewService({
   modelName: () => defaultsReader.resolve(store.settings).model.value ?? undefined,
 });
 morningReview.start();
+automations = new AutomationService({
+  store,
+  create: (params) => runner.create(params),
+  send: (agentId, prompt) => runner.send(agentId, prompt),
+  branches: (dir) => gitOps.branches(dir),
+  emit: broadcast,
+  autoBlocked: () => automationsAutoBlocked(process.env),
+});
+automations.start();
 const releaseCheck = new ReleaseCheck({ enabled: () => store.settings.notifyNewVersion === true, onChange: (release) => broadcast({ type: "release", release }) });
 releaseCheck.start();
 allowProviderEnv(store.settings.useProviderEnv === true);
@@ -507,6 +520,7 @@ const handlers: Handlers = {
   ...notesHandlers({ notes, publishNotes }),
   ...inboxHandlers({ inbox, inboxStore, mentions, broadcast, topWorkspaceOf }),
   ...notionPinHandlers({ notionPins, broadcast }),
+  ...automationHandlers(automations),
   ...terminalHandlers({ termAsk }),
   "perf.stats": ({ reset }) => {
     const snapshot = perfSnapshot();

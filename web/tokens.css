@@ -344,6 +344,16 @@
   --size-changes-diff-min: 360px;
   --size-notes-list: 280px;
   --size-notes-text: 720px;
+  --size-automation-detail: 380px;
+  --size-automation-status: 210px;
+  --size-automation-dialog: 560px;
+  --size-automation-label: 104px;
+  --size-automation-choice: 128px;
+  --size-automation-trigger: 72px;
+  --size-automation-result: 84px;
+  --size-automation-day: 36px;
+  --size-automation-number: 64px;
+  --size-automation-picker: 200px;
   --size-changes-list-min: 200px;
   --size-command-center: 448px;
   --size-title-branch: 160px;

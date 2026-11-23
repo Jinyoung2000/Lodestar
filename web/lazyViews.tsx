@@ -40,6 +40,8 @@ const pullRequestTab = slot(() => import("./PullRequestView").then((m) => m.Pull
 const notion = slot(() => import("./NotionView").then((m) => m.NotionView));
 const notes = slot(() => import("./NotesView").then((m) => m.NotesView));
 const skills = slot(() => import("./SkillsView").then((m) => m.SkillsView));
+const automations = slot(() => import("./AutomationsView").then((m) => m.AutomationsView));
+const automationEditor = slot(() => import("./AutomationEditor").then((m) => m.AutomationEditorHost));
 const sideChat = slot(() => import("./SideChat").then((m) => m.SideChat));
 const settings = slot(() => import("./SettingsView").then((m) => m.SettingsView));
 const overlays = slot(() => import("./Overlays").then((m) => m.Overlays));
@@ -86,6 +88,17 @@ export function NotesView() {
 
 export function SkillsView() {
   const Loaded = useSlot(skills);
+  return Loaded ? <Loaded /> : null;
+}
+
+export function AutomationsView() {
+  const Loaded = useSlot(automations);
+  return Loaded ? <Loaded /> : null;
+}
+
+export function AutomationEditorHost() {
+  const wanted = useStore((s) => s.automationEditor !== null);
+  const Loaded = useSlot(automationEditor, wanted);
   return Loaded ? <Loaded /> : null;
 }
 

@@ -7,3 +7,7 @@ export function morningReviewAutoBlocked(env: NodeJS.ProcessEnv = process.env, s
   if (settings !== undefined && settings.showBoard !== true) return true;
   return (env.AGENT_NAV_INACTIVE === "1" || !!env.AGENT_NAV_E2E_PORT || env.AGENT_NAV_NO_MENTIONS === "1") && env.AGENT_NAV_REVIEW_AUTO !== "1";
 }
+
+export function automationsAutoBlocked(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.AGENT_NAV_INACTIVE === "1" || !!env.AGENT_NAV_E2E_PORT || env.AGENT_NAV_NO_MENTIONS === "1") && env.AGENT_NAV_AUTOMATIONS_AUTO !== "1";
+}

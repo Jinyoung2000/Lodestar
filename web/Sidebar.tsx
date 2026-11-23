@@ -13,6 +13,7 @@ import { SectionMoveItems } from "./SectionMoveItems";
 import { beginSectionDrag, useSectionDrag, useSidebarOrder, type SidebarSection } from "./sidebarOrder";
 import { BoardIcon, Chat, Check, ChevronDown, ChevronRight, Close, Codicon, CircleFilled, CircleSmallFilled, CommentDiscussion, DotSpinner, Filter, Folder, FolderCompact, More, NoteIcon, Pin, Plus, ProviderIcon, Search, TreeItemExpanded, WorktreeCompact } from "./icons";
 import { RenameInput } from "./RenameInput";
+import { automationsAwaitingInput } from "./automationModel";
 import { useCompactView } from "./compactView";
 import { useMissingFolders } from "./missingFolders";
 import { moveChatToFolder } from "./sessionFolders";
@@ -28,7 +29,7 @@ import { publishSessionLists, stepFolder, stepSession } from "./sessionReorder";
 import { runCommand } from "./shortcuts";
 import { boardShown, slackShown } from "./screenVisibility";
 import { openPrBesideByUrl } from "./prStore";
-import { addTerminal, ensureTimeline, flash, refreshPrs, isTopWorkspace, openAgent, openCard, setState, startDraft, startQuickChat, toggleBoard, toggleImprovements, toggleInbox, toggleNotes,topWorkspaceId, useStore } from "./store";
+import { addTerminal, ensureTimeline, flash, refreshPrs, isTopWorkspace, openAgent, openCard, setState, startDraft, startQuickChat, openAutomation, toggleAutomations, toggleBoard, toggleImprovements, toggleInbox, toggleNotes,topWorkspaceId, useStore } from "./store";
 import { S } from "./strings";
 import { useEditPreview } from "./useEditPreview";
 import { Button } from "./ui/button";
@@ -51,6 +52,7 @@ type RowMenu = { id: string; at?: { x: number; y: number } };
 
 export function Sidebar({ width }: { width: number | null }) {
   const inboxUnread = useStore((s) => s.inbox?.unread ?? 0);
+  const automationsWaiting = useStore((s) => (s.automations ? automationsAwaitingInput(s.automations.automations, s.automations.runs) : 0));
   const showBoard = useStore((s) => boardShown(s.settings));
   const showSlack = useStore((s) => slackShown(s.settings));
   const reviewUnread = useStore((s) => !!s.review?.unreadDate);
@@ -126,6 +128,10 @@ export function Sidebar({ width }: { width: number | null }) {
             <SideKeycaps command="inbox" />
           </button>
         )}
+        <button type="button" className="side-item" data-active={centerView === "automations" || undefined} aria-pressed={centerView === "automations"} title={S.automations} onClick={() => toggleAutomations()}>
+          <Codicon name="watch" /> {S.automations}
+          {automationsWaiting > 0 && <span className="inbox-badge" aria-label={S.automationsNeedInput(automationsWaiting)}>{automationsWaiting}</span>}
+        </button>
         <button type="button" className="side-item" data-active={centerView === "notes" || undefined} aria-pressed={centerView === "notes"} title={S.notesKey(notesKey)} onClick={() => toggleNotes()}>
           <NoteIcon /> {S.notes}
           <SideKeycaps command="notes" />
@@ -443,6 +449,7 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
   const workspace = useStore((s) => s.workspaces.find((w) => w.id === topWorkspaceId(agent.workspaceId)));
   const gitBranch = useStore((s) => s.gitInfo[agent.id]?.branch ?? null);
   const inRepo = useStore((s) => !!s.gitInfo[agent.id]?.repoRoot);
+  const automationTitle = useStore((s) => (agent.automationId ? (s.automations?.automations.find((a) => a.id === agent.automationId)?.title ?? null) : null));
   const isChild = depth > 0;
   const folderCount = agent.workspaceId ? 1 + (agent.extraWorkspaceIds?.length ?? 0) : 0;
   const oneLine = agent.workspaceId === null && agent.status === "idle" && !agent.imported;
@@ -578,6 +585,7 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
                   </span>
                 </>
               )}
+              {automationTitle && agent.automationId && <AutomationMark id={agent.automationId} title={automationTitle} />}
             </span>
           )}
         </span>
@@ -617,6 +625,29 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
         </DropdownMenu>
       </div>
     </div>
+  );
+}
+
+function AutomationMark({ id, title }: { id: string; title: string }) {
+  const open = (e: MouseEvent | KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openAutomation(id);
+  };
+  return (
+    <>
+      <SessionSeparator />
+      <span
+        className="session-automation"
+        role="img"
+        aria-label={S.automation.startedByAria(title)}
+        title={S.automation.startedBy(title)}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={open}
+      >
+        <Codicon name="watch" size={12} />
+      </span>
+    </>
   );
 }
 
@@ -725,6 +756,12 @@ function useBoardCard(agent: Agent) {
   return { board, linked, addToBoard };
 }
 
+function AutomationMenuItem({ id }: { id: string }) {
+  const known = useStore((s) => !!s.automations?.automations.some((a) => a.id === id));
+  if (!known) return null;
+  return <DropdownMenuItem onSelect={() => openAutomation(id)}>{S.automation.openAutomation}</DropdownMenuItem>;
+}
+
 function SessionMenu({ agent }: { agent: Agent }) {
   const { board, linked, addToBoard } = useBoardCard(agent);
   const renaming = useRef(false);
@@ -759,6 +796,7 @@ function SessionMenu({ agent }: { agent: Agent }) {
       <DropdownMenuItem onSelect={() => void deleteSession(agent)}>{S.deleteEllipsis}</DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => copySessionLink(agent)}>{S.copyLink}</DropdownMenuItem>
+      {agent.automationId && <AutomationMenuItem id={agent.automationId} />}
       <DropdownMenuItem disabled={!canHandOff(agent)} onSelect={() => startHandoff(agent.id)}>
         {S.handoffMenu}
       </DropdownMenuItem>

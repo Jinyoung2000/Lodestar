@@ -5,6 +5,7 @@ import type { PrRpcMethods } from "./prTypes";
 import type { LinearIssueRef, LinearRpcMethods } from "./linear";
 import type { SimulatorRpcMethods } from "./simulator";
 import type { SkillsRpcMethods } from "./skills";
+import type { AutomationsRpcMethods, AutomationsState } from "./automations";
 import type { ScmCommit, ScmCommitFile, ScmCommitOptions, ScmCommitResult, ScmDiffSection, ScmDiscardResult, ScmFileDiff, ScmFileDiffSection, ScmOperationResult, ScmPullMode, ScmRepoWorktrees, ScmStatus, ScmSyncResult, ScmTarget } from "./scm";
 import type { SlackLinkTarget } from "./slackLink";
 import type { NotionLinkTarget } from "./notionLink";
@@ -88,6 +89,7 @@ export type Agent = {
   antigravitySessionId?: string | null;
   seenThrough?: HarnessSeen;
   carryPending?: boolean;
+  automationId?: string;
 };
 
 export type ContextUsage = { used: number; limit: number; source: "api" | "estimate"; at: string };
@@ -285,6 +287,7 @@ export type Settings = {
   boardAutoMove: boolean;
   morningReviewEnabled: boolean;
   morningReviewTime: string;
+  automationConcurrency: number;
   notifyOnResponse: boolean;
   notifyOnApproval: boolean;
   notifyNewVersion?: boolean;
@@ -727,7 +730,7 @@ export type VscodeImportResult = {
 
 export type BranchesResult = { repoRoot: string | null; current: string | null; defaultBase: string | null; branches: string[]; locals: string[]; remotes: string[]; uncommitted: number };
 
-export type RpcMethods = PrRpcMethods & LinearRpcMethods & SimulatorRpcMethods & SkillsRpcMethods & {
+export type RpcMethods = PrRpcMethods & LinearRpcMethods & SimulatorRpcMethods & SkillsRpcMethods & AutomationsRpcMethods & {
   "workspaces.list": { params: Record<string, never>; result: Workspace[] };
   "sessionOrder.list": { params: Record<string, never>; result: SessionOrders };
   "sessionOrder.set": { params: { scope: string; ids: string[] }; result: SessionOrders };
@@ -1016,6 +1019,7 @@ export type ServerEvent =
   | { type: "feedback"; feedback: Feedback }
   | { type: "board"; board: Board }
   | { type: "review"; review: ReviewState }
+  | { type: "automations"; state: AutomationsState }
   | { type: "release"; release: ReleaseState }
   | { type: "notes"; notes: Note[] }
   | { type: "notionPins"; pins: NotionPin[] }

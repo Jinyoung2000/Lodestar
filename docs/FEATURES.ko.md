@@ -68,6 +68,19 @@ env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_SSE_PORT npm start > 
 - 자동 이동(Settings 의 Board, 기본 켬): 연결된 세션이 턴을 시작하면 Backlog 와 Todo 의 카드를 In Progress 로, 턴이 변경 파일이 남은 채 끝나면 In Progress 의 카드를 Review 로 옮긴다. 열은 이름이 아니라 역할(role)로 찾아서 이름을 바꿔도 규칙이 유지되고, 그 열을 지우면 규칙이 건너뛴다. Done 은 사람만 옮긴다
 - 저장은 `~/.agent-nav/board.json`(임시 파일에 쓴 뒤 rename). 다른 입력(예: Slack)에서 카드를 만들 때는 RPC `board.createCard({ title, body, links, workspaceId? })`
 
+## Automations (예약 작업)
+
+사이드바 "Automations"(Slack 아래, Notes 위)는 정해 둔 프롬프트를 일정에 맞춰 세션으로 돌리는 작업 목록이다. 명령 팔레트 "Automations: Open", "Automations: New Automation" 으로도 연다. 웹훅 트리거는 없다(데몬은 127.0.0.1 만 듣는다).
+
+- 일정은 세 가지: Interval(5분에서 1440분 간격), Daily(시각과 요일, 기본 월~금), Once(정한 날짜와 시각에 한 번, 돈 뒤 스스로 꺼짐). 시각은 이 Mac 의 현지 시간이다
+- 실행할 곳은 New session(폴더를 고르고, 원하면 실행마다 새 worktree 를 `automation/<제목>-<날짜-시각>-<4자리>` 브랜치로 만든다. Base branch 를 비우면 기본 브랜치) 또는 Existing session(그 세션에 프롬프트를 보낸다). 새 세션은 작업에 정한 모델, Effort, 권한 모드로 시작하고, 그 권한 모드보다 더 자동으로 승인하지 않는다. 세션은 평소처럼 CLI 에 로그인한 계정으로 돈다
+- 목록은 답이 필요한 작업(Needs input, Failed)이 위다. 행마다 상태(Running, Needs input, Failed, Paused, Next run in ...), 마지막 실행과 Open session, Run now, 켜고 끄는 스위치가 있다. 실패한 작업은 마지막 오류를 한 줄로 보인다. 행을 누르면 오른쪽에 프롬프트, 일정, 세션, 모델 요약과 Run history(시각, Scheduled, Catch-up, Manual, 결과, 세션 열기)가 나온다. 편집과 새로 만들기는 화면 위에 뜨는 대화상자, 삭제는 상세 머리줄 더보기 메뉴에서 확인을 거친다
+- 사이드바 Automations 항목의 숫자는 답을 기다리는 작업 수다. 자동화가 시작한 세션 행 둘째 줄 끝에 시계 표시가 붙고, 누르면 그 자동화가 열린다(세션 메뉴 "Open automation" 도 같다)
+- 실행 결과는 세션 상태를 따른다. 턴이 정상으로 끝나면 Succeeded, 오류로 끝나면 Failed(마지막 오류 문구), 승인 카드가 뜨면 Needs input 이다. 세션이 지워지거나 2분 안에 시작하지 않거나 Lodestar 가 도중에 꺼지면 Failed 로 남는다
+- 스케줄러는 60초마다 돈다. 앱이 꺼져 있던 동안 놓친 회차는 켜진 뒤 한 번만 Catch-up 으로 돈다. 같은 작업의 이전 실행이 아직 돌거나 답을 기다리면 이번 회차는 Skipped(이유 함께)로 남고, 대상 세션이 바쁠 때도 같다. 동시에 도는 실행은 기본 2개(`automationConcurrency`, 1~10)이고 넘치면 다음 틱까지 기다린다. Run now 는 일정과 상관없이 바로 돈다
+- 테스트와 E2E 인스턴스(`AGENT_NAV_INACTIVE=1`, `AGENT_NAV_E2E_PORT`, `AGENT_NAV_NO_MENTIONS=1`)에서는 자동으로 돌지 않는다. 수동 확인 때는 `AGENT_NAV_AUTOMATIONS_AUTO=1` 로 켠다
+- 저장은 `~/.agent-nav/automations.json`(임시 파일에 쓴 뒤 rename). 실행 기록은 작업마다 최근 50개를 남기고, 목록과 상세는 최근 10개를 보인다. RPC `automations.list`, `create`, `update`, `delete`, `setEnabled`, `runNow`, `runs`, 이벤트 `automations`
+
 ## Slack Inbox
 
 사이드바 "Inbox"(⇧⌘L)는 사용자에게 온 Slack 멘션, DM, 참여한 스레드의 새 답글을 한 목록에 보인다. 읽기 전용이고 Slack 으로는 아무것도 보내지 않는다(메시지, 리액션, 읽음 표시 모두).

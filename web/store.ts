@@ -45,6 +45,7 @@ import { dropTabFocus, isShown, pruneTabFocus, sanitizeTabFocus, settleSessionTa
 import { dropSessionLayout, layoutKeyOf, layoutPatch, planSwitch, pruneSessionLayouts, sameLayout, sanitizeSessionLayouts, sliceOf as layoutSliceOf, type SessionLayouts } from "./sessionLayout";
 import { hint } from "./hint";
 import type { ReviewState } from "../shared/morningReview";
+import type { AutomationsState } from "../shared/automations";
 import type { ReleaseState } from "../shared/release";
 import type { SessionOrders } from "../shared/sessionOrder";
 import { receiveReview, refreshReview } from "./reviewActions";
@@ -327,7 +328,7 @@ export type Overlay =
 
 export type RightTab = "changes" | "card" | string;
 
-export type CenterView = "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "notes" | "skills";
+export type CenterView = "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "notes" | "skills" | "automations";
 
 export type McpBusy = "reconnect" | "enable" | "disable";
 export type McpNote = { ok: boolean; text: string };
@@ -419,6 +420,10 @@ export type State = {
   inbox: InboxState | null;
   review: ReviewState | null;
   release: ReleaseState | null;
+  automations: AutomationsState | null;
+  selectedAutomationId: string | null;
+  automationEditor: AutomationEditorTarget | null;
+  automationEditorOpen: boolean;
   selectedInboxId: string | null;
   selectedFeedbackId: string | null;
   layoutMode: LayoutMode;
@@ -553,6 +558,10 @@ let state: State = {
   composerPrefill: {},
   inbox: null,
   review: null,
+  automations: null,
+  selectedAutomationId: null,
+  automationEditor: null,
+  automationEditorOpen: false,
   release: null,
   selectedInboxId: null,
   selectedFeedbackId: null,
@@ -1519,6 +1528,24 @@ export function openSkills() {
   setState({ centerView: "skills" });
 }
 
+export type AutomationEditorTarget = { mode: "create" } | { mode: "edit"; id: string };
+
+export function toggleAutomations() {
+  setState((s) => ({ centerView: s.centerView === "automations" ? "sessions" : "automations" }));
+}
+
+export function openAutomation(id: string | null) {
+  setState({ selectedAutomationId: id, centerView: "automations" });
+}
+
+export function openAutomationEditor(target: AutomationEditorTarget) {
+  setState({ automationEditor: target, automationEditorOpen: true });
+}
+
+export function closeAutomationEditor() {
+  setState({ automationEditorOpen: false });
+}
+
 export function toggleInbox() {
   setState((s) => ({ centerView: s.centerView === "inbox" ? "sessions" : "inbox" }));
 }
@@ -2176,6 +2203,7 @@ export function initStore() {
     void rpc.call("board.get", {}).then((board) => setState({ board })).catch(() => setState({ board: null }));
     void rpc.call("inbox.get", {}).then((inbox) => setState({ inbox })).catch(() => setState({ inbox: null }));
     void refreshReview();
+    void rpc.call("automations.list", {}).then((automations) => setState({ automations })).catch(() => setState({ automations: null }));
     void rpc.call("release.get", {}).then((release) => setState({ release })).catch(() => setState({ release: null }));
     void rpc.call("defaults.get", {}).then((defaults) => setState({ defaults })).catch(() => setState({ defaults: null }));
     void rpc.call("sessionOrder.list", {}).then((sessionOrders) => setState({ sessionOrders })).catch(() => setState({ sessionOrders: {} }));
@@ -2212,6 +2240,9 @@ export function initStore() {
         return;
       case "review":
         receiveReview(event.review);
+        return;
+      case "automations":
+        setState({ automations: event.state });
         return;
       case "release":
         setState({ release: event.release });

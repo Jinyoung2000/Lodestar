@@ -66,6 +66,8 @@ import {
   toggleInbox,
   toggleNotes,
   openSkills,
+  openAutomation,
+  openAutomationEditor,
   toggleLayoutMode,
   toggleSearchDetails,
   updateSearchView,
@@ -225,6 +227,8 @@ export type Command =
   | "importVscode"
   | "improvements"
   | "skills"
+  | "automations"
+  | "newAutomation"
   | "reloadWindow"
   | "newWindow"
   | "closeWindow"
@@ -824,6 +828,13 @@ export function runCommand(command: Command | string) {
       return;
     case "skills":
       openSkills();
+      return;
+    case "automations":
+      openAutomation(getState().selectedAutomationId);
+      return;
+    case "newAutomation":
+      openAutomation(getState().selectedAutomationId);
+      openAutomationEditor({ mode: "create" });
       return;
     case "reloadWindow":
       void reloadWindow();

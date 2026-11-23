@@ -233,6 +233,7 @@ export const SEARCH_ACTIONS: readonly SearchAction[] = [
   { id: "mentions", title: G.actions.mentions, command: "openMentions", keyCommand: "inbox", keywords: "slack inbox" },
   { id: "notes", title: G.actions.notes, command: "openNotes", keyCommand: "notes", keywords: "memo notepad write" },
   { id: "newNote", title: G.actions.newNote, command: "newNote", keyCommand: null, keywords: "memo notepad write create" },
+  { id: "automations", title: G.actions.automations, command: "automations", keyCommand: null, keywords: "schedule scheduled tasks cron timer" },
   { id: "improvements", title: G.actions.improvements, command: "openImprovements", keyCommand: null, keywords: "feedback lodestar changes" },
   { id: "settings", title: G.actions.settings, command: "settings", keyCommand: null, keywords: "preferences status" },
   { id: "commandPalette", title: G.actions.commandPalette, command: "commandPalette", keyCommand: "commandPalette", keywords: "commands palette" },

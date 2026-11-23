@@ -5404,6 +5404,22 @@ html[data-compact-view="true"] .session-row[data-menu] .session-project {
   border-radius: var(--radius-full);
   background: currentColor;
 }
+.session-automation {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  height: var(--leading-session-detail);
+  border-radius: var(--radius-sm);
+  color: var(--list-muted-fg);
+  cursor: pointer;
+}
+.session-automation:hover {
+  background: var(--surface-selected);
+  color: var(--fg-strong);
+}
+
 .session-changes-add {
   color: var(--diff-count-add);
 }

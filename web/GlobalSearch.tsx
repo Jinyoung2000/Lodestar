@@ -262,6 +262,7 @@ function RowIcon({ row }: { row: SearchRow }) {
   if (row.command === "openBoard") return <BoardIcon />;
   if (row.command === "openMentions") return <Chat />;
   if (row.command === "openNotes" || row.command === "newNote") return <NoteIcon />;
+  if (row.command === "automations") return <Codicon name="watch" />;
   if (row.command === "commandPalette") return <ListIcon />;
   if (row.command === "quickOpen") return <GoToFile />;
   if (row.command === "split") return <Codicon name="split-horizontal" />;

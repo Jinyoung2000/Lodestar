@@ -47,6 +47,7 @@ export const G = {
     notes: "Open Notes",
     newNote: "New Note",
     improvements: "Show Improvements",
+    automations: "Open Automations",
     settings: "Settings",
     commandPalette: "Show All Commands",
     quickOpen: "Go to File...",

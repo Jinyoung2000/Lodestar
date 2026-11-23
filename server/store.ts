@@ -9,6 +9,7 @@ import { sanitizeActivityBar } from "../shared/activityBar";
 import { SLACK_LINK_TARGETS } from "../shared/slackLink";
 import { NOTION_LINK_TARGETS } from "../shared/notionLink";
 import { parseReviewTime, REVIEW_DEFAULT_TIME } from "../shared/morningReview";
+import { AUTOMATION_DEFAULT_CONCURRENCY, AUTOMATION_LIMITS } from "../shared/automations";
 import { parseAccelerator, QUICK_ENTRY_DEFAULT_SHORTCUT } from "../shared/quickEntry";
 import { DEFAULT_NOTION_BYPASS_WRITES, NOTION_BYPASS_WRITES } from "../shared/notionApproval";
 import { realDir } from "./paths";
@@ -123,6 +124,7 @@ const DEFAULT_SETTINGS: Settings = {
   boardAutoMove: true,
   morningReviewEnabled: true,
   morningReviewTime: REVIEW_DEFAULT_TIME,
+  automationConcurrency: AUTOMATION_DEFAULT_CONCURRENCY,
   notifyOnResponse: true,
   notifyOnApproval: true,
   notifyNewVersion: false,
@@ -201,6 +203,7 @@ function sanitizeSettings(patch: Partial<Settings>): Partial<Settings> {
     if (time) next.morningReviewTime = `${String(time.hour).padStart(2, "0")}:${String(time.minute).padStart(2, "0")}`;
     else delete next.morningReviewTime;
   }
+  if ("automationConcurrency" in next && !(Number.isInteger(next.automationConcurrency) && finite(next.automationConcurrency, AUTOMATION_LIMITS.concurrencyMin, AUTOMATION_LIMITS.concurrencyMax))) delete next.automationConcurrency;
   if ("notifyOnResponse" in next && typeof next.notifyOnResponse !== "boolean") delete next.notifyOnResponse;
   if ("notifyOnApproval" in next && typeof next.notifyOnApproval !== "boolean") delete next.notifyOnApproval;
   if ("notifyNewVersion" in next && typeof next.notifyNewVersion !== "boolean") delete next.notifyNewVersion;
@@ -340,6 +343,7 @@ export class Store {
     agent.seenThrough = validSeen(agent.seenThrough);
     if (!agent.seenThrough) delete agent.seenThrough;
     if (typeof agent.carryPending !== "boolean") delete agent.carryPending;
+    if (typeof agent.automationId !== "string" || !agent.automationId) delete agent.automationId;
     agent.backgroundTasks = 0;
     if (agent.steering?.length) {
       agent.queue = [...agent.steering.map(({ sent: _sent, ...s }) => ({ ...s, id: randomUUID() })), ...(agent.queue ?? [])];
