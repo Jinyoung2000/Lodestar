@@ -141,7 +141,10 @@ export default function Settings() {
         <Row label="Last sync" value={syncedAt ? new Date(syncedAt).toLocaleTimeString() : "-"} />
         <Button title={conn === "unauthorized" ? "Pair again" : "Reconnect"} onPress={reconnect} />
         {connection && (addressDraft === null ? (
-          <Button title="Edit addresses" kind="plain" onPress={editAddresses} />
+          <>
+            <Button title="Scan a new pairing code" kind="plain" onPress={() => router.push("/scan")} />
+            <Button title="Edit addresses" kind="plain" onPress={editAddresses} />
+          </>
         ) : (
           <View style={{ gap: spacing.sm }}>
             <Text variant="caption" color="textSubtle">Enter one address per line, in the order you want to try them.</Text>
