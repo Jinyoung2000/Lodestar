@@ -81,7 +81,6 @@ export default function Settings() {
   };
 
   const addresses = connection?.routes.map(routeAddress).join("\n") ?? "";
-  const shownAddresses = [addresses, connection?.relay ? `Relay: ${relayHost(connection.relay)}` : ""].filter(Boolean).join("\n");
   const editAddresses = () => setAddressDraft(addresses);
 
   const saveAddresses = async () => {
@@ -137,7 +136,8 @@ export default function Settings() {
         </View>}
         <Row label="Mac" value={hostName ?? connection?.hostName ?? "-"} />
         <Row label="Status" value={statusText} valueColor={conn === "online" ? "success" : conn === "unauthorized" ? "danger" : "warning"} />
-        {addressDraft === null && <Row label="Addresses" value={shownAddresses || "-"} />}
+        {addressDraft === null && <Row label="Addresses" value={addresses || "-"} />}
+        {connection?.relay && <Row label="Relay" value={relayHost(connection.relay)} singleLine />}
         <Row label="Last sync" value={syncedAt ? new Date(syncedAt).toLocaleTimeString() : "-"} />
         <Button title={conn === "unauthorized" ? "Pair again" : "Reconnect"} onPress={reconnect} />
         {connection && (addressDraft === null ? (
@@ -188,11 +188,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ label, value, valueColor = "textStrong" }: { label: string; value: string; valueColor?: "textStrong" | "success" | "danger" | "warning" }) {
+function Row({ label, value, valueColor = "textStrong", singleLine = false }: { label: string; value: string; valueColor?: "textStrong" | "success" | "danger" | "warning"; singleLine?: boolean }) {
   return (
     <View style={styles.row}>
       <Text variant="secondary" color="textMuted" style={{ width: 96 }}>{label}</Text>
-      <Text variant="secondary" color={valueColor} selectable style={{ flex: 1, textAlign: "right" }}>{value}</Text>
+      <Text variant="secondary" color={valueColor} selectable numberOfLines={singleLine ? 1 : undefined} adjustsFontSizeToFit={singleLine} minimumFontScale={0.75} style={{ flex: 1, textAlign: "right" }}>{value}</Text>
     </View>
   );
 }
