@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
 import { hasMixedRoutes, parseConnectionRoutes, routeAddress, routeLabel } from "../logic/routes";
+import { relayHost } from "../net/relay";
 import { activitySupported, alertsEnabled, enableAlerts, stopAlerts } from "../state/activity";
 import { client, store, unpair, updateRoutes, useAppState, useConnection } from "../state/app";
 import { setThemeChoice, useThemeChoice, type ThemeChoice } from "../state/themePrefs";
@@ -80,6 +81,7 @@ export default function Settings() {
   };
 
   const addresses = connection?.routes.map(routeAddress).join("\n") ?? "";
+  const shownAddresses = [addresses, connection?.relay ? `Relay: ${relayHost(connection.relay)}` : ""].filter(Boolean).join("\n");
   const editAddresses = () => setAddressDraft(addresses);
 
   const saveAddresses = async () => {
@@ -135,7 +137,7 @@ export default function Settings() {
         </View>}
         <Row label="Mac" value={hostName ?? connection?.hostName ?? "-"} />
         <Row label="Status" value={statusText} valueColor={conn === "online" ? "success" : conn === "unauthorized" ? "danger" : "warning"} />
-        {addressDraft === null && <Row label="Addresses" value={addresses || "-"} />}
+        {addressDraft === null && <Row label="Addresses" value={shownAddresses || "-"} />}
         <Row label="Last sync" value={syncedAt ? new Date(syncedAt).toLocaleTimeString() : "-"} />
         <Button title={conn === "unauthorized" ? "Pair again" : "Reconnect"} onPress={reconnect} />
         {connection && (addressDraft === null ? (
