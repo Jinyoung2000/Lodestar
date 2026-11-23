@@ -1,11 +1,9 @@
 import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
 import { hasMixedRoutes, parseConnectionRoutes, routeAddress, routeLabel } from "../logic/routes";
 import { activitySupported, alertsEnabled, enableAlerts, stopAlerts } from "../state/activity";
-import { durationLabel } from "../logic/time";
-import { allMetrics, subscribeMetrics, type Metric } from "../state/perf";
 import { client, store, unpair, updateRoutes, useAppState, useConnection } from "../state/app";
 import { setThemeChoice, useThemeChoice, type ThemeChoice } from "../state/themePrefs";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
@@ -38,14 +36,8 @@ export default function Settings() {
   const reconnect = useReconnect();
   const hostName = useAppState((s) => s.hostName);
   const syncedAt = useAppState((s) => s.syncedAt);
-  const [rtt, setRtt] = useState<number | null>(null);
   const [addressDraft, setAddressDraft] = useState<string | null>(null);
   const [savingAddresses, setSavingAddresses] = useState(false);
-  const [metrics, setMetrics] = useState<Metric[]>([...allMetrics()]);
-  useEffect(() => {
-    const off = subscribeMetrics(() => setMetrics([...allMetrics()]));
-    return () => void off();
-  }, []);
 
   const [alerts, setAlerts] = useState(alertsEnabled);
   const [changingAlerts, setChangingAlerts] = useState(false);
@@ -84,16 +76,6 @@ export default function Settings() {
       Alert.alert("Could not check for updates", error instanceof Error ? error.message : String(error));
     } finally {
       setCheckingUpdate(false);
-    }
-  };
-
-  const measure = async () => {
-    const started = Date.now();
-    try {
-      await client.call("mobile.ping", {}, 3000);
-      setRtt(Date.now() - started);
-    } catch (e) {
-      Alert.alert("No answer", e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -155,11 +137,7 @@ export default function Settings() {
         <Row label="Status" value={statusText} valueColor={conn === "online" ? "success" : conn === "unauthorized" ? "danger" : "warning"} />
         {addressDraft === null && <Row label="Addresses" value={addresses || "-"} />}
         <Row label="Last sync" value={syncedAt ? new Date(syncedAt).toLocaleTimeString() : "-"} />
-        <Row label="Round trip" value={rtt === null ? "Tap Measure" : durationLabel(rtt)} />
-        <View style={styles.buttons}>
-          <Button title="Measure" onPress={() => void measure()} style={styles.actionButton} disabled={conn !== "online"} />
-          <Button title={conn === "unauthorized" ? "Pair again" : "Reconnect"} onPress={reconnect} style={styles.actionButton} />
-        </View>
+        <Button title={conn === "unauthorized" ? "Pair again" : "Reconnect"} onPress={reconnect} />
         {connection && (addressDraft === null ? (
           <Button title="Edit addresses" kind="plain" onPress={editAddresses} />
         ) : (
@@ -188,18 +166,7 @@ export default function Settings() {
         <Row label="Version" value={appVersionLabel()} />
         <Button title="Check for update" busy={checkingUpdate} onPress={() => void checkUpdate()} />
       </Section>
-      <Section title="Diagnostics">
-        <Text variant="caption" color="textSubtle">Times measured in this app session. A development build is slower than a release build.</Text>
-        {metrics.length === 0 && <Text variant="secondary" color="textMuted">Nothing measured yet.</Text>}
-        {[...metrics].reverse().slice(0, 14).map((m, i) => (
-          <View key={`${m.at}-${i}`} style={styles.metric}>
-            <Text variant="secondary" style={{ flex: 1 }}>{m.name}</Text>
-            <Text variant="secondary" color="textStrong">{durationLabel(m.ms)}</Text>
-            {m.detail && <Text variant="caption" color="textMuted" numberOfLines={1} style={{ maxWidth: 140 }}>{m.detail}</Text>}
-          </View>
-        ))}
-        <Button title="Clear saved sessions" kind="plain" onPress={() => void clearSaved()} />
-      </Section>
+      <Button title="Clear saved sessions" kind="plain" onPress={() => void clearSaved()} />
       <Button title="Disconnect from this Mac" kind="danger" onPress={disconnect} style={{ marginTop: spacing.lg }} />
       <Pressable accessibilityRole="button" onPress={() => router.back()} style={{ minHeight: MIN_TOUCH, alignItems: "center", justifyContent: "center" }}>
         <Text color="accentText">Done</Text>
@@ -235,5 +202,4 @@ const styles = StyleSheet.create({
   input: { minHeight: 88, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: spacing.md, fontSize: 16, textAlignVertical: "top" },
   buttons: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   actionButton: { flexGrow: 1, paddingHorizontal: spacing.sm },
-  metric: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 28 },
 });
