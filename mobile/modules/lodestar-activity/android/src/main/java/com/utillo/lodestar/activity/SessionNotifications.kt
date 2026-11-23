@@ -17,7 +17,14 @@ import android.text.Spanned
 import android.text.style.StyleSpan
 import androidx.core.app.NotificationCompat
 
-internal data class Session(val id: String, val title: String, val status: String)
+internal data class Session(val id: String, val title: String, val status: String, val unread: Boolean)
+
+private enum class LiveState(val label: String, val count: String) {
+  WAITING("Needs reply", "waiting"),
+  ERROR("Error", "failed"),
+  RUNNING("Working", "working"),
+  FINISHED("Finished", "finished"),
+}
 
 internal class SessionNotifications(private val context: Context) {
   private val manager = context.getSystemService(NotificationManager::class.java)
@@ -54,48 +61,54 @@ internal class SessionNotifications(private val context: Context) {
   }
 
   fun live(sessions: Collection<Session>, connected: Boolean, activity: Map<String, String>, questions: Map<String, String>): Notification {
-    val waiting = sessions.filter { it.status == "waiting" }
-    val running = sessions.filter { it.status == "running" }
-    val active = waiting + running
-    val lead = active.firstOrNull()
-    val line = { session: Session -> if (session.status == "waiting") questions[session.id] ?: "Needs your reply" else activity[session.id] ?: "Working" }
-    val title = when {
-      !connected -> "Lodestar"
-      lead == null -> "Lodestar"
-      active.size == 1 -> lead.title
-      else -> listOfNotNull(
-        if (running.isNotEmpty()) "${running.size} running" else null,
-        if (waiting.isNotEmpty()) "${waiting.size} waiting" else null,
-      ).joinToString(" · ")
-    }
-    val detail = when {
+    val shown = if (connected) sessions.mapNotNull { session -> liveState(session)?.let { session to it } }.sortedBy { it.second.ordinal } else emptyList()
+    val promoted = shown.any { it.second == LiveState.WAITING || it.second == LiveState.RUNNING }
+    val lines = shown.take(MAX_LINES).map { (session, state) -> entry(state, session.title, detail(session, state, activity, questions)) }
+    val title = if (shown.isEmpty()) "Lodestar" else LiveState.entries.mapNotNull { state ->
+      shown.count { it.second == state }.takeIf { it > 0 }?.let { "$it ${state.count}" }
+    }.joinToString(" · ")
+    val collapsed = when {
       !connected -> "Reconnecting to your Mac"
-      lead == null -> "Listening for questions and results"
-      active.size == 1 -> line(lead)
-      else -> entry(lead.title, line(lead))
+      shown.isEmpty() -> "Listening for questions and results"
+      else -> lines.first()
     }
-    val notification = builder(LIVE, title, detail, if (connected) lead?.id else null)
+    val notification = builder(LIVE, title, collapsed, shown.singleOrNull()?.first?.id)
       .setOnlyAlertOnce(true).setOngoing(true).setShowWhen(false)
       .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-    if (connected && active.size > 1) {
-      val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
-      active.take(5).forEach { inbox.addLine(entry(it.title, line(it))) }
-      if (active.size > 5) inbox.setSummaryText("+${active.size - 5} more")
-      notification.setStyle(inbox)
-    } else if (connected && lead != null) {
-      notification.setStyle(NotificationCompat.BigTextStyle().bigText(detail))
+    if (shown.isNotEmpty()) {
+      val body = SpannableStringBuilder()
+      lines.forEachIndexed { index, line -> if (index > 0) body.append("\n"); body.append(line) }
+      if (shown.size > MAX_LINES) body.append("\n+${shown.size - MAX_LINES} more")
+      notification.setStyle(NotificationCompat.BigTextStyle().bigText(body))
     }
-    if (connected && lead != null) {
+    if (promoted) {
       notification.setRequestPromotedOngoing(true)
-      notification.setShortCriticalText(if (waiting.isNotEmpty()) "Reply" else "Running")
+      notification.setShortCriticalText(if (shown.any { it.second == LiveState.WAITING }) "Reply" else "Working")
     }
     return notification.build()
   }
 
-  private fun entry(title: String, doing: String): CharSequence {
+  private fun liveState(session: Session) = when {
+    session.status == "waiting" -> LiveState.WAITING
+    session.status == "error" && session.unread -> LiveState.ERROR
+    session.status == "running" -> LiveState.RUNNING
+    session.status == "idle" && session.unread -> LiveState.FINISHED
+    else -> null
+  }
+
+  private fun detail(session: Session, state: LiveState, activity: Map<String, String>, questions: Map<String, String>) = when (state) {
+    LiveState.WAITING -> questions[session.id] ?: "Needs your reply"
+    LiveState.ERROR -> "Stopped with an error"
+    LiveState.RUNNING -> activity[session.id] ?: "Working"
+    LiveState.FINISHED -> activity[session.id] ?: "Finished"
+  }
+
+  private fun entry(state: LiveState, title: String, doing: String): CharSequence {
     val name = if (title.length > TITLE_CHARS) title.take(TITLE_CHARS - 1).trimEnd() + "…" else title
-    return SpannableStringBuilder(name).apply {
-      setSpan(StyleSpan(Typeface.BOLD), 0, name.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    return SpannableStringBuilder().apply {
+      append(state.label)
+      append(" · ")
+      append(name, StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
       append("  ")
       append(doing)
     }
@@ -127,6 +140,7 @@ internal class SessionNotifications(private val context: Context) {
     private const val ALERT = "session-alerts"
     private const val ALERT_ID = 2
     private const val TITLE_CHARS = 18
+    private const val MAX_LINES = 6
     const val LIVE_ID = 1
   }
 }

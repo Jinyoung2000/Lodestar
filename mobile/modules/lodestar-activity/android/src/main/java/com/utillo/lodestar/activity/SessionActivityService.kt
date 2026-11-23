@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -19,7 +20,9 @@ class SessionActivityService : Service() {
     .pingInterval(25, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build()
   private val questions = mutableMapOf<String, String>()
   private val activity = mutableMapOf<String, String>()
-  private var liveQueued = false
+  private var liveDueAt = 0L
+  private var liveShownAt = 0L
+  private val liveTask = Runnable { showLive() }
   private val sessions = linkedMapOf<String, Session>()
   private lateinit var notifications: SessionNotifications
   private var endpoint: Endpoint? = null
@@ -55,8 +58,18 @@ class SessionActivityService : Service() {
   }
 
   private fun showLive() {
-    liveQueued = false
+    handler.removeCallbacks(liveTask)
+    liveDueAt = 0L
+    liveShownAt = SystemClock.uptimeMillis()
     startForeground(SessionNotifications.LIVE_ID, notifications.live(sessions.values, connected, activity, questions))
+  }
+
+  private fun queueLive(wait: Long = 0L) {
+    val due = maxOf(SystemClock.uptimeMillis() + wait, liveShownAt + LIVE_MIN_GAP_MS)
+    if (liveDueAt != 0L && liveDueAt <= due) return
+    handler.removeCallbacks(liveTask)
+    liveDueAt = due
+    handler.postAtTime(liveTask, due)
   }
 
   private fun connect(target: Endpoint) {
@@ -99,14 +112,14 @@ class SessionActivityService : Service() {
       (sessions.keys - present).forEach(::remove)
       connected = true
       failures = 0
-      showLive()
+      queueLive()
       return
     }
     val event = frame.optJSONObject("event") ?: return
     when (event.optString("type")) {
       "agent" -> {
         val agent = event.optJSONObject("agent") ?: return
-        if (update(agent, connected)) showLive()
+        if (update(agent, connected)) queueLive()
       }
       "timelineUpsert" -> {
         val item = event.optJSONObject("item") ?: return
@@ -115,18 +128,15 @@ class SessionActivityService : Service() {
         if (question.isNullOrBlank()) return
         val id = event.optString("agentId")
         if (questions.put(id, question) != question && connected) sessions[id]?.takeIf { it.status == "waiting" }?.let { notifications.alert(it, question) }
-        if (connected) showLive()
+        if (connected) queueLive()
       }
-      "agentRemoved" -> if (remove(event.optString("agentId"))) showLive()
+      "agentRemoved" -> if (remove(event.optString("agentId"))) queueLive()
       "activity" -> {
         val id = event.optString("agentId")
         val text = event.optString("text").take(120)
         if (text.isBlank() || activity[id] == text) return
         activity[id] = text
-        if (sessions[id]?.status == "running" && !liveQueued) {
-          liveQueued = true
-          handler.postDelayed({ if (liveQueued) showLive() }, LIVE_REFRESH_MS)
-        }
+        if (sessions[id]?.status == "running") queueLive(LIVE_REFRESH_MS)
       }
     }
   }
@@ -143,9 +153,10 @@ class SessionActivityService : Service() {
     val id = agent.optString("id")
     if (id.isEmpty()) return false
     if (agent.optBoolean("done")) return remove(id)
-    val next = Session(id, agent.optString("title").ifBlank { "Session" }, agent.optString("status"))
+    val next = Session(id, agent.optString("title").ifBlank { "Session" }, agent.optString("status"), agent.optBoolean("unread"))
     val previous = sessions.put(id, next)
     if (next == previous) return false
+    if (previous?.unread == true && !next.unread && next.status != "waiting") notifications.dismiss(id)
     if (next.status != previous?.status) {
       if (previous?.status == "waiting" && next.status != "waiting") questions.remove(id)
       if (next.status == "running") notifications.dismiss(id)
@@ -165,7 +176,7 @@ class SessionActivityService : Service() {
       return
     }
     val target = endpoint ?: return
-    showLive()
+    queueLive()
     host = (host + 1) % target.urls.size
     failures++
     val pause = if (failures < target.urls.size) 100L else minOf(30000L, 1000L shl minOf(failures - 1, 5))
@@ -174,6 +185,7 @@ class SessionActivityService : Service() {
 
   private fun clearSocket() {
     handler.removeCallbacksAndMessages(null)
+    liveDueAt = 0L
     socket?.cancel()
     socket = null
     connected = false
@@ -190,5 +202,6 @@ class SessionActivityService : Service() {
 
   companion object {
     private const val LIVE_REFRESH_MS = 1500L
+    private const val LIVE_MIN_GAP_MS = 400L
   }
 }

@@ -364,8 +364,8 @@ const KEEPALIVE_MS = 15_000;
 const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 const MAX_FRAME_BYTES = 1024 * 1024;
 
-function activityAgent({ id, title, status, done }: Agent) {
-  return { id, title, status, done };
+function activityAgent({ id, title, status, done, unread }: Agent) {
+  return { id, title, status, done, unread: !!unread };
 }
 
 const ACTIVITY_TEXT_LIMIT = 90;
