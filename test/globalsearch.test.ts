@@ -249,7 +249,7 @@ test("Recent: 세션은 폴더와 시간, PR 은 번호, 둘 이상의 폴더가
   const data: SearchData = { ...base(), stamps: { "pr:acme/app#3": NOW } };
   const rows = recentRows(data);
   const session = rows.find((r) => r.kind === "session");
-  expect(session?.muted === "app" && session.aux === "10 mins ago", `세션 ${session?.muted} ${session?.aux}`);
+  expect(session?.muted === "app" && session.aux === "10m", `세션 ${session?.muted} ${session?.aux}`);
   const prRow = rows.find((r) => r.kind === "pr");
   expect(prRow?.aux === "#3" && prRow.muted === "app", `PR ${prRow?.aux} ${prRow?.muted}`);
   const file = rows.find((r) => r.key === "file:w2:docs/intro.md");

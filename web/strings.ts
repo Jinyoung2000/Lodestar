@@ -4,7 +4,7 @@ const keyed = (label: string, key: string | null) => (key ? `${label} (${key})` 
 const HARNESS_LABELS = { claude: "Claude", codex: "Codex", antigravity: "Antigravity" };
 
 type UnitWords = Record<"sec" | "min" | "hr" | "day" | "wk" | "mo" | "yr", readonly [string, string]>;
-const TIME_UNIT_SHORT: UnitWords = { sec: ["sec", "secs"], min: ["min", "mins"], hr: ["hr", "hrs"], day: ["day", "days"], wk: ["wk", "wks"], mo: ["mo", "mos"], yr: ["yr", "yrs"] };
+const TIME_UNIT_COMPACT: Record<keyof UnitWords, string> = { sec: "s", min: "m", hr: "h", day: "d", wk: "w", mo: "mo", yr: "y" };
 const TIME_UNIT_LONG: UnitWords = { sec: ["second", "seconds"], min: ["minute", "minutes"], hr: ["hour", "hours"], day: ["day", "days"], wk: ["week", "weeks"], mo: ["month", "months"], yr: ["year", "years"] };
 
 export const S = {
@@ -1229,7 +1229,7 @@ export const S = {
   inputNeeded: "Input needed",
   rowError: "Failed",
   timeNow: "now",
-  timeUnitShort: TIME_UNIT_SHORT,
+  timeCompact: (n: number, unit: keyof UnitWords) => `${n}${TIME_UNIT_COMPACT[unit]}`,
   timeRelative: (n: number, unit: readonly [string, string]) => `${n} ${n === 1 ? unit[0] : unit[1]} ago`,
   changeCountAria: (add: number, del: number) => `${add} added, ${del} removed`,
   pin: "Pin",

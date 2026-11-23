@@ -210,11 +210,11 @@ export function timeBucket(iso: string, now: number): (typeof TIME_BUCKETS)[numb
 }
 
 export function relativeTime(iso: string, now: number): string {
-  return relativeWith(iso, now, S.timeUnitShort);
+  return relativeWith(iso, now, S.timeCompact);
 }
 
 export function relativeTimeLong(iso: string, now: number): string {
-  return relativeWith(iso, now, S.timeUnitLong);
+  return relativeWith(iso, now, (count, unit) => S.timeRelative(count, S.timeUnitLong[unit]));
 }
 
 const UNIT_STEPS = [
@@ -227,13 +227,13 @@ const UNIT_STEPS = [
   { unit: "yr", below: Infinity, size: 31_536_000 },
 ] as const;
 
-function relativeWith(iso: string, now: number, words: typeof S.timeUnitShort): string {
+function relativeWith(iso: string, now: number, format: (count: number, unit: (typeof UNIT_STEPS)[number]["unit"]) => string): string {
   const time = Date.parse(iso);
   if (Number.isNaN(time)) return "";
   const seconds = Math.round((now - time) / 1000);
   if (seconds < 30) return S.timeNow;
   const step = UNIT_STEPS.find((candidate) => seconds < candidate.below) ?? UNIT_STEPS[UNIT_STEPS.length - 1];
-  return S.timeRelative(Math.round(seconds / step.size), words[step.unit]);
+  return format(Math.round(seconds / step.size), step.unit);
 }
 
 export function sumChanges(files: ChangedFile[] | undefined) {
