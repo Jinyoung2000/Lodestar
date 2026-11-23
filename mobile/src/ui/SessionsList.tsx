@@ -286,10 +286,10 @@ const SectionHeader = memo(function SectionHeader({ title, count, first, workspa
 }) {
   const colors = useColors();
   return (
-    <View style={[styles.sectionHeader, { backgroundColor: colors.background, paddingTop: first ? spacing.xs : spacing.sm }]}>
+    <View style={[styles.sectionHeader, { backgroundColor: colors.background, paddingTop: first ? spacing.xs : spacing.xl }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${count} ${count === 1 ? "session" : "sessions"}`} accessibilityState={{ expanded }} onPress={onToggle} style={styles.sectionToggle}>
         <WorkspaceIcon workspaceId={workspaceId} />
-        <Text variant="secondary" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={18 / 14} style={styles.sectionTitle}>{title}</Text>
+        <Text variant="secondary" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={18 / 14} style={styles.sectionTitle}>{title}</Text>
         {!expanded && <Text variant="secondary" color="textSubtle" maxFontSizeMultiplier={18 / 14} style={styles.sectionCount}>{count}</Text>}
         <Icon name={expanded ? "chevron.down" : "chevron.right"} size={12} color="textSubtle" />
       </Pressable>
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   brandSlot: { width: 26, height: 26, marginRight: 10 },
   sectionHeader: { flexDirection: "row", alignItems: "center", paddingLeft: spacing.xl, paddingRight: spacing.sm },
   sectionToggle: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionTitle: { fontSize: 14, lineHeight: 20, fontWeight: "600", flexShrink: 1 },
+  sectionTitle: { fontSize: 15, lineHeight: 20, fontWeight: "700", flexShrink: 1 },
   sectionCount: { fontSize: 14, lineHeight: 20, fontVariant: ["tabular-nums"] },
   sectionNew: { width: 48, height: 44, alignItems: "center", justifyContent: "center" },
   waitingEmpty: { flex: 1, alignItems: "center", paddingTop: 72, gap: spacing.md, paddingHorizontal: 16 },
