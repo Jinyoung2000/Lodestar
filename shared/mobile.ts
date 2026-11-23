@@ -60,11 +60,12 @@ export type MobilePreview = { kind: "html"; html: string } | { kind: "image" | "
 
 export type MobileHost = { address: string; iface: string; kind: "lan" | "tailscale" };
 
-export type MobileRoute = "lan" | "tailscale" | "relay" | "other";
+export type MobileRoute = "lan" | "tailscale" | "relay" | "tunnel" | "other";
 export type MobileDevice = { id: string; name: string; createdAt: string; lastSeenAt: string | null; online: boolean; route: MobileRoute | null };
 
 export type MobileRelayState = "off" | "unconfigured" | "connecting" | "online" | "error";
-export type MobileRelayStatus = { state: MobileRelayState; error: string | null };
+export type MobileRelayLinkState = { state: MobileRelayState; error: string | null };
+export type MobileRelayStatus = MobileRelayLinkState & { host: string | null };
 
 export type MobileStatus = {
   enabled: boolean;

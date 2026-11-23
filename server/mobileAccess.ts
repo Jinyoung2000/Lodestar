@@ -544,7 +544,9 @@ export class MobileServer {
     if (key && typeof bridge === "string" && bridge.length === key.length && timingSafeEqual(Buffer.from(bridge), Buffer.from(key)) && /^(127\.|::1$)/.test(peer)) return "relay";
     const [a, b] = peer.split(".").map(Number);
     if (a === 100 && b >= 64 && b <= 127) return "tailscale";
-    return directLan ? "lan" : "other";
+    if (directLan) return "lan";
+    const forwarded = req.headers.forwarded || req.headers["x-forwarded-for"] || req.headers["cf-connecting-ip"];
+    return forwarded || /^(127\.|::1$)/.test(peer) ? "tunnel" : "other";
   }
 
   broadcast(event: ServerEvent) {

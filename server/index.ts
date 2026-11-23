@@ -735,9 +735,10 @@ function applyMobileRelay() {
 }
 
 function mobileRelayStatus(): MobileStatus["relay"] {
-  if (store.settings.mobileRelay !== true || store.settings.mobileAccess !== true) return { state: "off", error: null };
-  if (RELAY_URL === null) return { state: "unconfigured", error: null };
-  return relayLink?.state ?? { state: "off", error: null };
+  const host = RELAY_URL === null ? null : new URL(RELAY_URL).host;
+  if (store.settings.mobileRelay !== true || store.settings.mobileAccess !== true) return { state: "off", error: null, host };
+  if (RELAY_URL === null) return { state: "unconfigured", error: null, host };
+  return { ...(relayLink?.state ?? { state: "off", error: null }), host };
 }
 
 function mobileStatus(): MobileStatus {

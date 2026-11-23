@@ -74,7 +74,7 @@ export function MobileAccess() {
 function RelayLine({ relay }: { relay: MobileRelayStatus }) {
   const failed = relay.state === "error" || (relay.state === "connecting" && relay.error !== null);
   const dot = relay.state === "online" ? "ok" : failed ? "error" : relay.state === "unconfigured" ? "off" : "pending";
-  const text = relay.state === "online" ? S.mobileRelayOnline : relay.state === "unconfigured" ? S.mobileRelayUnconfigured : failed ? S.mobileRelayFailed(relay.error ?? "") : S.mobileRelayConnecting;
+  const text = relay.state === "online" ? S.mobileRelayOnline(relay.host) : relay.state === "unconfigured" ? S.mobileRelayUnconfigured : failed ? S.mobileRelayFailed(relay.error ?? "") : S.mobileRelayConnecting;
   return (
     <div className="setting-daemon-line">
       <span className="dot" data-state={dot} />

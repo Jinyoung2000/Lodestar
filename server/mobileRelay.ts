@@ -8,7 +8,7 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { WebSocket } from "ws";
 import { MAX_IMAGE_BYTES } from "../shared/images";
-import type { MobileRelayPairing, MobileRelayStatus } from "../shared/mobile";
+import type { MobileRelayLinkState, MobileRelayPairing } from "../shared/mobile";
 import { decodeText, encodeText, relayFrame, RelayFrame, RELAY_CHUNK_BYTES, RELAY_ID_RE, relayPrologue, startResponder, toBase64Url, toHex, type NoisePrimitives, type RelayHello, type RelayHttpRequest, type RelaySession, type RelayWelcome } from "../shared/relayNoise";
 import type { MobileDevices, PairOutcome } from "./mobileAccess";
 import { T } from "./strings";
@@ -75,7 +75,7 @@ const PASS_REQUEST_HEADERS = ["authorization", "content-type", "x-image-name", "
 const PASS_RESPONSE_HEADERS = ["content-type", "content-length", "content-range", "accept-ranges"];
 
 export class RelayLink {
-  state: MobileRelayStatus = { state: "off", error: null };
+  state: MobileRelayLinkState = { state: "off", error: null };
   private socket: WebSocket | null = null;
   private channels = new Map<number, RelayChannel>();
   private retry: NodeJS.Timeout | null = null;
