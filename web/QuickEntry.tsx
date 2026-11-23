@@ -1,26 +1,29 @@
 import "./quickEntry.css";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Agent, ImageRef, ResolvedDefaults, Settings, Workspace } from "../shared/protocol";
+import type { Agent, ImageRef, ModelInfo, ResolvedDefaults, Settings, Workspace } from "../shared/protocol";
 import { checkImage, clipboardImageFiles, imageProblemText } from "../shared/images";
 import { ArrowUpCompact, Check, ChevronDown, Close, Codicon, CommentDiscussion, DotSpinner, FolderCompact } from "./icons";
 import { makeThumb, readBase64 } from "./imageAttach";
-import { canQuickSend, parseDraft, planQuickSend, quickDefaults, quickKeyAction, sameTarget, targetLabel, targetRows, validTarget, type QuickTarget, type TargetRow } from "./quickEntryModel";
+import { canQuickSend, chosenModelRow, modelRows, parseDraft, planQuickSend, quickDefaults, quickKeyAction, quickModelName, sameTarget, targetLabel, targetRows, validModel, validTarget, type ModelRow, type QuickTarget, type TargetRow } from "./quickEntryModel";
 import { rpc } from "./rpc";
 import { S } from "./strings";
 
 const DRAFT_KEY = "agent-nav:quick-entry-draft";
+const MODEL_KEY = "agent-nav:quick-entry-model";
 
-type QuickData = { workspaces: Workspace[]; agents: Agent[]; settings: Settings | null; resolved: ResolvedDefaults | null };
+type QuickData = { workspaces: Workspace[]; agents: Agent[]; settings: Settings | null; resolved: ResolvedDefaults | null; models: ModelInfo[] };
+type Menu = "target" | "model" | null;
 type QuickImage = { mediaType: string; data: string; thumb: string; name: string };
 
 export function QuickEntry() {
-  const [data, setData] = useState<QuickData>({ workspaces: [], agents: [], settings: null, resolved: null });
+  const [data, setData] = useState<QuickData>({ workspaces: [], agents: [], settings: null, resolved: null, models: [] });
   const [connected, setConnected] = useState<boolean | null>(null);
   const [initial] = useState(() => parseDraft(readDraft()));
   const [text, setText] = useState(initial.text);
   const [picked, setPicked] = useState<QuickTarget | null>(initial.target);
   const [images, setImages] = useState<QuickImage[]>([]);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [pickedModel, setPickedModel] = useState<string | null>(readModel);
+  const [menu, setMenu] = useState<Menu>(null);
   const [active, setActive] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,12 +36,20 @@ export function QuickEntry() {
   const target = useMemo(() => validTarget(picked, data.workspaces, data.agents), [picked, data.workspaces, data.agents]);
   const rows = useMemo(() => targetRows(data.workspaces, data.agents, target), [data.workspaces, data.agents, target]);
   const label = targetLabel(target, data.workspaces, data.agents);
+  const defaults = quickDefaults(data.settings, data.resolved);
+  const model = validModel(pickedModel, data.models);
+  const modelShown = target.kind !== "session";
+  const models = useMemo(() => modelRows(data.models, defaults.model), [data.models, defaults.model]);
+  const chosenRow = chosenModelRow(models, model);
+  const modelLabel = chosenRow?.label ?? quickModelName(model ?? defaults.model, data.models);
+  const menuOpen = menu !== null;
+  const menuLength = menu === "model" ? models.length : rows.length;
   const sendable = canQuickSend({ connected: connected !== false, busy, text, imageCount: images.length });
 
   const load = useCallback(async () => {
     try {
-      const [workspaces, agents, settings, resolved] = await Promise.all([rpc.call("workspaces.list", {}), rpc.call("agents.list", {}), rpc.call("settings.get", {}), rpc.call("defaults.get", {}).catch(() => null)]);
-      setData({ workspaces, agents, settings, resolved });
+      const [workspaces, agents, settings, resolved, meta] = await Promise.all([rpc.call("workspaces.list", {}), rpc.call("agents.list", {}), rpc.call("settings.get", {}), rpc.call("defaults.get", {}).catch(() => null), rpc.call("meta.get", {}).catch(() => null)]);
+      setData({ workspaces, agents, settings, resolved, models: meta?.models ?? [] });
     } catch {
     }
   }, []);
@@ -50,7 +61,7 @@ export function QuickEntry() {
       if (up) void load();
     });
     const offShow = window.agentNavNative?.onQuickEntryShow?.(() => {
-      setMenuOpen(false);
+      setMenu(null);
       setError(null);
       if (draftRef.current.text.trim() === "" && !draftRef.current.hasImages) setPicked(null);
       setShown((n) => n + 1);
@@ -93,10 +104,6 @@ export function QuickEntry() {
   }, [text, picked]);
 
   useEffect(() => {
-    if (menuOpen) setActive(Math.max(0, rows.findIndex((row) => sameTarget(row.target, target))));
-  }, [menuOpen]);
-
-  useEffect(() => {
     if (menuOpen) document.getElementById(`quick-row-${active}`)?.scrollIntoView({ block: "nearest" });
   }, [menuOpen, active]);
 
@@ -104,9 +111,25 @@ export function QuickEntry() {
 
   const pick = (row: TargetRow) => {
     setPicked(row.target);
-    setMenuOpen(false);
+    setMenu(null);
     inputRef.current?.focus();
   };
+
+  const pickModel = (row: ModelRow) => {
+    const value = row.isDefault ? null : row.value;
+    setPickedModel(value);
+    writeModel(value);
+    setMenu(null);
+    inputRef.current?.focus();
+  };
+
+  const openMenu = (next: Exclude<Menu, null>) => {
+    if (next === "model" && !modelShown) return;
+    setActive(Math.max(0, next === "model" ? models.findIndex((row) => row === chosenRow) : rows.findIndex((row) => sameTarget(row.target, target))));
+    setMenu(next);
+  };
+
+  const toggleMenu = (next: Exclude<Menu, null>) => (menu === next ? setMenu(null) : openMenu(next));
 
   const addImages = async (files: File[]) => {
     let count = images.length;
@@ -129,7 +152,7 @@ export function QuickEntry() {
 
   const submit = async (stay: boolean) => {
     if (!sendable) return;
-    const plan = planQuickSend({ target, text, imageCount: images.length, defaults: quickDefaults(data.settings, data.resolved) });
+    const plan = planQuickSend({ target, text, imageCount: images.length, defaults: { ...defaults, model: model ?? defaults.model } });
     if (!plan) return;
     setBusy(true);
     setError(null);
@@ -163,17 +186,22 @@ export function QuickEntry() {
     if (menuOpen && !composing) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
-        setActive((i) => Math.max(0, Math.min(rows.length - 1, i + (e.key === "ArrowDown" ? 1 : -1))));
+        setActive((i) => Math.max(0, Math.min(menuLength - 1, i + (e.key === "ArrowDown" ? 1 : -1))));
         return;
       }
-      if (e.key === "Enter" && inInput && rows[active]) {
+      if (e.key === "Enter" && inInput && menu === "model" && models[active]) {
+        e.preventDefault();
+        pickModel(models[active]);
+        return;
+      }
+      if (e.key === "Enter" && inInput && menu === "target" && rows[active]) {
         e.preventDefault();
         pick(rows[active]);
         return;
       }
       if (e.key === "Escape") {
         e.preventDefault();
-        setMenuOpen(false);
+        setMenu(null);
         return;
       }
     }
@@ -183,7 +211,10 @@ export function QuickEntry() {
       close();
     } else if (action === "menu") {
       e.preventDefault();
-      setMenuOpen(true);
+      openMenu("target");
+    } else if (action === "model-menu") {
+      e.preventDefault();
+      openMenu("model");
     } else if ((action === "send-open" || action === "send-stay") && inInput) {
       e.preventDefault();
       void submit(action === "send-stay");
@@ -214,11 +245,19 @@ export function QuickEntry() {
               void addImages(files);
             }}
           />
-          <button type="button" className="pill" aria-haspopup="listbox" aria-expanded={menuOpen} aria-label={S.quickEntryTargetAria(label)} title={S.quickEntryTargetTip} onMouseDown={(e) => e.preventDefault()} onClick={() => setMenuOpen((open) => !open)}>
-            <TargetIcon target={target} />
-            <span>{label}</span>
-            <ChevronDown size={12} />
-          </button>
+          <div className="quick-pills" data-with-model={modelShown || undefined}>
+            <button type="button" className="pill" data-pill="target" aria-haspopup="listbox" aria-expanded={menu === "target"} aria-label={S.quickEntryTargetAria(label)} title={S.quickEntryTargetTip} onMouseDown={(e) => e.preventDefault()} onClick={() => toggleMenu("target")}>
+              <TargetIcon target={target} />
+              <span>{label}</span>
+              <ChevronDown size={12} />
+            </button>
+            {modelShown && (
+              <button type="button" className="pill" data-pill="model" aria-haspopup="listbox" aria-expanded={menu === "model"} aria-label={S.quickEntryModelAria(modelLabel)} title={S.quickEntryModelTip} onMouseDown={(e) => e.preventDefault()} onClick={() => toggleMenu("model")}>
+                <span>{modelLabel}</span>
+                <ChevronDown size={12} />
+              </button>
+            )}
+          </div>
           <button type="button" className="quick-send" aria-label={S.quickEntrySendAria} title={S.quickEntrySendTip} disabled={!sendable} onMouseDown={(e) => e.preventDefault()} onClick={() => void submit(false)}>
             {busy ? <DotSpinner size={14} /> : <ArrowUpCompact />}
           </button>
@@ -258,7 +297,8 @@ export function QuickEntry() {
             </span>
           </div>
         )}
-        {menuOpen && <TargetList rows={rows} target={target} active={active} onActive={setActive} onPick={pick} />}
+        {menu === "target" && <TargetList rows={rows} target={target} active={active} onActive={setActive} onPick={pick} />}
+        {menu === "model" && <ModelList rows={models} chosen={chosenRow} active={active} onActive={setActive} onPick={pickModel} />}
       </div>
     </div>
   );
@@ -288,6 +328,21 @@ function TargetRowButton({ row, index, selected, active, onActive, onPick }: { r
       <span className="quick-row-hint">{row.hint}</span>
       {selected && <Check className="quick-row-check" size={14} />}
     </button>
+  );
+}
+
+function ModelList({ rows, chosen, active, onActive, onPick }: { rows: ModelRow[]; chosen: ModelRow | undefined; active: number; onActive: (index: number) => void; onPick: (row: ModelRow) => void }) {
+  return (
+    <div className="quick-list" role="listbox" aria-label={S.quickEntryModelTip}>
+      {rows.map((row, index) => (
+        <button key={row.key} id={`quick-row-${index}`} type="button" role="option" aria-selected={row === chosen} className="quick-row" data-active={index === active} onMouseDown={(e) => e.preventDefault()} onMouseMove={() => onActive(index)} onClick={() => onPick(row)}>
+          <span className="quick-row-label">{row.label}</span>
+          <span className="quick-row-hint">{row.hint}</span>
+          {row.isDefault && <span className="quick-row-badge">{S.effortDefaultBadge}</span>}
+          {row === chosen && <Check className="quick-row-check" size={14} />}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -329,6 +384,22 @@ function readDraft(): string | null {
     return localStorage.getItem(DRAFT_KEY);
   } catch {
     return null;
+  }
+}
+
+function readModel(): string | null {
+  try {
+    return localStorage.getItem(MODEL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeModel(model: string | null) {
+  try {
+    if (model === null) localStorage.removeItem(MODEL_KEY);
+    else localStorage.setItem(MODEL_KEY, model);
+  } catch {
   }
 }
 

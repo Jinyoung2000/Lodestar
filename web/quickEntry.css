@@ -75,6 +75,18 @@ html.quick-entry #root {
   height: var(--size-control);
   color: var(--fg-muted);
 }
+.quick-pills {
+  flex: none;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.quick-pills[data-with-model] .pill[data-pill="target"] {
+  max-width: calc(var(--size-quick-entry-width) / 4);
+}
+.quick-bar .pill[data-pill="model"] {
+  max-width: calc(var(--size-quick-entry-width) / 5);
+}
 .quick-bar .pill > span {
   min-width: 0;
   overflow: hidden;
@@ -226,6 +238,14 @@ html.quick-entry #root {
   white-space: nowrap;
   font-size: var(--text-ui-sm);
   color: var(--fg-subtle);
+}
+.quick-row[data-active="true"] .quick-row-hint {
+  color: var(--fg-muted);
+}
+.quick-row-badge {
+  flex: none;
+  font-size: var(--text-ui-sm);
+  color: var(--fg-muted);
 }
 .quick-row-check {
   flex: none;

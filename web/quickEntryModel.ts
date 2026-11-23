@@ -1,4 +1,5 @@
-import type { Agent, EffortLevel, PermissionMode, ResolvedDefaults, Settings, Workspace } from "../shared/protocol";
+import type { Agent, EffortLevel, ModelInfo, PermissionMode, ResolvedDefaults, Settings, Workspace } from "../shared/protocol";
+import { modelNameFromId, versionedDisplayName } from "../shared/modelName";
 import { S } from "./strings";
 
 export type QuickTarget = { kind: "new"; workspaceId: string } | { kind: "chat" } | { kind: "session"; agentId: string };
@@ -69,7 +70,7 @@ export function targetLabel(target: QuickTarget, workspaces: readonly Workspace[
   return S.quickEntryTargetReply(agents.find((a) => a.id === target.agentId)?.title ?? "session");
 }
 
-export type QuickKeyAction = "send-open" | "send-stay" | "newline" | "close" | "menu" | "none";
+export type QuickKeyAction = "send-open" | "send-stay" | "newline" | "close" | "menu" | "model-menu" | "none";
 
 export type QuickKeyEvent = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; isComposing: boolean; keyCode?: number };
 
@@ -77,6 +78,7 @@ export function quickKeyAction(e: QuickKeyEvent): QuickKeyAction {
   if (e.isComposing || e.keyCode === 229) return "none";
   if (e.key === "Escape") return "close";
   if (e.key === "ArrowDown" && e.altKey && !e.metaKey && !e.ctrlKey) return "menu";
+  if (e.key === "ArrowUp" && e.altKey && !e.metaKey && !e.ctrlKey) return "model-menu";
   if (e.key !== "Enter") return "none";
   if (e.metaKey || e.ctrlKey) return "send-stay";
   if (e.shiftKey || e.altKey) return "newline";
@@ -91,6 +93,36 @@ export function quickDefaults(settings: Pick<Settings, "defaultModel" | "default
     effort: resolved?.effort.value ?? settings?.defaultEffort ?? null,
     permissionMode: resolved?.permissionMode.value ?? settings?.defaultPermissionMode ?? "default",
   };
+}
+
+type QuickModel = Pick<ModelInfo, "value" | "resolvedModel" | "displayName">;
+
+export type ModelRow = { key: string; value: string | null; label: string; hint: string; isDefault: boolean };
+
+export function quickModelName(id: string | null, models: readonly QuickModel[]): string {
+  const fallback = models.find((m) => m.value === "default");
+  const target = id && id !== "default" ? id.replace(/\[[^\]]*\]$/, "") : (fallback?.resolvedModel ?? null);
+  if (!target) return fallback?.displayName ?? S.default;
+  const known = models.find((m) => m.value !== "default" && (m.value === target || m.resolvedModel === target));
+  return known ? versionedDisplayName(known.displayName, known.resolvedModel ?? (target.startsWith("claude-") ? target : null)) : (modelNameFromId(target) ?? target);
+}
+
+export function modelRows(models: readonly QuickModel[], defaultModel: string | null): ModelRow[] {
+  const fallback = models.find((m) => m.value === "default");
+  const defaultId = defaultModel && defaultModel !== "default" ? defaultModel.replace(/\[[^\]]*\]$/, "") : (fallback?.resolvedModel ?? null);
+  const isDefault = (m: QuickModel) => defaultId !== null && (m.value === defaultId || m.resolvedModel === defaultId);
+  const rows = models.filter((m) => m.value !== "default").map((m): ModelRow => ({ key: `model:${m.value}`, value: m.value, label: quickModelName(m.value, models), hint: m.resolvedModel ?? m.value, isDefault: isDefault(m) }));
+  if (rows.some((row) => row.isDefault)) return rows;
+  return [{ key: "default", value: null, label: quickModelName(defaultModel, models), hint: defaultId ?? "", isDefault: true }, ...rows];
+}
+
+export function chosenModelRow(rows: readonly ModelRow[], chosen: string | null): ModelRow | undefined {
+  return chosen === null ? rows.find((row) => row.isDefault) : rows.find((row) => row.value === chosen);
+}
+
+export function validModel(chosen: string | null, models: readonly QuickModel[]): string | null {
+  if (chosen === null || models.length === 0) return chosen;
+  return models.some((m) => m.value === chosen && m.value !== "default") ? chosen : null;
 }
 
 export type QuickSendPlan =

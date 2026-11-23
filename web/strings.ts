@@ -2303,6 +2303,8 @@ export const S = {
   quickEntrySendTip: "Send (Enter). Cmd+Enter sends and hides the panel.",
   quickEntryTargetAria: (label: string) => `Send to: ${label}. Choose where to send`,
   quickEntryTargetTip: "Choose where to send (Option+Down)",
+  quickEntryModelAria: (model: string) => `Model: ${model}. Choose a model`,
+  quickEntryModelTip: "Choose a model (Option+Up)",
   quickEntryNewIn: "New session in",
   quickEntryTargetNew: (folder: string) => `New in ${folder}`,
   quickEntryTargetReply: (title: string) => `Reply in ${title}`,
