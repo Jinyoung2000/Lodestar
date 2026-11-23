@@ -297,6 +297,9 @@ body[data-electron="1"] .titlebar > button {
   color: var(--fg);
   flex-shrink: 0;
 }
+.command-center .cc-view {
+  color: var(--fg);
+}
 .command-center {
   container-type: inline-size;
 }
@@ -808,6 +811,8 @@ body[data-electron="1"] .titlebar > button {
 }
 .markdown code[data-file] {
   cursor: pointer;
+}
+.markdown code[data-file]:hover {
   text-decoration: underline;
 }
 .markdown code .file-link {
@@ -1311,6 +1316,36 @@ a,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.composer-message {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.composer-message[data-inline-refs] .textarea {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  scrollbar-width: none;
+}
+.composer-message[data-inline-refs] > textarea {
+  position: relative;
+  color: transparent;
+  caret-color: var(--fg);
+}
+.composer-message[data-inline-refs] > textarea::selection {
+  color: transparent;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.composer-message > .composer-ref-backdrop {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+.composer-file-ref {
+  color: var(--accent-text);
 }
 .composer-tools {
   container-type: inline-size;
@@ -2020,6 +2055,7 @@ a,
   right: 0;
   background: var(--surface-base);
   margin-left: auto;
+  order: 1;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -2751,6 +2787,7 @@ div.tree-node[role="button"] > :first-child {
   flex-direction: column;
 }
 .editor .pane-header {
+  height: var(--size-control-sm);
   gap: var(--space-1);
   padding: 0 var(--space-2);
   background: var(--surface-base);
@@ -3563,7 +3600,7 @@ div.tree-node[role="button"] > :first-child {
   font-weight: var(--weight-ui-strong);
   color: var(--fg-strong);
 }
-.markdown a {
+.markdown a:hover {
   text-decoration: underline;
 }
 
@@ -7066,6 +7103,7 @@ pre.approval-json {
 }
 .editor-split[data-dir="row"] {
   overflow-x: auto;
+  overflow-y: hidden;
   scroll-snap-type: x mandatory;
 }
 .editor-split[data-dir="row"] > .editor-split-cell {

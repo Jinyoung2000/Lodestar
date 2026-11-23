@@ -1,5 +1,5 @@
 // 모바일 포트는 JSON 몇 개와 WebSocket 하나, 이미지 업로드 하나만 받는다. 메인 토큰은 이 서버에서 통하지 않고, 장치마다 다른 장치 토큰만 통한다.
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
@@ -119,6 +119,15 @@ export class MobileDevices {
     return found;
   }
 
+  challenge(deviceId: unknown, nonce: unknown) {
+    if (typeof nonce !== "string" || !/^[a-f0-9]{32}$/.test(nonce)) return null;
+    const device = this.records.find((record) => record.id === deviceId);
+    if (!device) return null;
+    const challenge = randomBytes(16).toString("hex");
+    const sign = (role: "proof" | "auth") => createHmac("sha256", device.tokenHash).update(`lodestar-route-${role}-v1:${nonce}:${challenge}`).digest("hex");
+    return { device, challenge, proof: sign("proof"), auth: sign("auth") };
+  }
+
   touch(id: string) {
     const record = this.records.find((r) => r.id === id);
     if (!record) return;
@@ -235,6 +244,8 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
   const p = asObject(raw);
   switch (method) {
     case "mobile.ping":
+    case "mobile.defaults":
+    case "mobile.workspaceIcons":
     case "workspaces.list":
     case "agents.list":
       return {};
@@ -393,7 +404,10 @@ export class MobileServer {
       if (!this.originAllowed(req)) return reject(403);
       if (requestUrl(req)?.pathname !== "/mobile/ws") return reject(404);
       if (this.unauthenticated >= MAX_UNAUTHENTICATED) return reject(503);
-      wss.handleUpgrade(req, socket, head, (ws) => this.accept(ws));
+      const peer = req.socket.remoteAddress?.replace(/^::ffff:/, "") ?? "";
+      const directLan = /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|f[cd][0-9a-f]{2}:)/i.test(peer)
+        && !req.headers.forwarded && !req.headers["x-forwarded-for"];
+      wss.handleUpgrade(req, socket, head, (ws) => this.accept(ws, directLan));
     });
     try {
       await new Promise<void>((resolve, reject) => {
@@ -537,7 +551,7 @@ export class MobileServer {
     return /^\d{1,3}(\.\d{1,3}){3}$/.test(name) || /^\[[0-9a-f:]+\]$/i.test(name) || /\.local$/i.test(name);
   }
 
-  private accept(ws: WebSocket) {
+  private accept(ws: WebSocket, directLan: boolean) {
     this.unauthenticated += 1;
     let counted = true;
     const settle = () => {
@@ -548,6 +562,7 @@ export class MobileServer {
     };
     const timer = setTimeout(() => ws.close(4401, "auth timeout"), AUTH_TIMEOUT_MS);
     let wasAuthed = false;
+    let challenge: ReturnType<MobileDevices["challenge"]> = null;
     ws.on("pong", () => this.alive.add(ws));
     ws.on("close", () => {
       clearTimeout(timer);
@@ -566,7 +581,22 @@ export class MobileServer {
         return ws.close(1007, "bad json");
       }
       if (!wasAuthed) {
-        const device = this.deps.devices.verify(message.auth);
+        if (!challenge && "routeDeviceId" in message) {
+          if (!directLan) return ws.close(4403, "direct LAN required");
+          challenge = this.deps.devices.challenge(message.routeDeviceId, message.routeNonce);
+          if (!challenge) return ws.close(4401, "bad token");
+          ws.send(JSON.stringify({ routeChallenge: challenge.challenge, routeProof: challenge.proof }));
+          return;
+        }
+        let device: DeviceRecord | null = null;
+        if (challenge) {
+          if (typeof message.routeAuth === "string" && TOKEN_RE.test(message.routeAuth) &&
+              timingSafeEqual(Buffer.from(challenge.auth, "hex"), Buffer.from(message.routeAuth, "hex")) &&
+              this.deps.devices.list().includes(challenge.device)) device = challenge.device;
+          challenge = null;
+        } else {
+          device = this.deps.devices.verify(message.auth);
+        }
         if (!device) return ws.close(4401, "bad token");
         wasAuthed = true;
         clearTimeout(timer);

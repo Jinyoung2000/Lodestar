@@ -10,6 +10,7 @@ import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import { useFoldLayout } from "../../ui/FoldLayout";
 import { ProjectIcon, type ProjectMark } from "../../ui/ProjectIcon";
+import { WorkspaceIcon } from "../../ui/WorkspaceIcon";
 import { RenameDialog } from "../../ui/RenameDialog";
 import { SessionRow } from "../../ui/SessionRow";
 import { SESSION_SORT_OPTIONS, SortButton } from "../../ui/SortButton";
@@ -74,7 +75,7 @@ export default function WorkspaceScreen() {
       >
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.cardHead}>
-            <ProjectIcon />
+            <WorkspaceIcon workspaceId={top.id} size={18} fallback={<ProjectIcon />} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text variant="title" color="textStrong" numberOfLines={1}>{top.name}</Text>
               <Text variant="secondary" color="textMuted" numberOfLines={2} selectable>{shortPath(top.dir)}</Text>

@@ -10,11 +10,8 @@ export type QuitDeps = {
   clearTimer: (handle: unknown) => void;
   closeWindows: () => Promise<void>;
   closeHelpers: () => void;
-  requestDaemonShutdown: () => boolean;
-  killDaemon: () => void;
   finishQuit: () => void;
   forceExit: () => void;
-  restoreAfterCancel: () => void;
   limitMs?: number;
   windowCloseMs?: number;
   cancelWatchMs?: number;
@@ -30,8 +27,6 @@ export class QuitFlow {
   private limitTimer: unknown = null;
   private cancelTimer: unknown = null;
   private current = "before-quit";
-  private waitingDaemon: (() => void) | null = null;
-  private daemonGone = false;
   private readonly pending: string[] = [];
   private readonly limitMs: number;
   private readonly windowCloseMs: number;
@@ -47,18 +42,13 @@ export class QuitFlow {
     return this.phase !== "idle";
   }
 
-  mayStartDaemon() {
-    return this.phase === "idle";
-  }
-
   onBeforeQuit(): QuitDecision {
     if (this.phase === "finishing") return "pass";
     if (this.phase === "running") return "wait";
     this.phase = "running";
     this.startedAt = this.deps.now();
-    this.daemonGone = false;
     this.pending.length = 0;
-    this.pending.push("close-windows", "daemon-shutdown", "finish");
+    this.pending.push("close-windows", "finish");
     this.note("before-quit");
     this.limitTimer = this.deps.setTimer(() => this.onLimit(), this.limitMs);
     void this.run();
@@ -68,18 +58,6 @@ export class QuitFlow {
   note(event: string, detail?: string) {
     const elapsed = this.phase === "idle" ? 0 : this.deps.now() - this.startedAt;
     this.deps.log(`[electron] quit: ${event} +${elapsed}ms${detail ? ` ${detail}` : ""}`);
-  }
-
-  onDaemonMessage(type: string) {
-    if (this.phase !== "idle" && type === "shutdown-flushed") this.note("daemon-flushed");
-  }
-
-  onDaemonExit(code: number | null) {
-    if (this.phase === "idle") return;
-    this.note("daemon-exit", `code=${code}`);
-    this.daemonGone = true;
-    this.waitingDaemon?.();
-    this.waitingDaemon = null;
   }
 
   onWillQuit() {
@@ -97,16 +75,6 @@ export class QuitFlow {
     this.note("close-windows");
     this.deps.closeHelpers();
     await this.waitWindows();
-    if (this.phase !== "running") return;
-    this.pending.shift();
-
-    this.current = "daemon-shutdown";
-    if (this.deps.requestDaemonShutdown()) {
-      this.note("daemon-shutdown-sent");
-      await this.waitDaemon();
-    } else {
-      this.note("daemon-shutdown-skipped", "no daemon");
-    }
     if (this.phase !== "running") return;
     this.pending.shift();
 
@@ -132,18 +100,10 @@ export class QuitFlow {
     });
   }
 
-  private waitDaemon() {
-    return new Promise<void>((resolve) => {
-      if (this.daemonGone) return resolve();
-      this.waitingDaemon = resolve;
-    });
-  }
-
   private onLimit() {
     this.limitTimer = null;
     const skipped = this.pending.join(", ") || "none";
     this.note("limit-reached", `after ${this.limitMs}ms while waiting for ${this.current}; skipping: ${skipped}`);
-    this.deps.killDaemon();
     this.deps.forceExit();
   }
 
@@ -160,8 +120,6 @@ export class QuitFlow {
     if (this.cancelTimer !== null) this.deps.clearTimer(this.cancelTimer);
     this.limitTimer = null;
     this.cancelTimer = null;
-    this.waitingDaemon = null;
     this.phase = "idle";
-    this.deps.restoreAfterCancel();
   }
 }

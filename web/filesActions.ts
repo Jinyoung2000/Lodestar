@@ -61,6 +61,31 @@ async function deleteEntry({ workspaceId, path, kind }: FilesTarget) {
   flash(S.movedToTrash(name));
 }
 
+export async function deleteEntries(workspaceId: string, entries: readonly { path: string; file: boolean }[]): Promise<boolean> {
+  const roots = entries.filter((e) => e.path && !entries.some((o) => o !== e && o.path !== e.path && isSameOrUnder(e.path, o.path)));
+  if (roots.length === 0) return false;
+  if (roots.length === 1) {
+    await deleteEntry({ workspaceId, path: roots[0].path, kind: roots[0].file ? "file" : "folder" });
+    return true;
+  }
+  if (!(await confirmAction(S.trashEntriesTitle(roots.length), S.trashEntryButton, S.trashEntriesDetail))) return false;
+  const open = getState().tabs.filter((t) => t.kind === "file" && t.workspaceId === workspaceId && roots.some((r) => isSameOrUnder(t.path, r.path))).map((t) => t.key);
+  if (!(await requestCloseTabs(open))) return false;
+  let moved = 0;
+  for (const { path } of roots) {
+    try {
+      await rpc.call("files.trash", { workspaceId, path });
+      moved++;
+    } catch (error) {
+      flash(S.trashFailed((error as Error).message), "error");
+      break;
+    }
+  }
+  await afterTreeChange(workspaceId);
+  if (moved > 0) flash(S.movedManyToTrash(moved));
+  return true;
+}
+
 export type RenameResult = { error: string } | { to: string };
 
 export async function renameEntry(workspaceId: string, path: string, newName: string): Promise<RenameResult> {

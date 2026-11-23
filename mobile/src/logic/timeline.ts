@@ -47,7 +47,10 @@ export type ThinkingItem = Extract<TimelineItem, { kind: "thinking" }>;
 export type PermissionItem = Extract<TimelineItem, { kind: "permission" }>;
 export type NoticeItem = Extract<TimelineItem, { kind: "notice" }>;
 export type ErrorItem = Extract<TimelineItem, { kind: "error" }>;
-export type Step = ToolItem | ThinkingItem | PermissionItem;
+export type SystemNoteItem = UserItem & { source: "system" };
+export type Step = ToolItem | ThinkingItem | PermissionItem | SystemNoteItem;
+
+const isSystemNote = (item: UserItem): item is SystemNoteItem => item.source === "system";
 
 export type Row =
   | { type: "user"; key: string; item: UserItem }
@@ -113,9 +116,12 @@ export function buildRows(items: readonly TimelineItem[]): Row[] {
         break;
       }
       case "user":
+        if (isSystemNote(item)) {
+          if ((item.shown ?? item.text).trim()) steps.push(item);
+          break;
+        }
         flush();
-        if (item.source === "system") rows.push({ type: "notice", key: item.id, text: (item.shown ?? item.text).slice(0, 200) });
-        else rows.push({ type: "user", key: item.id, item });
+        rows.push({ type: "user", key: item.id, item });
         break;
       case "assistant":
         if (!item.text.trim() && !item.streaming) break;

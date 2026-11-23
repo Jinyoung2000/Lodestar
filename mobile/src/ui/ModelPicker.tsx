@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SwitchBlock } from "@shared/harnessSwitch";
 import type { MobileModelProvider, MobileModelSelection } from "@shared/mobile";
 import type { Agent, EffortLevel, Harness } from "@shared/protocol";
+import { modelLabel } from "../logic/modelLabel";
 import { store, useAppState } from "../state/app";
 import { MODEL_HARNESSES } from "../state/store";
 import { spacing, useColors } from "../theme/theme";
@@ -36,10 +37,11 @@ export function useModelPicker(agent?: Agent, draft?: MobileModelSelection) {
     : draft ?? DEFAULT_MODEL_SELECTION;
   const { harness } = selection;
   const provider = useAppState((state) => state.modelProviders[harness]);
-  const model = provider ? modelOf(provider, selection.model) : undefined;
-  const modelId = selection.model ?? agent?.activeModel ?? null;
-  const name = (selection.model !== null || provider?.defaultModelKnown ? model?.displayName : null) ?? modelId ?? "Default model";
-  const effort = selection.effort ?? model?.defaultLevel ?? agent?.activeEffort ?? null;
+  const selected = selection.model === "default" ? null : selection.model;
+  const modelId = selected ?? agent?.activeModel ?? (provider?.defaultModelKnown ? provider.defaultModel : null);
+  const model = provider ? modelOf(provider, modelId) : undefined;
+  const name = modelId ? modelLabel(harness, modelId, provider, agent?.activeModel) : "Default model";
+  const effort = selection.effort ?? agent?.activeEffort ?? model?.defaultLevel ?? null;
   const show = useCallback(() => {
     Keyboard.dismiss();
     setOpen(true);
@@ -131,7 +133,7 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
   const groups = providers.flatMap((entry) => {
     if (filter && filter !== "favorites" && filter !== entry.harness) return [];
     const models = entry.models.filter((model) => {
-      return (filter !== "favorites" || (model.pinKey !== undefined && pinOrder.has(model.pinKey))) && [PROVIDER_NAMES[entry.harness], model.displayName, model.value].some((value) => value.toLowerCase().includes(needle));
+      return (filter !== "favorites" || (model.pinKey !== undefined && pinOrder.has(model.pinKey))) && [PROVIDER_NAMES[entry.harness], model.displayName, modelLabel(entry.harness, model.value, entry), model.value].some((value) => value.toLowerCase().includes(needle));
     }).sort((a, b) => (pinOrder.get(a.pinKey ?? "") ?? pinOrder.size) - (pinOrder.get(b.pinKey ?? "") ?? pinOrder.size));
     return models.length ? [{ entry, models }] : [];
   });
@@ -214,7 +216,7 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
             const locked = !online || saving || (switchBlock !== null && entry.harness !== selection.harness);
             return <View key={entry.harness}>
               <Pressable accessibilityRole="button" accessibilityLabel={name} accessibilityState={{ expanded: !hidden }} disabled={narrowed} style={styles.groupHead} onPress={() => setCollapsed((old) => ({ ...old, [entry.harness]: !hidden }))}>
-                <ProviderMark harness={entry.harness} state="idle" size={16} /><Text color="textMuted" style={styles.bold}>{name}</Text>
+                <ProviderMark harness={entry.harness} size={16} /><Text color="textMuted" style={styles.bold}>{name}</Text>
                 <Text variant="caption" color="textMuted" style={styles.flex}>{models.length}</Text>
                 {!narrowed && <Icon name={hidden ? "chevron.right" : "chevron.down"} size={14} color="textMuted" />}
               </Pressable>
@@ -222,10 +224,11 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
                 {!narrowed && <Choice label={entry.harness === "claude" ? "Mac default" : `${name} default`} checked={entry.harness === displayed.harness && displayed.model === null} disabled={locked} onPress={() => choose(entry, null)} />}
                 {models.map((model) => {
                   const key = `${entry.harness}/${model.value}`;
+                  const label = modelLabel(entry.harness, model.value, entry);
                   const starred = !!model.pinKey && pinOrder.has(model.pinKey);
                   return <View key={key} style={styles.modelRow}>
-                    <Choice label={model.displayName} checked={entry.harness === displayed.harness && displayed.model !== null && model.value === current?.value} disabled={locked} onPress={() => choose(entry, model.value)} />
-                    <Pressable accessibilityRole="button" accessibilityLabel={`${starred ? "Unfavorite" : "Favorite"} ${model.displayName}`} accessibilityState={{ selected: starred }} disabled={!online || !favorites || !model.pinKey || changingPin} style={styles.target} onPress={() => void favorite(entry.harness, model.value, !starred)}>
+                    <Choice label={label} checked={entry.harness === displayed.harness && displayed.model !== null && model.value === current?.value} disabled={locked} onPress={() => choose(entry, model.value)} />
+                    <Pressable accessibilityRole="button" accessibilityLabel={`${starred ? "Unfavorite" : "Favorite"} ${label}`} accessibilityState={{ selected: starred }} disabled={!online || !favorites || !model.pinKey || changingPin} style={styles.target} onPress={() => void favorite(entry.harness, model.value, !starred)}>
                       <Image accessible={false} importantForAccessibility="no" source={starred ? require("../../assets/model-picker/favorite.png") : require("../../assets/model-picker/favorite-outline.png")} style={{ width: 17, height: 17, tintColor: starred ? colors.accentText : colors.textMuted }} />
                     </Pressable>
                   </View>;

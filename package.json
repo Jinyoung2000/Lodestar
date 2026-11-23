@@ -1,7 +1,7 @@
 {
   "name": "agent-nav",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Local macOS app for running many Claude Code sessions side by side, with diffs, an editor, a terminal and git in one window.",
   "license": "MIT",
   "author": "Jinyoung Sung",
@@ -20,7 +20,7 @@
     "dev:web": "vite",
     "build": "vite build && npm run build:electron && tsx scripts/write-build-stamp.ts",
     "build:web": "npm run tokens && vite build",
-    "build:electron": "esbuild electron/main.ts --bundle --platform=node --format=esm --external:electron --outfile=dist-electron/main.mjs && esbuild electron/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/preload.cjs && esbuild electron/pwPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/pw-preload.cjs && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-electron/daemon.mjs",
+    "build:electron": "esbuild electron/main.ts --bundle --platform=node --format=esm --external:electron --outfile=dist-electron/main.mjs && esbuild electron/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/preload.cjs && esbuild electron/pwPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/pw-preload.cjs && esbuild electron/daemonSupervisor.ts --bundle --platform=node --format=esm --outfile=dist-electron/daemonSupervisor.mjs && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-electron/daemon.mjs",
     "app": "electron .",
     "dist": "npm run build && electron-builder --mac --dir",
     "start": "tsx server/index.ts",

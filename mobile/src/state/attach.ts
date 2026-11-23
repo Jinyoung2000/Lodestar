@@ -5,7 +5,6 @@ import type { ImageRef } from "@shared/protocol";
 import { JPEG_QUALITY, MAX_IMAGES, THUMB_EDGE, THUMB_QUALITY, allUploaded, resizeTarget, uploadProgress, type Attachment } from "../logic/images";
 import { uploadImage } from "../net/upload";
 import { client } from "./app";
-import { loadConnection } from "./storage";
 import { record, now } from "./perf";
 
 export type PickedAsset = { uri: string; width: number; height: number; fileName?: string | null; releaseSource?: () => void };
@@ -55,13 +54,12 @@ export function useAttachments(): AttachmentsApi {
         const prepared = await prepare(asset);
         if (!contains(key)) return;
         patch(key, { status: "uploading", progress: 0, uri: prepared.uri, thumb: prepared.thumb });
-        const saved = await loadConnection();
-        const host = client.host ?? saved?.hosts[0] ?? null;
-        if (client.status !== "online" || !saved || !host) throw new Error("Not connected to your Mac");
-        if (!contains(key)) return;
         const started = now();
         const blob = await (await fetch(prepared.uri)).blob();
-        const { id } = await uploadImage({ host, port: saved.port, secure: saved.secure, token: saved.token }, blob, asset.fileName || "photo.jpg", "image/jpeg", { onProgress: (progress) => contains(key) && patch(key, { progress }) });
+        if (!contains(key)) return;
+        const target = client.imageUploadTarget();
+        if (!target) throw new Error("Not connected to your Mac");
+        const { id } = await uploadImage(target, blob, asset.fileName || "photo.jpg", "image/jpeg", { onProgress: (progress) => contains(key) && patch(key, { progress }) });
         record("image-upload", Math.round((now() - started) * 10) / 10, `${Math.round(blob.size / 1024)} KB`);
         if (contains(key)) patch(key, { status: "done", progress: 1, id });
       } catch (error) {

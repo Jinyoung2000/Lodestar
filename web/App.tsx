@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { moveBottomTab, useBottomTabOrder, type BottomTab } from "./bottomTabOrder";
 import { BoardView, ImprovementsView, InboxView, NotesView, NotionView, Overlays, PullRequestView, SettingsView, SideChat, SkillsView, TerminalView } from "./lazyViews";
 import { FeedbackLayer } from "./Feedback";
-import { ChevronDown, Close, Codicon, Plus, Split, TerminalIcon } from "./icons";
+import { ChevronDown, Close, Codicon, Plus, Split, TerminalIcon, Warning } from "./icons";
 import { ChordHint } from "./ChordHint";
 import { NoticeStack } from "./NoticeStack";
 import { ToBoardPopover } from "./ToBoardPopover";
@@ -115,7 +116,7 @@ export function App() {
     <div className="app">
       <TitleBar />
       <DaemonBanner />
-      <div className="body" data-side={layoutConfig.sideBar} data-panel={layoutConfig.panelAlignment} style={gridVars(layoutConfig)}>
+      <div className="body" data-layout={editorLayout ? "editor" : undefined} data-side={layoutConfig.sideBar} data-panel={layoutConfig.panelAlignment} style={gridVars(layoutConfig)}>
         {shown.side && (
           <>
             <FocusSideBar width={focusSideWidth(focusSaved, bodyWidth, dockPx)} />
@@ -252,6 +253,8 @@ const CHAT_EDITING = 440;
 const EDITOR_FLOOR = 320;
 const BOTTOM_MIN = 120;
 
+const TAB_DRAG_THRESHOLD = 4;
+
 const NO_TERMINALS: { id: string; name: string; dir?: string }[] = [];
 
 function BottomPanel({ height, hidden }: { height: number | null; hidden: boolean }) {
@@ -278,23 +281,80 @@ function BottomPanel({ height, hidden }: { height: number | null; hidden: boolea
     if (needsTerminal) addTerminal(scope.key);
   }, [needsTerminal, scope.key]);
   const current = terminals.find((t) => t.id === activeTerminal) ?? terminals[terminals.length - 1];
+  const order = useBottomTabOrder();
+  const stripRef = useRef<HTMLDivElement>(null);
+  const suppressClick = useRef(false);
+  const [drag, setDrag] = useState<{ x: number; top: number; height: number } | null>(null);
+  function startTabDrag(event: ReactPointerEvent, dragged: BottomTab) {
+    if (event.button !== 0) return;
+    const startX = event.clientX;
+    let moved = false;
+    let before: BottomTab | null = null;
+    const onMove = (e: PointerEvent) => {
+      if (!moved && Math.abs(e.clientX - startX) < TAB_DRAG_THRESHOLD) return;
+      moved = true;
+      const strip = stripRef.current;
+      if (!strip) return;
+      const boxes = order.flatMap((key) => {
+        const box = strip.querySelector(`.bottom-tab[data-tab="${key}"]`)?.getBoundingClientRect();
+        return box ? [{ key, box }] : [];
+      });
+      const target = boxes.find(({ box }) => e.clientX < box.left + box.width / 2);
+      const last = boxes[boxes.length - 1];
+      const stripBox = strip.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(strip).columnGap) || 0;
+      before = target?.key ?? null;
+      const x = target ? target.box.left - gap / 2 : last ? last.box.right + gap / 2 : stripBox.left;
+      setDrag({ x, top: stripBox.top, height: stripBox.height });
+    };
+    const finish = (commit: boolean) => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("keydown", onKey, true);
+      setDrag(null);
+      if (!moved) return;
+      suppressClick.current = true;
+      requestAnimationFrame(() => (suppressClick.current = false));
+      if (commit) moveBottomTab(dragged, before);
+    };
+    const onUp = () => finish(true);
+    const onCancel = () => finish(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !moved) return;
+      e.preventDefault();
+      e.stopPropagation();
+      finish(false);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    window.addEventListener("keydown", onKey, true);
+  }
   return (
     <section className="bottom" aria-label={S.bottomPanelAria} hidden={hidden} style={height == null ? undefined : { height }}>
-      <div className="bottom-tabs">
-        <button type="button" className="bottom-tab" data-active={tab === "output" || undefined} onClick={() => setState({ bottomTab: "output" })}>
-          {S.output}
-        </button>
-        <button type="button" className="bottom-tab" data-active={tab === "problems" || undefined} onClick={() => setState({ bottomTab: "problems" })}>
-          {S.problems}
-          {problemTotal > 0 && (
-            <span className="bottom-tab-count" title={S.problemsTip(problems.errors, problems.warnings)}>
-              {countBadge(problemTotal)}
-            </span>
-          )}
-        </button>
-        <button type="button" className="bottom-tab" data-active={tab === "terminal" || undefined} onClick={() => setState({ bottomTab: "terminal" })}>
-          {S.terminal}
-        </button>
+      <div className="bottom-tabs" ref={stripRef}>
+        {order.map((key) => (
+          <button
+            key={key}
+            type="button"
+            className="bottom-tab"
+            data-tab={key}
+            data-active={tab === key || undefined}
+            onPointerDown={(event) => startTabDrag(event, key)}
+            aria-label={key === "output" ? S.output : key === "problems" ? S.problems : S.terminal}
+            title={key === "output" ? S.output : key === "problems" ? S.problems : S.terminal}
+            onClick={() => !suppressClick.current && setState({ bottomTab: key })}
+          >
+            {key === "output" ? <Codicon name="output" /> : key === "problems" ? <Warning /> : <TerminalIcon />}
+            {key === "problems" && problemTotal > 0 && (
+              <span className="bottom-tab-count" title={S.problemsTip(problems.errors, problems.warnings)}>
+                {countBadge(problemTotal)}
+              </span>
+            )}
+          </button>
+        ))}
+        {drag && <div className="tab-drop-mark" style={{ left: drag.x, top: drag.top, height: drag.height }} />}
         <span className="spacer" />
         {tab === "terminal" && (
           <>

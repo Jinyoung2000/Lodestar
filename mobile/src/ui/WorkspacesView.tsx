@@ -8,6 +8,7 @@ import type { GitSummary } from "../state/store";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Icon } from "./Icon";
 import { ProjectIcon } from "./ProjectIcon";
+import { WorkspaceIcon } from "./WorkspaceIcon";
 import { SortButton } from "./SortButton";
 import { StatusDot } from "./StatusDot";
 import { Text } from "./Text";
@@ -158,7 +159,7 @@ const ProjectRow = memo(function ProjectRow({ project, selected, git, onPress, o
       onLongPress={() => onLongPress(project)}
       style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.pressed : selected ? colors.selected : "transparent", borderBottomColor: colors.separator }]}
     >
-      <ProjectIcon strong={selected} />
+      <WorkspaceIcon workspaceId={workspace.id} size={18} fallback={<ProjectIcon strong={selected} />} />
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="title" color="textStrong" numberOfLines={1}>{workspace.name}</Text>
         <Text variant="secondary" color="textMuted" numberOfLines={1}>{shortPath(workspace.dir)}</Text>

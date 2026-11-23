@@ -25,8 +25,26 @@ export const MIN_TOUCH = Platform.OS === "android" ? 48 : 44;
 const themes = {
   light: { scheme: "light", colors: palette.light },
   dark: { scheme: "dark", colors: palette.dark },
+  midnight: {
+    scheme: "dark",
+    colors: {
+      ...palette.dark,
+      background: "#08090b",
+      surfaceBase: "#0c0d10",
+      surface: "#111216",
+      overlay: "#191a20",
+      pressed: "#202127",
+      selected: "#292b34",
+      separator: "#22242a",
+      border: "#373942",
+      inputBackground: "#1a1b20",
+      inputBorder: "#363840",
+      codeBackground: "#101115",
+      userBubble: "#172331",
+    },
+  },
 } as const;
-export type Scheme = keyof typeof themes;
+export type Scheme = (typeof themes)[keyof typeof themes]["scheme"];
 const ThemeContext = createContext<{ scheme: Scheme; colors: Colors }>(themes.dark);
 export const ThemeProvider = ThemeContext.Provider;
 
@@ -40,7 +58,7 @@ export function useScheme(): Scheme {
 
 export function useSchemeColors(choice: ThemeChoice | null): { colors: Colors; scheme: Scheme } {
   const systemScheme = useColorScheme() ?? Appearance.getColorScheme();
-  const scheme = choice === "dark" || choice === "light" ? choice : systemScheme === "dark" ? "dark" : "light";
+  const scheme = choice && choice !== "system" ? choice : systemScheme === "dark" ? "dark" : "light";
   return themes[scheme];
 }
 

@@ -1,5 +1,6 @@
 import { EXTENSIONS, parseCodeSpanRef, parseFileRefs, type FileRef } from "./fileRefParse";
 export type { FileRef } from "./fileRefParse";
+import { isImagePath } from "./fileKind";
 import { fileIndex, normalizeRelative, resolveFileRef } from "./fileRefResolve";
 import { toTarget } from "./lsp";
 import { rpc } from "./rpc";
@@ -11,7 +12,7 @@ export function parseHref(href: string): FileRef | null {
   const [pathPart, hash = ""] = clean.split("#");
   const lineMatch = /^L(\d+)(?:C(\d+))?/.exec(hash) ?? /:(\d+)(?::(\d+))?$/.exec(pathPart);
   const path = decodeURIComponent(pathPart.replace(/:(\d+)(?::(\d+))?$/, ""));
-  if (!new RegExp(`\\.(?:${EXTENSIONS})$`).test(path)) return null;
+  if (!new RegExp(`\\.(?:${EXTENSIONS})$`).test(path) && !isImagePath(path)) return null;
   return {
     raw: path,
     line: lineMatch ? Number(lineMatch[1]) : undefined,

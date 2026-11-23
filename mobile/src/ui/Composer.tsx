@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { useIsFocused } from "expo-router";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentRef } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View, findNodeHandle } from "react-native";
@@ -6,6 +5,7 @@ import type { Agent, EffortLevel, Harness, QueuedMessage } from "@shared/protoco
 import { MAX_IMAGES } from "../logic/images";
 import { pickFromLibrary, takePhoto, useAttachments, type PickedAsset } from "../state/attach";
 import { composerPaste, discardPastedImage, isPasteForeground, legacyPasteSupported, nextPasteBinding, readClipboardImage } from "../state/composerPaste";
+import { useAppState } from "../state/app";
 import { loadPref, savePref } from "../state/storage";
 import { MIN_TOUCH, radius, spacing, useColors, withAlpha } from "../theme/theme";
 import { showActionMenu } from "./actionMenu";
@@ -31,6 +31,7 @@ type Props = {
 };
 
 const MIN_HEIGHT = MIN_TOUCH;
+const IDLE_MODEL_WIDTH = 112;
 const INPUT_LINE_HEIGHT = 22;
 const INPUT_FONT_LIMIT = 1.6;
 const INPUT_PADDING = spacing.xs;
@@ -48,7 +49,9 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const [selection, setSelection] = useState(() => ({ start: initialText?.length ?? 0, end: initialText?.length ?? 0 }));
   const [nextSelection, setNextSelection] = useState<typeof selection>();
   const [queueExpanded, setQueueExpanded] = useState(false);
-  const [steer, setSteer] = useState(false);
+  const steerByDefault = useAppState((s) => s.requestQueuing === "steer");
+  const [flipMode, setFlipMode] = useState(false);
+  const steer = steerByDefault !== flipMode;
   const [sending, setSending] = useState(false);
   const [pendingSend, setPendingSend] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,11 +122,6 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const draftReady = useRef(!draftKey || !!initialText);
 
   useEffect(() => {
-    let active = true;
-    void loadPref("steer", false).then((value) => { if (active) setSteer(value); });
-    return () => { active = false; };
-  }, []);
-  useEffect(() => {
     if (!draftKey || draftReady.current) return;
     let live = true;
     void loadPref<unknown>(`draft:${draftKey}`, "").then((saved) => {
@@ -159,6 +157,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
     setError(null);
     try {
       await onSend(prompt, images, running && steer);
+      setFlipMode(false);
       const current = textRef.current;
       const rest = current.startsWith(sentText) ? current.slice(sentText.length).replace(/^\s+/, "") : current;
       textRef.current = rest;
@@ -166,10 +165,8 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
       if (draftKey) savePref(`draft:${draftKey}`, rest);
       if (!rest) setHeight(MIN_HEIGHT);
       for (const key of sentKeys) attachments.remove(key);
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       inFlight.current = false;
       setSending(false);
@@ -235,10 +232,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
     ]);
   };
 
-  const setMode = (next: boolean) => {
-    setSteer(next);
-    savePref("steer", next);
-  };
+  const setMode = (next: boolean) => setFlipMode(next !== steerByDefault);
 
   const queue = agent?.queue ?? [];
   const steering = agent?.steering ?? [];
@@ -251,7 +245,9 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const showStop = !!(running && onStop);
   const showSend = !showStop || hasDraft || pendingSend;
   const compactStart = MIN_TOUCH + spacing.xs;
-  const compactEnd = MIN_TOUCH * (Number(!!modelControl) + Number(showStop) + Number(showSend)) + spacing.xs;
+  const idleModelLabel = !!modelControl && !hasDraft;
+  const modelWidth = idleModelLabel ? IDLE_MODEL_WIDTH : modelControl ? MIN_TOUCH : 0;
+  const compactEnd = modelWidth + MIN_TOUCH * (Number(showStop) + Number(showSend)) + spacing.xs;
   const expanded = !!text.length && (wraps || text.includes("\n"));
   const token = editing && modelAvailable && selection.start === selection.end ? text.slice(0, selection.start).match(/(?:^|\s)(\/[a-z]*)$/i)?.[1] : undefined;
   const modelCommand = token && "/model".startsWith(token.toLowerCase()) && !/\w/.test(text[selection.end] ?? "") ? token : undefined;
@@ -355,9 +351,12 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           <View style={styles.controls}>
             {modelControl && <Pressable accessibilityRole="button" accessibilityLabel={`${PROVIDER_NAMES[modelControl.harness]}, ${modelPickerLabel(modelControl.name, modelControl.effort)}`}
               accessibilityState={{ disabled: !modelAvailable }} disabled={!modelAvailable} onPress={modelControl.onPress}
-              style={({ pressed }) => [styles.model, expanded ? styles.modelExpanded : styles.modelCompact, pressed && { backgroundColor: colors.pressed }]}>
-              <ProviderMark harness={modelControl.harness} state="idle" size={18} selected />
-              {expanded ? <ModelSubtitle name={modelControl.name} effort={modelControl.effort} /> : <Icon name="chevron.down" size={12} color="textMuted" />}
+              style={({ pressed }) => [styles.model, expanded ? styles.modelExpanded : { width: modelWidth }, pressed && { backgroundColor: colors.pressed }]}>
+              <ProviderMark harness={modelControl.harness} size={18} selected />
+              {expanded ? <ModelSubtitle name={modelControl.name} effort={modelControl.effort} /> : <>
+                {idleModelLabel && <Text variant="caption" numberOfLines={1} color="textMuted" style={{ flexShrink: 1 }}>{modelControl.name}</Text>}
+                <Icon name="chevron.down" size={12} color="textMuted" />
+              </>}
             </Pressable>}
             {showStop && <Pressable accessibilityRole="button" accessibilityLabel="Stop" disabled={!canSend} onPress={onStop} style={styles.iconButton}>
               <View style={[styles.send, { backgroundColor: withAlpha(colors.danger, 0.16) }]}><Icon name="stop.fill" size={12} color="danger" /></View>
@@ -399,7 +398,7 @@ function QueueChip({ message, label, onCancel, onNow }: { message: QueuedMessage
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.xs },
+  wrap: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.xs },
   surface: { borderRadius: 24, borderWidth: StyleSheet.hairlineWidth },
   row: { flexDirection: "row", alignItems: "center", minHeight: MIN_TOUCH },
   measure: { position: "absolute", opacity: 0 },
@@ -408,7 +407,6 @@ const styles = StyleSheet.create({
   iconButton: { width: MIN_TOUCH, height: MIN_TOUCH, flexShrink: 0, alignItems: "center", justifyContent: "center" },
   controls: { marginStart: "auto", flexDirection: "row", alignItems: "center", flexShrink: 1, minWidth: 0 },
   model: { minWidth: MIN_TOUCH, height: MIN_TOUCH, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, borderRadius: radius.md },
-  modelCompact: { width: MIN_TOUCH, flexShrink: 0 },
   modelExpanded: { flexShrink: 1, maxWidth: 190, paddingHorizontal: spacing.sm },
   command: { minHeight: MIN_TOUCH, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, paddingHorizontal: spacing.md },
   send: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },

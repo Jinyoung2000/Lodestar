@@ -26,8 +26,9 @@ export async function mobilePreview(root: string | null, item: TimelineItem | un
   if (item?.kind === "user" && item.attachments?.some((a) => a.kind === "image" && a.id === target)) {
     path = imagePath(target);
   }
-  if (item?.kind === "tool" && /^shot:\d+$/.test(target)) {
-    const shot = item.shots?.[Number(target.slice(4))];
+  const shotTarget = /^shot:(\d+)$/.exec(target);
+  if (item?.kind === "tool" && shotTarget) {
+    const shot = item.shots?.[Number(shotTarget[1])];
     if (shot && dirname(shot) === join(HOME, "tool-shots")) path = shot;
   }
   if (root && hasWorkspaceFile(item, target)) {

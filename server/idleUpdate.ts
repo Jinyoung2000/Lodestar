@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -11,7 +11,8 @@ const execFileAsync = promisify(execFile);
 
 const TICK_MS = 60_000; // lint-tokens: allow 상태를 보는 주기(ms)
 const INSTALLED_APP = "/Applications/Lodestar.app";
-const APP_FILES = ["main.mjs", "preload.cjs", "pw-preload.cjs"];
+const APP_EXE = join(INSTALLED_APP, "Contents", "MacOS", "Lodestar");
+const APP_FILES = ["main.mjs", "preload.cjs", "pw-preload.cjs", "daemonSupervisor.mjs"];
 
 export type IdleUpdateDeps = {
   home: string;
@@ -22,6 +23,7 @@ export type IdleUpdateDeps = {
   restart: () => void;
   idleSeconds?: () => Promise<number>;
   log?: (line: string) => void;
+  daemonControl?: string;
 };
 
 export class IdleUpdater {
@@ -104,7 +106,9 @@ export class IdleUpdater {
       mkdirSync(this.deps.home, { recursive: true });
       const out = createWriteStream(join(this.deps.home, "auto-update-build.log"), { flags: "a" });
       const code = await new Promise<number | null>((resolve) => {
-        const child = spawn("nice", ["-n", "15", command, ...args], { cwd: this.deps.srcRoot, env: { ...process.env, ...extraEnv, PATH: withLoginPath(process.env.PATH) }, stdio: ["ignore", "pipe", "pipe"] });
+        const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, PATH: withLoginPath(process.env.PATH) };
+        delete env.ELECTRON_RUN_AS_NODE;
+        const child = spawn("nice", ["-n", "15", command, ...args], { cwd: this.deps.srcRoot, env, stdio: ["ignore", "pipe", "pipe"] });
         child.stdout.pipe(out, { end: false });
         child.stderr.pipe(out, { end: false });
         child.on("close", resolve);
@@ -134,9 +138,11 @@ export class IdleUpdater {
 
   private install(source: string) {
     if (!existsSync(this.releaseApp())) return;
+    const appPid = this.deps.daemonControl ? installedAppPid() : process.ppid;
+    if (!appPid) return;
     this.working = true;
     const script = join(this.deps.home, "auto-update-install.sh");
-    writeFileSync(script, installScript(this.releaseApp(), this.deps.home, source));
+    writeFileSync(script, installScript(this.releaseApp(), this.deps.home, source, appPid, this.deps.daemonControl));
     chmodSync(script, 0o755);
     this.note("install: the app quits, is replaced and relaunches");
     const installer = spawn("/bin/bash", [script], { detached: true, stdio: "ignore" });
@@ -151,6 +157,15 @@ export class IdleUpdater {
       this.note(`installer exited (code ${code}, signal ${signal})`);
     });
     installer.unref();
+  }
+}
+
+function installedAppPid() {
+  try {
+    const pid = Number(execFileSync("/usr/bin/pgrep", ["-fx", APP_EXE], { encoding: "utf8", timeout: 1000 }).trim());
+    return Number.isSafeInteger(pid) && pid > 1 ? pid : null;
+  } catch {
+    return null;
   }
 }
 
@@ -185,20 +200,25 @@ async function hidIdleSeconds(): Promise<number> {
   }
 }
 
-export function installScript(release: string, home: string, source: string) {
+export function installScript(release: string, home: string, source: string, appPid = process.ppid, daemonControl?: string) {
   const log = join(home, "auto-update.log");
   const prev = join(home, "previous", "Lodestar.app");
-  const q = (s: string) => JSON.stringify(s);
+  const q = (s: string) => `'${s.replaceAll("'", "'\\''")}'`;
   return `#!/bin/bash
 LOG=${q(log)}
 say() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) install: $*" >> "$LOG"; }
 launch() { env -i HOME="$HOME" USER="$USER" LOGNAME="$USER" SHELL=/bin/zsh LANG=ko_KR.UTF-8 PATH="$(/bin/zsh -lc 'printf %s "$PATH"')" /usr/bin/open -g ${q(INSTALLED_APP)}; }
-APP_EXE=${q(join(INSTALLED_APP, "Contents", "MacOS", "Lodestar"))}
-P=${process.ppid}
+APP_EXE=${q(APP_EXE)}
+stop_service() {
+  ${daemonControl ? `printf '%s\\n' stop | /usr/bin/nc -w 8 -U ${q(daemonControl)} >/dev/null 2>&1
+  /usr/bin/lockf -ks -t 10 ${q(join(home, "daemon-supervisor.lock"))} /usr/bin/true` : ":"}
+}
+P=${appPid}
 if [ "$(/bin/ps -p "$P" -o comm=)" != "$APP_EXE" ]; then say "cannot identify running app, giving up"; exit 1; fi
 kill -TERM "$P" || { say "could not quit running app"; exit 1; }
 t0=$(date +%s)
 while kill -0 "$P" 2>/dev/null; do sleep 2; [ $(( $(date +%s)-t0 )) -gt 300 ] && { say "app did not quit, giving up"; exit 1; }; done
+stop_service || { say "daemon did not stop, giving up"; launch; exit 1; }
 rm -rf ${q(prev)}; mkdir -p ${q(join(home, "previous"))}
 mv ${q(INSTALLED_APP)} ${q(prev)} || { say "could not move the old app"; launch; exit 1; }
 cp -R ${q(release)} ${q(INSTALLED_APP)} || { say "copy failed, restoring"; rm -rf ${q(INSTALLED_APP)}; mv ${q(prev)} ${q(INSTALLED_APP)}; launch; exit 1; }
@@ -209,8 +229,9 @@ for i in $(seq 1 30); do
 done
 say "new app did not respond, restoring the previous one"
 echo "{\\"source\\":\\"${source}\\",\\"at\\":$(( $(date +%s) * 1000 ))}" > ${q(join(home, "auto-update-rollback.json"))}
-P=$(pgrep -f "${INSTALLED_APP}/Contents/MacOS/Lodestar$"); [ -n "$P" ] && kill -TERM $P
+P=$(/usr/bin/pgrep -fx "$APP_EXE"); [ -n "$P" ] && kill -TERM $P
 sleep 5
+stop_service || { say "daemon did not stop, keeping the new app"; launch; exit 1; }
 rm -rf ${q(INSTALLED_APP)}; mv ${q(prev)} ${q(INSTALLED_APP)}
 launch
 say "restored"

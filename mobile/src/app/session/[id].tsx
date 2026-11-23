@@ -1,8 +1,7 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, type NativeStackNavigationProp } from "expo-router";
-import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import { ActivityIndicator, BackHandler, Keyboard, Pressable, useWindowDimensions, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { ActivityIndicator, BackHandler, Keyboard, Pressable, useWindowDimensions, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ImageRef } from "@shared/protocol";
 import { stateOf, workspaceName } from "../../logic/agents";
@@ -16,7 +15,7 @@ import { CreatePreview } from "../../ui/CreatePreview";
 import { Button } from "../../ui/Button";
 import { createFrameMeter } from "../../state/frames";
 import { radius, spacing, useColors } from "../../theme/theme";
-import { ProviderMark, sessionIdentity } from "../../ui/ProviderMark";
+import { ProviderLabel, sessionIdentity } from "../../ui/ProviderMark";
 import { ConnectionTitle } from "../../ui/ConnectionTitle";
 import { Composer } from "../../ui/Composer";
 import { useFoldLayout } from "../../ui/FoldLayout";
@@ -51,6 +50,9 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   const listRef = useRef<FlashListRef<Row>>(null);
   const [atBottom, setAtBottom] = useState(true);
   const atBottomRef = useRef(true);
+  const scrollOffset = useRef(0);
+  const listHeight = useRef<number | null>(null);
+  const contentHeight = useRef(0);
   const previousRows = useRef<Row[]>([]);
   const meter = useRef(createFrameMeter("scroll-js-frame")).current;
   const sessionActions = useSessionActions();
@@ -124,7 +126,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
 
   const actions = useMemo<Actions>(
     () => ({
-      allow: (itemId) => store.respondPermission(id, itemId, "allow").then(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
+      allow: (itemId) => store.respondPermission(id, itemId, "allow"),
       deny: (itemId) => store.respondPermission(id, itemId, "deny"),
       answer: (itemId, answers) => store.answerQuestion(id, itemId, answers),
       plan: (itemId, decision) => store.respondPlan(id, itemId, decision),
@@ -134,6 +136,8 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    scrollOffset.current = contentOffset.y;
+    contentHeight.current = contentSize.height;
     const near = contentSize.height - (contentOffset.y + layoutMeasurement.height) < NEAR_BOTTOM;
     memory.offset = near ? null : contentOffset.y;
     if (near !== atBottomRef.current) {
@@ -143,6 +147,17 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   }, [memory]);
 
   const toEnd = useCallback((animated = true) => listRef.current?.scrollToEnd({ animated }), []);
+  const keepBottomEdge = useCallback(({ nativeEvent }: LayoutChangeEvent) => {
+    const previous = listHeight.current;
+    const next = nativeEvent.layout.height;
+    listHeight.current = next;
+    if (previous === null || previous === next) return;
+    const content = contentHeight.current;
+    const pinnedToEnd = content - (scrollOffset.current + previous) < NEAR_BOTTOM;
+    const offset = Math.max(0, pinnedToEnd ? content - next : scrollOffset.current + previous - next);
+    scrollOffset.current = offset;
+    void listRef.current?.scrollToOffset({ offset, animated: false });
+  }, []);
 
   const normalDockLimit = keyboardTop === undefined ? Math.min(availableHeight * 0.5, chatHeight - 40) : chatHeight - 40;
   const dockLimit = shortDock ? chatHeight : Math.max(120, normalDockLimit);
@@ -159,6 +174,8 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   );
 
   const running = agent?.status === "running";
+  const lastMessage = messages.at(-1);
+  const showWorking = running && !pending && !(lastMessage?.type === "steps" && lastMessage.running) && !(lastMessage?.type === "assistant" && lastMessage.item.streaming);
   const hasTimeline = !!timeline && (timeline.synced || timeline.cached || timeline.items.length > 0);
   const timelineError = !hasTimeline && conn === "online" ? timeline?.error : undefined;
   const reloadMessages = timelineError ? () => void store.syncTimeline(id) : undefined;
@@ -175,9 +192,9 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
         <View>
           {!hideChatToolbar && <View style={[styles.bar, expanded && styles.expandedBar]} pointerEvents={galleryOpen ? "none" : "auto"} accessibilityElementsHidden={galleryOpen} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"}>
             {!expanded && <ToolbarButton icon="chevron.left" label="Back" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />}
-            <ConnectionTitle title={title} subtitle={workspace} hidden={connectionInRail || galleryOpen || previewOpen || modelOpen} style={styles.title}>
+            <ConnectionTitle title={title} subtitle={workspace} hidden={connectionInRail || galleryOpen || previewOpen || modelOpen} style={styles.title}
+              detail={agent ? <ProviderLabel harness={agent.harness} workspaceId={agent.workspaceId} parts={[workspace]} state={state} maxFontSizeMultiplier={1.2} /> : undefined}>
               <View accessible accessibilityRole="header" accessibilityLabel={agent ? `${title}, ${sessionIdentity(agent.harness, state)}` : title} style={styles.titleLine}>
-                {agent && <ProviderMark harness={agent.harness} state={state} selected />}
                 <Text style={styles.titleText} color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
               </View>
             </ConnectionTitle>
@@ -206,7 +223,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
               </Text>}
             </View>
           ) : (
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1 }} onLayout={keepBottomEdge}>
               <FlashList
                 ref={listRef}
                 data={messages}
@@ -214,7 +231,8 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
                 getItemType={rowType}
                 renderItem={({ item }) => <ChatRow agentId={id} row={item} showGallery={showGallery} openPreview={openPreview} />}
                 ItemSeparatorComponent={Gap}
-                contentContainerStyle={{ paddingHorizontal: chatPadding, paddingVertical: spacing.sm }}
+                contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm, paddingBottom: spacing.lg }}
+                onContentSizeChange={(_, height) => { contentHeight.current = height; }}
                 maintainVisibleContentPosition={{ autoscrollToBottomThreshold: 0.25, startRenderingFromBottom: true, animateAutoScrollToBottom: false }}
                 onLoad={() => {
                   const offset = restoreOffset.current;
@@ -231,7 +249,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
                 keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="handled"
                 ListHeaderComponent={timeline?.loadingOlder ? <ActivityIndicator style={{ marginBottom: spacing.md }} /> : rows.length === 0 ? <Text color="textMuted" style={{ textAlign: "center" }}>No messages yet.</Text> : null}
-                ListFooterComponent={running ? <Working /> : null}
+                ListFooterComponent={showWorking ? <Working /> : null}
               />
               {!atBottom && (
                 <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => toEnd(true)} style={[styles.latestTarget, { right: chatPadding - 6 }]}>
@@ -294,12 +312,14 @@ function ToolbarButton({ icon, label, count, onPress }: { icon: ComponentProps<t
   </Pressable>;
 }
 
-const Gap = () => <View style={{ height: spacing.sm }} />;
+const Gap = ({ leadingItem, trailingItem }: { leadingItem?: Row; trailingItem?: Row }) =>
+  <View style={{ height: trailingItem?.type === "steps" && leadingItem?.type === "assistant" ? 0 : spacing.sm }} />;
 
 function Working() {
+  const colors = useColors();
   return (
     <View style={styles.working}>
-      <ActivityIndicator size="small" />
+      <ActivityIndicator size="small" color={colors.running} />
       <Text variant="secondary" color="textMuted">Working…</Text>
     </View>
   );
@@ -314,8 +334,8 @@ const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
   count: { fontVariant: ["tabular-nums"] },
   title: { flex: 1, minWidth: 0 },
-  titleText: { flexShrink: 1, fontSize: 16, lineHeight: 22, fontWeight: "600" },
-  titleLine: { flexDirection: "row", alignItems: "center", gap: 8 },
+  titleText: { flexShrink: 1, fontSize: 17, lineHeight: 22, fontWeight: "600" },
+  titleLine: { flexDirection: "row", alignItems: "center", marginBottom: 1 },
   opening: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.md },
   openingText: { flex: 1 },
   readingWidth: { width: 720, alignSelf: "center" },

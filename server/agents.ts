@@ -1377,6 +1377,7 @@ export class AgentRunner {
   }
 
   answerQuestion(agentId: string, itemId: string, answers: Record<string, string> | null) {
+    if (this.codex.hasApproval(agentId, itemId)) return this.codex.answerQuestion(agentId, itemId, answers);
     const pending = this.pending.get(`${agentId}:${itemId}`);
     if (!pending) throw new Error(T.errPermissionHandled);
     if (pending.toolName !== QUESTION_TOOL) throw new Error(T.errNeedsAnswer);

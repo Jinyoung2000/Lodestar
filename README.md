@@ -54,7 +54,7 @@ npm ci
 
 ## Run
 
-Build once, then start the Electron app. The app starts the daemon for you.
+Build once, then start the Electron app. The app starts a local background service for the daemon if one is not already running. Quitting Lodestar leaves the daemon and running agent turns active. Opening Lodestar again connects to the same daemon. Terminal shells in the app close with their windows.
 
 ```bash
 npm run build   # web UI to dist/, Electron and daemon bundles to dist-electron/

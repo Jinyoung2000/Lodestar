@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { app, BrowserWindow, screen } from "electron";
+import { BrowserWindow, screen } from "electron";
 import { afterNew, afterSend, barFromChat, blurAction, fitChatBounds, growFromBar, miniUrl, modeFor, parseMiniSaved, sameRect, serializeMiniSaved, type MiniMode, type MiniSaved, type Size } from "../shared/miniChat";
 import { clampQuickHeight, pickWorkArea, quickEntryBounds, quickInputPolicy, type Rect } from "../shared/quickEntry";
 
@@ -26,7 +26,6 @@ export type QuickEntryOptions = {
   colors: (theme: "dark" | "light") => { background: string; foreground: string; border: string };
   log: (message: string) => void;
   strings: { daemonDown: string };
-  yieldFocus: (hideWindow: () => void) => void;
 };
 
 export class QuickEntryWindow {
@@ -36,19 +35,10 @@ export class QuickEntryWindow {
   private saved: MiniSaved;
   private pinnedNow: boolean;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
-  private fromOutside = false;
 
   constructor(private readonly options: QuickEntryOptions) {
     this.saved = loadSaved(options.savedFile);
     this.pinnedNow = options.initialPinned;
-    app.on("browser-window-focus", (_event, focused) => {
-      if (focused !== this.win) this.fromOutside = false;
-    });
-    app.on("did-become-active", () =>
-      setImmediate(() => {
-        if (this.win && !this.win.isDestroyed() && this.win.isFocused()) this.fromOutside = true;
-      }),
-    );
   }
 
   private cardHeight: number | null = null;
@@ -128,13 +118,11 @@ export class QuickEntryWindow {
   toggle() {
     const shownWin = this.win;
     if (shownWin && this.visible && !shownWin.isFocused() && !this.settling && !this.options.inactive) {
-      this.fromOutside = !otherWindowFocused(shownWin);
-      shownWin.show();
       shownWin.focus();
       shownWin.webContents.send("agent-nav:quick-entry-show");
       return;
     }
-    if (this.visible) return this.dismiss();
+    if (this.visible) return this.hide();
     if (this.mode !== "chat") return this.show();
     const win = this.ensureWindow();
     this.startNew();
@@ -151,7 +139,6 @@ export class QuickEntryWindow {
 
   show() {
     const win = this.ensureWindow();
-    if (!win.isVisible()) this.fromOutside = !otherWindowFocused(win);
     if (this.loadFailed) {
       this.loadFailed = false;
       this.load(win);
@@ -159,22 +146,12 @@ export class QuickEntryWindow {
     this.place(win);
     this.shownAt = Date.now();
     if (this.options.inactive) win.showInactive();
-    else {
-      win.show();
-      win.focus();
-    }
+    else win.show();
     win.webContents.send("agent-nav:quick-entry-show");
   }
 
   hide() {
     if (this.win && !this.win.isDestroyed() && this.win.isVisible()) this.win.hide();
-  }
-
-  dismiss() {
-    const win = this.win;
-    if (!win || win.isDestroyed() || !win.isVisible()) return;
-    if (this.fromOutside && !this.options.inactive && !otherWindowFocused(win)) this.options.yieldFocus(() => this.hide());
-    else this.hide();
   }
 
   destroy() {
@@ -190,7 +167,7 @@ export class QuickEntryWindow {
     const win = this.ensureWindow();
     this.growTo(win, win.getBounds());
     this.load(win);
-    if (outcome.hide) this.dismiss();
+    if (outcome.hide) this.hide();
   }
 
   switchTo(agentId: string) {
@@ -312,10 +289,12 @@ export class QuickEntryWindow {
       maximizable: false,
       fullscreenable: false,
       skipTaskbar: true,
+      ...(process.platform === "darwin" ? { type: "panel" } : {}),
       acceptFirstMouse: true,
       title: "Lodestar Mini Chat",
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: options.preload },
     });
+    win.excludedFromShownWindowsMenu = true;
     this.win = win;
     if (options.invisible) {
       win.setOpacity(0);
@@ -335,11 +314,11 @@ export class QuickEntryWindow {
     });
     win.webContents.on("before-input-event", (event, input) => {
       if (input.type !== "keyDown") return;
-      if (this.loadFailed && input.key === "Escape") this.dismiss();
+      if (this.loadFailed && input.key === "Escape") this.hide();
       const verdict = quickInputPolicy({ key: input.key, code: input.code, meta: input.meta, control: input.control, alt: input.alt, shift: input.shift });
       if (verdict === "allow") return;
       event.preventDefault();
-      if (verdict === "hide") this.dismiss();
+      if (verdict === "hide") this.hide();
       if (verdict === "forward") {
         const detail = { code: input.code, key: input.key, metaKey: input.meta, ctrlKey: input.control, altKey: input.alt, shiftKey: input.shift };
         void win.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent("agent-nav:key", { detail: ${JSON.stringify(detail)} }))`).catch(() => undefined);
@@ -393,8 +372,4 @@ function chatChrome(win: BrowserWindow, chat: boolean) {
   if (chat && process.platform === "darwin") win.invalidateShadow();
   win.setAlwaysOnTop(!chat, "pop-up-menu");
   if (process.platform === "darwin") win.setVisibleOnAllWorkspaces(!chat, { visibleOnFullScreen: !chat, skipTransformProcessType: true });
-}
-
-function otherWindowFocused(win: BrowserWindow) {
-  return BrowserWindow.getAllWindows().some((other) => other !== win && !other.isDestroyed() && other.isFocused());
 }

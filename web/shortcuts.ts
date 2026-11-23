@@ -21,6 +21,7 @@ import { addFolderToSession, moveChatToFolder, removeFolderFromSession } from ".
 import { newProjectInNewSession, openFolderInNewSession } from "./folderOpen";
 import { createWorktreePr, mergeWorktree } from "./worktreeActions";
 import { answerToolApproval, pendingToolApproval } from "./approvalKeys";
+import { attachEditorSelection } from "./attachments";
 import { closeFocused, focusApproval, requestAttachMenu, scrollToPrompt, stepChatTab } from "./paneNav";
 import { cycleEffort } from "./Pickers";
 import { savePeekPreview } from "./peekView";
@@ -34,7 +35,6 @@ import {
   activeAgent,
   activePane,
   activeTab,
-  addAttachment,
   closeCard,
   dispatchBrowserAction,
   closeAllPanes,
@@ -426,7 +426,7 @@ export function runCommand(command: Command | string) {
         hint(S.noOpenFile);
         return;
       }
-      addAttachment(activePane().id, selection);
+      attachEditorSelection(activePane().id, selection);
       return;
     }
     case "interrupt": {

@@ -58,9 +58,11 @@ test("서브에이전트 안쪽 호출, 턴 결과, 복원 표시, 빈 어시스
   return "ok";
 });
 
-test("system 사용자 메시지와 알림은 notice 가 되고 오류는 error 행", () => {
-  const items: TimelineItem[] = [{ id: "s", kind: "user", text: "internal", source: "system" }, { id: "n", kind: "notice", text: "Compacted" }, { id: "e", kind: "error", text: "boom", auth: false }];
-  expect(shape(items) === "notice,notice,error", shape(items));
+test("system 사용자 메시지는 단계 묶음에 접히고, 알림은 notice, 오류는 error 행", () => {
+  const items: TimelineItem[] = [tool("t1", "Skill"), { id: "s", kind: "user", text: "internal", source: "system" }, tool("t2"), { id: "n", kind: "notice", text: "Compacted" }, { id: "e", kind: "error", text: "boom", auth: false }];
+  expect(shape(items) === "steps,notice,error", shape(items));
+  const steps = buildRows(items)[0];
+  expect(steps.type === "steps" && steps.steps.length === 3, "system note folded between tools");
   return "ok";
 });
 

@@ -2,6 +2,7 @@ import type { TimelineItem } from "../shared/protocol";
 import { windowStorage } from "./windowStorage";
 
 const drafts = new Map<string, string>();
+const draftListeners = new Set<() => void>();
 export const DRAFT_STORAGE_PREFIX = "agent-nav:draft:";
 export const DRAFT_SYNC_LIMIT = 20_000;
 export const DRAFT_DEBOUNCE_MS = 150;
@@ -89,11 +90,17 @@ export function getDraft(key: string) {
   return drafts.get(key) ?? "";
 }
 
+export function subscribeDraft(listener: () => void) {
+  draftListeners.add(listener);
+  return () => { draftListeners.delete(listener); };
+}
+
 export function setDraft(key: string, text: string) {
   if (text === (drafts.get(key) ?? "")) return;
   if (text) drafts.set(key, text);
   else drafts.delete(key);
   saveDraft(key);
+  for (const listener of draftListeners) listener();
 }
 
 export function restoreDrafts(saved: Record<string, string>) {

@@ -88,7 +88,7 @@ export const T = {
   },
   errCheckpointBeforeSwitch: "Checkpoints are only available for messages sent since the last switch to Claude",
   codexExtraPermission: "Codex asked for extra permissions (network or file access beyond the sandbox). This is not supported yet, so it was denied.",
-  codexUserInput: "Codex asked a question through a tool that Lodestar does not show yet, so it was skipped.",
+  codexUserInput: "Codex requested sensitive input or sent an unsupported question. The question was skipped.",
   codexElicitation: (server: string) => `The MCP server ${server} asked for input that Lodestar does not show yet, so it was declined.`,
   errPermissionHandled: "This permission request was already handled",
   errWorktreeShared: "Other sessions still use this worktree",

@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { createEntry, refreshFileList, validateNewPath } from "./editorDocs";
-import { renameEntry, runFilesAction, type FilesTarget } from "./filesActions";
+import { deleteEntries, renameEntry, runFilesAction, type FilesTarget } from "./filesActions";
 import { filesKeyAction, filesMenuItems, renamedPath, renameProblem, renameSelection, retargetPath, type FilesMenuAction, type FilesRowKind } from "./filesMenu";
-import { expandFolders, setFilesView, toggleFolder, useFilesView, type FilesSelected } from "./filesView";
+import { expandFolders, setFilesView, toggleFolder, useFilesView, type FilesPicked, type FilesSelected } from "./filesView";
 import { ChevronRight, Codicon } from "./icons";
 import { FileTypeIcon, FolderTypeIcon } from "./FileTypeIcon";
 import { toTarget } from "./lsp";
@@ -29,7 +29,7 @@ export function FilesTab({ workspaceId, agentId, root = null }: { workspaceId: s
   const agentChanged = useStore((s) => (agentId ? s.gitChanges[agentId] : undefined));
   const folderChanged = useWorkspaceChanges(root && !agentId && !root.missing ? workspaceId : null);
   const changed = agentId ? agentChanged : folderChanged ? { files: folderChanged } : undefined;
-  const { open, selected, rootOpen } = useFilesView(workspaceId);
+  const { open, selected, rootOpen, multi } = useFilesView(workspaceId);
   const base = root ? 1 : 0;
   const [rootMenu, setRootMenu] = useState<{ x: number; y: number } | null>(null);
   const setSelected = (next: Selected) => setFilesView(workspaceId, { selected: next });
@@ -70,8 +70,25 @@ export function FilesTab({ workspaceId, agentId, root = null }: { workspaceId: s
     setCreating({ dir, kind });
   };
 
+  const visible = useMemo(() => visibleRows(tree, open), [tree, open]);
+  const pick = (node: FilesPicked, e: React.MouseEvent) => {
+    if (e.shiftKey && selected) {
+      const from = visible.findIndex((row) => row.path === selected.path);
+      const to = visible.findIndex((row) => row.path === node.path);
+      if (from === -1 || to === -1) return false;
+      setFilesView(workspaceId, { selected, multi: visible.slice(Math.min(from, to), Math.max(from, to) + 1) });
+      return true;
+    }
+    if (!e.metaKey && !e.ctrlKey) return false;
+    const base = multi.length ? multi : selected ? [selected] : [];
+    const next = base.some((row) => row.path === node.path) ? base.filter((row) => row.path !== node.path) : [...base, node];
+    setFilesView(workspaceId, { selected: node, multi: next });
+    return true;
+  };
+  const inMulti = (path: string) => multi.length > 1 && multi.some((row) => row.path === path);
   const act = (action: FilesMenuAction, target: FilesTarget) => {
-    if (action === "newFile" || action === "newFolder") startCreate(action === "newFile" ? "file" : "folder", target.kind === "file" ? target.path.slice(0, Math.max(target.path.lastIndexOf("/"), 0)) : target.path);
+    if (action === "delete" && inMulti(target.path)) void deleteEntries(workspaceId, multi).then((done) => done && setFilesView(workspaceId, { selected: null }));
+    else if (action === "newFile" || action === "newFolder") startCreate(action === "newFile" ? "file" : "folder", target.kind === "file" ? target.path.slice(0, Math.max(target.path.lastIndexOf("/"), 0)) : target.path);
     else if (action === "rename") setRenaming(target.path);
     else runFilesAction(action, target);
   };
@@ -82,7 +99,7 @@ export function FilesTab({ workspaceId, agentId, root = null }: { workspaceId: s
     setFilesView(workspaceId, { open: next, selected: { path: to, file: isFile } });
   };
 
-  const rowProps = { open, statuses, dirtyDirs, onToggle: toggle, workspaceId, selected, creating, renaming, onSelect: setSelected, onCreateDone: () => setCreating(null), onMenu: setMenu, onAction: act, onRenameDone: () => setRenaming(null), onRenamed: renamed };
+  const rowProps = { open, statuses, dirtyDirs, onToggle: toggle, workspaceId, selected, multi, onPick: pick, creating, renaming, onSelect: setSelected, onCreateDone: () => setCreating(null), onMenu: setMenu, onAction: act, onRenameDone: () => setRenaming(null), onRenamed: renamed };
   const showHeader = !root || root.header;
   const body = (
     <>
@@ -213,6 +230,8 @@ type RowProps = {
   onToggle: (path: string) => void;
   workspaceId: string;
   selected: Selected;
+  multi: readonly FilesPicked[];
+  onPick: (node: FilesPicked, e: React.MouseEvent) => boolean;
   creating: Creating | null;
   renaming: string | null;
   onSelect: (selected: Selected) => void;
@@ -223,13 +242,14 @@ type RowProps = {
   onRenamed: (from: string, to: string, isFile: boolean) => void;
 };
 
-function TreeRow({ node, depth, open, statuses, dirtyDirs, onToggle, workspaceId, selected, creating, renaming, onSelect, onCreateDone, onMenu, onAction, onRenameDone, onRenamed }: RowProps) {
+function TreeRow({ node, depth, open, statuses, dirtyDirs, onToggle, workspaceId, selected, multi, onPick, creating, renaming, onSelect, onCreateDone, onMenu, onAction, onRenameDone, onRenamed }: RowProps) {
   const indent = { paddingLeft: `calc(var(--space-2) + ${depth} * var(--space-3))` };
   const kind: FilesRowKind = node.file ? "file" : "folder";
   const target: FilesTarget = { workspaceId, path: node.path, kind };
+  const picked = multi.some((row) => row.path === node.path);
   const contextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    onSelect({ path: node.path, file: node.file });
+    if (!picked) onSelect({ path: node.path, file: node.file });
     onMenu({ path: node.path, kind, x: e.clientX, y: e.clientY });
   };
   const rowKey = (e: ReactKeyboardEvent) => {
@@ -249,10 +269,11 @@ function TreeRow({ node, depth, open, statuses, dirtyDirs, onToggle, workspaceId
         role="treeitem"
         className="tree-node"
         data-status={status}
-        data-selected={(selected?.file && selected.path === node.path) || undefined}
+        data-selected={picked || (!multi.length && selected?.file && selected.path === node.path) || undefined}
         style={indent}
         title={node.path}
         onClick={(e) => {
+          if (onPick({ path: node.path, file: true }, e)) return;
           onSelect({ path: node.path, file: true });
           if (e.altKey) openFile({ workspaceId, path: node.path }, { side: true });
           else openFile({ workspaceId, path: node.path }, { preview: true });
@@ -274,7 +295,7 @@ function TreeRow({ node, depth, open, statuses, dirtyDirs, onToggle, workspaceId
       </button>
     );
   }
-  const rowProps = { open, statuses, dirtyDirs, onToggle, workspaceId, selected, creating, renaming, onSelect, onCreateDone, onMenu, onAction, onRenameDone, onRenamed };
+  const rowProps = { open, statuses, dirtyDirs, onToggle, workspaceId, selected, multi, onPick, creating, renaming, onSelect, onCreateDone, onMenu, onAction, onRenameDone, onRenamed };
   return (
     <div role="group">
       <button
@@ -283,9 +304,10 @@ function TreeRow({ node, depth, open, statuses, dirtyDirs, onToggle, workspaceId
         aria-expanded={expanded}
         className="tree-node"
         data-dirty={dirtyDirs.has(node.path) || undefined}
-        data-selected={(selected && !selected.file && selected.path === node.path) || undefined}
+        data-selected={picked || (!multi.length && selected && !selected.file && selected.path === node.path) || undefined}
         style={indent}
-        onClick={() => {
+        onClick={(e) => {
+          if (onPick({ path: node.path, file: false }, e)) return;
           onSelect({ path: node.path, file: false });
           onToggle(node.path);
         }}
@@ -482,6 +504,18 @@ function TreeMenu({ menu, canAttach, onClose, onAction }: { menu: RowMenu | null
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+function visibleRows(tree: Node, open: ReadonlySet<string>): FilesPicked[] {
+  const rows: FilesPicked[] = [];
+  const walk = (node: Node) => {
+    for (const child of node.children) {
+      rows.push({ path: child.path, file: child.file });
+      if (!child.file && open.has(child.path)) walk(child);
+    }
+  };
+  walk(tree);
+  return rows;
 }
 
 function buildTree(paths: string[], emptyDirs: string[]): Node {

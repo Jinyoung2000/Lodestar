@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from "react";
 
 export type FilesSelected = { path: string; file: boolean } | null;
-export type FilesView = { open: ReadonlySet<string>; rootOpen: boolean; selected: FilesSelected };
+export type FilesPicked = { path: string; file: boolean };
+export type FilesView = { open: ReadonlySet<string>; rootOpen: boolean; selected: FilesSelected; multi: readonly FilesPicked[] };
 
-const EMPTY: FilesView = { open: new Set(), rootOpen: true, selected: null };
+const EMPTY: FilesView = { open: new Set(), rootOpen: true, selected: null, multi: [] };
 const views = new Map<string, FilesView>();
 const listeners = new Set<() => void>();
 
@@ -12,7 +13,8 @@ export function useFilesView(workspaceId: string): FilesView {
 }
 
 export function setFilesView(workspaceId: string, patch: Partial<FilesView>) {
-  views.set(workspaceId, { ...(views.get(workspaceId) ?? EMPTY), ...patch });
+  const reset = "selected" in patch && !("multi" in patch) ? { multi: [] } : {};
+  views.set(workspaceId, { ...(views.get(workspaceId) ?? EMPTY), ...reset, ...patch });
   for (const listener of listeners) listener();
 }
 

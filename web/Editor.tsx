@@ -34,7 +34,7 @@ import { breadcrumbSymbols } from "./breadcrumbSymbols";
 import { MissingFile } from "./MissingFile";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { languageFor } from "./languages";
-import { ChevronLeft, ChevronRight, Codicon, External, References } from "./icons";
+import { ChevronLeft, ChevronRight, Codicon, References } from "./icons";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { goToReferences, revealDefinitionAside } from "./peekCommands";
@@ -265,19 +265,6 @@ export function Editor({ tab, active }: Props) {
   }, [previewOn]);
   const toggleHtmlPreview = () => setHtmlPreview((before) => (before === null ? (viewRef.current?.state.doc.toString() ?? "") : null));
 
-  const openInVSCode = () => {
-    if (path === null) return;
-    const view = viewRef.current;
-    const head = view?.state.selection.main.head ?? 0;
-    const line = view?.state.doc.lineAt(head);
-    void rpc.call("files.openInVSCode", {
-      workspaceId,
-      path,
-      line: line?.number ?? 1,
-      column: line ? head - line.from + 1 : 1,
-    });
-  };
-
   return (
     <div className="editor" data-lsp-info={lspSummary(lspInfo, lspServers)} style={{ display: active ? "flex" : "none" }}>
       <div className="pane-header">
@@ -287,9 +274,11 @@ export function Editor({ tab, active }: Props) {
         <Button size="icon" aria-label={S.forwardKey(forwardKey)} title={S.forwardKey(forwardKey)} onClick={goForward}>
           <ChevronRight />
         </Button>
-        <FileTypeIcon name={path ?? ""} />
         {path === null ? (
-          <span className="editor-path">{S.untitledName(tab.kind === "untitled" ? tab.n : 0)}</span>
+          <>
+            <FileTypeIcon name="" />
+            <span className="editor-path">{S.untitledName(tab.kind === "untitled" ? tab.n : 0)}</span>
+          </>
         ) : (
           <Breadcrumbs tabKey={tabKey} workspaceId={workspaceId} path={path} deleted={!!flags.deleted} />
         )}
@@ -297,6 +286,11 @@ export function Editor({ tab, active }: Props) {
           <span className="editor-foreign" title={FV.deletedTip}>
             {FV.deletedSuffix}
           </span>
+        )}
+        {flags.readOnly && !blobSize && !image && path !== null && (
+          <Button size="icon" aria-label={FV.readOnlyTip(isOutsidePath(path))} title={FV.readOnlyTip(isOutsidePath(path))} data-testid="readonly-lock" onClick={() => void saveAsTab(tabKey)}>
+            <Codicon name="lock" size={14} />
+          </Button>
         )}
         {foreignProject && foreignFile && foreignSession && (
           <span className="editor-foreign" title={S.otherFolderTitle(foreignFile, foreignSession)} data-testid="editor-foreign">
@@ -340,11 +334,6 @@ export function Editor({ tab, active }: Props) {
             <References />
           </Button>
         )}
-        {path !== null && (
-          <Button size="icon" aria-label={S.openInVSCode} title={S.openInVSCode} onClick={openInVSCode}>
-            <External />
-          </Button>
-        )}
       </div>
       {tab.kind === "file" && <ConflictBar tabKey={tabKey} workspaceId={workspaceId} path={tab.path} />}
       {tab.kind === "file" && <EditorApproval workspaceId={workspaceId} path={tab.path} />}
@@ -361,18 +350,6 @@ export function Editor({ tab, active }: Props) {
           <Button size="sm" variant="secondary" title={FV.overwriteTip} aria-label={S.overwrite} onClick={() => void resolveConflict(tabKey)}>
             <Codicon name="save" size={14} />
             <span className="editor-banner-label">{S.overwrite}</span>
-          </Button>
-        </div>
-      )}
-      {flags.readOnly && !blobSize && !image && (
-        <div className="editor-banner" data-testid="readonly-banner">
-          <Codicon name="lock" className="editor-banner-icon" />
-          <span className="editor-banner-text" title={FV.readOnlyBanner}>
-            {FV.readOnlyBanner}
-          </span>
-          <Button size="sm" variant="secondary" title={FV.saveAs} aria-label={FV.saveAs} onClick={() => void saveAsTab(tabKey)}>
-            <Codicon name="save-as" size={14} />
-            <span className="editor-banner-label">{FV.saveAs}</span>
           </Button>
         </div>
       )}
@@ -834,3 +811,5 @@ function consumeReveal(tabKey: string, view: EditorView) {
     scroller.style.scrollBehavior = "";
   }, 300);
 }
+
+const isOutsidePath = (path: string) => path.startsWith("/") || path.startsWith("../");

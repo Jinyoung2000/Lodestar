@@ -69,7 +69,7 @@ export default function Connect() {
         </View>
         <View style={{ gap: spacing.xs }}>
           <Text variant="secondary" color="textMuted">Server address</Text>
-          <Text variant="caption" color="textMuted">Use a Wi-Fi address, a Tailscale IP, or your HTTPS .ts.net URL.</Text>
+          <Text variant="caption" color="textMuted">Enter your local address or your HTTPS tunnel URL.</Text>
           <TextInput
             value={address}
             onChangeText={setAddress}

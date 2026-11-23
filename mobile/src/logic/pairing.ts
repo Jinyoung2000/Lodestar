@@ -62,10 +62,10 @@ function parseManual(text: string): PairingInfo | null {
 
 export function parseServerAddress(raw: string, defaultPort = DEFAULT_PORT, preferSecure = false): Pick<PairingInfo, "hosts" | "port" | "secure"> | null {
   const address = raw.trim();
-  const https = /^https:\/\/([a-z0-9.-]+\.ts\.net)(?::(\d+))?\/?$/i.exec(address);
+  const https = /^https:\/\/((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:ts\.net|trycloudflare\.com))(?::(\d+))?\/?$/i.exec(address);
   if (https) {
     const port = Number(https[2] ?? 443);
-    return isLocalNetworkHost(https[1]) && validPort(port) ? { hosts: [https[1]], port, secure: true } : null;
+    return validPort(port) ? { hosts: [https[1]], port, secure: true } : null;
   }
   const local = /^([a-z0-9.,-]+)(?:[:\s](\d+))?$/i.exec(address);
   if (!local) return null;

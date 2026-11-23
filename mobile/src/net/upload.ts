@@ -1,8 +1,10 @@
-export type UploadTarget = { host: string; port: number; secure?: boolean; token: string };
+import { routeAddress, type ConnectionRoute } from "../logic/routes";
+
+export type UploadTarget = ConnectionRoute & { token: string };
 export type UploadResult = { id: string };
 
 export function uploadUrl(target: UploadTarget) {
-  return `${target.secure ? "https" : "http"}://${target.host}:${target.port}/mobile/images`;
+  return `${routeAddress(target)}/mobile/images`;
 }
 
 export function uploadHeaders(target: UploadTarget, name: string, mime: string): Record<string, string> {

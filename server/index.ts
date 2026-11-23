@@ -1,12 +1,12 @@
 import { spawn } from "node:child_process";
 import { allowProviderEnv } from "./claude";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage } from "node:http";
 import { homedir, hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { extname, join, resolve } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileStatus } from "../shared/mobile";
+import type { MobileDefaults, MobileWorkspaceIcons, MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileStatus } from "../shared/mobile";
 import { HARNESS_VALUES, harnessOf, type Harness, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
 import { switchBlock } from "../shared/harnessSwitch";
 import { AgentRunner } from "./agents";
@@ -28,6 +28,7 @@ import { mediaKey, mentionedMedia, resolveMediaBatch, type MediaContext } from "
 import { handleMedia } from "./mediaHttp";
 import { handleUpload } from "./fileAttach";
 import { lanHosts, makeOffer, MobileDevices, MobileServer, PairingCodes } from "./mobileAccess";
+import { WorkspaceIcons } from "./workspaceIcons";
 import { mobilePreview } from "./mobilePreview";
 import { listFolder } from "./mobileFolders";
 import { mobileModels } from "./mobileModels";
@@ -72,6 +73,7 @@ import { MetaService } from "./meta";
 import { localCommands } from "./skills";
 import { liveGroupLeaders, systemKillDeps, terminateGroups } from "./processGroups";
 import { createDaemonShutdown } from "./shutdown";
+import { lockDaemonFile } from "./daemonLock";
 import { RestartScheduler, restartWaitMs } from "../shared/restartGate";
 import { importActivity, importVscodeSessions, listVscodeSessions, markSynced, reconcileBeforeTurn, type ImportDeps } from "./vscodeImport";
 import { bridgePty } from "./pty";
@@ -87,6 +89,7 @@ import { WebBuildWatch } from "./webBuildWatch";
 process.env.PATH = withLoginPath(process.env.PATH);
 
 const PORT = Number(process.env.AGENT_NAV_PORT ?? 7788);
+const daemonControl = process.env.AGENT_NAV_DAEMON_CONTROL;
 const DEV_WEB_PORT = 5173;
 const ROOT = process.env.AGENT_NAV_ROOT ?? resolve(import.meta.dirname, "..");
 const DIST = join(ROOT, "dist");
@@ -98,6 +101,12 @@ const RUNTIME: RuntimeInfo = {
   root: ROOT,
   note: process.env.AGENT_NAV_RUNTIME_NOTE || null,
 };
+mkdirSync(HOME, { recursive: true });
+const dataLock = process.platform === "darwin" ? lockDaemonFile(join(HOME, "daemon.lock")) : undefined;
+if (dataLock === null) {
+  console.error("[daemon] the data folder is already in use");
+  process.exit(75);
+}
 const TOKEN = loadToken();
 const MEDIA_KEY = mediaKey(TOKEN);
 
@@ -355,7 +364,7 @@ function daemonBuild() {
 const busyNow = () => runner.activeCount() + quick.activeCount() + side.activeCount() + termAsk.activeCount() + feedback.checkingCount();
 
 if (process.env.AGENT_NAV_PACKAGED === "1" && !process.env.AGENT_NAV_HOME && process.env.AGENT_NAV_NO_AUTOUPDATE !== "1") {
-  new IdleUpdater({ home: HOME, srcRoot: SRC_ROOT, enabled: () => store.settings.autoUpdateWhenIdle !== false, busy: busyNow, startedAt: daemonStartedAt, restart: () => restartScheduler.request(), log: console.log }).start();
+  new IdleUpdater({ home: HOME, srcRoot: SRC_ROOT, enabled: () => store.settings.autoUpdateWhenIdle !== false, busy: busyNow, startedAt: daemonStartedAt, restart: () => restartScheduler.request(), log: console.log, daemonControl }).start();
 }
 
 const restartScheduler = new RestartScheduler({
@@ -369,6 +378,8 @@ const restartScheduler = new RestartScheduler({
   clearTimer: (handle) => clearTimeout(handle as NodeJS.Timeout),
 });
 
+let restartAfterExit = false;
+
 function restartDaemon() {
   console.log("[daemon] restarting");
   store.flush();
@@ -376,16 +387,25 @@ function restartDaemon() {
     process.parentPort.postMessage({ type: "restart" });
     return;
   }
-  spawn(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { detached: true, stdio: "inherit", env: process.env, cwd: process.cwd() }).unref();
-  setTimeout(() => process.exit(0), 300);
+  if (daemonControl) {
+    process.send?.({ type: "restart" });
+    return;
+  }
+  restartAfterExit = true;
+  void daemonShutdown("restart");
 }
 
 const metaService = new MetaService(ROOT, (next) => broadcast({ type: "meta", meta: next }), () => runner.liveQueries());
 process.once("exit", () => {
-  store.flush();
-  metaService.close();
-  runner.closeAll();
-  store.flush();
+  try {
+    store.flush();
+    metaService.close();
+    runner.closeAll();
+    store.flush();
+  } finally {
+    if (dataLock !== undefined) closeSync(dataLock);
+  }
+  if (restartAfterExit) spawn(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { detached: true, stdio: "inherit", env: process.env, cwd: process.cwd() }).unref();
 });
 void metaService.refresh();
 const daemonShutdown = createDaemonShutdown({
@@ -406,6 +426,12 @@ const daemonShutdown = createDaemonShutdown({
 process.parentPort?.on("message", (event) => {
   if (event.data?.type === "shutdown") void daemonShutdown("shutdown message");
 });
+if (daemonControl) {
+  process.on("message", (message: { type?: string }) => {
+    if (message?.type === "shutdown") void daemonShutdown("shutdown message");
+  });
+  process.on("disconnect", () => void daemonShutdown("supervisor disconnected"));
+}
 for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, () => void daemonShutdown(`signal ${signal}`));
 process.on("unhandledRejection", (reason) => console.error("[daemon] unhandled rejection:", reason instanceof Error ? (reason.stack ?? reason.message) : reason));
 
@@ -574,6 +600,7 @@ function phoneAgent(id: string) {
 }
 
 const phoneModels = mobileModels(store, runner, metaService);
+const workspaceIcons = new WorkspaceIcons();
 const phoneModelChanges = new Set<string>();
 
 async function createPhoneSession({ workspaceId, prompt, images, worktree }: MobileSessionRequest, selection?: MobileModelSelection) {
@@ -593,6 +620,8 @@ async function createPhoneSession({ workspaceId, prompt, images, worktree }: Mob
 
 const mobileHandlers: Record<string, (params: never, client: WebSocket) => unknown> = {
   "mobile.ping": () => ({ now: Date.now() }),
+  "mobile.defaults": (): MobileDefaults => ({ requestQueuing: defaultsReader.resolve(store.settings).requestQueuing.value }),
+  "mobile.workspaceIcons": (): MobileWorkspaceIcons => Object.fromEntries(store.workspaces.filter((w) => !w.feedback).map((w) => [w.id, workspaceIcons.icon(w.dir)])),
   "workspaces.list": () => store.workspaces.filter((w) => !w.feedback),
   "agents.list": () => store.agents.filter((a) => !a.feedbackId),
   "agents.timelinePage": ({ agentId, limit, beforeId }: { agentId: string; limit: number; beforeId?: string }) => {
@@ -810,6 +839,7 @@ server.on("error", (error: NodeJS.ErrnoException) => {
   else throw error;
 });
 server.listen(PORT, "127.0.0.1", () => {
+  if (daemonControl) process.send?.({ type: "daemon-ready" });
   void primeLoginPath(
     (line) => console.log(line),
     () => (process.env.PATH = withLoginPath(process.env.PATH)),

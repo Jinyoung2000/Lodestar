@@ -140,9 +140,10 @@ export function usePreview(agentId: string, files: readonly Preview[] = []) {
     setSelected(request);
     if (!("target" in file)) return;
     try {
-      const content = client.status !== "online"
-        ? file.kind === "image" && file.thumb ? undefined : cachedThumbnail(agentId, file.itemId, file.target)
-        : await client.call("mobile.preview", { agentId, itemId: file.itemId, target: file.target });
+      const cached = cachedThumbnail(agentId, file.itemId, file.target);
+      const content = cached ?? (client.status === "online"
+        ? await client.call("mobile.preview", { agentId, itemId: file.itemId, target: file.target })
+        : undefined);
       if (!content) throw new Error("Connect to your Mac to open this file.");
       setSelected((current) => current === request ? { file, content } : current);
     } catch (error) {

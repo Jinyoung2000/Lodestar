@@ -6,6 +6,7 @@ import { BreadcrumbMenu, type MenuClose, type MenuSource } from "./BreadcrumbMen
 import { crumbsFor, listable, symbolTone, type PickTarget } from "./breadcrumbModel";
 import { currentBreadcrumbSymbols, useBreadcrumbSymbols } from "./breadcrumbSymbols";
 import { symbolIcon, type SymbolNode } from "./documentSymbols";
+import { FileTypeIcon } from "./FileTypeIcon";
 import { expandFolders, revealFilePath, setFilesView } from "./filesView";
 import { Codicon } from "./icons";
 import { viewFor } from "./lsp";
@@ -132,6 +133,11 @@ export function Breadcrumbs({ tabKey, workspaceId, path, deleted }: { tabKey: st
             {crumb.kind === "symbol" && (
               <span className="breadcrumb-symbol" data-tone={symbolTone(crumb.node.kind)}>
                 <Codicon name={symbolIcon(crumb.node.kind)} />
+              </span>
+            )}
+            {crumb.kind === "file" && (
+              <span className="breadcrumb-symbol">
+                <FileTypeIcon name={crumb.label} />
               </span>
             )}
             <span className="breadcrumbs-label">{crumb.label}</span>

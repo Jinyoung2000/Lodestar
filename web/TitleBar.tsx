@@ -7,12 +7,12 @@ import { FeedbackButton } from "./Feedback";
 import { Codicon, FileIcon, FolderCompact, PanelBottom, PanelLeft, PanelRight, Refresh, Sync, VSCodeIcon, WorktreeCompact } from "./icons";
 import { rpc } from "./rpc";
 import { activeAgentOf } from "./activeAgentOf";
-import { editorGitWorkspaceOf } from "./editorChat";
+import { chatPaneWorkspace, chatProject, editorGitWorkspaceOf } from "./editorChat";
 import { chatHiddenInEditor } from "./focusLayout";
 import { useLayoutConfig } from "./layoutConfigStore";
 import { runCommand } from "./shortcuts";
 import { sidebarPeek } from "./peekController";
-import { flash, focusPane, getState, goBackSession, goForwardSession, openBrowser, openInVSCode, refreshGit, setState, topWorkspaceId, useStore, type BrowserTab } from "./store";
+import { flash, focusPane, getState, goBackSession, goForwardSession, openBrowser, openInVSCode, refreshGit, setState, useStore, type BrowserTab } from "./store";
 import { confirmAction } from "./ConfirmDialog";
 import { fetchFlow, pullFlow, pushFlow } from "./gitSync";
 import { S } from "./strings";
@@ -60,17 +60,19 @@ export function TitleBar() {
   const leftOn = editorLayout ? focusSideOpen : sidebarOpen;
   const rightOn = editorLayout ? chatShown : rightOpen;
   const [busy, setBusy] = useState<"sync" | "fetch" | null>(null);
-  const chatDraft = useStore((s) => s.panes.some((p) => p.id === s.activePaneId && p.kind === "draft" && p.workspaceId === null));
-  const project = chatDraft ? undefined : workspaces.find((w) => w.id === (agent ? topWorkspaceId(agent.workspaceId) : activeWorkspaceId));
-  const projectName = project?.name ?? null;
   const panes = useStore((s) => s.panes);
   const activePaneId = useStore((s) => s.activePaneId);
   const agents = useStore((s) => s.agents);
+  const activePane = panes.find((pane) => pane.id === activePaneId);
+  const chatDraft = activePane?.kind === "draft" && activePane.workspaceId === null;
+  const titleWorkspaceId = activePane ? chatPaneWorkspace(activePane, agents) : activeWorkspaceId;
+  const projectId = chatProject(titleWorkspaceId, workspaces);
+  const projectName = (workspaces.find((workspace) => workspace.id === projectId) ?? workspaces.find((workspace) => workspace.id === titleWorkspaceId))?.name ?? null;
   const splitProjects = useMemo(() => {
     const list: { paneId: string; id: string; name: string; active: boolean }[] = [];
     for (const pane of panes) {
-      const wsId = pane.kind === "agent" ? (agents.find((a) => a.id === pane.agentId)?.workspaceId ?? null) : pane.workspaceId;
-      const top = wsId ? (workspaces.find((w) => w.id === wsId)?.parentId ?? wsId) : null;
+      const wsId = chatPaneWorkspace(pane, agents);
+      const top = chatProject(wsId, workspaces);
       const ws = top ? workspaces.find((w) => w.id === top) : undefined;
       if (!ws) continue;
       const seen = list.find((x) => x.id === ws.id);
@@ -81,6 +83,7 @@ export function TitleBar() {
   }, [panes, activePaneId, agents, workspaces]);
   useEffect(() => {
     document.title = projectName ?? APP_TITLE;
+    return () => { document.title = APP_TITLE; };
   }, [projectName]);
 
   const autoFetchId = centerView === "sessions" && !gitWorkspace && agent && !agent.feedbackId && agentInfo?.upstream ? agent.id : null;
@@ -178,7 +181,7 @@ export function TitleBar() {
             ))}
           </div>
         ) : (
-          <CommandCenter agent={agent} folder={project?.name ?? null} branch={info?.branch ?? (gitWorkspace ? null : agent?.worktree?.branch ?? null)} inRepo={!!info?.repoRoot} viewName={centerView === "sessions" ? null : CENTER_VIEW_NAME[centerView]} />
+          <CommandCenter agent={agent} folder={projectName} branch={info?.branch ?? (gitWorkspace ? null : agent?.worktree?.branch ?? null)} inRepo={!!info?.repoRoot} viewName={centerView === "sessions" ? null : CENTER_VIEW_NAME[centerView]} />
         )}
         <TitleBranch agent={agent} workspace={gitWorkspace} info={info} sessionsView={centerView === "sessions"} />
         <Button size="icon" aria-label={S.openFile} title={S.openFileKey(openFileKey)} onClick={() => runCommand("quickOpen")}>
@@ -260,8 +263,10 @@ function CommandCenter({ agent, folder, branch, inRepo, viewName }: { agent: Age
   const name = folder ?? S.noWorkspace;
   if (viewName) {
     return (
-      <button type="button" className="command-center" title={S.showSessionsViewTip(viewName)} onClick={() => setState({ overlay: { kind: "sessions" } })}>
-        <span className="cc-prefix">{viewName}</span>
+      <button type="button" className="command-center" title={S.showSessionsViewTip(viewName, folder)} onClick={() => setState({ overlay: { kind: "sessions" } })}>
+        {folder && <span className="cc-folder">{folder}</span>}
+        {folder && <span className="cc-dot" />}
+        <span className="cc-view">{viewName}</span>
       </button>
     );
   }

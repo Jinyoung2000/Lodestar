@@ -3,6 +3,7 @@ import { AppState } from "react-native";
 import { RpcClient } from "../net/rpc";
 import { pairWithHost, type PairOutcome } from "../net/pair";
 import type { PairingInfo } from "../logic/pairing";
+import { routeAddress, routesFromAddress, type ConnectionRoute } from "../logic/routes";
 import { clearConnection, asyncCache, loadConnection, saveConnection, type Connection } from "./storage";
 import type { SessionSort } from "@shared/protocol";
 import { DEFAULT_SESSION_SORT } from "../logic/workspaces";
@@ -52,7 +53,7 @@ export function bootstrap(): Promise<void> {
 let offlineSince: number | null = null;
 let foregroundAt: number | null = null;
 client.onStatus((status) => {
-  console.log(`[conn] ${status}${client.host ? ` via ${client.host}` : ""}`);
+  console.log(`[conn] ${status}${client.route ? ` via ${routeAddress(client.route)}` : ""}`);
   if (status === "unauthorized") stopAlerts();
   if (status === "offline" && offlineSince === null) offlineSince = Date.now();
   if (status === "online") {
@@ -84,9 +85,7 @@ export async function pairAndConnect(info: PairingInfo, deviceName: string): Pro
   clearSessionViews();
   await store.reset();
   const saved: Connection = {
-    hosts: [outcome.host, ...info.hosts.filter((h) => h !== outcome.host)],
-    port: info.port,
-    secure: info.secure,
+    routes: routesFromAddress(info),
     token: outcome.result.deviceToken,
     deviceId: outcome.result.deviceId,
     hostName: outcome.result.host,
@@ -110,9 +109,9 @@ export async function unpair() {
   store.attach(client);
 }
 
-export async function updateHosts({ hosts, port, secure }: Pick<Connection, "hosts" | "port" | "secure">) {
+export async function updateRoutes(routes: ConnectionRoute[]) {
   if (!connection) return;
-  const next = { ...connection, hosts, port, secure };
+  const next = { ...connection, routes };
   await saveConnection(next);
   setConnection(next);
   client.configure(next);

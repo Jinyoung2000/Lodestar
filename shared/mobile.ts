@@ -1,7 +1,7 @@
 // MOBILE: iOS 클라이언트(mobile/)가 데몬의 모바일 포트와 주고받는 값. 데몬(server/mobileAccess.ts), 웹 Settings, 모바일 앱이 같은 모양을 쓴다.
 import type { SwitchBlock } from "./harnessSwitch";
 import type { PickerModel } from "./modelChoices";
-import type { EffortLevel, Harness, ImageRef, TimelineItem } from "./protocol";
+import type { EffortLevel, Harness, ImageRef, RequestQueuing, TimelineItem } from "./protocol";
 
 export const MOBILE_PROTOCOL = 1;
 
@@ -9,6 +9,8 @@ export const MOBILE_PROTOCOL = 1;
 // 이미지 올리기는 RPC 가 아니라 HTTP(POST /mobile/images)로 한다.
 export const MOBILE_METHODS = [
   "mobile.ping",
+  "mobile.defaults",
+  "mobile.workspaceIcons",
   "workspaces.list",
   "agents.list",
   "agents.timelinePage",
@@ -47,6 +49,10 @@ export const MOBILE_EVENT_TYPES = ["workspaces", "agent", "agentRemoved", "timel
 
 // 연결 직후 인증을 마치면 서버가 한 번 보내는 메시지
 export type MobileReady = { protocol: number; host: string; serverTime: number };
+
+export type MobileDefaults = { requestQueuing: RequestQueuing };
+
+export type MobileWorkspaceIcons = Record<string, string | null>;
 
 export type MobilePreview = { kind: "html"; html: string } | { kind: "image"; uri: string } | { kind: "markdown" | "svg" | "csv"; text: string };
 

@@ -45,10 +45,11 @@ const CONNECTION_LABELS: Record<ConnStatus, string | undefined> = {
   unauthorized: "Pair again",
 };
 
-export function ConnectionTitle({ children, title, subtitle, hidden, maxFontSizeMultiplier = 1.2, style }: {
+export function ConnectionTitle({ children, title, subtitle, detail, hidden, maxFontSizeMultiplier = 1.2, style }: {
   children: ReactNode;
   title: string;
   subtitle?: string;
+  detail?: ReactNode;
   hidden?: boolean;
   maxFontSizeMultiplier?: number;
   style?: StyleProp<ViewStyle>;
@@ -61,7 +62,7 @@ export function ConnectionTitle({ children, title, subtitle, hidden, maxFontSize
   const content = (
     <>
       {children}
-      {!!text && <Text
+      {!label && detail ? detail : !!text && <Text
         accessibilityLiveRegion={label ? "polite" : "none"}
         variant="caption"
         color={canReconnect ? "accentText" : "textMuted"}

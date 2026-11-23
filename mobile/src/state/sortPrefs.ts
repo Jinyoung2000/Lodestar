@@ -2,14 +2,19 @@ import type { SessionSort } from "@shared/protocol";
 import { PROJECT_SORTS, type ProjectSort } from "../logic/workspaces";
 import type { Cache } from "./store";
 
+export type ListGrouping = "workspace" | "time";
+export type ListView = { grouping: ListGrouping; ordering: SessionSort };
+
 export type SortPrefs = {
   projects: { sort: ProjectSort; order: string[] };
   sessions: Record<string, SessionSort>;
   collapsed: string[];
+  list: ListView;
 };
 
 export const SORT_PREFS_KEY = "pref:sort";
-export const EMPTY_SORT_PREFS: SortPrefs = { projects: { sort: "activity", order: [] }, sessions: {}, collapsed: [] };
+export const DEFAULT_LIST_VIEW: ListView = { grouping: "workspace", ordering: "updated" };
+export const EMPTY_SORT_PREFS: SortPrefs = { projects: { sort: "activity", order: [] }, sessions: {}, collapsed: [], list: DEFAULT_LIST_VIEW };
 
 export class SortPrefsStore {
   private state: SortPrefs = EMPTY_SORT_PREFS;
@@ -49,6 +54,10 @@ export class SortPrefsStore {
     this.update({ ...this.state, sessions: { ...this.state.sessions, [workspaceId]: sort } });
   }
 
+  setListView(view: Partial<ListView>) {
+    this.update({ ...this.state, list: { ...this.state.list, ...view } });
+  }
+
   toggleGroup(key: string) {
     const { collapsed } = this.state;
     this.update({ ...this.state, collapsed: collapsed.includes(key) ? collapsed.filter((id) => id !== key) : [...collapsed, key] });
@@ -69,7 +78,7 @@ export class SortPrefsStore {
 export function parseSortPrefs(raw: string | null): SortPrefs {
   if (!raw) return EMPTY_SORT_PREFS;
   try {
-    const data = JSON.parse(raw) as { projects?: { sort?: unknown; order?: unknown }; sessions?: unknown; collapsed?: unknown };
+    const data = JSON.parse(raw) as { projects?: { sort?: unknown; order?: unknown }; sessions?: unknown; collapsed?: unknown; list?: { grouping?: unknown; ordering?: unknown } };
     const sort = PROJECT_SORTS.find((s) => s === data.projects?.sort) ?? "activity";
     const order = Array.isArray(data.projects?.order) ? [...new Set(data.projects.order.filter((id): id is string => typeof id === "string"))] : [];
     const sessions: Record<string, SessionSort> = {};
@@ -77,7 +86,11 @@ export function parseSortPrefs(raw: string | null): SortPrefs {
       for (const [id, value] of Object.entries(data.sessions)) if (value === "created" || value === "updated") sessions[id] = value;
     }
     const collapsed = Array.isArray(data.collapsed) ? [...new Set(data.collapsed.filter((id): id is string => typeof id === "string"))] : [];
-    return { projects: { sort, order }, sessions, collapsed };
+    const list: ListView = {
+      grouping: data.list?.grouping === "time" ? "time" : "workspace",
+      ordering: data.list?.ordering === "created" ? "created" : "updated",
+    };
+    return { projects: { sort, order }, sessions, collapsed, list };
   } catch {
     return EMPTY_SORT_PREFS;
   }

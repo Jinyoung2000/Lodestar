@@ -9,6 +9,7 @@ import { MAX_IMAGE_BYTES } from "../shared/images";
 import type { ServerEvent, TimelineItem } from "../shared/protocol";
 import { listFolder, resolveAddable, resolveFolder, BROWSE_LIMIT } from "../server/mobileFolders";
 import { AttemptLimiter, guardMobileCall, lanHosts, makeOffer, MobileDevices, MobileServer, PairingCodes, shapeMobileEvent } from "../server/mobileAccess";
+import { findWorkspaceIcon, WorkspaceIcons } from "../server/workspaceIcons";
 import { freeTestPort, useTestDaemon } from "./testDaemon";
 
 type Case = { name: string; run: () => Promise<string> };
@@ -164,6 +165,37 @@ function browseFixture() {
   symlinkSync(join(root, "Repos", "plain"), join(root, "Repos", "alias-plain"));
   return { root, outside, stop: () => (rmSync(root, { recursive: true, force: true }), rmSync(outside, { recursive: true, force: true })) };
 }
+
+test("프로젝트 아이콘: 앱 아이콘을 웹 파비콘보다 먼저 찾고, 모노레포 앱 폴더도 보며, 폴더 밖을 가리키는 링크와 svg 는 건너뛴다", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "workspace-icon-")));
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), "workspace-icon-outside-")));
+  const png = readFileSync(join(process.cwd(), "mobile", "assets", "project-marks", "claude.png"));
+  try {
+    writeFileSync(join(outside, "secret.png"), png);
+    mkdirSync(join(root, "public"), { recursive: true });
+    symlinkSync(join(outside, "secret.png"), join(root, "icon.png"));
+    writeFileSync(join(root, "public", "favicon.svg"), "<svg/>");
+    expect(findWorkspaceIcon(root) === null, "a link that leaves the folder and an svg give no icon");
+    writeFileSync(join(root, "public", "favicon.png"), png);
+    const favicon = findWorkspaceIcon(root);
+    expect(favicon?.path === join(root, "public", "favicon.png") && favicon.uri.startsWith("data:image/png;base64,"), `favicon found: ${favicon?.path}`);
+    mkdirSync(join(root, "assets"), { recursive: true });
+    writeFileSync(join(root, "assets", "icon.png"), png);
+    expect(findWorkspaceIcon(root)?.path === join(root, "assets", "icon.png"), "the app icon wins over the favicon");
+    const mono = realpathSync(mkdtempSync(join(tmpdir(), "workspace-icon-mono-")));
+    mkdirSync(join(mono, "apps", "web", "public"), { recursive: true });
+    writeFileSync(join(mono, "apps", "web", "public", "apple-touch-icon.png"), png);
+    expect(findWorkspaceIcon(mono)?.path === join(mono, "apps", "web", "public", "apple-touch-icon.png"), "monorepo app folder is searched");
+    rmSync(mono, { recursive: true, force: true });
+    const icons = new WorkspaceIcons();
+    const first = icons.icon(root);
+    expect(first !== null && icons.icon(root) === first, "the cached icon is returned again");
+    return expect(icons.icon(join(root, "missing")) === null, "a missing folder gives null");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
 
 test("폴더 둘러보기: 홈 아래 디렉터리 이름과 git 여부만 주고, 숨김과 시스템 폴더와 링크와 파일은 뺀다", () => {
   const f = browseFixture();

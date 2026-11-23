@@ -1,5 +1,5 @@
-import type { MobileBrowseResult, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
-import type { Agent, BranchesResult, Harness, ImageRef, PermissionDecision, ServerEvent, TimelineItem, Workspace } from "@shared/protocol";
+import type { MobileBrowseResult, MobileDefaults, MobileWorkspaceIcons, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
+import type { Agent, BranchesResult, Harness, ImageRef, PermissionDecision, RequestQueuing, ServerEvent, TimelineItem, Workspace } from "@shared/protocol";
 import { TransportError, type ConnStatus } from "../net/rpc";
 import { mergeTail, prependOlder, remove, upsert } from "../logic/timeline";
 import { markEnd, markStart, now, record } from "./perf";
@@ -30,6 +30,8 @@ export const MODEL_HARNESSES: Harness[] = ["claude", "codex", "antigravity"];
 export type State = {
   modelProviders: ModelProviders;
   modelPins: string[] | null;
+  requestQueuing: RequestQueuing;
+  workspaceIcons: MobileWorkspaceIcons;
   conn: ConnStatus;
   hostName: string | null;
   loaded: boolean;
@@ -52,7 +54,7 @@ const timelineKey = (id: string) => `cache:v1:tl:${id}`;
 const EMPTY: SessionTimeline = { items: [], hasMore: false, synced: false, cached: false, loading: false, loadingOlder: false };
 
 export class AppStore {
-  private state: State = { modelProviders: {}, modelPins: null, conn: "idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null };
+  private state: State = { modelProviders: {}, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null };
   private listeners = new Set<() => void>();
   private link: Link | null = null;
   private unsubscribers: (() => void)[] = [];
@@ -88,9 +90,9 @@ export class AppStore {
     const raw = await this.cache.get(INDEX_KEY);
     if (!raw) return false;
     try {
-      const index = JSON.parse(raw) as { agents: Agent[]; workspaces: Workspace[]; recent: string[]; hostName: string | null; modelProviders?: ModelProviders; modelPins?: string[] };
+      const index = JSON.parse(raw) as { agents: Agent[]; workspaces: Workspace[]; recent: string[]; hostName: string | null; modelProviders?: ModelProviders; modelPins?: string[]; workspaceIcons?: MobileWorkspaceIcons };
       this.recent = index.recent ?? [];
-      this.set({ modelProviders: index.modelProviders ?? {}, modelPins: index.modelPins ?? null, agents: index.agents, workspaces: index.workspaces, hostName: index.hostName ?? null, loaded: true });
+      this.set({ modelProviders: index.modelProviders ?? {}, modelPins: index.modelPins ?? null, workspaceIcons: index.workspaceIcons ?? {}, agents: index.agents, workspaces: index.workspaces, hostName: index.hostName ?? null, loaded: true });
       return true;
     } catch {
       return false;
@@ -134,7 +136,7 @@ export class AppStore {
     this.opened.clear();
     const keys = [INDEX_KEY, ...this.recent.map(timelineKey), ...Object.keys(this.state.timelines).map(timelineKey)];
     this.recent = [];
-    this.set({ modelProviders: {}, modelPins: null, conn: "idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null });
+    this.set({ modelProviders: {}, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null });
     await this.cache.remove([...new Set(keys)]).catch(() => {});
   }
 
@@ -163,10 +165,36 @@ export class AppStore {
       markEnd("list-sync", `${agents.length} sessions`);
       this.touchIndex();
       if (this.opened.size > 0) void link.call("agents.setOpen", { agentIds: [...this.opened] }).catch(() => {});
+      void this.loadDefaults(link, generation);
+      if (this.iconsGeneration !== generation || workspaces.some((w) => !(w.id in this.state.workspaceIcons))) void this.loadWorkspaceIcons(link, generation);
     } catch (error) {
       if (this.connectionGeneration !== generation) return;
       markEnd("list-sync", "failed");
       this.set({ error: message(error) });
+    }
+  }
+
+  private iconsGeneration = -1;
+
+  private async loadWorkspaceIcons(link: Link, generation: number) {
+    this.iconsGeneration = generation;
+    try {
+      const icons = await link.call("mobile.workspaceIcons", {}, 20_000) as MobileWorkspaceIcons;
+      if (this.connectionGeneration !== generation || !icons || typeof icons !== "object") return;
+      this.set({ workspaceIcons: icons });
+      this.touchIndex();
+    } catch {
+      return;
+    }
+  }
+
+  private async loadDefaults(link: Link, generation: number) {
+    try {
+      const defaults = await link.call("mobile.defaults", {}) as MobileDefaults;
+      if (this.connectionGeneration !== generation) return;
+      if (defaults.requestQueuing === "queue" || defaults.requestQueuing === "steer") this.set({ requestQueuing: defaults.requestQueuing });
+    } catch {
+      return;
     }
   }
 
@@ -357,8 +385,13 @@ export class AppStore {
     return request;
   }
 
-  warmModels() {
-    return Promise.all(MODEL_HARNESSES.map((harness) => this.loadProvider(harness)));
+  async warmModels() {
+    const results = await Promise.allSettled(MODEL_HARNESSES.map((harness) => this.loadProvider(harness)));
+    const failed = MODEL_HARNESSES.filter((_, index) => results[index].status === "rejected");
+    const missing = failed.filter((harness) => this.state.modelProviders[harness] === undefined);
+    if (missing.length) this.set({ modelProviders: { ...this.state.modelProviders, ...Object.fromEntries(missing.map((harness) => [harness, null])) } });
+    const firstError = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (firstError && failed.length === MODEL_HARNESSES.length && !MODEL_HARNESSES.some((harness) => this.state.modelProviders[harness])) throw firstError.reason;
   }
 
   async modelSwitchBlock(agentId: string, harness: Harness) {
@@ -511,7 +544,7 @@ export class AppStore {
     const writes: Promise<void>[] = [];
     for (const key of dirty) {
       if (key === "*index") {
-        writes.push(this.cache.set(INDEX_KEY, JSON.stringify({ agents: this.state.agents, workspaces: this.state.workspaces, recent: this.recent, hostName: this.state.hostName, modelProviders: this.state.modelProviders, modelPins: this.state.modelPins })));
+        writes.push(this.cache.set(INDEX_KEY, JSON.stringify({ agents: this.state.agents, workspaces: this.state.workspaces, recent: this.recent, hostName: this.state.hostName, modelProviders: this.state.modelProviders, modelPins: this.state.modelPins, workspaceIcons: this.state.workspaceIcons })));
         continue;
       }
       const timeline = this.state.timelines[key];

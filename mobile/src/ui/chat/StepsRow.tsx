@@ -16,16 +16,14 @@ export const StepsRow = memo(function StepsRow({ steps, decisions, running, fail
   const tools = steps.filter((s): s is ToolItem => s.kind === "tool");
   const active = [...tools].reverse().find((t) => t.status === "running") ?? tools[tools.length - 1];
   const line = active ? describeTool(active.name, active.input, active.status !== "running") : null;
-  const label = tools.length === 0 ? (steps.some((step) => step.kind === "permission") ? "Tool activity" : "Thinking") : tools.length === 1 || running ? `${line!.verb}${line!.detail ? ` ${line!.detail}` : ""}` : `${tools.length} steps`;
+  const label = tools.length === 0 ? (steps.some((step) => step.kind === "permission") ? "Tool activity" : steps.some((step) => step.kind === "thinking") ? "Thinking" : "System message") : tools.length === 1 || running ? `${line!.verb}${line!.detail ? ` ${line!.detail}` : ""}` : `${tools.length} steps`;
   return (
     <View>
       <Pressable accessibilityRole="button" accessibilityLabel={`${label}. ${open ? "Collapse" : "Expand"}`} accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} hitSlop={{ top: 4, bottom: 4 }} style={styles.header}>
-        <View style={styles.status}>{running ? <ActivityIndicator size="small" color={colors.running} /> : failed ? <Icon name="xmark.circle.fill" size={14} color="danger" /> : <Icon name={tools.length === 0 ? "ellipsis" : "checkmark.circle"} size={14} color="textMuted" />}</View>
-        <View style={{ flex: 1 }}>
-          <Text variant="secondary" color="textMuted" numberOfLines={1} style={styles.label}>
-            {label}
-          </Text>
-        </View>
+        {running && !open ? <ActivityIndicator size="small" color={colors.running} style={styles.status} /> : failed ? <View style={styles.status}><Icon name="xmark.circle.fill" size={14} color="danger" /></View> : null}
+        <Text variant="secondary" color="textMuted" numberOfLines={1} style={styles.label}>
+          {label}
+        </Text>
         <Icon name={open ? "chevron.up" : "chevron.down"} size={12} color="textSubtle" />
       </Pressable>
       {open && (
@@ -50,6 +48,16 @@ function decisionLabel(item: PermissionItem) {
 function StepLine({ step, decision }: { step: Step; decision?: PermissionItem }) {
   const colors = useColors();
   const [open, setOpen] = useState(false);
+  if (step.kind === "user") {
+    const text = step.shown ?? step.text;
+    return (
+      <Pressable onPress={() => setOpen((v) => !v)} style={styles.line} accessibilityRole="button" accessibilityState={{ expanded: open }}>
+        <Text variant="secondary" color="textMuted" numberOfLines={open ? undefined : 1} selectable={open} style={{ flex: 1 }}>
+          {open ? text : text.replace(/\s+/g, " ")}
+        </Text>
+      </Pressable>
+    );
+  }
   if (step.kind === "thinking") {
     return (
       <Pressable onPress={() => setOpen((v) => !v)} style={styles.line} accessibilityRole="button">
@@ -123,8 +131,8 @@ function clipLines(text: string, max: number) {
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 13, lineHeight: 18 },
-  header: { flexDirection: "row", alignItems: "center", minHeight: 32, gap: spacing.sm },
+  label: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
+  header: { alignSelf: "flex-start", maxWidth: "100%", flexDirection: "row", alignItems: "center", minHeight: 40, gap: spacing.xs },
   status: { width: 16, alignItems: "center" },
   list: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: spacing.xs },
   line: { flexDirection: "row", alignItems: "center", minHeight: 32, paddingHorizontal: spacing.sm },

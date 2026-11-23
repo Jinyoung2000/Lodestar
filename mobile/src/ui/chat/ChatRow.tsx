@@ -1,7 +1,8 @@
-import { memo } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { Pressable, Image, StyleSheet, View } from "react-native";
 import type { Row } from "../../logic/timeline";
 import { messagePreviews, type Preview } from "../../logic/previews";
+import { sessionViewState } from "../../state/sessionView";
 import { PreviewRow } from "../Preview";
 import { radius, spacing, useColors } from "../../theme/theme";
 import { Icon } from "../Icon";
@@ -23,11 +24,13 @@ export const ChatRow = memo(function ChatRow({ row, showGallery, openPreview, ag
         <View style={styles.userWrap}>
           <View style={imageOnly ? styles.imageBubble : [styles.userBubble, { backgroundColor: colors.userBubble }]}>
             {images.length > 0 && (
-              <View style={styles.thumbs}>
-                {images.map((image, index) => (
-                  <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Open ${image.title}`} onPress={() => openPreview(image)}><Image source={{ uri: image.thumb }} style={[styles.thumb, imageOnly && images.length === 1 && styles.singleImage, { backgroundColor: colors.surfaceBase }]} /></Pressable>
-                ))}
-              </View>
+              <ImageDisclosure key={item.id} agentId={agentId} itemId={item.id} count={images.length}>
+                <View style={styles.thumbs}>
+                  {images.map((image, index) => (
+                    <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Open ${image.title}`} onPress={() => openPreview(image)}><Image source={{ uri: image.thumb }} style={[styles.thumb, imageOnly && images.length === 1 && styles.singleImage, { backgroundColor: colors.surfaceBase }]} /></Pressable>
+                  ))}
+                </View>
+              </ImageDisclosure>
             )}
             {chips.map((chip, i) => (
               <Text key={i} variant="caption" color="textMuted" numberOfLines={1}>{`@ ${"label" in chip ? chip.label : ""}`}</Text>
@@ -74,8 +77,37 @@ export const ChatRow = memo(function ChatRow({ row, showGallery, openPreview, ag
 });
 
 function AttachmentGroup({ files, agentId, open, showGallery }: { files: Preview[]; agentId: string; open: (file: Preview) => void; showGallery: () => void }) {
-  const colors = useColors();
   if (!files.length) return null;
+  const images = files.filter(file => file.kind === "image");
+  const documents = files.filter(file => file.kind !== "image");
+  return <View style={{ gap: spacing.xs }}>
+    {documents.length > 0 && <FileRows files={documents} agentId={agentId} open={open} showGallery={showGallery} />}
+    {images.length > 0 && <ImageDisclosure key={images[0].itemId} agentId={agentId} itemId={images[0].itemId} count={images.length}>
+      <FileRows files={images} agentId={agentId} open={open} showGallery={showGallery} />
+    </ImageDisclosure>}
+  </View>;
+}
+
+function ImageDisclosure({ agentId, itemId, count, children }: { agentId: string; itemId: string; count: number; children: ReactNode }) {
+  const memory = sessionViewState(agentId).collapsedImages;
+  const [collapsed, setCollapsed] = useState(() => memory.has(itemId));
+  const toggle = () => {
+    if (collapsed) memory.delete(itemId);
+    else memory.add(itemId);
+    setCollapsed(!collapsed);
+  };
+  return <View>
+    <Pressable accessibilityRole="button" accessibilityState={{ expanded: !collapsed }} onPress={toggle} style={styles.imageToggle}>
+      <Icon name="photo" size={14} color="textMuted" />
+      <Text variant="caption" color="textMuted">{count === 1 ? "Image" : `${count} images`}</Text>
+      <Icon name={collapsed ? "chevron.right" : "chevron.down"} size={12} color="textMuted" />
+    </Pressable>
+    {!collapsed && children}
+  </View>;
+}
+
+function FileRows({ files, agentId, open, showGallery }: { files: Preview[]; agentId: string; open: (file: Preview) => void; showGallery: () => void }) {
+  const colors = useColors();
   const shown = files.slice(0, 3);
   return <View style={[styles.group, { borderColor: colors.separator, backgroundColor: colors.surface }]}>
     {shown.map((file, i) => <View key={i} style={[styles.fileLine, { borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.separator }]}>
@@ -90,6 +122,7 @@ function AttachmentGroup({ files, agentId, open, showGallery }: { files: Preview
 export const rowType = (row: Row) => (row.type === "user" ? "user" : row.type === "assistant" ? "assistant" : row.type === "steps" ? "steps" : row.type === "approval" || row.type === "question" || row.type === "plan" ? "card" : "small");
 
 const styles = StyleSheet.create({
+  imageToggle: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: spacing.xs, minHeight: 40 },
   userWrap: { alignItems: "flex-end" },
   userBubble: { maxWidth: "85%", borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, gap: spacing.xs },
   imageBubble: { maxWidth: "85%" },

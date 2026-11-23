@@ -1,8 +1,13 @@
 import type { MobileBrowseResult, MobileMethod, MobileModelCatalog, MobileModelSelection, MobilePreview, MobileReady, MobileSessionRequest } from "@shared/mobile";
 import type { Agent, Harness, RpcMethods, ServerEvent } from "@shared/protocol";
 import { reconnectDelay } from "../logic/backoff";
+import { hasMixedRoutes, routeAddress, routesFromAddress, routeSocketUrl, type ConnectionRoute } from "../logic/routes";
+import { routeHandshake } from "./routeAuth";
+import type { UploadTarget } from "./upload";
 
-export type Endpoint = { hosts: string[]; port: number; secure?: boolean; token: string };
+type RoutedEndpoint = { routes: ConnectionRoute[]; token: string; deviceId?: string };
+type LegacyEndpoint = { hosts: string[]; port: number; secure?: boolean; token: string };
+export type Endpoint = RoutedEndpoint | LegacyEndpoint;
 export type ConnStatus = "idle" | "connecting" | "online" | "offline" | "unauthorized";
 
 export type { MobileMethod };
@@ -23,7 +28,7 @@ type SocketLike = {
   close(code?: number, reason?: string): void;
   onopen: ((event: unknown) => void) | null;
   onmessage: ((event: { data: unknown }) => void) | null;
-  onclose: ((event: { code?: number }) => void) | null;
+  onclose: ((event: { code?: number; reason?: string }) => void) | null;
   onerror: ((event: unknown) => void) | null;
 };
 
@@ -46,22 +51,20 @@ export class TransportError extends Error {}
 
 export class RpcClient {
   status: ConnStatus = "idle";
-  host: string | null = null;
+  route: ConnectionRoute | null = null;
   rttMs: number | null = null;
-  private endpoint: Endpoint | null = null;
+  private endpoint: RoutedEndpoint | null = null;
   private socket: SocketLike | null = null;
-  private candidates: SocketLike[] = [];
+  private openingSocket: SocketLike | null = null;
   private nextId = 1;
   private pending = new Map<number, Pending>();
   private attempt = 0;
-  private lastGoodHost: string | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pingProbe: { id: number; result: Promise<number | undefined> } | null = null;
   private connectTimer: ReturnType<typeof setTimeout> | null = null;
   private wanted = false;
   private foreground = true;
-  private startNextHost: (() => boolean) | null = null;
   private generation = 0;
   private eventListeners = new Set<(event: ServerEvent) => void>();
   private statusListeners = new Set<(status: ConnStatus) => void>();
@@ -69,12 +72,22 @@ export class RpcClient {
 
   constructor(private opts: RpcOptions = {}) {}
 
+  get host() {
+    return this.route?.host ?? null;
+  }
+
+  imageUploadTarget(): UploadTarget | null {
+    if (this.status !== "online" || !this.route || !this.endpoint) return null;
+    const { routes, token } = this.endpoint;
+    const route = this.route.secure ? this.route : routes.find((candidate) => candidate.secure) ?? this.route;
+    return { ...route, token };
+  }
+
   configure(endpoint: Endpoint | null) {
-    this.endpoint = endpoint;
-    this.lastGoodHost = null;
+    this.endpoint = endpoint && ("routes" in endpoint ? endpoint : { routes: routesFromAddress(endpoint), token: endpoint.token });
     this.teardown();
     this.attempt = 0;
-    if (!endpoint) {
+    if (!this.endpoint?.routes.length) {
       this.wanted = false;
       this.setStatus("idle");
       return;
@@ -106,7 +119,7 @@ export class RpcClient {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     this.setStatus("connecting");
-    if (this.candidates.length === 0) this.open();
+    if (!this.openingSocket) this.open();
   }
 
   call<M extends MobileMethod>(method: M, params: MobileRpc[M]["params"], timeoutMs = 15_000): Promise<MobileRpc[M]["result"]> {
@@ -179,43 +192,57 @@ export class RpcClient {
     if (!endpoint || !this.wanted) return;
     const generation = ++this.generation;
     if (this.status !== "offline") this.setStatus("connecting");
-    const hosts = [...endpoint.hosts].sort((a, b) => Number(b === this.lastGoodHost) - Number(a === this.lastGoodHost));
-    let next = 0;
-    const startNext = () => {
-      if (generation !== this.generation || this.socket || next >= hosts.length) return false;
-      this.candidate(generation, hosts[next++], endpoint);
-      return true;
-    };
-    this.startNextHost = startNext;
-    startNext();
-    const stagger = this.opts.hostStaggerMs ?? 350;
-    const staggered = () => {
+    const { routes, deviceId, token } = endpoint;
+    const mixedRoutes = hasMixedRoutes(routes);
+    let index = 0;
+    let rejected = 0;
+    const next = (badToken = false) => {
       if (generation !== this.generation || this.socket) return;
-      if (startNext()) setTimeout(staggered, stagger);
+      this.clearOpeningSocket();
+      if (badToken) rejected++;
+      const route = routes[index++];
+      if (!route) {
+        if (rejected === routes.length) this.unauthorized();
+        else this.failAttempt(generation);
+        return;
+      }
+      const verifyRoute = mixedRoutes && !route.secure;
+      if (verifyRoute && !deviceId) return next();
+      const handshake = verifyRoute && deviceId ? routeHandshake(deviceId, token) : null;
+      const connectTimeout = this.opts.connectTimeoutMs ?? (route.secure ? 15_000 : 6000);
+      const fallbackTimeout = !route.secure && index < routes.length ? this.opts.hostStaggerMs ?? 1500 : connectTimeout;
+      this.connectTimer = setTimeout(next, Math.min(connectTimeout, fallbackTimeout));
+      this.candidate(route, token, handshake, next);
     };
-    if (hosts.length > 1) setTimeout(staggered, stagger);
-    this.connectTimer = setTimeout(() => {
-      if (generation === this.generation && !this.socket) this.failAttempt(generation);
-    }, this.opts.connectTimeoutMs ?? 6000);
+    next();
   }
 
-  private candidate(generation: number, host: string, endpoint: Endpoint) {
+  private candidate(route: ConnectionRoute, token: string, handshake: ReturnType<typeof routeHandshake> | null, next: (badToken?: boolean) => void) {
+    const address = routeAddress(route);
     let socket: SocketLike;
     try {
-      const authority = host.includes(":") ? `[${host}]` : host;
-      const port = endpoint.secure && endpoint.port === 443 ? "" : `:${endpoint.port}`;
-      socket = this.makeSocket(`${endpoint.secure ? "wss" : "ws"}://${authority}${port}/mobile/ws`);
-    } catch {
-      this.afterCandidateClosed(generation);
+      socket = this.makeSocket(routeSocketUrl(route));
+    } catch (error) {
+      this.opts.log?.(`[rpc] could not open ${address}: ${String(error)}`);
+      next();
       return;
     }
-    this.candidates.push(socket);
+    this.openingSocket = socket;
+    let authSent = false;
+    const send = (data: object) => {
+      try {
+        socket.send(JSON.stringify(data));
+      } catch {
+        next();
+      }
+    };
     socket.onopen = () => {
-      if (generation !== this.generation) return socket.close();
-      socket.send(JSON.stringify({ auth: endpoint.token }));
+      if (socket !== this.openingSocket) return;
+      authSent = handshake === null;
+      send(handshake?.request ?? { auth: token });
     };
     socket.onmessage = (message) => {
-      if (generation !== this.generation) return;
+      if (socket !== this.openingSocket && socket !== this.socket) return;
       let data: Record<string, unknown>;
       try {
         data = JSON.parse(String(message.data)) as Record<string, unknown>;
@@ -223,9 +250,20 @@ export class RpcClient {
         return;
       }
       if (!data || typeof data !== "object") return;
-      if (!this.socket) {
+      if (socket === this.openingSocket) {
+        if (!authSent) {
+          const auth = handshake?.verify(data);
+          if (!auth) {
+            this.opts.log?.(`[rpc] route proof rejected ${address}`);
+            next();
+            return;
+          }
+          authSent = true;
+          send(auth);
+          return;
+        }
         if (!("ready" in data)) return;
-        this.adopt(socket, host);
+        this.adopt(socket, route);
         for (const listener of this.readyListeners) listener(data.ready as MobileReady);
         return;
       }
@@ -242,37 +280,32 @@ export class RpcClient {
       if (typeof data.error === "string") pending.reject(new Error(data.error));
       else pending.resolve(data.result);
     };
-    socket.onerror = (event) => this.opts.log?.(`[rpc] socket error ${host} ${String((event as { message?: string })?.message ?? "")}`);
+    socket.onerror = (event) => this.opts.log?.(`[rpc] socket error ${address} ${String((event as { message?: string })?.message ?? "")}`);
     socket.onclose = (event) => {
-      this.opts.log?.(`[rpc] socket closed ${host} code=${event.code}`);
-      this.candidates = this.candidates.filter((c) => c !== socket);
-      if (generation !== this.generation) return;
-      if (event.code === 4401 || event.code === 4001) {
-        this.teardown();
-        this.wanted = false;
-        this.setStatus("unauthorized");
-        return;
+      this.opts.log?.(`[rpc] socket closed ${address} code=${event.code} ${event.reason ?? ""}`);
+      const rejected = event.code === 4001 || (event.code === 4401 && event.reason === "bad token");
+      if (socket === this.socket) {
+        if (rejected) this.unauthorized();
+        else this.lost();
+      } else if (socket === this.openingSocket) {
+        next(rejected && authSent);
       }
-      if (socket === this.socket) this.lost();
-      else this.afterCandidateClosed(generation);
     };
   }
 
-  private afterCandidateClosed(generation: number) {
-    if (generation !== this.generation || this.socket) return;
-    if (this.startNextHost?.()) return;
-    if (this.candidates.length === 0) this.failAttempt(generation);
+  private unauthorized() {
+    this.teardown();
+    this.wanted = false;
+    this.setStatus("unauthorized");
   }
 
-  private adopt(socket: SocketLike, host: string) {
+  private adopt(socket: SocketLike, route: ConnectionRoute) {
     if (this.connectTimer) clearTimeout(this.connectTimer);
     this.connectTimer = null;
+    this.openingSocket = null;
     this.socket = socket;
-    this.host = host;
-    this.lastGoodHost = host;
+    this.route = route;
     this.attempt = 0;
-    for (const other of this.candidates) if (other !== socket) other.close();
-    this.candidates = [socket];
     this.setStatus("online");
     this.startPing();
   }
@@ -337,22 +370,29 @@ export class RpcClient {
   private teardownSocket() {
     this.generation++;
     this.stopPing();
+    this.clearOpeningSocket();
+    if (this.socket) this.closeSocket(this.socket);
+    this.socket = null;
+    this.route = null;
+    this.rttMs = null;
+  }
+
+  private clearOpeningSocket() {
     if (this.connectTimer) clearTimeout(this.connectTimer);
     this.connectTimer = null;
-    const sockets = new Set([...this.candidates, ...(this.socket ? [this.socket] : [])]);
-    this.socket = null;
-    this.candidates = [];
-    for (const socket of sockets) {
-      socket.onclose = null;
-      socket.onmessage = null;
-      socket.onerror = null;
-      try {
-        socket.close();
-      } catch {
-      }
+    if (this.openingSocket) this.closeSocket(this.openingSocket);
+    this.openingSocket = null;
+  }
+
+  private closeSocket(socket: SocketLike) {
+    socket.onopen = null;
+    socket.onclose = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    try {
+      socket.close();
+    } catch {
     }
-    this.host = null;
-    this.rttMs = null;
   }
 
   private teardown() {

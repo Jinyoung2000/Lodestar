@@ -82,7 +82,7 @@ export type HandoffSeed = { agentId: string };
 export type ClosedPane = { agentId: string };
 const CLOSED_PANES_MAX = 10;
 
-export type Attachment = { id: string; workspaceId: string | null; path: string; startLine: number | null; endLine: number | null; text: string | null; session?: { title: string }; quote?: { comment: string }; note?: { title: string }; browser?: BrowserAttachment; handoff?: HandoffAttachment; image?: ImageAttachment; file?: FileAttachment };
+export type Attachment = { id: string; workspaceId: string | null; path: string; startLine: number | null; endLine: number | null; text: string | null; inlineRef?: string; session?: { title: string }; quote?: { comment: string }; note?: { title: string }; browser?: BrowserAttachment; handoff?: HandoffAttachment; image?: ImageAttachment; file?: FileAttachment };
 
 export type ImageAttachment = { mediaType: string; data: string; thumb: string; name: string; bytes: number; hash?: string };
 
@@ -1777,7 +1777,7 @@ export function reopenClosedPane() {
 
 export function activePaneKeepsDraft() {
   const active = state.panes.find((p) => p.id === state.activePaneId);
-  return active?.kind === "draft" && (!!getDraft(`new:${active.id}`).trim() || attachmentsOf(state, active.id).length > 0);
+  return active?.kind === "draft" && (!!getDraft(`new:${active.id}`).trim() || attachmentsOf(state, active.id).some((attachment) => !attachment.inlineRef));
 }
 
 export function openEditorChatSession(agentId: string) {

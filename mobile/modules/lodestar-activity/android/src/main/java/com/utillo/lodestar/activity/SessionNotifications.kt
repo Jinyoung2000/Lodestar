@@ -1,5 +1,6 @@
 package com.utillo.lodestar.activity
 
+import android.app.ActivityManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -73,7 +74,14 @@ internal class SessionNotifications(private val context: Context) {
     return notification.build()
   }
 
+  private fun appOnScreen(): Boolean {
+    val state = ActivityManager.RunningAppProcessInfo()
+    ActivityManager.getMyMemoryState(state)
+    return state.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+  }
+
   fun alert(session: Session, question: String? = null) {
+    if (appOnScreen()) return
     val title = when (session.status) {
       "waiting" -> "Your reply is needed"
       "idle" -> "Session finished"

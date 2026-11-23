@@ -2,7 +2,7 @@ import type { Attachment } from "./store";
 
 
 type DirOf = (workspaceId: string) => string | undefined;
-type Chip = Pick<Attachment, "workspaceId" | "path" | "startLine" | "endLine" | "session" | "note" | "browser" | "handoff" | "image" | "file" | "quote">;
+type Chip = Pick<Attachment, "workspaceId" | "path" | "startLine" | "endLine" | "inlineRef" | "session" | "note" | "browser" | "handoff" | "image" | "file" | "quote">;
 
 export function chipIdentity(a: Chip, dirOf: DirOf): string | null {
   if (a.quote) return null;
@@ -14,7 +14,7 @@ export function chipIdentity(a: Chip, dirOf: DirOf): string | null {
   if (a.browser?.kind === "notion") return `notion:${a.browser.pageKey}`;
   if (a.browser) return null;
   const range = a.startLine == null ? "" : `#${a.startLine}-${a.endLine ?? a.startLine}`;
-  return `file:${locate(a, dirOf).identity}${range}`;
+  return a.inlineRef ? `inline:${a.inlineRef}` : `file:${locate(a, dirOf).identity}${range}`;
 }
 
 export function findDuplicate<T extends Chip>(existing: readonly T[], incoming: Chip, dirOf: DirOf): T | undefined {

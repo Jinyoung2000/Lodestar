@@ -227,8 +227,9 @@ export function modelLabel(id: string, models: Pick<ModelInfo, "value" | "resolv
 }
 
 export function modelName(id: string, models: Pick<ModelInfo, "value" | "resolvedModel" | "displayName">[]) {
-  const known = models.find((m) => m.value !== "default" && (m.resolvedModel === id || m.value === id));
-  return known ? versionedDisplayName(known.displayName, known.resolvedModel ?? (id.startsWith("claude-") ? id : null)) : modelNameFromId(id);
+  const base = id.replace(/\[[^\]]*\]$/, "");
+  const known = models.find((m) => m.value !== "default" && (m.resolvedModel === base || m.value === base));
+  return known ? versionedDisplayName(known.displayName, known.resolvedModel ?? (base.startsWith("claude-") ? base : null)) : modelNameFromId(base);
 }
 
 export type InteractiveStep = {

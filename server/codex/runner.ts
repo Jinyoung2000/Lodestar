@@ -3,6 +3,7 @@ import type { Agent, CodexMeta, CodexModelInfo, EffortLevel, PermissionDecision,
 import { EFFORT_LEVELS } from "../../shared/protocol";
 import { CODEX_FALLBACK_MODE, codexPermission, codexSessionConfig, withWritableRoots } from "../../shared/codexPermission";
 import { isDirectory } from "../cwdWatch";
+import { cleanAnswers, QUESTION_TOOL } from "../interactiveTools";
 import { imagePath } from "../images";
 import { chatGuidance, sessionEnv } from "../sessionEnv";
 import type { Store } from "../store";
@@ -28,7 +29,7 @@ export type CodexHost = {
 };
 
 type ToolItem = Extract<TimelineItem, { kind: "tool" }>;
-type PendingApproval = { requestId: string | number; itemId: string; decide: (decision: CodexApprovalDecision) => void };
+type PendingApproval = { requestId: string | number; itemId: string; decide: (decision: CodexApprovalDecision) => void; answer?: (answers: Record<string, string> | null) => void };
 
 type Session = {
   agentId: string;
@@ -77,6 +78,7 @@ export class CodexRunner {
   private byThread = new Map<string, string>();
   private idleTimer: NodeJS.Timeout | null = null;
   private metaCache: { at: number; meta: CodexMeta } | null = null;
+  private metaReading: Promise<CodexMeta> | null = null;
 
   constructor(private host: CodexHost) {}
 
@@ -200,7 +202,14 @@ export class CodexRunner {
     const session = this.sessions.get(agentId);
     const pending = session?.approvals.get(itemId);
     if (!session || !pending) throw new Error(T.errPermissionHandled);
+    if (pending.answer && decision !== "deny") throw new Error(T.errNeedsAnswer);
     pending.decide(decision === "allow" ? "accept" : decision === "allowAlways" ? "acceptForSession" : "decline");
+  }
+
+  answerQuestion(agentId: string, itemId: string, answers: Record<string, string> | null) {
+    const pending = this.sessions.get(agentId)?.approvals.get(itemId);
+    if (!pending?.answer) throw new Error(T.errPermissionHandled);
+    pending.answer(answers);
   }
 
   async remove(agentId: string) {
@@ -223,10 +232,21 @@ export class CodexRunner {
   }
 
   async meta(refresh = false): Promise<CodexMeta> {
-    if (!refresh && this.metaCache && Date.now() - this.metaCache.at < META_TTL_MS) return this.metaCache.meta;
-    const meta = await this.readMeta();
-    this.metaCache = { at: Date.now(), meta };
-    return meta;
+    const cached = this.metaCache;
+    if (!refresh && cached && Date.now() - cached.at < META_TTL_MS) return cached.meta;
+    if (!refresh && cached?.meta.models.length) {
+      void this.readFreshMeta().catch(() => {});
+      return cached.meta;
+    }
+    return this.readFreshMeta();
+  }
+
+  private readFreshMeta(): Promise<CodexMeta> {
+    this.metaReading ??= this.readMeta().then((meta) => {
+      this.metaCache = { at: Date.now(), meta };
+      return meta;
+    }).finally(() => { this.metaReading = null; });
+    return this.metaReading;
   }
 
   private ensureServer(): Promise<AppServer> {
@@ -564,7 +584,7 @@ export class CodexRunner {
     session.interruptRequested = false;
     if (session.interruptTimer) clearTimeout(session.interruptTimer);
     session.interruptTimer = null;
-    session.approvals.clear();
+    for (const pending of [...session.approvals.values()]) pending.decide("cancel");
     session.approvalSince = null;
     this.closeDrafts(session);
     void this.host.finishTouch(agentId).catch((error) => console.error("[codex] change ledger not closed", error));
@@ -588,14 +608,48 @@ export class CodexRunner {
         if (session) this.host.upsert(session.agentId, { id: randomUUID(), kind: "notice", text: T.codexExtraPermission });
         return Promise.resolve({ permissions: {}, scope: "turn" });
       case "item/tool/requestUserInput":
-        if (session) this.host.upsert(session.agentId, { id: randomUUID(), kind: "notice", text: T.codexUserInput });
-        return Promise.resolve({ answers: {} });
+        return session ? this.askQuestion(session, id, params) : Promise.resolve({ answers: {} });
       case "mcpServer/elicitation/request":
         if (session) this.host.upsert(session.agentId, { id: randomUUID(), kind: "notice", text: T.codexElicitation(String(params.serverName ?? "MCP")) });
         return Promise.resolve({ action: "decline", content: null, _meta: null });
       default:
         return Promise.reject(new Error(`Unsupported request: ${method}`));
     }
+  }
+
+  private askQuestion(session: Session, requestId: number | string, params: Record<string, unknown>): Promise<unknown> {
+    const raw = Array.isArray(params.questions) ? params.questions : [];
+    if (!raw.length || raw.some((q) => !q || q.isSecret || typeof q.question !== "string" || typeof q.id !== "string")) {
+      this.host.upsert(session.agentId, { id: randomUUID(), kind: "notice", text: T.codexUserInput });
+      return Promise.resolve({ answers: {} });
+    }
+    const questions = raw.map((q, i) => ({
+      id: q.id as string,
+      question: raw.some((other, j) => j !== i && other.question === q.question) ? `${i + 1}. ${q.question}` : String(q.question),
+      header: q.header,
+      options: q.options,
+    }));
+    const card = { id: randomUUID(), kind: "permission", toolName: QUESTION_TOOL, input: { questions }, status: "pending" } as const;
+    this.host.upsert(session.agentId, card);
+    session.approvalSince ??= Date.now();
+    this.host.setStatus(session.agentId, "waiting");
+    return new Promise((resolve) => {
+      const answer = (values: Record<string, string> | null) => {
+        if (!session.approvals.delete(card.id)) return;
+        const clean = cleanAnswers(card.input, values ?? {});
+        this.host.upsert(session.agentId, { ...card, status: values ? "allowed" : "denied", ...(values && { outcome: { answers: clean } }) });
+        this.resumeAfterInput(session);
+        resolve({ answers: Object.fromEntries(questions.filter((q) => clean[q.question]).map((q) => [q.id, { answers: [clean[q.question]] }])) });
+      };
+      session.approvals.set(card.id, { requestId, itemId: String(params.itemId ?? ""), decide: () => answer(null), answer });
+    });
+  }
+
+  private resumeAfterInput(session: Session) {
+    if (session.approvals.size || session.approvalSince === null) return;
+    session.approvalWaitMs += Date.now() - session.approvalSince;
+    session.approvalSince = null;
+    if (session.active) this.host.setStatus(session.agentId, "running");
   }
 
   private askApproval(session: Session, requestId: number | string, method: string, params: Record<string, unknown>): Promise<unknown> {
@@ -614,11 +668,7 @@ export class CodexRunner {
         if (!session.approvals.delete(card.id)) return;
         const allowed = decision === "accept" || decision === "acceptForSession";
         this.host.upsert(agentId, { ...card, status: allowed ? "allowed" : "denied" });
-        if (session.approvals.size === 0 && session.approvalSince !== null) {
-          session.approvalWaitMs += Date.now() - session.approvalSince;
-          session.approvalSince = null;
-          if (session.active) this.host.setStatus(agentId, "running");
-        }
+        this.resumeAfterInput(session);
         resolve({ decision });
       };
       session.approvals.set(card.id, { requestId, itemId, decide });

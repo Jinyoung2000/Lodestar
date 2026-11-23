@@ -2,11 +2,11 @@ import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
-import { parseServerAddress } from "../logic/pairing";
+import { hasMixedRoutes, parseConnectionRoutes, routeAddress } from "../logic/routes";
 import { activitySupported, alertsEnabled, enableAlerts, stopAlerts } from "../state/activity";
 import { durationLabel } from "../logic/time";
 import { allMetrics, subscribeMetrics, type Metric } from "../state/perf";
-import { client, store, unpair, updateHosts, useAppState, useConnection } from "../state/app";
+import { client, store, unpair, updateRoutes, useAppState, useConnection } from "../state/app";
 import { setThemeChoice, useThemeChoice, type ThemeChoice } from "../state/themePrefs";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Button } from "../ui/Button";
@@ -19,6 +19,7 @@ const themeOptions: SegmentedOption<ThemeChoice>[] = [
   { value: "system", label: "System" },
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
+  { value: "midnight", label: "Midnight" },
 ];
 
 function appVersionLabel() {
@@ -39,6 +40,7 @@ export default function Settings() {
   const syncedAt = useAppState((s) => s.syncedAt);
   const [rtt, setRtt] = useState<number | null>(null);
   const [addressDraft, setAddressDraft] = useState<string | null>(null);
+  const [savingAddresses, setSavingAddresses] = useState(false);
   const [metrics, setMetrics] = useState<Metric[]>([...allMetrics()]);
   useEffect(() => {
     const off = subscribeMetrics(() => setMetrics([...allMetrics()]));
@@ -95,18 +97,21 @@ export default function Settings() {
     }
   };
 
-  const currentAddress = connection ? `${connection.secure ? "https://" : ""}${connection.hosts.join(",")}:${connection.port}` : "";
-  const editAddress = () => setAddressDraft(currentAddress);
+  const addresses = connection?.routes.map(routeAddress).join("\n") ?? "";
+  const editAddresses = () => setAddressDraft(addresses);
 
-  const saveAddress = async () => {
-    if (!connection || addressDraft === null) return;
-    const address = parseServerAddress(addressDraft, connection.port, connection.secure);
-    if (!address) return Alert.alert("Check the server address", "Enter a local address or an HTTPS .ts.net URL.");
+  const saveAddresses = async () => {
+    if (!connection || addressDraft === null || savingAddresses) return;
+    const routes = parseConnectionRoutes(addressDraft);
+    if (!routes) return Alert.alert("Check the server addresses", "Enter one local address, Tailscale URL, or Cloudflare Quick Tunnel URL per line.");
+    setSavingAddresses(true);
     try {
-      await updateHosts(address);
+      await updateRoutes(routes);
       setAddressDraft(null);
     } catch (error) {
-      Alert.alert("Could not save the address", error instanceof Error ? error.message : String(error));
+      Alert.alert("Could not save the addresses", error instanceof Error ? error.message : String(error));
+    } finally {
+      setSavingAddresses(false);
     }
   };
 
@@ -130,7 +135,7 @@ export default function Settings() {
     ]);
   };
 
-  const statusText = conn === "online" ? `Connected${client.host ? ` via ${client.host}` : ""}` : conn === "unauthorized" ? "Removed from your Mac" : conn === "idle" ? "Not connected" : conn === "offline" ? "Offline · Retrying" : "Reconnecting…";
+  const statusText = conn === "online" ? `Connected${client.route ? ` via ${routeAddress(client.route)}` : ""}` : conn === "unauthorized" ? "Removed from your Mac" : conn === "idle" ? "Not connected" : conn === "offline" ? "Offline · Retrying" : "Reconnecting…";
   return <>
     <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
       <Section title="Appearance">
@@ -142,41 +147,42 @@ export default function Settings() {
         {activitySupported && connection && <View style={[styles.row, { alignItems: "center" }]}>
           <View style={{ flex: 1 }}>
             <Text variant="bodyStrong">Keep connected in background</Text>
-            <Text variant="caption" color="textMuted">Includes session alerts.</Text>
+            <Text variant="caption" color="textMuted">{hasMixedRoutes(connection.routes) ? "Background alerts use HTTPS." : "Includes session alerts."}</Text>
           </View>
           <Switch accessibilityLabel="Keep connected in background" value={alerts} disabled={changingAlerts} trackColor={{ false: colors.border, true: colors.accent }} onValueChange={(value) => void toggleAlerts(value)} />
         </View>}
         <Row label="Mac" value={hostName ?? connection?.hostName ?? "-"} />
         <Row label="Status" value={statusText} valueColor={conn === "online" ? "success" : conn === "unauthorized" ? "danger" : "warning"} />
-        <Row label="Addresses" value={connection ? `${connection.hosts.join(", ")}:${connection.port}` : "-"} />
+        {addressDraft === null && <Row label="Addresses" value={addresses || "-"} />}
         <Row label="Last sync" value={syncedAt ? new Date(syncedAt).toLocaleTimeString() : "-"} />
         <Row label="Round trip" value={rtt === null ? "Tap Measure" : durationLabel(rtt)} />
         <View style={styles.buttons}>
           <Button title="Measure" onPress={() => void measure()} style={styles.actionButton} disabled={conn !== "online"} />
           <Button title={conn === "unauthorized" ? "Pair again" : "Reconnect"} onPress={reconnect} style={styles.actionButton} />
         </View>
-        {addressDraft === null ? (
-          <Button title="Change address" kind="plain" onPress={editAddress} />
+        {connection && (addressDraft === null ? (
+          <Button title="Edit addresses" kind="plain" onPress={editAddresses} />
         ) : (
           <View style={{ gap: spacing.sm }}>
-            <Text variant="caption" color="textSubtle">Enter your Mac’s local address or its HTTPS .ts.net URL.</Text>
+            <Text variant="caption" color="textSubtle">Enter one address per line, in the order you want to try them.</Text>
             <TextInput
               disableFullscreenUI
+              multiline
               value={addressDraft}
               onChangeText={setAddressDraft}
               autoFocus
               autoCapitalize="none"
               autoCorrect={false}
-              accessibilityLabel="Mac address"
-              onSubmitEditing={saveAddress}
+              editable={!savingAddresses}
+              accessibilityLabel="Mac addresses"
               style={[styles.input, { color: colors.textStrong, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
             />
             <View style={styles.buttons}>
-              <Button title="Cancel" onPress={() => setAddressDraft(null)} style={styles.actionButton} />
-              <Button title="Save" kind="primary" onPress={saveAddress} style={styles.actionButton} />
+              <Button title="Cancel" disabled={savingAddresses} onPress={() => setAddressDraft(null)} style={styles.actionButton} />
+              <Button title="Save" kind="primary" busy={savingAddresses} onPress={saveAddresses} style={styles.actionButton} />
             </View>
           </View>
-        )}
+        ))}
       </Section>
       <Section title="App updates">
         <Row label="Version" value={appVersionLabel()} />
@@ -226,7 +232,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.xl },
   card: { borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: spacing.lg, gap: spacing.md },
   row: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, minHeight: 28 },
-  input: { minHeight: 48, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.lg, fontSize: 16 },
+  input: { minHeight: 88, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: spacing.md, fontSize: 16, textAlignVertical: "top" },
   buttons: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   actionButton: { flexGrow: 1, paddingHorizontal: spacing.sm },
   metric: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 28 },

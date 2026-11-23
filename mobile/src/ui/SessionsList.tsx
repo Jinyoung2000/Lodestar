@@ -12,19 +12,23 @@ import { sortPrefs, store, useAppState, useSessionSort, useSortPrefs } from "../
 import { radius, spacing, useColors } from "../theme/theme";
 import { Button } from "./Button";
 import { ProjectIcon, type ProjectMark } from "./ProjectIcon";
+import { WorkspaceIcon } from "./WorkspaceIcon";
 import { ConnectionTitle } from "./ConnectionTitle";
 import { Icon } from "./Icon";
 import { RenameDialog } from "./RenameDialog";
 import { Segmented } from "./Segmented";
 import { SessionRow, SessionRowFrame } from "./SessionRow";
-import { SESSION_SORT_OPTIONS, SortButton } from "./SortButton";
+import { ProviderLabel } from "./ProviderMark";
+import { MenuButton, SESSION_SORT_OPTIONS, SortButton } from "./SortButton";
+import type { ListView } from "../state/sortPrefs";
 import { relativeTime } from "../logic/time";
 import { Text } from "./Text";
 import { useSessionActions } from "./sessionActions";
 import { NEW_SESSION_CLEARANCE, NewSessionButton } from "./NewSessionButton";
 import { WorkspacesView } from "./WorkspacesView";
 
-type Item = { kind: "header"; key: string; title: string; count: number; mark: ProjectMark; workspaceId: string | null } | { kind: "session"; key: string; agent: Agent; workspace: string };
+type Item = { kind: "header"; key: string; title: string; count: number; mark: ProjectMark; workspaceId: string | null; first: boolean } | { kind: "session"; key: string; agent: Agent; workspace: string };
+const GROUPING_OPTIONS = [{ value: "workspace", label: "Workspace" }, { value: "time", label: "Time" }] as const;
 const tabs = ["sessions", "waiting", "workspaces"] as const;
 type Tab = (typeof tabs)[number];
 
@@ -42,7 +46,7 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
   const workspaces = useAppState((s) => s.workspaces);
   const conn = useAppState((s) => s.conn);
   const loaded = useAppState((s) => s.loaded);
-  const { collapsed } = useSortPrefs();
+  const { collapsed, list: view } = useSortPrefs();
   const searchBar = useRef<SearchBarCommands>(null);
   const [tab, setTab] = useState<Tab>("sessions");
   const [scopedId, setScopedId] = useState<string>();
@@ -88,32 +92,32 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
       const project = buildProject(scopedWorkspace, workspaces, agents, scopedSort);
       const locations = [project.main, ...project.worktrees];
       for (const location of locations) {
-        items.push({ kind: "header", key: `location:${location.workspace.id}`, title: location.label, count: location.sessions.length, mark: location.kind === "worktree" ? "worktree" : "folder", workspaceId: null });
+        items.push({ kind: "header", key: `location:${location.workspace.id}`, title: location.label, count: location.sessions.length, mark: location.kind === "worktree" ? "worktree" : "folder", workspaceId: null, first: items.length === 0 });
         for (const agent of location.sessions) items.push({ kind: "session", key: agent.id, agent, workspace: "" });
       }
       const compare = compareAgents(scopedSort);
       const done = locations.flatMap((location) => location.done.map((agent) => ({ kind: "session" as const, key: agent.id, agent, workspace: location.label })))
         .sort((a, b) => compare(a.agent, b.agent));
-      if (done.length) items.push({ kind: "header", key: "location:done", title: "Done", count: done.length, mark: "archive", workspaceId: null }, ...done);
+      if (done.length) items.push({ kind: "header", key: "location:done", title: "Done", count: done.length, mark: "archive", workspaceId: null, first: items.length === 0 }, ...done);
       return items;
     }
-    const sections = groupAgents(tab === "waiting" ? waitingAgents : agents, workspaces, query);
+    const sections = groupAgents(tab === "waiting" ? waitingAgents : agents, workspaces, query, view);
     if (tab === "waiting") {
       return sections.flatMap(({ agents }) => agents)
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .map((agent) => ({ kind: "session", key: agent.id, agent, workspace: workspaceName(agent, workspaces) }));
     }
     for (const section of sections) {
-      const workspaceId = workspaces.some((workspace) => workspace.id === section.key) ? section.key : null;
-      items.push({ kind: "header", key: `h:${section.key}`, title: section.title, count: section.agents.length, mark: section.key === "pinned" ? "pinned" : section.key === "done" ? "archive" : section.key === "chats" ? "chats" : "folder", workspaceId });
+      const workspaceId = section.kind === "workspace" && workspaces.some((workspace) => workspace.id === section.key) ? section.key : null;
+      items.push({ kind: "header", key: `h:${section.key}`, title: section.title, count: section.agents.length, mark: section.kind === "pinned" ? "pinned" : section.kind === "done" ? "archive" : section.kind === "chats" ? "chats" : "folder", workspaceId, first: items.length === 0 });
       if (collapsed.includes(`h:${section.key}`)) continue;
       for (const agent of section.agents) {
-        const workspace = section.key === "pinned" || section.key === "done" ? workspaceName(agent, workspaces) : "";
+        const workspace = section.kind === "workspace" || section.kind === "chats" ? "" : workspaceName(agent, workspaces);
         items.push({ kind: "session", key: agent.id, agent, workspace });
       }
     }
     return items;
-  }, [agents, workspaces, query, tab, waitingAgents, collapsed, scopedWorkspace, scopedSort]);
+  }, [agents, workspaces, query, tab, waitingAgents, collapsed, scopedWorkspace, scopedSort, view]);
   const stickyHeaderIndices = useMemo(() => data.flatMap((item, i) => (item.kind === "header" ? [i] : [])), [data]);
 
   const refresh = useCallback(async () => {
@@ -147,6 +151,11 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
     else router.push({ pathname: "/session/[id]", params: tab === "waiting" ? { id, focusQuestion: "1" } : { id } });
   }, [listKey, onOpenSession, router, tab]);
   const searchLabel = tab === "workspaces" ? "Search workspaces" : "Search sessions";
+  const viewMenu = tab === "sessions" && !scopedWorkspace ? <ViewMenu view={view} /> : null;
+  const appTitle = (size: number) => <View style={styles.brand}>
+    <BrandMark />
+    <Text accessibilityRole="header" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={size} style={styles.appTitle}>Lodestar</Text>
+  </View>;
 
   return (
     <View style={{ flex: 1 }}>
@@ -154,8 +163,9 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
         <View>
           <View style={styles.railHeader}>
             <ConnectionTitle title="Lodestar" style={styles.railTitle}>
-              <Text accessibilityRole="header" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.appTitle}>Lodestar</Text>
+              {appTitle(1.2)}
             </ConnectionTitle>
+            {viewMenu}
             <Pressable accessibilityRole="button" accessibilityLabel={railSearch ? "Close search" : searchLabel}
               onPress={() => { if (railSearch) setQuery(""); setRailSearch(!railSearch); }} style={styles.headerButton}>
               <Icon name={railSearch ? "xmark" : "magnifyingglass"} size={20} color="textStrong" />
@@ -174,11 +184,13 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
       ) : <Stack.Screen
         options={{
           headerTitleAlign: "left",
+          headerLeft: () => <View style={styles.brandSlot}><BrandMark /></View>,
           headerTitle: () => <ConnectionTitle title="Lodestar" maxFontSizeMultiplier={1.1}>
             <Text accessibilityRole="header" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.1} style={styles.appTitle}>Lodestar</Text>
           </ConnectionTitle>,
           headerSearchBarOptions: Platform.OS !== "android" || androidSearch ? { ref: searchBar, autoFocus: androidSearch, onClose: () => { setQuery(""); setAndroidSearch(false); }, placeholder: searchLabel, onChangeText: (e) => setQuery(e.nativeEvent.text), autoCapitalize: "none", hideWhenScrolling: false, barTintColor: colors.inputBackground, tintColor: colors.accentText, headerIconColor: colors.textStrong, textColor: colors.textStrong, hintTextColor: colors.textMuted, shouldShowHintSearchIcon: false } : undefined,
           headerRight: () => androidSearch ? null : <View style={styles.headerActions}>
+            {viewMenu}
             <Pressable accessibilityRole="button" accessibilityLabel={tab === "workspaces" ? "Search workspaces" : "Search sessions"} onPress={() => Platform.OS === "android" ? setAndroidSearch(true) : searchBar.current?.focus()} style={styles.headerButton}>
               <Icon name="magnifyingglass" size={20} color="textStrong" />
             </Pressable>
@@ -199,7 +211,7 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
             </Pressable>
             <ConnectionTitle title={scopedWorkspace.name} style={styles.railTitle}>
               <View style={styles.projectTitle}>
-                <ProjectIcon />
+                <WorkspaceIcon workspaceId={scopedWorkspace.id} size={18} fallback={<ProjectIcon />} />
                 <Text accessibilityRole="header" variant="bodyStrong" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.railTitle}>{scopedWorkspace.name}</Text>
               </View>
             </ConnectionTitle>
@@ -228,7 +240,16 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps={docked ? "handled" : undefined}
             contentContainerStyle={{ paddingBottom: docked ? spacing.xl : NEW_SESSION_CLEARANCE }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={colors.textMuted} colors={[colors.accent]} progressBackgroundColor={colors.surface} />}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => void refresh()}
+                progressViewOffset={Platform.OS === "android" && stickyHeaderIndices.length ? SECTION_HEADER_HEIGHT : 0}
+                tintColor={colors.textMuted}
+                colors={[colors.accent]}
+                progressBackgroundColor={colors.surface}
+              />
+            }
             extraData={tab === "waiting" ? { timelines, sessionId } : sessionId}
             renderItem={({ item }) => {
               if (item.kind === "header") {
@@ -240,7 +261,7 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
                   </View>
                 );
                 const { workspaceId } = item;
-                return <SectionHeader title={item.title} count={item.count} mark={item.mark}
+                return <SectionHeader title={item.title} count={item.count} first={item.first} workspaceId={workspaceId}
                   expanded={!collapsed.includes(item.key)}
                   onToggle={() => sortPrefs.toggleGroup(item.key)}
                   onNew={workspaceId ? () => router.push({ pathname: "/new", params: { workspace: workspaceId } }) : undefined} />;
@@ -249,7 +270,7 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
                 const pending = timelines[item.agent.id]?.items.findLast((entry): entry is Extract<TimelineItem, { kind: "permission" }> => entry.kind === "permission" && entry.status === "pending");
                 return <WaitingRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} workspace={item.workspace} pending={pending} onPress={open} onLongPress={actions.open} />;
               }
-              return <SessionRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} subtitle={item.workspace} time={scopedWorkspace ? scopedSort : undefined} onPress={open} onLongPress={actions.open} />;
+              return <SessionRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} subtitle={item.workspace} time={scopedWorkspace ? scopedSort : view.ordering} onPress={open} onLongPress={actions.open} />;
             }}
           />
         )}
@@ -260,24 +281,43 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
   );
 }
 
-const SectionHeader = memo(function SectionHeader({ title, count, mark, expanded, onToggle, onNew }: {
-  title: string; count: number; mark: ProjectMark; expanded: boolean; onToggle: () => void; onNew?: () => void;
+const SectionHeader = memo(function SectionHeader({ title, count, first, workspaceId, expanded, onToggle, onNew }: {
+  title: string; count: number; first: boolean; workspaceId: string | null; expanded: boolean; onToggle: () => void; onNew?: () => void;
 }) {
   const colors = useColors();
   return (
-    <View style={[styles.sectionHeader, { backgroundColor: colors.background }]}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={onToggle} style={styles.sectionToggle}>
-        <View style={styles.sectionLane}><Icon name={expanded ? "chevron.down" : "chevron.right"} size={18} color="textSubtle" /></View>
-        <View style={styles.sectionMark}><ProjectIcon mark={mark} /></View>
-        <Text variant="secondary" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={18 / 14} style={styles.sectionTitle}>{title}</Text>
-        <Text variant="caption" color="textSubtle" style={styles.sectionCount}>{count}</Text>
+    <View style={[styles.sectionHeader, { backgroundColor: colors.background, paddingTop: first ? spacing.xs : spacing.sm }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${count} ${count === 1 ? "session" : "sessions"}`} accessibilityState={{ expanded }} onPress={onToggle} style={styles.sectionToggle}>
+        <WorkspaceIcon workspaceId={workspaceId} />
+        <Text variant="secondary" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={18 / 14} style={styles.sectionTitle}>{title}</Text>
+        {!expanded && <Text variant="secondary" color="textSubtle" maxFontSizeMultiplier={18 / 14} style={styles.sectionCount}>{count}</Text>}
+        <Icon name={expanded ? "chevron.down" : "chevron.right"} size={12} color="textSubtle" />
       </Pressable>
-      {onNew && <Pressable accessibilityRole="button" accessibilityLabel={`New session in ${title}`} onPress={onNew} style={styles.headerButton}>
-        <Icon name="plus" size={22} color="textMuted" />
+      {onNew && <Pressable accessibilityRole="button" accessibilityLabel={`New session in ${title}`} onPress={onNew} style={styles.sectionNew}>
+        <Icon name="plus" size={18} color="textMuted" />
       </Pressable>}
     </View>
   );
 });
+
+function BrandMark() {
+  const colors = useColors();
+  return <View accessible={false} importantForAccessibility="no-hide-descendants" style={styles.brandMark}>
+    <View style={[styles.rayUp, { borderBottomColor: colors.accent }]} />
+    <View style={[styles.rayDown, { borderTopColor: colors.accent }]} />
+    <View style={[styles.rayLeft, { borderRightColor: colors.accent }]} />
+    <View style={[styles.rayRight, { borderLeftColor: colors.accent }]} />
+  </View>;
+}
+
+function ViewMenu({ view }: { view: ListView }) {
+  return <MenuButton label="View options" icon="line.3.horizontal.decrease"
+    valueText={`${view.grouping === "time" ? "Time" : "Workspace"}, ${view.ordering === "created" ? "Created" : "Updated"}`}
+    sections={[
+      { title: "Grouping", value: view.grouping, options: GROUPING_OPTIONS, onChange: (grouping) => sortPrefs.setListView({ grouping: grouping === "time" ? "time" : "workspace" }) },
+      { title: "Ordering", value: view.ordering, options: SESSION_SORT_OPTIONS, onChange: (ordering) => sortPrefs.setListView({ ordering: ordering === "created" ? "created" : "updated" }) },
+    ]} />;
+}
 
 function WaitingRow({ agent, selected, workspace, pending, onPress, onLongPress }: {
   agent: Agent; selected?: boolean; workspace: string; pending?: Extract<TimelineItem, { kind: "permission" }>;
@@ -291,10 +331,8 @@ function WaitingRow({ agent, selected, workspace, pending, onPress, onLongPress 
   const request = questions[0]?.question ?? (plan ? "Plan ready for review" : target ? `${verb} ${target.text}` : verb);
   const context = [workspace, questions.length > 1 ? `${questions.length} questions` : null].filter(Boolean).join(" · ");
   return <SessionRowFrame detailsLabel={[kind, request, workspace].filter(Boolean).join(", ")} agent={agent} selected={selected} state="waiting" stamp={relativeTime(agent.updatedAt)} emphasized onPress={onPress} onLongPress={onLongPress}>
-    {(request || context) && <Text variant="caption" color="textMuted" numberOfLines={2}>
-      {!!request && <Text variant="caption" color="textStrong">{request}</Text>}
-      {request && context ? " · " : ""}{context}
-    </Text>}
+    {!!request && <Text variant="secondary" color="textStrong" numberOfLines={2}>{request}</Text>}
+    <ProviderLabel workspaceId={workspace ? agent.workspaceId : null} parts={[context]} />
   </SessionRowFrame>;
 }
 
@@ -307,6 +345,11 @@ function Empty({ offline, searching, onNew }: { offline: boolean; searching: boo
   );
 }
 
+const SECTION_HEADER_HEIGHT = 52;
+const BRAND_SIZE = 26;
+const BRAND_HALF = BRAND_SIZE / 2;
+const RAY_BASE = 5;
+
 const styles = StyleSheet.create({
   tabContent: { flex: 1 },
   projectTitle: { minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.sm },
@@ -316,13 +359,19 @@ const styles = StyleSheet.create({
   searchInput: { marginHorizontal: spacing.md, marginBottom: spacing.sm, paddingHorizontal: spacing.md, minHeight: 48, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm },
   headerButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   headerActions: { flexDirection: "row" },
-  appTitle: { fontSize: 20, lineHeight: 24, fontWeight: "600" },
-  sectionHeader: { flexDirection: "row", alignItems: "center", minHeight: 48 },
-  sectionToggle: { flex: 1, minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 16 },
-  sectionMark: { marginRight: 8 },
-  sectionLane: { width: 16, marginRight: 6, alignItems: "center" },
-  sectionTitle: { fontWeight: "600", flexShrink: 1 },
-  sectionCount: { marginLeft: 8, fontVariant: ["tabular-nums"] },
+  appTitle: { fontSize: 20, lineHeight: 24, fontWeight: "600", flexShrink: 1 },
+  brand: { flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
+  brandMark: { width: BRAND_SIZE, height: BRAND_SIZE },
+  rayUp: { position: "absolute", left: BRAND_HALF - RAY_BASE, top: 0, borderLeftWidth: RAY_BASE, borderRightWidth: RAY_BASE, borderBottomWidth: BRAND_HALF, borderLeftColor: "transparent", borderRightColor: "transparent" },
+  rayDown: { position: "absolute", left: BRAND_HALF - RAY_BASE, top: BRAND_HALF, borderLeftWidth: RAY_BASE, borderRightWidth: RAY_BASE, borderTopWidth: BRAND_HALF, borderLeftColor: "transparent", borderRightColor: "transparent" },
+  rayLeft: { position: "absolute", left: 0, top: BRAND_HALF - RAY_BASE, borderTopWidth: RAY_BASE, borderBottomWidth: RAY_BASE, borderRightWidth: BRAND_HALF, borderTopColor: "transparent", borderBottomColor: "transparent" },
+  rayRight: { position: "absolute", left: BRAND_HALF, top: BRAND_HALF - RAY_BASE, borderTopWidth: RAY_BASE, borderBottomWidth: RAY_BASE, borderLeftWidth: BRAND_HALF, borderTopColor: "transparent", borderBottomColor: "transparent" },
+  brandSlot: { width: 26, height: 26, marginRight: 10 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", paddingLeft: spacing.lg, paddingRight: 2 },
+  sectionToggle: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 },
+  sectionTitle: { fontSize: 14, lineHeight: 20, fontWeight: "600", flexShrink: 1 },
+  sectionCount: { fontSize: 14, lineHeight: 20, fontVariant: ["tabular-nums"] },
+  sectionNew: { width: 48, height: 44, alignItems: "center", justifyContent: "center" },
   waitingEmpty: { flex: 1, alignItems: "center", paddingTop: 72, gap: spacing.md, paddingHorizontal: 16 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
 });

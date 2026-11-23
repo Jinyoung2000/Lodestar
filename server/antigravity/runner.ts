@@ -82,6 +82,7 @@ export class AntigravityRunner {
   private bySession = new Map<string, string>();
   private idleTimer: NodeJS.Timeout | null = null;
   private metaCache: { at: number; meta: AntigravityMeta } | null = null;
+  private metaReading: Promise<AntigravityMeta> | null = null;
   private learnedDefaults: { model: string | null; effort: EffortLevel | null } = { model: null, effort: null };
 
   constructor(private host: AntigravityHost) {}
@@ -250,10 +251,21 @@ export class AntigravityRunner {
   }
 
   async meta(refresh = false): Promise<AntigravityMeta> {
-    if (!refresh && this.metaCache && Date.now() - this.metaCache.at < META_TTL_MS) return this.withDefaults(this.metaCache.meta);
-    const meta = await this.readMeta();
-    this.metaCache = { at: Date.now(), meta };
-    return this.withDefaults(meta);
+    const cached = this.metaCache;
+    if (!refresh && cached && Date.now() - cached.at < META_TTL_MS) return this.withDefaults(cached.meta);
+    if (!refresh && cached?.meta.models.length) {
+      void this.readFreshMeta().catch(() => {});
+      return this.withDefaults(cached.meta);
+    }
+    return this.withDefaults(await this.readFreshMeta());
+  }
+
+  private readFreshMeta(): Promise<AntigravityMeta> {
+    this.metaReading ??= this.readMeta().then((meta) => {
+      this.metaCache = { at: Date.now(), meta };
+      return meta;
+    }).finally(() => { this.metaReading = null; });
+    return this.metaReading;
   }
 
   private withDefaults(meta: AntigravityMeta): AntigravityMeta {

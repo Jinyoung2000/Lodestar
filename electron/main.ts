@@ -1,7 +1,7 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unwatchFile, watchFile, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, unwatchFile, watchFile, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { BrowserWindow, Menu, app, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, session, shell, utilityProcess, webContents, type UtilityProcess } from "electron";
+import { BrowserWindow, Menu, app, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, screen, session, shell, webContents } from "electron";
 import { categoriesFor, isAlwaysAllowed, permissionOrigin } from "../web/browserPermissions";
 import { BROWSER_PARTITION, isBrowserPartition, isOwnOrigin, parseBrowsable, parseOpenable } from "../web/browserUrl";
 import { bindBluetooth, bindDeviceSession } from "./browserDevices";
@@ -12,13 +12,13 @@ import { buildAppMenu, completesChord, keymapKey, keymapStateOf, registeredMenuS
 import { recordConsole } from "./browserTools";
 import { logDirFor } from "./logDir";
 import { dataHome, savedSettings, settingsFile } from "./dataHome";
-import { LineStamper, stampLine } from "./logStamp";
+import { stampLine } from "./logStamp";
+import { DaemonConnection } from "./daemonConnection";
 import { QuitFlow } from "./quitFlow";
 import { createE2EHandler, startE2E, type E2EContext } from "./e2eChannel";
 import { registerBrowserGuestIpc } from "./browserGuestIpc";
 import { loadPermissions, permissions, registerSitePermissions } from "./sitePermissions";
 import { NOTIFY_FOCUSED, NOTIFY_STUB, Notifier, validNotify, type NotifyAction, type NotifyMode, type NotifyPayload } from "./notifications";
-import { RestartScheduler, restartWaitMs } from "../shared/restartGate";
 import type { PickTheme } from "./pickScript";
 import { externalOpenUrl } from "../shared/slackLink";
 import { notionOpenPlan } from "../shared/notionLink";
@@ -62,8 +62,6 @@ if (INVISIBLE) {
 
 const SRC_ROOT = process.env.AGENT_NAV_SRC ?? join(homedir(), "Repository", "agent-nav");
 
-let daemon: UtilityProcess | null = null;
-let daemonReady = false;
 
 type AppWindow = { id: string; win: BrowserWindow; initialChat: boolean; layoutMode: LayoutMode | null; hung: boolean; hungTimer: ReturnType<typeof setTimeout> | null; loadRecovery: boolean; reloads: number[]; loadCount: number; boundsTimer?: ReturnType<typeof setTimeout> | null };
 const appWindows = new Map<string, AppWindow>();
@@ -91,15 +89,6 @@ function windowByContents(contents: Electron.WebContents | null | undefined): Ap
   return liveWindows().find((w) => w.win.webContents === host) ?? null;
 }
 
-export type DaemonState = { state: "running" | "restarting" | "stopped"; attempt: number; maxAttempts: number };
-const RESPAWN_DELAYS_MS = [500, 1000, 2000, 4000, 8000];
-const STABLE_MS = 30_000;
-const BUNDLE_AFTER_ATTEMPTS = 3;
-let daemonState: DaemonState = { state: "running", attempt: 0, maxAttempts: RESPAWN_DELAYS_MS.length };
-let respawnAttempts = 0;
-let respawnTimer: ReturnType<typeof setTimeout> | null = null;
-let daemonStartedAt = 0;
-
 const quitFlow = new QuitFlow({
   now: Date.now,
   log: logLine,
@@ -107,18 +96,6 @@ const quitFlow = new QuitFlow({
   clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
   closeWindows: closeAllWindows,
   closeHelpers: closeRunners,
-  requestDaemonShutdown: () => {
-    if (!daemon || daemon.pid === undefined) return false;
-    daemon.postMessage({ type: "shutdown" });
-    return true;
-  },
-  killDaemon: () => {
-    if (daemon?.pid === undefined) return;
-    try {
-      process.kill(daemon.pid, "SIGKILL");
-    } catch {
-    }
-  },
   finishQuit: () => app.quit(),
   forceExit: () => {
     try {
@@ -126,15 +103,6 @@ const quitFlow = new QuitFlow({
     } catch {
     }
     app.exit(0);
-  },
-  restoreAfterCancel: () => {
-    if (!daemon && process.env.AGENT_NAV_NO_DAEMON !== "1") {
-      resetRespawn();
-      startDaemon();
-      void waitForDaemon()
-        .then(() => setDaemonState("running"))
-        .catch(() => undefined);
-    } else setDaemonState("running");
   },
 });
 
@@ -166,87 +134,41 @@ if (gotInstanceLock) {
   for (const path of argvOpenPaths(process.argv, openPathOptions(process.cwd()))) void requestOpen(path, "argv");
 }
 
-type Runtime = { kind: "repo" | "bundle"; root: string; daemon: string; note: string | null };
+const daemon = process.env.AGENT_NAV_NO_DAEMON === "1" ? null : new DaemonConnection({
+  home: dataHome(),
+  appRoot: APP_ROOT,
+  srcRoot: SRC_ROOT,
+  logDir: app.getPath("logs"),
+  port: PORT,
+  packaged: app.isPackaged,
+  onState: ({ state, attempt, maxAttempts, reload }) => {
+    for (const w of liveWindows()) w.win.webContents.send("agent-nav:daemon-state", { state, attempt, maxAttempts });
+    if (reload && !quitFlow.quitting) reloadAppWindow();
+  },
+  log: logLine,
+});
 
-function pickRuntime(): Runtime {
-  const bundle: Runtime = { kind: "bundle", root: APP_ROOT, daemon: join(import.meta.dirname, "daemon.mjs"), note: null };
-  if (APP_ROOT === SRC_ROOT) return bundle;
-  const problem = repoBuildProblem(SRC_ROOT);
-  if (problem) return { ...bundle, note: problem };
-  return { kind: "repo", root: SRC_ROOT, daemon: join(SRC_ROOT, "dist-electron", "daemon.mjs"), note: null };
-}
-
-function repoBuildProblem(root: string): string | null {
-  if (!existsSync(root)) return "source folder not found";
-  const index = join(root, "dist", "index.html");
-  const daemonFile = join(root, "dist-electron", "daemon.mjs");
-  if (!existsSync(index) || !existsSync(daemonFile)) return "repo build missing";
-  try {
-    if (!readdirSync(join(root, "dist", "assets")).length || readFileSync(daemonFile, "utf8").length < 1000) return "repo build incomplete";
-  } catch {
-    return "repo build incomplete";
-  }
-  if (!existsSync(join(root, "node_modules"))) return "repo dependencies missing";
-  return null;
-}
-
-function setDaemonState(state: DaemonState["state"]) {
-  daemonState = { state, attempt: respawnAttempts, maxAttempts: RESPAWN_DELAYS_MS.length };
-  for (const w of liveWindows()) w.win.webContents.send("agent-nav:daemon-state", daemonState);
-}
-
-function scheduleRespawn() {
-  if (!quitFlow.mayStartDaemon() || respawnTimer) return;
-  if (Date.now() - daemonStartedAt >= STABLE_MS) respawnAttempts = 0;
-  if (respawnAttempts >= RESPAWN_DELAYS_MS.length) {
-    console.error(`[electron] daemon keeps exiting, giving up after ${respawnAttempts} restarts`);
-    setDaemonState("stopped");
-    return;
-  }
-  const delay = RESPAWN_DELAYS_MS[respawnAttempts++];
-  setDaemonState("restarting");
-  respawnTimer = setTimeout(() => {
-    respawnTimer = null;
-    if (!quitFlow.mayStartDaemon() || daemon) return;
-    startDaemon(respawnAttempts >= BUNDLE_AFTER_ATTEMPTS);
-    void waitForDaemon()
-      .then(() => setDaemonState("running"))
-      .catch(() => undefined);
-  }, delay);
-}
-
-function resetRespawn() {
-  if (respawnTimer) clearTimeout(respawnTimer);
-  respawnTimer = null;
-  respawnAttempts = 0;
-}
-
-function daemonLogFile() {
+function electronLogFile() {
   const logDir = app.getPath("logs");
   mkdirSync(logDir, { recursive: true });
-  return join(logDir, "daemon.log");
+  return join(logDir, "electron.log");
 }
+
+let electronLogBytes = -1;
 
 function logLine(message: string) {
-  appendDaemonOutput(stampLine(message));
-}
-
-const DAEMON_LOG_MAX_BYTES = 20 * 1024 * 1024;
-let daemonLogBytes = -1;
-
-function appendDaemonOutput(text: string) {
-  if (!text) return;
+  const text = stampLine(message);
   try {
-    const file = daemonLogFile();
-    if (daemonLogBytes < 0) daemonLogBytes = existsSync(file) ? statSync(file).size : 0;
-    if (daemonLogBytes >= DAEMON_LOG_MAX_BYTES) {
+    const file = electronLogFile();
+    if (electronLogBytes < 0) electronLogBytes = existsSync(file) ? statSync(file).size : 0;
+    if (electronLogBytes >= 20 * 1024 * 1024) {
       renameSync(file, `${file}.1`);
-      daemonLogBytes = 0;
+      electronLogBytes = 0;
     }
     appendFileSync(file, text);
-    daemonLogBytes += Buffer.byteLength(text);
+    electronLogBytes += Buffer.byteLength(text);
   } catch {
-    daemonLogBytes = -1;
+    electronLogBytes = -1;
   }
 }
 
@@ -262,99 +184,6 @@ function closeAllWindows(): Promise<void> {
       w.close();
     }
   });
-}
-
-function startDaemon(forceBundle = false) {
-  if (!quitFlow.mayStartDaemon()) {
-    logLine("[electron] daemon start skipped: app is quitting");
-    return;
-  }
-  daemonReady = false;
-  daemonStartedAt = Date.now();
-  restartGate.reset();
-  let runtime = pickRuntime();
-  if (forceBundle && runtime.kind === "repo") runtime = { kind: "bundle", root: APP_ROOT, daemon: join(import.meta.dirname, "daemon.mjs"), note: "repo build failed to start" };
-  const outStamp = new LineStamper();
-  const errStamp = new LineStamper();
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) if (value !== undefined) env[key] = value;
-  env.AGENT_NAV_ROOT = runtime.root;
-  env.AGENT_NAV_PORT = String(PORT);
-  env.AGENT_NAV_RUNTIME = runtime.kind;
-  env.AGENT_NAV_PACKAGED = app.isPackaged ? "1" : "";
-  if (runtime.note) env.AGENT_NAV_RUNTIME_NOTE = runtime.note;
-  else delete env.AGENT_NAV_RUNTIME_NOTE;
-  logLine(`[electron] starting daemon from ${runtime.kind} (${runtime.root})${runtime.note ? `: ${runtime.note}` : ""}`);
-  const child = utilityProcess.fork(runtime.daemon, [], { env, stdio: "pipe", serviceName: "agent-nav-daemon" });
-  daemon = child;
-  child.stdout?.on("data", (chunk) => appendDaemonOutput(outStamp.feed(chunk)));
-  child.stderr?.on("data", (chunk) => appendDaemonOutput(errStamp.feed(chunk)));
-  child.on("exit", (code) => {
-    logLine(`[electron] daemon exited code=${code}`);
-    if (daemon === child) quitFlow.onDaemonExit(code);
-    if (daemon === child && !quitFlow.mayStartDaemon()) {
-      daemon = null;
-    } else if (daemon === child && !daemonReady && runtime.kind === "repo") {
-      daemon = null;
-      startDaemon(true);
-    } else if (daemon === child) {
-      daemon = null;
-      scheduleRespawn();
-    }
-  });
-  child.on("message", (message: { type?: string }) => {
-    if (message?.type === "shutdown-flushed") quitFlow.onDaemonMessage(message.type);
-    if (message?.type !== "restart" || daemon !== child || !quitFlow.mayStartDaemon()) return;
-    void restartDaemonAndReload(false);
-  });
-}
-
-const SHUTDOWN_GRACE_MS = 3000;
-let relaunching: Promise<void> | null = null;
-function relaunchDaemon(graceful: boolean): Promise<void> {
-  if (!quitFlow.mayStartDaemon()) return Promise.resolve();
-  if (relaunching) return relaunching;
-  const old = daemon;
-  daemon = null;
-  resetRespawn();
-  relaunching = new Promise<void>((resolve) => {
-    const launch = () => {
-      startDaemon();
-      resolve();
-    };
-    if (!old || old.pid === undefined) return launch();
-    const force = graceful ? setTimeout(() => old.kill(), SHUTDOWN_GRACE_MS) : null;
-    old.once("exit", () => {
-      if (force) clearTimeout(force);
-      launch();
-    });
-    if (graceful) old.postMessage({ type: "shutdown" });
-    else old.kill();
-  });
-  return relaunching.finally(() => (relaunching = null));
-}
-
-const restartGate = new RestartScheduler({
-  now: Date.now,
-  wait: () => restartWaitMs({ now: Date.now(), startedAt: daemonStartedAt }),
-  run: () => void restartDaemonAndReload(true),
-  setTimer: (fn, ms) => setTimeout(fn, ms),
-  clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
-});
-
-async function restartDaemonAndReload(graceful: boolean): Promise<boolean> {
-  await relaunchDaemon(graceful);
-  const ready = await waitForDaemon().then(
-    () => true,
-    () => false,
-  );
-  if (!ready) {
-    logLine("[electron] restart: the new daemon did not answer, leaving the window as it is");
-    return false;
-  }
-  setDaemonState("running");
-  reloadAppWindow();
-  return true;
 }
 
 function reloadAppWindow() {
@@ -374,11 +203,8 @@ async function waitForDaemon() {
   const deadline = Date.now() + DAEMON_WAIT_MS;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(URL_BASE, { headers: { host: `127.0.0.1:${PORT}` } });
-      if (res.ok) {
-        daemonReady = true;
-        return;
-      }
+      const res = await fetch(URL_BASE, { headers: { host: `127.0.0.1:${PORT}` }, signal: AbortSignal.timeout(1000) });
+      if (res.ok && (!daemon || daemon.state.state === "running")) return;
     } catch {
     }
     await new Promise((r) => setTimeout(r, DAEMON_POLL_MS));
@@ -665,7 +491,7 @@ function watchRenderer(entry: AppWindow) {
     if (entry.hungTimer) clearTimeout(entry.hungTimer);
     entry.hungTimer = null;
     logLine(`[electron] ${tag}: render process gone reason=${details.reason} exitCode=${details.exitCode}`);
-    if (details.reason === "clean-exit" || !quitFlow.mayStartDaemon()) return;
+    if (details.reason === "clean-exit" || quitFlow.quitting) return;
     const now = Date.now();
     while (entry.reloads.length && now - entry.reloads[0] > 60_000) entry.reloads.shift();
     if (entry.reloads.length >= RENDERER_RELOADS_PER_MIN) {
@@ -687,7 +513,7 @@ async function recoverLoad(entry: AppWindow) {
   entry.loadRecovery = true;
   const contents = entry.win.webContents;
   try {
-    for (let attempt = 1; attempt <= 3 && !contents.isDestroyed() && quitFlow.mayStartDaemon(); attempt++) {
+    for (let attempt = 1; attempt <= 3 && !contents.isDestroyed() && !quitFlow.quitting; attempt++) {
       const ready = await waitForDaemon().then(
         () => true,
         () => false,
@@ -1080,12 +906,6 @@ const quickEntry = new QuickEntryWindow({
   colors: (theme) => ({ background: tokenColor("quick-entry-bg", theme), foreground: tokenColor("fg", theme), border: tokenColor("quick-entry-border", theme) }),
   log: logLine,
   strings: { daemonDown: S.quickEntryDaemonDownStatic },
-  yieldFocus: (hideWindow) => {
-    if (process.platform !== "darwin") return hideWindow();
-    app.hide();
-    hideWindow();
-    app.show();
-  },
 });
 
 const quickShortcut = new QuickShortcutController(
@@ -1150,7 +970,7 @@ ipcMain.handle("agent-nav:quick-status", (event) => {
 
 ipcMain.handle("agent-nav:quick-close", (event) => {
   if (!fromQuickPage(event)) throw new Error("quick entry close refused");
-  quickEntry.dismiss();
+  quickEntry.hide();
 });
 
 ipcMain.handle("agent-nav:quick-resize", (event, cardHeight: unknown) => {
@@ -1250,15 +1070,15 @@ ipcMain.handle("agent-nav:window-ids", (event) => {
   return registry.windows.map((w) => w.id);
 });
 
-ipcMain.handle("agent-nav:restart-daemon", (event): boolean | "deferred" => {
+ipcMain.handle("agent-nav:restart-daemon", (event) => {
   if (!fromOurPage(event)) throw new Error("restart refused");
-  if (process.env.AGENT_NAV_NO_DAEMON === "1") return false;
-  return restartGate.request().deferred ? "deferred" : true;
+  if (quitFlow.quitting || !daemon) return false;
+  return daemon.restart();
 });
 
 ipcMain.handle("agent-nav:daemon-state", (event) => {
   if (!fromOurPage(event)) throw new Error("daemon state refused");
-  return daemonState;
+  return daemon?.state ?? { state: "running", attempt: 0, maxAttempts: 0 };
 });
 
 const NOTIFY_DEDUPE_MS = 3000;
@@ -1336,7 +1156,7 @@ function e2eContext(): E2EContext<AppWindow, NotifyPayload> {
     openState: () => ({ queueReady: openQueue.isReady, pending: openQueue.pending, outcomes: openOutcomes }),
     registryState: () => ({ registry, file: registryFile() }),
     quitting: () => quitFlow.quitting,
-    daemonPid: () => daemon?.pid ?? null,
+    daemonPid: () => daemon?.state.pid ?? null,
     notifyRoutes,
     notifier,
     folderPicks,
@@ -1368,9 +1188,8 @@ if (INVISIBLE && process.platform === "darwin") app.setActivationPolicy("accesso
 app.whenReady().then(async () => {
   if (!gotInstanceLock) return;
   startupMark("ready");
-  if (process.env.AGENT_NAV_NO_DAEMON !== "1") startDaemon();
-  startupMark("daemon-spawned");
-  const daemonUp = waitForDaemon();
+  const daemonUp = Promise.resolve(daemon?.connect()).then(waitForDaemon);
+  startupMark("daemon-connecting");
   daemonUp.catch(() => undefined);
   console.log(`[electron] name=${app.getName()} userData=${app.getPath("userData")} logs=${app.getPath("logs")} packaged=${app.isPackaged} invisible=${INVISIBLE}`);
   if (INVISIBLE && process.platform === "darwin") {
@@ -1411,10 +1230,10 @@ app.on("window-all-closed", () => {
 });
 app.on("before-quit", (event) => {
   const decision = quitFlow.onBeforeQuit();
-  if (decision === "run") resetRespawn();
   if (decision !== "pass") event.preventDefault();
 });
 app.on("will-quit", () => {
+  daemon?.close();
   quickShortcut.release();
   globalShortcut.unregisterAll();
   quitFlow.onWillQuit();

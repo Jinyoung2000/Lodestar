@@ -20,7 +20,7 @@ export const FV = {
   hotExitTooLarge: (name: string) => `Unsaved changes in ${name} were too large to keep when the app closed.`,
 
   readOnlyMessage: "This file is read-only. Save As… or change permissions.",
-  readOnlyBanner: "Read-only file. Save As… or change permissions to edit it.",
+  readOnlyTip: (outside: boolean) => (outside ? "Read-only: this file is outside the session folder. Click to Save As… an editable copy." : "Read-only: no write permission for this file. Click to Save As… an editable copy."),
   saveAs: "Save As…",
   saveAsTitle: "Save As",
   saveAsConfirm: "Save",

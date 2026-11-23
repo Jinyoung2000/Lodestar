@@ -1,11 +1,12 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from "react";
+import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type FocusEvent, type MouseEvent, type ReactNode } from "react";
 import { defaultChangeScope, type Agent, type EffortLevel, type FileRef, type ImageRef, type PermissionMode } from "../shared/protocol";
 import { AttachMenu } from "./AttachMenu";
 import { changesChipTitle, openSessionChanges } from "./changesChip";
 import { useChangesView } from "./changesState";
 import { ComposerFeedback } from "./DiffFeedbackChips";
 import { pendingOf, sendDiffFeedback, useDiffFeedback } from "./diffFeedbackState";
-import { applyMention, applyTrigger, continueMarkdown, draftKey, findTrigger, getDraft, historyOf, removeMention, setDraft, stepHistory } from "./composerState";
+import { applyMention, applyTrigger, continueMarkdown, draftKey, findTrigger, getDraft, historyOf, removeMention, setDraft, stepHistory, subscribeDraft } from "./composerState";
+import { deleteFileRef, inlineFileRefs } from "./composerFileRefs";
 import { selectionOf } from "./attachments";
 import { nameTails, chipTitle } from "./attachDedupe";
 import { useFlashingAttachment } from "./attachFlash";
@@ -65,7 +66,7 @@ type ComposerProps = {
 
 export const Composer = memo(function Composer({ paneId, agent, workspaceId, busy, permissionMode, onPermissionMode, model, activeModel, effort, footerRight, approval, onSubmit, onSubmitBackground, beforeSubmit }: ComposerProps) {
   const storageKey = draftKey(agent?.id ?? null, paneId);
-  const [text, setTextState] = useState(() => getDraft(storageKey));
+  const text = useSyncExternalStore(subscribeDraft, () => getDraft(storageKey));
   const [caret, setCaret] = useState(0);
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const [triggerIndex, setTriggerIndex] = useState(0);
@@ -74,8 +75,13 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
   const [dropping, setDropping] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachments = useStore((s) => s.attachments[storageKey] ?? NO_ATTACHMENTS);
+  const { chips, inlineAttachments } = useMemo(() => ({
+    chips: attachments.filter((attachment) => !attachment.inlineRef),
+    inlineAttachments: new Map(attachments.flatMap((attachment) => attachment.inlineRef ? [[attachment.inlineRef, attachment] as const] : [])),
+  }), [attachments]);
+  const refs = useMemo(() => inlineFileRefs(text, inlineAttachments.keys()), [text, inlineAttachments]);
   const workspaces = useStore((s) => s.workspaces);
-  const nameTail = useMemo(() => nameTails(attachments, (id) => workspaces.find((w) => w.id === id)?.dir), [attachments, workspaces]);
+  const nameTail = useMemo(() => nameTails(chips, (id) => workspaces.find((w) => w.id === id)?.dir), [chips, workspaces]);
   const flashing = useFlashingAttachment();
   const feedback = pendingOf(useDiffFeedback(agent?.id));
   const focusRequest = useStore((s) => (s.focusComposer?.paneId === paneId ? s.focusComposer.nonce : null));
@@ -90,13 +96,11 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
   const panelScope = useChangesView((s) => (agent ? (s.scope[agent.id] ?? defaultChangeScope(agent)) : "branch"));
   const defaults = useDefaults();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const refsBackdrop = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const plusRef = useRef<HTMLButtonElement>(null);
 
-  const setText = (next: string) => {
-    setTextState(next);
-    setDraft(storageKey, next);
-  };
+  const setText = (next: string) => setDraft(storageKey, next);
 
   useEffect(() => {
     if (focusRequest != null) textareaRef.current?.focus();
@@ -105,11 +109,8 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
   useEffect(() => {
     if (!prefill || appliedPrefill.current === prefill.nonce) return;
     appliedPrefill.current = prefill.nonce;
-    setTextState((current) => {
-      const next = prefill.append && current.trim() ? `${current}\n${prefill.text}` : prefill.text;
-      setDraft(storageKey, next);
-      return next;
-    });
+    const current = getDraft(storageKey);
+    setDraft(storageKey, prefill.append && current.trim() ? `${current}\n${prefill.text}` : prefill.text);
     setState((s) => {
       const { [paneId]: _used, ...rest } = s.composerPrefill;
       return { composerPrefill: rest };
@@ -131,23 +132,27 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
+    if (refsBackdrop.current) refsBackdrop.current.scrollTop = el.scrollTop;
+  }, [text, refs.length]);
 
   const found = useMemo(() => findTrigger(text, caret), [text, caret]);
-  const trigger = found && found.start !== dismissedAt ? found : null;
+  const trigger = found && found.start !== dismissedAt && !refs.some(({ from, to }) => from < caret && caret <= to) ? found : null;
   const items = useTriggerItems(trigger, workspaceId, agent !== null, harness);
   const menuOpen = trigger !== null && items.length > 0;
   useEffect(() => setTriggerIndex(0), [trigger?.kind, trigger?.query]);
 
   const reset = (sentText: string, sentIds: ReadonlySet<string>) => {
-    setTextState((current) => {
-      const next = current === sentText ? "" : current.startsWith(sentText) ? current.slice(sentText.length).replace(/^\s+/, "") : current;
-      setDraft(storageKey, next);
-      return next;
-    });
+    const current = getDraft(storageKey);
+    const next = current === sentText ? "" : current.startsWith(sentText) ? current.slice(sentText.length).replace(/^\s+/, "") : current;
+    setDraft(storageKey, next);
     setHistoryIndex(null);
     setCaret(0);
-    clearAttachmentsByKey(storageKey, sentIds);
+    const removable = new Set(sentIds);
+    for (const { value } of inlineFileRefs(next, inlineAttachments.keys())) {
+      const attachment = inlineAttachments.get(value);
+      if (attachment) removable.delete(attachment.id);
+    }
+    clearAttachmentsByKey(storageKey, removable);
   };
   const sending = useRef(false);
   const [pending, setPending] = useState(false);
@@ -180,11 +185,15 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
   const fileChips = attachments.filter((a) => a.file);
   const compose = () => {
     const prompt = text.trim();
-    const quotes = attachments.filter((a) => a.quote).map(formatAttachment);
-    const parts = [...quotes, ...attachments.filter((a) => !a.handoff && !a.image && !a.file && !a.quote).map(formatAttachment)];
-    if (!prompt && !parts.length && !handoffChip && !imageChips.length && !fileChips.length) return feedback.length ? "" : null;
-    if (handoffChip) return [formatAttachment(handoffChip), prompt || S.handoffContinue, ...parts].join("\n\n");
-    return [...quotes, prompt, ...parts.slice(quotes.length)].filter(Boolean).join("\n\n");
+    const quotes = chips.filter((a) => a.quote).map(formatAttachment);
+    const context = chips.filter((a) => !a.handoff && !a.image && !a.file && !a.quote).map(formatAttachment);
+    for (const value of new Set(refs.map((ref) => ref.value))) {
+      const attachment = inlineAttachments.get(value);
+      if (attachment && attachment.text !== null) context.push(formatAttachment(attachment));
+    }
+    if (!prompt && !quotes.length && !context.length && !handoffChip && !imageChips.length && !fileChips.length) return feedback.length ? "" : null;
+    if (handoffChip) return [formatAttachment(handoffChip), prompt || S.handoffContinue, ...quotes, ...context].join("\n\n");
+    return [...quotes, prompt, ...context].filter(Boolean).join("\n\n");
   };
   const tryBtw = () => {
     const m = /^\/btw\b\s*([\s\S]*)$/.exec(text.trim());
@@ -288,7 +297,7 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
   const applyEdit = (el: HTMLTextAreaElement, edit: MarkdownEdit) => {
     if (edit.insert !== el.value.slice(edit.from, edit.to)) {
       el.setSelectionRange(edit.from, edit.to);
-      if (!document.execCommand("insertText", false, edit.insert)) {
+      if (!(edit.insert ? document.execCommand("insertText", false, edit.insert) : document.execCommand("delete"))) {
         setText(el.value.slice(0, edit.from) + edit.insert + el.value.slice(edit.to));
         setHistoryIndex(null);
         moveCaret(edit.selEnd);
@@ -347,6 +356,14 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
     }
     const plain = !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey;
     const el = e.currentTarget;
+    if (plain && el.selectionStart === el.selectionEnd && (e.key === "Backspace" || e.key === "Delete")) {
+      const edit = deleteFileRef(el.value, refs, el.selectionStart, e.key === "Backspace");
+      if (edit) {
+        e.preventDefault();
+        applyEdit(el, edit);
+        return;
+      }
+    }
     const pending = plain && e.key === "ArrowUp" && text === "" && historyIndex === null && agent ? lastPending(agent) : null;
     if (pending && agent) {
       e.preventDefault();
@@ -427,7 +444,7 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
   const files = sessionChanges?.files ?? [];
   const additions = files.reduce((n, f) => n + f.additions, 0);
   const deletions = files.reduce((n, f) => n + f.deletions, 0);
-  const hasContent = text.trim().length > 0 || attachments.length > 0 || feedback.length > 0;
+  const hasContent = text.trim().length > 0 || chips.length > 0 || feedback.length > 0;
   const stopMode = busy && !hasContent && agent !== null;
   const sendState = stopMode ? "stop" : hasContent ? "ready" : "empty";
 
@@ -465,10 +482,10 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
       >
         {(busy || pending) && <span className="progress-line" aria-hidden="true" />}
         {dropping && <div className="composer-drop-hint">{S.fileDropHint}</div>}
-        {(attachments.length > 0 || feedback.length > 0) && (
+        {(chips.length > 0 || feedback.length > 0) && (
           <div className="attachments">
             {agent && <ComposerFeedback agentId={agent.id} />}
-            {attachments.map((a) =>
+            {chips.map((a) =>
               a.handoff ? (
                 <HandoffComposerChip key={a.id} paneId={paneId} attachment={a} />
               ) : a.file ? (
@@ -507,24 +524,41 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
             )}
           </div>
         )}
-        <textarea
-          id={`composer-${paneId}`}
-          ref={textareaRef}
-          className="textarea"
-          aria-label={S.message}
-          value={text}
-          placeholder={agent ? (harness === "codex" ? S.composerPlaceholderCodex : harness === "antigravity" ? S.composerPlaceholderAntigravity : S.composerPlaceholder) : harness === "codex" ? S.composerPlaceholderNewCodex : harness === "antigravity" ? S.composerPlaceholderNewAntigravity : S.composerPlaceholderNew}
-          rows={1}
-          onChange={(e) => {
-            setText(e.target.value);
-            setCaret(e.target.selectionStart);
-            setDismissedAt(null);
-            setHistoryIndex(null);
-          }}
-          onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
-          onKeyDown={onKeyDown}
-          onPaste={onPaste}
-        />
+        <div className="composer-message" data-inline-refs={refs.length > 0 || undefined}>
+          {refs.length > 0 && (
+            <div className="textarea composer-ref-backdrop" ref={refsBackdrop} aria-hidden="true">
+              {refs.map(({ from, value }, index) => (
+                <Fragment key={from}>
+                  {text.slice(refs[index - 1]?.to ?? 0, from)}
+                  <span className="composer-file-ref">{value}</span>
+                </Fragment>
+              ))}
+              {text.slice(refs[refs.length - 1].to)}{"\u200b"}
+            </div>
+          )}
+          <textarea
+            id={`composer-${paneId}`}
+            ref={textareaRef}
+            className="textarea"
+            aria-label={S.message}
+            spellCheck={refs.length > 0 ? false : undefined}
+            value={text}
+            placeholder={agent ? (harness === "codex" ? S.composerPlaceholderCodex : harness === "antigravity" ? S.composerPlaceholderAntigravity : S.composerPlaceholder) : harness === "codex" ? S.composerPlaceholderNewCodex : harness === "antigravity" ? S.composerPlaceholderNewAntigravity : S.composerPlaceholderNew}
+            rows={1}
+            onChange={(e) => {
+              setText(e.target.value);
+              setCaret(e.target.selectionStart);
+              setDismissedAt(null);
+              setHistoryIndex(null);
+            }}
+            onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
+            onScroll={(e) => {
+              if (refsBackdrop.current) refsBackdrop.current.scrollTop = e.currentTarget.scrollTop;
+            }}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+          />
+        </div>
         <div className="composer-tools" ref={toolsRef}>
           <button ref={plusRef} type="button" className="chip chip-icon" data-chip {...tipFor(S.attach(attachKey))} onClick={() => setAttachOpen((v) => !v)}>
             <AddCompact />
@@ -625,7 +659,7 @@ function formatAttachment(a: Attachment) {
   if (a.startLine == null || a.text == null) return `@${a.path}`;
   const lang = a.path.slice(a.path.lastIndexOf(".") + 1);
   const range = a.startLine === a.endLine ? `L${a.startLine}` : `L${a.startLine}-L${a.endLine}`;
-  return `@${a.path}:${range}\n\`\`\`${lang}\n${a.text}\n\`\`\``;
+  return `${a.inlineRef ?? `@${a.path}:${range}`}\n\`\`\`${lang}\n${a.text}\n\`\`\``;
 }
 
 function quoteLines(text: string) {

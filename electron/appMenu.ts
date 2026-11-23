@@ -90,6 +90,7 @@ export function buildAppMenu(keymapState: KeymapState, boardMenuShown: boolean, 
     },
     {
       label: S.menu.window,
+      role: "windowMenu",
       submenu: [
         { label: S.menu.sidebar, ...accel("toggleSidebar", "Cmd+B"), click: () => send("toggleSidebar") },
         { label: S.menu.bottomPanel, ...accel("toggleBottom", "Cmd+J"), click: () => send("toggleBottom") },

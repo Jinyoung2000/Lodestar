@@ -1,5 +1,6 @@
 import { requireOptionalNativeModule } from "expo";
 import { PermissionsAndroid, Platform } from "react-native";
+import { hasMixedRoutes, routeSocketUrl } from "../logic/routes";
 import type { Connection } from "./storage";
 
 type SessionActivity = {
@@ -14,7 +15,8 @@ export const alertsEnabled = () => activity?.enabled() ?? false;
 
 export function startAlerts(connection: Connection) {
   if (!activity) throw new Error("Install the latest Android build to use session alerts.");
-  const urls = connection.hosts.map((host) => `${connection.secure ? "wss" : "ws"}://${host}:${connection.port}/mobile/ws`);
+  const routes = hasMixedRoutes(connection.routes) ? connection.routes.filter((route) => route.secure) : connection.routes;
+  const urls = routes.map(routeSocketUrl);
   return activity.start(urls, connection.token);
 }
 

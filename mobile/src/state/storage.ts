@@ -1,8 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
+import { routesFromAddress, type ConnectionRoute } from "../logic/routes";
+import type { PairingInfo } from "../logic/pairing";
 import type { Cache } from "./store";
 
-export type Connection = { hosts: string[]; port: number; secure?: boolean; token: string; deviceId: string; hostName: string; pairedAt: string };
+export type Connection = { routes: ConnectionRoute[]; token: string; deviceId: string; hostName: string; pairedAt: string };
+type SavedConnection = Omit<Connection, "token">;
+type LegacyConnection = Omit<SavedConnection, "routes"> & Pick<PairingInfo, "hosts" | "port" | "secure">;
 
 const TOKEN_KEY = "lodestar.token";
 const META_KEY = "lodestar.connection";
@@ -17,7 +21,10 @@ export async function loadConnection(): Promise<Connection | null> {
   try {
     const [token, meta] = await Promise.all([SecureStore.getItemAsync(TOKEN_KEY), AsyncStorage.getItem(META_KEY)]);
     if (!token || !meta) return null;
-    return { ...(JSON.parse(meta) as Omit<Connection, "token">), token };
+    const saved = JSON.parse(meta) as SavedConnection | LegacyConnection;
+    if ("routes" in saved) return { ...saved, token };
+    const { deviceId, hostName, pairedAt } = saved;
+    return { deviceId, hostName, pairedAt, routes: routesFromAddress(saved), token };
   } catch {
     return null;
   }

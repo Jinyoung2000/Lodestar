@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { Appearance } from "react-native";
 import { asyncCache, loadPref } from "./storage";
 
-export type ThemeChoice = "system" | "light" | "dark";
+export type ThemeChoice = "system" | "light" | "dark" | "midnight";
 
 let choice: ThemeChoice | null = null;
 let loading: Promise<void> | undefined;
@@ -15,14 +15,14 @@ function subscribe(listener: () => void) {
 }
 
 function apply(next: ThemeChoice) {
-  Appearance.setColorScheme(next === "system" ? "auto" : next);
+  Appearance.setColorScheme(next === "midnight" ? "dark" : next === "system" ? "auto" : next);
   choice = next;
   for (const listener of listeners) listener();
 }
 
 export function loadThemeChoice() {
   loading ??= loadPref<unknown>("theme", "system").then((saved) => {
-    if (choice === null) apply(saved === "light" || saved === "dark" ? saved : "system");
+    if (choice === null) apply(saved === "light" || saved === "dark" || saved === "midnight" ? saved : "system");
   });
   return loading;
 }
