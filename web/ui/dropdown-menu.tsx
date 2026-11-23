@@ -6,45 +6,32 @@ import { cn } from "../lib/utils";
 export const DropdownMenu = DropdownMenuPrimitive.Root;
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
+const PANEL = "z-50 min-w-(--size-control) rounded-md border border-border-overlay bg-surface-overlay p-1 text-fg-strong shadow-overlay";
+
 export const DropdownMenuContent = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>>(function DropdownMenuContent({ className, sideOffset = 4, ...props }, ref) {
   return (
     <DropdownMenuPrimitive.Portal>
-      <DropdownMenuPrimitive.Content
-        ref={ref}
-        sideOffset={sideOffset}
-        className={cn("z-50 min-w-(--size-control) rounded-md border border-border bg-surface-overlay p-1 text-fg shadow-overlay", className)}
-        {...props}
-      />
+      <DropdownMenuPrimitive.Content ref={ref} sideOffset={sideOffset} className={cn(PANEL, className)} {...props} />
     </DropdownMenuPrimitive.Portal>
   );
 });
 
+const ROW = "flex h-(--size-row-lg) cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-ui-sm outline-none data-[highlighted]:bg-surface-selected data-[disabled]:cursor-default data-[disabled]:text-fg-subtle";
+
 export const DropdownMenuItem = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & { danger?: boolean }>(function DropdownMenuItem({ className, danger, ...props }, ref) {
-  return (
-    <DropdownMenuPrimitive.Item
-      ref={ref}
-      className={cn(
-        "flex h-(--size-row-lg) cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-ui-sm outline-none data-[highlighted]:bg-surface-hover data-[highlighted]:text-fg-strong",
-        danger && "text-danger data-[highlighted]:text-danger",
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <DropdownMenuPrimitive.Item ref={ref} className={cn(ROW, danger && "text-danger", className)} {...props} />;
 });
 
 export const DropdownMenuSeparator = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>>(function DropdownMenuSeparator({ className, ...props }, ref) {
-  return <DropdownMenuPrimitive.Separator ref={ref} className={cn("my-1 h-px bg-border-subtle", className)} {...props} />;
+  return <DropdownMenuPrimitive.Separator ref={ref} className={cn("-mx-1 my-1 h-px bg-border", className)} {...props} />;
 });
 
 export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
-const ROW = "flex h-(--size-row-lg) cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-ui-sm outline-none data-[highlighted]:bg-surface-hover data-[highlighted]:text-fg-strong data-[state=open]:bg-surface-hover";
-
 export const DropdownMenuSubTrigger = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger>>(function DropdownMenuSubTrigger({ className, children, ...props }, ref) {
   return (
-    <DropdownMenuPrimitive.SubTrigger ref={ref} className={cn(ROW, className)} {...props}>
+    <DropdownMenuPrimitive.SubTrigger ref={ref} className={cn(ROW, "data-[state=open]:bg-surface-selected", className)} {...props}>
       {children}
       <span className="ml-auto flex text-fg-muted">
         <ChevronRight />
@@ -56,13 +43,7 @@ export const DropdownMenuSubTrigger = forwardRef<HTMLDivElement, ComponentPropsW
 export const DropdownMenuSubContent = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>>(function DropdownMenuSubContent({ className, sideOffset = 2, alignOffset = -5, ...props }, ref) {
   return (
     <DropdownMenuPrimitive.Portal>
-      <DropdownMenuPrimitive.SubContent
-        ref={ref}
-        sideOffset={sideOffset}
-        alignOffset={alignOffset}
-        className={cn("z-50 min-w-(--size-control) rounded-md border border-border bg-surface-overlay p-1 text-fg shadow-overlay", className)}
-        {...props}
-      />
+      <DropdownMenuPrimitive.SubContent ref={ref} sideOffset={sideOffset} alignOffset={alignOffset} className={cn(PANEL, className)} {...props} />
     </DropdownMenuPrimitive.Portal>
   );
 });
@@ -70,7 +51,7 @@ export const DropdownMenuSubContent = forwardRef<HTMLDivElement, ComponentPropsW
 export const DropdownMenuRadioItem = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>>(function DropdownMenuRadioItem({ className, children, ...props }, ref) {
   return (
     <DropdownMenuPrimitive.RadioItem ref={ref} className={cn(ROW, className)} {...props}>
-      <span className="flex w-(--size-icon) shrink-0 items-center justify-center">
+      <span className="flex w-(--size-icon) shrink-0 items-center justify-center text-accent-text">
         <DropdownMenuPrimitive.ItemIndicator>
           <Check />
         </DropdownMenuPrimitive.ItemIndicator>
@@ -83,7 +64,7 @@ export const DropdownMenuRadioItem = forwardRef<HTMLDivElement, ComponentPropsWi
 export const DropdownMenuCheckboxItem = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>>(function DropdownMenuCheckboxItem({ className, children, ...props }, ref) {
   return (
     <DropdownMenuPrimitive.CheckboxItem ref={ref} className={cn(ROW, className)} {...props}>
-      <span className="flex w-(--size-icon) shrink-0 items-center justify-center">
+      <span className="flex w-(--size-icon) shrink-0 items-center justify-center text-accent-text">
         <DropdownMenuPrimitive.ItemIndicator>
           <Check />
         </DropdownMenuPrimitive.ItemIndicator>

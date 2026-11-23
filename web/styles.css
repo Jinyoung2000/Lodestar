@@ -2441,18 +2441,21 @@ button.scope-button:focus-visible {
 .scope-item.scope-item {
   height: auto;
   align-items: flex-start;
-  padding-top: calc(var(--space-1) - 1px);
-  padding-bottom: calc(var(--space-1) - 1px);
+  padding-top: var(--space-1_5);
+  padding-bottom: var(--space-1_5);
 }
 .scope-item-check {
-  width: var(--size-icon-sm);
+  display: flex;
+  justify-content: center;
+  width: var(--size-icon);
   flex-shrink: 0;
   padding-top: var(--space-0_5);
-  color: var(--fg);
+  color: var(--accent-text);
 }
 .scope-item-text {
   display: flex;
   flex-direction: column;
+  gap: var(--space-0_5);
 }
 .scope-item-desc {
   font-size: var(--text-caption);
@@ -4941,6 +4944,9 @@ button.review-link:focus-visible {
 :where(button, [role="button"], [role="option"], [role="menuitem"], [role="tab"], [tabindex]):focus-visible {
   outline: 1px solid var(--focus-border);
   outline-offset: -1px;
+}
+:where([data-radix-menu-content], [data-radix-select-viewport]) :where([role^="menuitem"], [role="option"]):focus-visible {
+  outline: none;
 }
 
 .icon-button {
@@ -9671,10 +9677,6 @@ button[data-variant]:disabled .codicon {
 }
 .session-group[data-missing] .session-group-new {
   visibility: hidden;
-}
-.session-menu [data-disabled] {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .timeline-wrap > .timeline {

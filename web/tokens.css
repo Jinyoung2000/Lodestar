@@ -11,6 +11,7 @@
   --surface-inset: #141414;
   --border-subtle: #2b2b2b;
   --border: #3c3c3c;
+  --border-overlay: #4a4a4a;
   --fg-strong: #e7e7e7;
   --fg: #cccccc;
   --fg-muted: #9d9d9d;
@@ -369,7 +370,7 @@
   --size-menu-place: 293px;
   --size-menu-branch: 265px;
   --size-popup-branch: 360px;
-  --size-menu-scope: 266px;
+  --size-menu-scope: 296px;
   --size-approval-box: 32px;
   --size-dialog: 450px;
   --size-notification: 452px;
@@ -516,6 +517,7 @@
   --surface-inset: #f3f3f3;
   --border-subtle: #e5e5e5;
   --border: #cecece;
+  --border-overlay: #c4c4c4;
   --fg-strong: #1f1f1f;
   --fg: #3b3b3b;
   --fg-muted: #616161;
@@ -785,6 +787,7 @@
   --surface-inset: #393b40;
   --border-subtle: #393b40;
   --border: #4e5157;
+  --border-overlay: #55585e;
   --fg-strong: #f0f1f2;
   --fg: #dfe1e5;
   --fg-muted: #9da0a8;
@@ -989,6 +992,7 @@
   --surface-inset: #ebecf0;
   --border-subtle: #ebecf0;
   --border: #c9ccd6;
+  --border-overlay: #c0c3cd;
   --fg-strong: #000000;
   --fg: #27282e;
   --fg-muted: #6c707e;

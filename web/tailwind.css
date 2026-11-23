@@ -69,6 +69,7 @@
   --color-surface-inset: var(--surface-inset);
   --color-border-subtle: var(--border-subtle);
   --color-border: var(--border);
+  --color-border-overlay: var(--border-overlay);
   --color-fg-strong: var(--fg-strong);
   --color-fg: var(--fg);
   --color-fg-muted: var(--fg-muted);

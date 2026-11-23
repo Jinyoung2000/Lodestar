@@ -35,7 +35,7 @@ export const SelectContent = forwardRef<HTMLDivElement, ComponentPropsWithoutRef
         ref={ref}
         position={position}
         sideOffset={4}
-        className={cn("z-50 min-w-(--radix-select-trigger-width) overflow-hidden rounded-md border border-border bg-surface-overlay p-1 text-fg shadow-overlay", className)}
+        className={cn("z-50 min-w-(--radix-select-trigger-width) overflow-hidden rounded-md border border-border-overlay bg-surface-overlay p-1 text-fg-strong shadow-overlay", className)}
         {...props}
       >
         <SelectPrimitive.Viewport>{children}</SelectPrimitive.Viewport>
@@ -49,12 +49,12 @@ export const SelectItem = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<ty
     <SelectPrimitive.Item
       ref={ref}
       className={cn(
-        "relative flex h-(--size-row-lg) cursor-pointer select-none items-center rounded-sm pl-6 pr-2 text-ui-sm outline-none data-[highlighted]:bg-surface-hover data-[highlighted]:text-fg-strong data-[disabled]:text-fg-subtle",
+        "relative flex h-(--size-row-lg) cursor-pointer select-none items-center rounded-sm pl-6 pr-2 text-ui-sm outline-none data-[highlighted]:bg-surface-selected data-[disabled]:text-fg-subtle",
         className,
       )}
       {...props}
     >
-      <span className="absolute left-1.5 flex size-4 items-center justify-center">
+      <span className="absolute left-1.5 flex size-4 items-center justify-center text-accent-text">
         <SelectPrimitive.ItemIndicator className="inline-flex">
           <Check size={12} />
         </SelectPrimitive.ItemIndicator>
