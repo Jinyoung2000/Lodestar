@@ -4,6 +4,7 @@ import { createServer, type Socket } from "node:net";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { lockDaemonFile } from "../server/daemonLock";
+import { OPERATOR_MARK } from "../shared/protocol";
 import { isNewerVersion } from "../shared/release";
 import { RestartScheduler, restartWaitMs } from "../shared/restartGate";
 import { daemonSocket, type DaemonEvent, type DaemonState } from "./daemonSocket";
@@ -56,16 +57,8 @@ function report(next: DaemonState["state"], reload = false) {
   for (const client of clients) send(client, event);
 }
 
-function runFromSourceOn() {
-  try {
-    return (JSON.parse(readFileSync(join(home, "settings.json"), "utf8")) as { runFromSource?: unknown }).runFromSource === true;
-  } catch {
-    return false;
-  }
-}
-
 function repoBuildProblem(): string | null {
-  if (!runFromSourceOn()) return "run from the source folder is off";
+  if (!existsSync(join(srcRoot, OPERATOR_MARK))) return "not the operator Mac";
   if (!existsSync(srcRoot)) return "source folder not found";
   try {
     if (!statSync(join(srcRoot, "dist", "index.html")).isFile() ||

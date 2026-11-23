@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { extname, join, resolve } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { MobileDefaults, MobileWorkspaceIcons, MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileStatus } from "../shared/mobile";
-import { HARNESS_VALUES, harnessOf, type Harness, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
+import { HARNESS_VALUES, harnessOf, OPERATOR_MARK, type Harness, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
 import { switchBlock } from "../shared/harnessSwitch";
 import { AgentRunner } from "./agents";
 import { BoardStore } from "./board";
@@ -96,9 +96,9 @@ const DIST = join(ROOT, "dist");
 const SRC_ROOT = realDir(process.env.AGENT_NAV_SRC ?? (existsSync(join(ROOT, "web", "App.tsx")) ? ROOT : join(homedir(), "Repository", "agent-nav")));
 const SRC_DIST = join(SRC_ROOT, "dist");
 const PACKAGED = process.env.AGENT_NAV_PACKAGED === "1";
-const sourceEnabled = () => !PACKAGED || store.settings.runFromSource === true;
+const sourceEnabled = () => !PACKAGED || existsSync(join(SRC_ROOT, OPERATOR_MARK));
 const webDist = () => (SRC_ROOT !== ROOT && sourceEnabled() && existsSync(join(HOME, "feedback", "live-dist")) && existsSync(join(SRC_DIST, "index.html")) ? SRC_DIST : DIST);
-const RUNTIME: RuntimeInfo = {
+const RUNTIME: Omit<RuntimeInfo, "operator"> = {
   kind: process.env.AGENT_NAV_RUNTIME === "repo" || process.env.AGENT_NAV_RUNTIME === "bundle" ? process.env.AGENT_NAV_RUNTIME : existsSync(join(ROOT, "web", "App.tsx")) ? "repo" : "bundle",
   root: ROOT,
   note: process.env.AGENT_NAV_RUNTIME_NOTE || null,
@@ -454,12 +454,6 @@ const settingsEffects: SettingsEffect[] = [
   },
   { apply: (next) => allowProviderEnv(next.useProviderEnv === true) },
   { keys: ["autoAddRequests"], apply: () => mentions.kick() },
-  {
-    keys: ["runFromSource"],
-    apply: (next, previous) => {
-      if (PACKAGED && (next.runFromSource === true) !== (previous.runFromSource === true)) restartScheduler.request();
-    },
-  },
   { keys: ["notionBypassWrites"], apply: () => runner.releaseNotionCards() },
 ];
 
@@ -552,7 +546,7 @@ const handlers: Handlers = {
   "meta.refresh": () => metaService.refresh(),
   "mcp.reconnect": ({ name }) => metaService.reconnect(name),
   "mcp.toggle": ({ name, enabled }) => metaService.toggle(name, enabled),
-  "runtime.info": () => RUNTIME,
+  "runtime.info": () => ({ ...RUNTIME, operator: sourceEnabled() }),
   "logs.tail": ({ lines }) => logRing.slice(-Math.max(1, Math.min(lines, LOG_LINES))),
   "quick.ask": ({ id, workspaceId, model, question, context }) => {
     quick.ask(id, workspaceId, model, question, context);

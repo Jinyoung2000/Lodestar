@@ -23,7 +23,8 @@ export function SettingsView() {
   const [modifiedOnly, setModifiedOnly] = useState(false);
   const narrow = useNarrow(dialogEl);
 
-  const metas = useMemo(() => (ctx ? SETTING_DEFS.map((def) => metaOf(def, ctx)) : []), [ctx]);
+  const operator = useOperator();
+  const metas = useMemo(() => (ctx ? SETTING_DEFS.filter((def) => operator || !def.operatorOnly).map((def) => metaOf(def, ctx)) : []), [ctx, operator]);
   const visible = useMemo(() => filterSettings(metas, query, modifiedOnly), [metas, query, modifiedOnly]);
   const counts = useMemo(() => groupCounts(visible), [visible]);
   const visibleIds = useMemo(() => new Set(visible.map((m) => m.id)), [visible]);
@@ -254,4 +255,16 @@ function useNarrow(el: HTMLElement | null) {
     return () => observer.disconnect();
   }, [el]);
   return narrow;
+}
+
+function useOperator() {
+  const [operator, setOperator] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void rpc.call("runtime.info", {}).then((info) => live && setOperator(info.operator === true), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  return operator;
 }

@@ -229,7 +229,9 @@ export type Meta = {
   claudeMissing?: boolean;
 };
 
-export type RuntimeInfo = { kind: "repo" | "bundle"; root: string; note: string | null };
+export type RuntimeInfo = { kind: "repo" | "bundle"; root: string; note: string | null; operator: boolean };
+
+export const OPERATOR_MARK = ".lodestar-operator";
 
 export type Theme = "dark" | "light" | "system" | "black";
 
@@ -292,7 +294,6 @@ export type Settings = {
   maxWarmSessions: number;
   feedbackAutoTidy: boolean;
   autoUpdateWhenIdle: boolean;
-  runFromSource: boolean;
   autoAddRequests: boolean;
   mentionAnalysisModel: string;
   mentionAnalysisBudgetUsd: number | null;
