@@ -33,7 +33,7 @@ const STATE_SAVE_DELAY_MS = Number(process.env.AGENT_NAV_SAVE_DELAY_MS ?? 300);
 const TIMELINE_RETRY_MS = 5000;
 const STATE_BACKUP = `${STATE_FILE}.bak`;
 
-function writeFileAtomic(file: string, text: string) {
+export function writeFileAtomic(file: string, text: string) {
   const tmp = `${file}.${process.pid}.tmp`;
   try {
     writeFileSync(tmp, text, { mode: 0o600 });

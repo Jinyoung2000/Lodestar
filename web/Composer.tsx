@@ -34,7 +34,7 @@ import { FolderChip } from "./FolderChip";
 import { interruptAgent } from "./sessionActions";
 import { lastPending } from "./pendingMessages";
 import { editPending } from "./Queue";
-import { currentDefaults, sideChatModel, useDefaults } from "./defaults";
+import { currentDefaults, sideChatEffort, sideChatModel, useDefaults } from "./defaults";
 import { builtinEffort, supportedLevels } from "./effortLevels";
 import { S } from "./strings";
 import { hint } from "./hint";
@@ -154,6 +154,16 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
     }
     clearAttachmentsByKey(storageKey, removable);
   };
+  const restoreUnsent = (sentText: string, sentAttachments: readonly Attachment[]) => {
+    const current = getDraft(storageKey);
+    if (!current.startsWith(sentText)) setDraft(storageKey, current.trim() ? `${sentText}\n\n${current}` : sentText);
+    if (!sentAttachments.length) return;
+    setState((s) => {
+      const present = s.attachments[storageKey] ?? [];
+      const missing = sentAttachments.filter((a) => !present.some((p) => p.id === a.id));
+      return missing.length ? { attachments: { ...s.attachments, [storageKey]: [...missing, ...present] } } : {};
+    });
+  };
   const sending = useRef(false);
   const [pending, setPending] = useState(false);
   const submit = (send: () => Promise<unknown>) => {
@@ -161,10 +171,14 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
     sending.current = true;
     setPending(true);
     const sentText = text;
-    const sentIds = new Set(attachments.map((a) => a.id));
-    void send()
-      .then(() => reset(sentText, sentIds))
-      .catch((e: Error) => flash(e.message))
+    const sentAttachments = attachments;
+    const delivery = send();
+    reset(sentText, new Set(sentAttachments.map((a) => a.id)));
+    void delivery
+      .catch((e: Error) => {
+        restoreUnsent(sentText, sentAttachments);
+        flash(e.message);
+      })
       .finally(() => {
         sending.current = false;
         setPending(false);
@@ -211,7 +225,11 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
     const question = m[1].trim();
     if (question) {
       const side = getState().side;
-      if (side) void rpc.call("side.ask", { id: side.id, agentId: agent.id, model: sideChatModel(side.model, agent.model, currentDefaults()), question }).catch((e: Error) => flash(e.message));
+      if (side) {
+        const sideModel = sideChatModel(side.model, agent.model, currentDefaults());
+        const sideEffort = sideChatEffort(side.effort, agent.effort, currentDefaults(), supportedLevels(sideModel));
+        void rpc.call("side.ask", { id: side.id, agentId: agent.id, model: sideModel, effort: sideEffort, question }).catch((e: Error) => flash(e.message));
+      }
     }
     return true;
   };
@@ -615,7 +633,7 @@ export function effortName(effort: EffortLevel | null) {
   return effort ? S.effortNames[effort] : S.effortAuto;
 }
 
-function modelChip(chosen: string | null, activeModel: string | null, models: { value: string; resolvedModel: string | null; displayName: string }[]) {
+export function modelChip(chosen: string | null, activeModel: string | null, models: { value: string; resolvedModel: string | null; displayName: string }[]) {
   const chosenInfo = chosen && chosen !== "default" ? models.find((m) => m.value === chosen || m.resolvedModel === chosen) : undefined;
   const chosenName = chosen && chosen !== "default" ? (modelName(chosen, models) ?? chosen) : null;
   const chosenId = chosenInfo?.resolvedModel ?? (chosen && chosen !== "default" ? chosen : null);

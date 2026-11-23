@@ -5,9 +5,10 @@ import { addAttachment, flash, getState, openSide, setState, startDraft, topWork
 import { S } from "./strings";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { hint } from "./hint";
+import { markQuoteRange } from "./quoteHighlight";
 
 type Anchor = { x: number; y: number; text: string };
-type BarAnchor = Anchor & { commenting?: boolean };
+type BarAnchor = Anchor & { commenting?: boolean; range?: Range };
 
 export const TimelineMenus = memo(function TimelineMenus({ containerRef, agent, paneId }: { containerRef: RefObject<HTMLDivElement | null>; agent: Agent; paneId: string }) {
   const items = (): TimelineItem[] => getState().timelines[agent.id] ?? [];
@@ -28,7 +29,7 @@ export const TimelineMenus = memo(function TimelineMenus({ containerRef, agent, 
         const range = text ? window.getSelection()?.getRangeAt(0) : null;
         if (!range) return setBar(null);
         const rect = range.getBoundingClientRect();
-        setBar({ x: Math.min(rect.left, window.innerWidth - 400), y: rect.bottom + 6, text });
+        setBar({ x: Math.min(rect.left, window.innerWidth - 400), y: rect.bottom + 6, text, range: range.cloneRange() });
       }, 0);
     const clear = () => setBar(null);
     el.addEventListener("contextmenu", onContext);
@@ -62,9 +63,10 @@ export const TimelineMenus = memo(function TimelineMenus({ containerRef, agent, 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [bar]);
-  const addComment = (text: string, comment: string) => {
+  const addComment = (text: string, comment: string, range?: Range) => {
     if (!comment.trim()) return;
-    addAttachment(paneId, { workspaceId: null, path: "", startLine: null, endLine: null, text, quote: { comment: comment.trim() } });
+    const id = addAttachment(paneId, { workspaceId: null, path: "", startLine: null, endLine: null, text, quote: { comment: comment.trim() } });
+    if (range) markQuoteRange(id, range);
     window.getSelection()?.removeAllRanges();
     setBar(null);
   };
@@ -100,7 +102,7 @@ export const TimelineMenus = memo(function TimelineMenus({ containerRef, agent, 
           style={{ left: bar.x, top: bar.y }}
           onSubmit={(event) => {
             event.preventDefault();
-            addComment(bar.text, String(new FormData(event.currentTarget).get("comment") ?? ""));
+            addComment(bar.text, String(new FormData(event.currentTarget).get("comment") ?? ""), bar.range);
           }}
         >
           <textarea

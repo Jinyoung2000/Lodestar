@@ -530,6 +530,8 @@ export type SideRun = {
   id: string;
   agentId: string;
   model: string;
+  effort?: EffortLevel | null;
+  updatedAt?: string;
   sessionId: string | null;
   messages: SideMessage[];
   status: "running" | "idle" | "error";
@@ -925,7 +927,8 @@ export type RpcMethods = PrRpcMethods & LinearRpcMethods & SimulatorRpcMethods &
   "termask.ask": { params: { id: string; model: string; question: string; context: TermAskContext }; result: null };
   "termask.cancel": { params: { id: string }; result: null };
   "pty.info": { params: { ptyId: string }; result: { cwd: string; shell: string; os: string } };
-  "side.ask": { params: { id: string; agentId: string; model: string; question: string }; result: null };
+  "side.ask": { params: { id: string; agentId: string; model: string; effort?: EffortLevel | null; question: string }; result: null };
+  "side.list": { params: { agentId: string }; result: SideRun[] };
   "side.cancel": { params: { id: string }; result: null };
   "side.adopt": { params: { id: string }; result: Agent };
   "feedback.create": {

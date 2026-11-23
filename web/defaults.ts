@@ -63,3 +63,9 @@ export function currentDraftDefaults(): DraftDefaults {
   const s = getState();
   return draftDefaults(s.settings, s.defaults, s.lastPicked);
 }
+
+export function sideChatEffort(picked: EffortLevel | null | undefined, agentEffort: EffortLevel | null | undefined, defaults: EffectiveDefaults, levels: readonly EffortLevel[]): EffortLevel | null {
+  const wanted = picked ?? agentEffort ?? defaults.effort;
+  if (wanted && levels.includes(wanted)) return wanted;
+  return levels.includes("high") ? "high" : (levels[levels.length - 1] ?? null);
+}

@@ -1,15 +1,19 @@
-import DOMPurify from "dompurify";
-import { parseMarkdown } from "./markdownParse";
+import type { EffortLevel, SideRun } from "../shared/protocol";
 import { openLinkOutside } from "./fileRefs";
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { FLOAT_EDGES, moveRect, resizeRect, type FloatEdge, type FloatRect } from "./floatLayout";
-import { sideChatModel, useDefaults } from "./defaults";
-import { ArrowUpCompact, Close, ModelIcon, Stop } from "./icons";
+import { sideChatEffort, sideChatModel, useDefaults } from "./defaults";
+import { ArrowUpCompact, Check, Close, Codicon, ModelIcon, Stop } from "./icons";
+import { relativeTime } from "./sessionList";
+import { followsBottom } from "./timelineScroll";
+import { effortName, modelChip } from "./Composer";
+import { supportedLevels } from "./effortLevels";
+import { Popup } from "./Popup";
+import { Markdown, StreamingMarkdown } from "./Timeline";
 import { ModelMenu } from "./Pickers";
 import { rpc } from "./rpc";
 import { flash, openAgent, setState, useStore, type SideState } from "./store";
 import { Button } from "./ui/button";
-import { modelName } from "./timelineModel";
 import { S } from "./strings";
 
 function cssNumber(name: string, fallback: number) {
@@ -22,11 +26,20 @@ export function SideChat({ side }: { side: SideState }) {
   const meta = useStore((s) => s.meta);
   const [text, setText] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
+  const [effortOpen, setEffortOpen] = useState(false);
+  const [history, setHistory] = useState<SideRun[] | null>(null);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
+  const effortChipRef = useRef<HTMLButtonElement>(null);
+  const followBottom = useRef(true);
+  const lastScroll = useRef({ top: 0, height: 0 });
+  const seenMessages = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelChipRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const defaults = useDefaults();
   const model = sideChatModel(side.model, agent?.model, defaults);
+  const levels = supportedLevels(model);
+  const effort = sideChatEffort(side.effort, agent?.effort, defaults, levels);
   const run = side.run;
   const busy = run?.status === "running";
   const asideRef = useRef<HTMLElement>(null);
@@ -43,14 +56,28 @@ export function SideChat({ side }: { side: SideState }) {
   }, [draftNonce]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = listRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    const count = run?.messages.length ?? 0;
+    if (count > seenMessages.current) followBottom.current = true;
+    seenMessages.current = count;
+    if (el && followBottom.current) el.scrollTop = el.scrollHeight;
   }, [run]);
 
   const ask = (question: string) => {
     const q = question.trim();
     if (!q || busy) return;
     setText("");
-    rpc.call("side.ask", { id: side.id, agentId: side.agentId, model, question: q }).catch((e: Error) => flash(e.message));
+    rpc.call("side.ask", { id: side.id, agentId: side.agentId, model, effort, question: q }).catch((e: Error) => flash(e.message));
+  };
+  const toggleHistory = async () => {
+    if (history) {
+      setHistory(null);
+      return;
+    }
+    const list = await rpc.call("side.list", { agentId: side.agentId }).catch((e: Error) => {
+      flash(e.message);
+      return null;
+    });
+    if (list) setHistory(list.filter((past) => past.id !== side.id));
   };
   const adopt = async () => {
     const created = await rpc.call("side.adopt", { id: side.id }).catch((e: Error) => {
@@ -96,19 +123,37 @@ export function SideChat({ side }: { side: SideState }) {
           {agent.title}
         </span>
         <span className="spacer" />
+        <Button ref={historyButtonRef} size="icon" aria-label={S.sideChatHistory} title={S.sideChatHistory} aria-haspopup="listbox" aria-expanded={history !== null} onClick={() => void toggleHistory()}>
+          <Codicon name="history" />
+        </Button>
         <Button size="icon" aria-label={S.close} title={S.closeEsc} onClick={() => setState({ side: null })}>
           <Close />
         </Button>
       </div>
-      <div className="side-messages" ref={listRef} onClick={openLinkOutside}>
+      <div
+        className="side-messages"
+        ref={listRef}
+        onClick={openLinkOutside}
+        onWheel={(e) => {
+          if (e.deltaY < 0) followBottom.current = false;
+        }}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const movedUp = el.scrollTop < lastScroll.current.top && el.scrollHeight >= lastScroll.current.height;
+          lastScroll.current = { top: el.scrollTop, height: el.scrollHeight };
+          followBottom.current = followsBottom(followBottom.current, el.scrollHeight - el.scrollTop - el.clientHeight, false, movedUp);
+        }}
+      >
         {!run && <div className="empty-hint">{S.sideChatEmpty}</div>}
         {run?.messages.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="side-user">
               {m.text}
             </div>
+          ) : busy && i === run.messages.length - 1 ? (
+            <StreamingMarkdown key={i} className="side-assistant" text={m.text || "…"} />
           ) : (
-            <div key={i} className={`markdown side-assistant ${busy && i === run.messages.length - 1 ? "streaming" : ""}`} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(parseMarkdown(m.text || (busy ? "…" : ""))) }} />
+            <Markdown key={i} className="side-assistant" text={m.text} breaks media />
           ),
         )}
       </div>
@@ -132,8 +177,13 @@ export function SideChat({ side }: { side: SideState }) {
           <div className="composer-tools">
             <button ref={modelChipRef} type="button" className="chip" data-chip="model" aria-label={S.sideChatModel} title={S.sideChatModel} onClick={() => setModelOpen((open) => !open)}>
               <ModelIcon />
-              <span className="chip-label model-label">{modelName(model, models)}</span>
+              <span className="chip-label model-label">{modelChip(model, null, models).name}</span>
             </button>
+            {levels.length > 0 && (
+              <button ref={effortChipRef} type="button" className="chip" data-chip aria-haspopup="listbox" aria-expanded={effortOpen} aria-label={S.sideChatEffort} title={S.sideChatEffort} onClick={() => setEffortOpen((wasOpen) => !wasOpen)}>
+                <span className="chip-label">{effortName(effort)}</span>
+              </button>
+            )}
             {run?.sessionId && !busy && (
               <button type="button" className="chip" data-chip onClick={() => void adopt()}>
                 {S.sideChatKeep}
@@ -167,6 +217,79 @@ export function SideChat({ side }: { side: SideState }) {
           onChoose={(value) => setState((s) => (s.side ? { side: { ...s.side, model: value } } : {}))}
         />
       )}
+      {history && (
+        <HistoryMenu
+          anchor={historyButtonRef.current}
+          runs={history}
+          onClose={() => setHistory(null)}
+          onNew={() => setState((s) => (s.side ? { side: { id: `side-${Date.now()}`, agentId: s.side.agentId, run: null, model: s.side.model, effort: s.side.effort ?? null } } : {}))}
+          onPick={(picked) => setState((s) => (s.side ? { side: { id: picked.id, agentId: picked.agentId, run: picked, model: picked.model, effort: picked.effort ?? null } } : {}))}
+        />
+      )}
+      {effortOpen && (
+        <EffortMenu
+          anchor={effortChipRef.current}
+          levels={levels}
+          current={effort}
+          onClose={() => {
+            setEffortOpen(false);
+            textareaRef.current?.focus();
+          }}
+          onChoose={(value) => setState((s) => (s.side ? { side: { ...s.side, effort: value } } : {}))}
+        />
+      )}
     </aside>
+  );
+}
+
+function EffortMenu({ anchor, levels, current, onChoose, onClose }: { anchor: HTMLElement | null; levels: readonly EffortLevel[]; current: EffortLevel | null; onChoose: (level: EffortLevel) => void; onClose: () => void }) {
+  return (
+    <Popup anchor={anchor} placement="above" label={S.sideChatEffort} className="popup-effort" onClose={onClose}>
+      <div className="popup-list" role="listbox">
+        {levels.map((level) => (
+          <div
+            key={level}
+            className="popup-row"
+            role="option"
+            aria-selected={level === current}
+            onClick={() => {
+              onChoose(level);
+              onClose();
+            }}
+          >
+            <span className="popup-check">{level === current && <Check size={12} />}</span>
+            <span className="popup-row-title">{effortName(level)}</span>
+          </div>
+        ))}
+      </div>
+    </Popup>
+  );
+}
+
+function HistoryMenu({ anchor, runs, onNew, onPick, onClose }: { anchor: HTMLElement | null; runs: SideRun[]; onNew: () => void; onPick: (run: SideRun) => void; onClose: () => void }) {
+  const [now] = useState(() => Date.now());
+  const choose = (action: () => void) => {
+    action();
+    onClose();
+  };
+  return (
+    <Popup anchor={anchor} placement="below" align="end" label={S.sideChatHistory} className="popup-model" onClose={onClose}>
+      <div className="popup-list" role="listbox">
+        <div className="popup-row" role="option" aria-selected={false} onClick={() => choose(onNew)}>
+          <span className="popup-check">
+            <Codicon name="add" size={12} />
+          </span>
+          <span className="popup-row-title">{S.sideChatNew}</span>
+        </div>
+        {runs.map((run) => (
+          <div key={run.id} className="popup-row" role="option" aria-selected={false} title={run.messages[0]?.text} onClick={() => choose(() => onPick(run))}>
+            <span className="popup-check" />
+            <span className="popup-row-title">{run.messages[0]?.text.replace(/\s+/g, " ")}</span>
+            {run.updatedAt && <span className="popup-row-key">{relativeTime(run.updatedAt, now)}</span>}
+          </div>
+        ))}
+        {runs.length === 0 && <div className="popup-empty">{S.sideChatHistoryEmpty}</div>}
+      </div>
+    </Popup>
   );
 }

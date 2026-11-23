@@ -106,6 +106,9 @@
 ::highlight(chat-find-current) {
   background-color: var(--find-match-current-bg);
 }
+::highlight(quote-comment) {
+  background-color: var(--editor-selection);
+}
 
 .changes-view:not([data-wide]) .changes-head[data-custom-scope] {
   display: flex;

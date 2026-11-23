@@ -104,7 +104,7 @@ export type QuickState = {
   rel: { dx: number; dy: number } | null;
 };
 
-export type SideState = { id: string; agentId: string; run: SideRun | null; model: string | null; draft?: { text: string; nonce: number } };
+export type SideState = { id: string; agentId: string; run: SideRun | null; model: string | null; effort?: EffortLevel | null; draft?: { text: string; nonce: number } };
 
 export type Terminal = { id: string; name: string; dir?: string };
 
@@ -471,6 +471,7 @@ const openerLayout: LayoutMode | null = initialChat ? "chat" : pickFolderOnStart
 const startLayout: LayoutMode = EMBED ? "chat" : startingMode({ restored: restoredLayout ?? openerLayout,defaultLayout: loadCachedDefaultLayout(), remember: loadCachedRemember(), last: loadLastLayout() });
 
 const EDITOR_ENTRY_PANELS = { focusSideOpen: true, sideTabKey: "files", bottomOpen: true, bottomTab: "terminal" } satisfies Partial<State>;
+const CHAT_ENTRY_PANELS = { rightOpen: false, bottomOpen: false } satisfies Partial<State>;
 
 let state: State = {
   connected: false,
@@ -754,7 +755,7 @@ function settleLayout(prev: State, next: State, applied: Partial<State>): State 
 
 export function setLayoutMode(mode: LayoutMode) {
   if (EMBED || state.layoutMode === mode) return;
-  setState({ layoutMode: mode, layoutTouched: true, ...(mode === "editor" ? { floatCollapsed: false, chatDockOpen: true, ...EDITOR_ENTRY_PANELS } : {}) });
+  setState({ layoutMode: mode, layoutTouched: true, ...(mode === "editor" ? { floatCollapsed: false, chatDockOpen: true, ...EDITOR_ENTRY_PANELS } : CHAT_ENTRY_PANELS) });
   saveLastLayout(mode);
 }
 
@@ -803,7 +804,7 @@ function reconcileLayoutSettings(settings: Settings, first: boolean) {
   if (chatDock !== state.chatDock) setState({ chatDock });
   if (!first || EMBED || restoredLayout || openerLayout || launchLayout || state.layoutTouched) return;
   const mode = startingMode({ restored: null, defaultLayout, remember, last: loadLastLayout() });
-  if (mode !== state.layoutMode) setState({ layoutMode: mode, ...(mode === "editor" ? { floatCollapsed: false, ...EDITOR_ENTRY_PANELS } : {}) });
+  if (mode !== state.layoutMode) setState({ layoutMode: mode, ...(mode === "editor" ? { floatCollapsed: false, ...EDITOR_ENTRY_PANELS } : CHAT_ENTRY_PANELS) });
 }
 
 export function subscribe(listener: () => void) {

@@ -3046,13 +3046,14 @@ div.tree-node[role="button"] > :first-child {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
   padding: var(--space-3);
 }
+.side-messages > * + * {
+  margin-top: var(--space-3);
+}
 .side-user {
-  align-self: flex-end;
+  width: fit-content;
+  margin-left: auto;
   max-width: 85%; /* lint-tokens: allow 말풍선 최대 폭 비율 */
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
@@ -3550,12 +3551,15 @@ div.tree-node[role="button"] > :first-child {
 .markdown h2,
 .markdown h3,
 .markdown h4 {
-  margin: var(--space-3) 0 var(--space-2);
+  margin: var(--space-4) 0 var(--space-1);
   font-weight: var(--weight-title);
   color: var(--fg-strong);
 }
 .markdown h1,
 .markdown h2 {
+  margin: var(--space-6) 0 var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border-subtle);
   font-size: calc(var(--text-title) * var(--markdown-font-scale, 1));
   line-height: calc(var(--leading-title) * var(--markdown-line-height-scale, 1));
 }
@@ -3571,7 +3575,13 @@ div.tree-node[role="button"] > :first-child {
   list-style: decimal;
 }
 .markdown li + li {
-  margin-top: var(--space-0_5);
+  margin-top: var(--space-1);
+}
+.markdown li > :is(ul, ol) {
+  margin: var(--space-1) 0 0;
+}
+.markdown li > p {
+  margin-bottom: var(--space-1);
 }
 .markdown li:has(> input[type="checkbox"]) {
   position: relative;
@@ -5258,17 +5268,17 @@ html[data-compact-view="true"] [data-session-detail] {
   box-sizing: border-box;
   display: flex;
   align-items: flex-start;
-  gap: var(--space-1_5);
+  gap: var(--space-1);
   min-width: 0;
-  padding: var(--space-1_5) var(--space-2);
+  padding: var(--space-1_5) var(--space-2) var(--space-1_5) var(--space-1);
   cursor: pointer;
 }
 .session-row[data-depth="1"] .session-item {
-  padding-left: calc(var(--space-2) + var(--space-6));
+  padding-left: calc(var(--space-1) + var(--space-6));
 }
 .session-row[data-depth="2"] .session-item,
 .session-row[data-depth="3"] .session-item {
-  padding-left: calc(var(--space-2) + var(--space-6) * 2);
+  padding-left: calc(var(--space-1) + var(--space-6) * 2);
 }
 .session-status {
   display: inline-flex;
@@ -5303,6 +5313,7 @@ html[data-compact-view="true"] [data-session-detail] {
   display: flex;
   align-items: center;
   min-width: 0;
+  line-height: var(--leading-session-title);
 }
 .session-harness {
   display: inline-flex;
@@ -5354,6 +5365,15 @@ html[data-compact-view="true"] [data-session-detail] {
   padding-right: var(--size-row);
 }
 .session-time {
+  display: block;
+  flex-shrink: 0;
+  padding-left: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--text-session-detail);
+}
+.session-row:hover .session-time,
+.session-row[data-active] .session-time,
+.session-row[data-menu] .session-time {
   display: none;
 }
 .session-project {
@@ -5397,6 +5417,11 @@ html[data-compact-view="true"] .session-row[data-menu] .session-project {
 .session-detail > .codicon {
   flex-shrink: 0;
 }
+/* 상세줄 첫 아이콘(12px)을 제목줄 하네스 아이콘(14px) 칸 가운데에 맞춘다 */
+.session-detail > .codicon:first-child {
+  width: calc(var(--size-icon-sm) + var(--space-0_5));
+  text-align: center;
+}
 .session-separator {
   flex-shrink: 0;
   width: var(--space-0_5);
@@ -5420,6 +5445,10 @@ html[data-compact-view="true"] .session-row[data-menu] .session-project {
   color: var(--fg-strong);
 }
 
+.session-separator:last-child,
+.session-separator + .session-separator {
+  display: none;
+}
 .session-changes-add {
   color: var(--diff-count-add);
 }
@@ -5506,7 +5535,7 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   content: "";
   position: absolute;
   top: calc(var(--space-0_5) * -1);
-  left: calc(var(--space-2) + var(--space-2));
+  left: calc(var(--space-1) + var(--space-2));
   width: var(--space-2);
   height: calc(var(--space-1_5) + var(--leading-session-title) / 2 + var(--space-0_5));
   border-left: 1px solid var(--border);
@@ -5568,7 +5597,7 @@ html:not([data-compact-view="true"]) .session-row[data-approval] .session-action
   flex: 1;
   min-width: 0;
   height: var(--size-row);
-  margin: calc(var(--space-0_5) * -1) calc(var(--size-row) * 2 + var(--space-0_5) - 1px) calc(var(--space-0_5) * -1) 0;
+  margin: calc(var(--space-0_5) * -1) 0;
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -6388,6 +6417,12 @@ pre.approval-json {
   color: var(--fg);
   cursor: pointer;
   z-index: 3;
+}
+.scroll-bottom[data-finished] {
+  width: auto;
+  gap: var(--space-1);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  font-size: var(--text-ui-sm);
 }
 .scroll-bottom:hover {
   background: var(--surface-hover);
@@ -7649,6 +7684,10 @@ html[data-embed] .pane {
 .pane[data-floating] .new-session-body,
 .pane[data-docked] .new-session-body {
   align-items: flex-end;
+  padding-bottom: var(--space-2);
+}
+.new-session-stack .composer-meta {
+  margin-top: calc(var(--space-1) * -1);
 }
 .pane[data-floating] .agent > .pane-header {
   display: none;

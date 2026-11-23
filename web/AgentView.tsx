@@ -81,7 +81,20 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
   const multiPane = useStore((s) => s.panes.length > 1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+  const lastScrollTop = useRef(0);
+  const lastScrollHeight = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
+  const replying = agent?.status === "running" || agent?.status === "waiting";
+  const [wasReplying, setWasReplying] = useState(replying);
+  const [finishedAway, setFinishedAway] = useState(false);
+  if (replying !== wasReplying) {
+    setWasReplying(replying);
+    setFinishedAway(!replying && !atBottom);
+  }
+  const unpinFromBottom = () => {
+    stickToBottom.current = false;
+    setAtBottom(false);
+  };
   const findOpen = useChatFindOpen(paneId);
   const [revealed, setRevealed] = useState(false);
   const revealAll = revealed || findOpen;
@@ -186,6 +199,7 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
     stopHold.current?.();
     stickToBottom.current = true;
     setAtBottom(true);
+    setFinishedAway(false);
     el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
   }, []);
   const onPermissionMode = useCallback(
@@ -283,13 +297,20 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
             ref={scrollRef}
             tabIndex={-1}
             onClick={onClick}
+            onWheel={(e) => {
+              if (e.deltaY < 0) unpinFromBottom();
+            }}
             onScroll={(e) => {
               const el = e.currentTarget;
               const resized = el.clientHeight !== lastHeight.current;
               lastHeight.current = el.clientHeight;
-              const follow = followsBottom(stickToBottom.current, el.scrollHeight - el.scrollTop - el.clientHeight, resized);
+              const movedUp = el.scrollTop < lastScrollTop.current && el.scrollHeight >= lastScrollHeight.current;
+              lastScrollTop.current = el.scrollTop;
+              lastScrollHeight.current = el.scrollHeight;
+              const follow = followsBottom(stickToBottom.current, el.scrollHeight - el.scrollTop - el.clientHeight, resized, movedUp);
               stickToBottom.current = follow;
               setAtBottom(follow);
+              if (follow) setFinishedAway(false);
               noteWindowChanged();
             }}
           >
@@ -305,10 +326,12 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
             <button
               type="button"
               className="scroll-bottom"
-              aria-label={S.scrollToBottom}
+              data-finished={finishedAway || undefined}
+              aria-label={finishedAway ? S.replyFinishedBelow : S.scrollToBottom}
               title={S.scrollToBottom}
               onClick={jumpToBottom}
             >
+              {finishedAway && <span className="scroll-bottom-label">{S.replyFinished}</span>}
               <ChevronDown />
             </button>
           )}

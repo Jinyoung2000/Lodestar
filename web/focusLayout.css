@@ -170,7 +170,8 @@
   flex: 1;
   min-width: 0;
   gap: var(--space-1);
-  padding-inline: var(--space-1_5);
+  /* 상태 아이콘 상자 안 여백만큼 오른쪽을 더 비워 글자 끝과 점 앞의 빈 폭을 맞춘다 */
+  padding-inline: var(--space-1_5) var(--space-3);
 }
 .editor-chat-tab-label:hover {
   background: var(--surface-hover);

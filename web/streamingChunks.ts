@@ -19,3 +19,14 @@ export function streamingChunks(text: string): string[] {
   if (start < text.length || !chunks.length) chunks.push(text.slice(start));
   return chunks;
 }
+
+export function endsInsideFence(text: string): boolean {
+  let fence: string | null = null;
+  for (const line of text.split("\n")) {
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (!marker) continue;
+    if (fence === null) fence = marker;
+    else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+  }
+  return fence !== null;
+}

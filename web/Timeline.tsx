@@ -1,7 +1,7 @@
 import DOMPurify from "dompurify";
 import { parseMarkdown } from "./markdownParse";
 import { memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { streamingChunks } from "./streamingChunks";
+import { endsInsideFence, streamingChunks } from "./streamingChunks";
 import { FeedbackAttachmentChip, FeedbackBodies } from "./DiffFeedbackChips";
 import { HandoffBubbleChip } from "./HandoffChip";
 import { AgentStepRow } from "./Subagents";
@@ -437,14 +437,15 @@ function AutomatedMessageRow({ text }: { text: string }) {
   );
 }
 
-export function Markdown({ text, className, breaks = false, linkify = true, workspaceId, itemId, media = false, chunk = false }: { text: string; className: string; breaks?: boolean; linkify?: boolean; workspaceId?: string | null; itemId?: string; media?: boolean; chunk?: boolean }) {
+export function Markdown({ text, className, breaks = false, linkify = true, workspaceId, itemId, media = false, chunk = false, diagrams = true }: { text: string; className: string; breaks?: boolean; linkify?: boolean; workspaceId?: string | null; itemId?: string; media?: boolean; chunk?: boolean; diagrams?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [zoomed, setZoomed] = useState<SVGSVGElement | null>(null);
   const languagesVersion = useLanguagesVersion();
   const html = useMemo(() => {
     const sanitized = DOMPurify.sanitize(parseMarkdown(text, { breaks }), { ALLOWED_URI_REGEXP: MARKDOWN_URI });
-    return heatmapTables(highlightCodeBlocks(mermaidPreviews(slackPreviews(media ? hideLocalImages(sanitized) : sanitized, S.slackPreview), S.mermaidPreview)));
-  }, [text, breaks, languagesVersion, media]);
+    const withSlack = slackPreviews(media ? hideLocalImages(sanitized) : sanitized, S.slackPreview);
+    return heatmapTables(highlightCodeBlocks(diagrams ? mermaidPreviews(withSlack, S.mermaidPreview) : withSlack));
+  }, [text, breaks, languagesVersion, media, diagrams]);
   const { workspaceId: timelineWorkspaceId, agentId } = useContext(TimelineContext);
   const sessionWorkspaceId = timelineWorkspaceId ?? null;
   const checkIn = workspaceId === undefined ? sessionWorkspaceId : workspaceId;
@@ -483,19 +484,20 @@ export function Markdown({ text, className, breaks = false, linkify = true, work
   );
 }
 
-function StreamingMarkdown({ text, itemId }: { text: string; itemId: string }) {
+export function StreamingMarkdown({ text, itemId, className = "row-assistant" }: { text: string; itemId?: string; className?: string }) {
   const chunks = useMemo(() => streamingChunks(text), [text]);
+  const lastOpen = endsInsideFence(text);
   return (
-    <div className="markdown row-assistant streaming" data-item-id={itemId}>
+    <div className={`markdown ${className} streaming`} data-item-id={itemId}>
       {chunks.map((chunk, index) => (
-        <MarkdownChunk key={index} text={chunk} />
+        <MarkdownChunk key={index} text={chunk} diagrams={!(lastOpen && index === chunks.length - 1)} />
       ))}
     </div>
   );
 }
 
-const MarkdownChunk = memo(function MarkdownChunk({ text }: { text: string }) {
-  return <Markdown className="" text={text} breaks media chunk />;
+const MarkdownChunk = memo(function MarkdownChunk({ text, diagrams }: { text: string; diagrams: boolean }) {
+  return <Markdown className="" text={text} breaks media chunk diagrams={diagrams} />;
 });
 
 

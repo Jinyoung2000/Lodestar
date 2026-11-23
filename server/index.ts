@@ -582,11 +582,12 @@ const handlers: Handlers = {
     return null;
   },
   "quick.adopt": ({ id }) => quick.adopt(id),
-  "side.ask": ({ id, agentId, model, question }) => {
+  "side.ask": ({ id, agentId, model, effort, question }) => {
     runner.assertClaude(agentId, "Side question (/btw)");
-    side.ask(id, agentId, model, question);
+    side.ask(id, agentId, model, effort ?? null, question);
     return null;
   },
+  "side.list": ({ agentId }) => side.list(agentId),
   "side.cancel": ({ id }) => {
     side.cancel(id);
     return null;

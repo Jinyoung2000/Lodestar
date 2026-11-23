@@ -549,32 +549,12 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
                 </>
               )}
               {agent.status === "running" && <span>{S.working}</span>}
-              {agent.status === "waiting" && (
-                <>
-                  <span>{S.inputNeeded}</span>
-                  <SessionSeparator />
-                  <span>{time}</span>
-                </>
-              )}
-              {agent.status === "error" && (
-                <>
-                  <span>{S.rowError}</span>
-                  <SessionSeparator />
-                  <span>{time}</span>
-                </>
-              )}
-              {agent.status === "idle" && (
-                <>
-                  {!isChild && sum.add + sum.del > 0 && (
-                    <>
-                      <span className="session-changes" aria-label={S.changeCountAria(sum.add, sum.del)}>
-                        <span className="session-changes-add">+{sum.add}</span> <span className="session-changes-del">-{sum.del}</span>
-                      </span>
-                      <SessionSeparator />
-                    </>
-                  )}
-                  <span>{time}</span>
-                </>
+              {agent.status === "waiting" && <span>{S.inputNeeded}</span>}
+              {agent.status === "error" && <span>{S.rowError}</span>}
+              {agent.status === "idle" && !isChild && sum.add + sum.del > 0 && (
+                <span className="session-changes" aria-label={S.changeCountAria(sum.add, sum.del)}>
+                  <span className="session-changes-add">+{sum.add}</span> <span className="session-changes-del">-{sum.del}</span>
+                </span>
               )}
               {folderCount > 1 && (
                 <>
