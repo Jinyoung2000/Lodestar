@@ -10,7 +10,11 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.net.Uri
+import android.graphics.Typeface
 import android.os.Build
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.StyleSpan
 import androidx.core.app.NotificationCompat
 
 internal data class Session(val id: String, val title: String, val status: String)
@@ -33,7 +37,7 @@ internal class SessionNotifications(private val context: Context) {
     return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
   }
 
-  private fun builder(channel: String, title: String, text: String, id: String?) =
+  private fun builder(channel: String, title: String, text: CharSequence, id: String?) =
     NotificationCompat.Builder(context, channel)
       .setPriority(if (channel == LIVE) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_HIGH)
       .setContentTitle(title)
@@ -68,14 +72,14 @@ internal class SessionNotifications(private val context: Context) {
       !connected -> "Reconnecting to your Mac"
       lead == null -> "Listening for questions and results"
       active.size == 1 -> line(lead)
-      else -> "${lead.title} · ${line(lead)}"
+      else -> entry(lead.title, line(lead))
     }
     val notification = builder(LIVE, title, detail, if (connected) lead?.id else null)
       .setOnlyAlertOnce(true).setOngoing(true).setShowWhen(false)
       .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
     if (connected && active.size > 1) {
       val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
-      active.take(5).forEach { inbox.addLine("${it.title} · ${line(it)}") }
+      active.take(5).forEach { inbox.addLine(entry(it.title, line(it))) }
       if (active.size > 5) inbox.setSummaryText("+${active.size - 5} more")
       notification.setStyle(inbox)
     } else if (connected && lead != null) {
@@ -86,6 +90,15 @@ internal class SessionNotifications(private val context: Context) {
       notification.setShortCriticalText(if (waiting.isNotEmpty()) "Reply" else "Running")
     }
     return notification.build()
+  }
+
+  private fun entry(title: String, doing: String): CharSequence {
+    val name = if (title.length > TITLE_CHARS) title.take(TITLE_CHARS - 1).trimEnd() + "…" else title
+    return SpannableStringBuilder(name).apply {
+      setSpan(StyleSpan(Typeface.BOLD), 0, name.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+      append("  ")
+      append(doing)
+    }
   }
 
   private fun appOnScreen(): Boolean {
@@ -113,6 +126,7 @@ internal class SessionNotifications(private val context: Context) {
     private const val LIVE = "session-live"
     private const val ALERT = "session-alerts"
     private const val ALERT_ID = 2
+    private const val TITLE_CHARS = 18
     const val LIVE_ID = 1
   }
 }
