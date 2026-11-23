@@ -46,11 +46,22 @@ function verdictFor(build, target, targetVersion) {
   if (build.version !== targetVersion) return { verdict: "OTHER_RUNTIME", reasons: [`this update targets runtime ${targetVersion}`] };
   const reasons = [];
   if (withoutVersions(showJson(build.commit, "app.json").expo) !== withoutVersions(showJson(target, "app.json").expo)) reasons.push("app.json native configuration changed");
+  const accepted = new Map((build.jsCompatExceptions ?? []).map((entry) => [entry.path, entry.blob]));
+  const blobAt = (file) => {
+    try {
+      return git("rev-parse", `${target}:${file}`);
+    } catch {
+      return null;
+    }
+  };
   const nativeFiles = git("diff", "--name-only", `${build.commit}..${target}`, "--", ...NATIVE_DIRS.map((dir) => `:(top)${prefix}${dir}`)).split("\n").filter(Boolean);
-  if (nativeFiles.length) reasons.push(`native files changed: ${nativeFiles.join(", ")}`);
+  const unreviewed = nativeFiles.filter((file) => accepted.get(file) !== blobAt(file));
+  if (unreviewed.length) reasons.push(`native files changed: ${unreviewed.join(", ")}`);
+  const byException = nativeFiles.length > 0 && unreviewed.length === 0;
   const packages = changedNativePackages(build.commit, target);
   if (packages.length) reasons.push(`native packages changed: ${packages.map((key) => key.replace(/^node_modules\//, "")).join(", ")}`);
-  return reasons.length ? { verdict: "BLOCKED", reasons } : { verdict: "SENDABLE", reasons: [] };
+  if (reasons.length) return { verdict: "BLOCKED", reasons };
+  return byException ? { verdict: "SENDABLE", reasons: [`reviewed native changes: ${nativeFiles.join(", ")}`] } : { verdict: "SENDABLE", reasons: [] };
 }
 
 function plan() {

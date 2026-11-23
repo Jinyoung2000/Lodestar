@@ -1,3 +1,12 @@
 [
-  { "version": "0.2.2", "versionCode": 4, "commit": "f38d84bc0e6a26cbc557c1a440f664370edde87f", "builtAt": "2026-11-23T16:05:00+09:00" }
+  {
+    "version": "0.2.2",
+    "versionCode": 4,
+    "commit": "f38d84bc0e6a26cbc557c1a440f664370edde87f",
+    "builtAt": "2026-11-23T16:05:00+09:00",
+    "jsCompatExceptions": [
+      { "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionActivityService.kt", "blob": "6d831591274ff55cd0aeef9f0cd4750e14cb2008", "reason": "484e300 changes only private notification code; no function the JavaScript calls was added or changed" },
+      { "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionNotifications.kt", "blob": "7d3db6864be582bfceff0828ac1197a9cdec8723", "reason": "484e300 changes only private notification code; no function the JavaScript calls was added or changed" }
+    ]
+  }
 ]
