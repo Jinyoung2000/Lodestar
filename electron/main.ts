@@ -141,6 +141,7 @@ const daemon = process.env.AGENT_NAV_NO_DAEMON === "1" ? null : new DaemonConnec
   logDir: app.getPath("logs"),
   port: PORT,
   packaged: app.isPackaged,
+  version: app.getVersion(),
   onState: ({ state, attempt, maxAttempts, reload }) => {
     for (const w of liveWindows()) w.win.webContents.send("agent-nav:daemon-state", { state, attempt, maxAttempts });
     if (reload && !quitFlow.quitting) reloadAppWindow();

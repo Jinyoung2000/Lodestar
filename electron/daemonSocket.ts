@@ -8,6 +8,7 @@ export type DaemonState = {
   maxAttempts: number;
   port: number;
   pid: number | null;
+  version?: string;
   reload?: true;
 };
 

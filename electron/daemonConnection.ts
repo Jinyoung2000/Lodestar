@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { closeSync, mkdirSync, openSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync } from "node:fs";
 import { createConnection, type Socket } from "node:net";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -13,6 +13,7 @@ type Options = {
   logDir: string;
   port: number;
   packaged: boolean;
+  version: string;
   onState: (state: DaemonState) => void;
   log: (message: string) => void;
 };
@@ -22,6 +23,7 @@ export class DaemonConnection {
   private pending: Promise<void> | null = null;
   private restartReply: ((result: boolean | "deferred") => void) | null = null;
   private closed = false;
+  private replaced = false;
   state: DaemonState;
 
   constructor(private readonly options: Options) {
@@ -67,6 +69,7 @@ export class DaemonConnection {
     const path = daemonSocket(home);
     if (this.closed || await this.open(path)) return;
     if (this.closed) return;
+    await this.waitForOldSupervisor(path);
     this.launch();
     for (let i = 0; i < 80 && !this.closed; i++) {
       await delay(100);
@@ -74,6 +77,12 @@ export class DaemonConnection {
       if (i === 10 && !this.closed) this.launch();
     }
     if (!this.closed) throw new Error("Lodestar daemon supervisor did not answer");
+  }
+
+  private async waitForOldSupervisor(path: string) {
+    if (!this.replaced) return;
+    this.replaced = false;
+    for (let i = 0; i < 60 && existsSync(path); i++) await delay(100);
   }
 
   private launch() {
@@ -84,7 +93,7 @@ export class DaemonConnection {
       const child = spawn(process.execPath, [join(appRoot, "dist-electron", "daemonSupervisor.mjs"), home, appRoot, srcRoot, logDir], {
         detached: true,
         cwd: appRoot,
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", AGENT_NAV_PORT: String(port), AGENT_NAV_PACKAGED: packaged ? "1" : "" },
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", AGENT_NAV_PORT: String(port), AGENT_NAV_PACKAGED: packaged ? "1" : "", AGENT_NAV_APP_VERSION: this.options.version },
         stdio: ["ignore", output, output],
       });
       child.on("error", (error) => log(`[electron] could not start daemon supervisor: ${error.message}`));
@@ -133,6 +142,14 @@ export class DaemonConnection {
           return;
         }
         if (this.closed) return socket.destroy();
+        if (!attached && event.version !== this.options.version) {
+          this.options.log(`[electron] daemon supervisor from ${event.version ?? "an older app"} does not match app ${this.options.version}, replacing it`);
+          this.replaced = true;
+          clearTimeout(timeout);
+          socket.write("stop\n");
+          resolve(false);
+          return;
+        }
         if (!attached) {
           attached = true;
           this.socket = socket;

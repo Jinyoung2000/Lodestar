@@ -1,9 +1,10 @@
 import { fork, type ChildProcess } from "node:child_process";
-import { appendFileSync, existsSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { createServer, type Socket } from "node:net";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { lockDaemonFile } from "../server/daemonLock";
+import { isNewerVersion } from "../shared/release";
 import { RestartScheduler, restartWaitMs } from "../shared/restartGate";
 import { daemonSocket, type DaemonEvent, type DaemonState } from "./daemonSocket";
 import { LineStamper, stampLine } from "./logStamp";
@@ -12,6 +13,7 @@ const [home, appRoot, srcRoot, logDir] = process.argv.slice(2);
 const lock = lockDaemonFile(join(home, "daemon-supervisor.lock"));
 if (lock === null) process.exit(75);
 const port = Number(process.env.AGENT_NAV_PORT);
+const appVersion = process.env.AGENT_NAV_APP_VERSION ?? "";
 const path = daemonSocket(home);
 const logFile = join(logDir, "daemon.log");
 const delays = [500, 1000, 2000, 4000, 8000];
@@ -45,7 +47,7 @@ function send(client: Socket, event: DaemonEvent) {
 }
 
 function status(): DaemonState {
-  return { state, attempt, maxAttempts: delays.length, port, pid: daemon?.pid ?? null };
+  return { state, attempt, maxAttempts: delays.length, port, pid: daemon?.pid ?? null, version: appVersion };
 }
 
 function report(next: DaemonState["state"], reload = false) {
@@ -64,7 +66,18 @@ function repoBuildProblem(): string | null {
   } catch {
     return "repo build missing";
   }
+  const repoVersion = packageVersion(srcRoot);
+  if (appVersion && (!repoVersion || isNewerVersion(appVersion, repoVersion))) return `repo build ${repoVersion ?? "unknown"} is older than the app ${appVersion}`;
   return existsSync(join(srcRoot, "node_modules")) ? null : "repo dependencies missing";
+}
+
+function packageVersion(root: string): string | null {
+  try {
+    const version = (JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version?: unknown }).version;
+    return typeof version === "string" ? version : null;
+  } catch {
+    return null;
+  }
 }
 
 function start(forceBundle = false) {
