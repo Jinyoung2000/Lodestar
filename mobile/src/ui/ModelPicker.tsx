@@ -40,7 +40,7 @@ export function useModelPicker(agent?: Agent, draft?: MobileModelSelection) {
   const selected = selection.model === "default" ? null : selection.model;
   const modelId = selected ?? agent?.activeModel ?? (provider?.defaultModelKnown ? provider.defaultModel : null);
   const model = provider ? modelOf(provider, modelId) : undefined;
-  const name = modelId ? modelLabel(harness, modelId, provider, agent?.activeModel) : "Default model";
+  const name = modelId ? modelLabel(harness, modelId, provider, agent?.activeModel) : PROVIDER_NAMES[harness];
   const effort = selection.effort ?? agent?.activeEffort ?? model?.defaultLevel ?? null;
   const show = useCallback(() => {
     Keyboard.dismiss();

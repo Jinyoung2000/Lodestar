@@ -117,11 +117,21 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
     });
     return () => back.remove();
   }, [closeGallery, closeModel, closePreview, expanded, fullPreview, galleryOpen, id, modelOpen, previewOpen]));
+  const listGeneration = useRef(0);
   const rows = useMemo(() => {
-    const next = stabilizeRows(previousRows.current, buildRows(items ?? []));
+    const previous = previousRows.current;
+    const next = stabilizeRows(previous, buildRows(items ?? []));
+    const previousKeys = new Set(previous.map((row) => row.key));
+    if (previous.length > 0 && !next.some((row) => previousKeys.has(row.key))) {
+      listGeneration.current += 1;
+      restoreOffset.current = null;
+      followEnd.current = true;
+      atBottomRef.current = true;
+      memory.offset = null;
+    }
     previousRows.current = next;
     return next;
-  }, [items]);
+  }, [items, memory]);
 
   const pending = rows.findLast((row) => row.type === "question" || row.type === "approval" || row.type === "plan");
   const messages = useMemo(() => pending ? rows.filter(r => r.type !== "question" && r.type !== "approval" && r.type !== "plan") : rows, [rows, pending]);
@@ -227,6 +237,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
           ) : (
             <View style={{ flex: 1 }} onLayout={keepBottomEdge}>
               <FlashList
+                key={listGeneration.current}
                 ref={listRef}
                 data={messages}
                 keyExtractor={(row) => row.key}

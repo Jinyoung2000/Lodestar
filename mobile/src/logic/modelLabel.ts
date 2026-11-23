@@ -17,6 +17,7 @@ export function modelLabel(harness: Harness, id: string, provider?: MobileModelP
   const chosen = claudeName(id);
   const active = activeId && claudeName(activeId);
   const resolved = match?.resolved && claudeName(match.resolved);
+  if (base === "default") return (resolved && resolved.name) || (active && active.name) || match?.resolved || match?.displayName || id;
   if (chosen && chosen.name === chosen.family && active && active.family === chosen.family && active.name !== active.family) return active.name;
   const label = match?.displayName.trim();
   if (label && !claudeName(label)) return label;
