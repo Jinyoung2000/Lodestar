@@ -116,7 +116,7 @@ export function App() {
     <div className="app">
       <TitleBar />
       <DaemonBanner />
-      <div className="body" data-layout={editorLayout ? "editor" : undefined} data-side={layoutConfig.sideBar} data-panel={layoutConfig.panelAlignment} style={gridVars(layoutConfig)}>
+      <div className="body" data-side={layoutConfig.sideBar} data-panel={layoutConfig.panelAlignment} style={gridVars(layoutConfig)}>
         {shown.side && (
           <>
             <FocusSideBar width={focusSideWidth(focusSaved, bodyWidth, dockPx)} />

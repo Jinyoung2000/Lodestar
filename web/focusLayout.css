@@ -242,21 +242,3 @@
     opacity: 1;
   }
 }
-
-.body[data-layout="editor"] {
-  padding: var(--space-1) var(--space-1) 0;
-  background: var(--surface-base);
-}
-.body[data-layout="editor"] > .focus-side,
-.body[data-layout="editor"] .editor-center,
-.body[data-layout="editor"] .center[data-layout="editor"] > .panes[data-dock],
-.body[data-layout="editor"] .center-and-bottom > .bottom {
-  margin: var(--space-1);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-.body[data-layout="editor"] .center-and-bottom > .editor-status {
-  width: auto;
-  margin: var(--space-1) calc(-1 * var(--space-1)) 0;
-}
