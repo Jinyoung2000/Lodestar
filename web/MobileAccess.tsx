@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import qrcode from "qrcode-generator";
-import type { MobileStatus, PairingOffer } from "../shared/mobile";
+import type { MobileRelayStatus, MobileStatus, PairingOffer } from "../shared/mobile";
 import { rpc } from "./rpc";
 import { S } from "./strings";
 import { Button } from "./ui/button";
@@ -38,9 +38,12 @@ export function MobileAccess() {
   if (!enabled) return <div className="setting-empty">{S.mobileOffNote}</div>;
   return (
     <div className="setting-mobile">
-      <div className="setting-daemon-line">
-        <span className="dot" data-state={status?.listening ? "ok" : "off"} />
-        <span>{status?.listening ? S.mobileListening(status.bind === "0.0.0.0" ? (status.hosts[0]?.address ?? status.bind) : status.bind, status.port) : (status?.error ?? S.mobileNotListening)}</span>
+      <div className="setting-mobile-status">
+        <div className="setting-daemon-line">
+          <span className="dot" data-state={status?.listening ? "ok" : "off"} />
+          <span>{status?.listening ? S.mobileListening(status.bind === "0.0.0.0" ? (status.hosts[0]?.address ?? status.bind) : status.bind, status.port) : (status?.error ?? S.mobileNotListening)}</span>
+        </div>
+        {status && status.relay.state !== "off" && <RelayLine relay={status.relay} />}
       </div>
       {status && status.hosts.length === 0 && status.listening && <div className="setting-warning">{S.mobileNoNetwork}</div>}
       <div className="setting-mobile-actions">
@@ -57,13 +60,25 @@ export function MobileAccess() {
           <div key={device.id} className="setting-subrow">
             <span className="dot" data-state={device.online ? "ok" : "off"} title={device.online ? S.mobileOnline : S.mobileOffline} />
             <label>{device.name}</label>
-            <span className="muted">{device.lastSeenAt ? S.mobileLastSeen(new Date(device.lastSeenAt).toLocaleString()) : S.mobileNeverSeen}</span>
+            <span className="muted">{device.online && device.route ? S.mobileRoute[device.route] : device.lastSeenAt ? S.mobileLastSeen(new Date(device.lastSeenAt).toLocaleString()) : S.mobileNeverSeen}</span>
             <Button size="sm" onClick={() => revoke(device.id)}>
               {S.mobileRemove}
             </Button>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function RelayLine({ relay }: { relay: MobileRelayStatus }) {
+  const failed = relay.state === "error" || (relay.state === "connecting" && relay.error !== null);
+  const dot = relay.state === "online" ? "ok" : failed ? "error" : relay.state === "unconfigured" ? "off" : "pending";
+  const text = relay.state === "online" ? S.mobileRelayOnline : relay.state === "unconfigured" ? S.mobileRelayUnconfigured : failed ? S.mobileRelayFailed(relay.error ?? "") : S.mobileRelayConnecting;
+  return (
+    <div className="setting-daemon-line">
+      <span className="dot" data-state={dot} />
+      <span>{text}</span>
     </div>
   );
 }
@@ -108,6 +123,7 @@ function PairingCard({ offer, onExpired }: { offer: PairingOffer; onExpired: () 
         <div className="muted">{S.mobileCodeExpires(Math.floor(seconds / 60), String(seconds % 60).padStart(2, "0"))}</div>
         <div className="pairing-manual-label muted">{S.mobileManual}</div>
         <code className="pairing-manual">{offer.manual}</code>
+        {offer.relay && <div className="muted">{S.mobileRelayTypingNote}</div>}
         {offer.hosts.length > 1 && <div className="muted">{S.mobileOtherAddresses(offer.hosts.slice(1).map((h) => h.address).join(", "))}</div>}
       </div>
     </div>

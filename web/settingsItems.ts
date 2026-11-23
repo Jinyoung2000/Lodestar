@@ -528,6 +528,7 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   { ...text("useProviderEnv"), group: "general", kind: "switch", ...plain("useProviderEnv", false), value: (c) => c.settings.useProviderEnv ?? false, set: (v) => save({ useProviderEnv: v }), keywords: "api key anthropic bedrock vertex foundry billing environment" },
 
   { ...text("mobileAccess"), group: "mobile", kind: "switch", ...plain("mobileAccess", false), value: (c) => c.settings.mobileAccess ?? false, set: (v) => save({ mobileAccess: v }), keywords: "iphone phone ios lan qr pairing" },
+  { ...text("mobileRelay"), group: "mobile", kind: "switch", ...plain("mobileRelay", false), value: (c) => c.settings.mobileRelay ?? false, set: (v) => save({ mobileRelay: v }), keywords: "relay remote anywhere cloudflare tunnel encrypted outside" },
   { ...text("mobilePairing"), group: "mobile", kind: "custom", component: "mobileAccess", wide: true, keywords: "iphone phone ios qr pairing device code", modified: () => false },
 
   { ...text("linear"), group: "linear", kind: "custom", component: "linear", wide: true, keywords: "issues tickets api key keychain board", modified: () => false },

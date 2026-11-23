@@ -2,8 +2,9 @@ import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import { RpcClient } from "../net/rpc";
 import { pairWithHost, type PairOutcome } from "../net/pair";
+import { pairOverRelay } from "../net/relay";
 import type { PairingInfo } from "../logic/pairing";
-import { routeAddress, routesFromAddress, type ConnectionRoute } from "../logic/routes";
+import { routeLabel, routesFromAddress, type ConnectionRoute } from "../logic/routes";
 import { clearConnection, asyncCache, loadConnection, saveConnection, type Connection } from "./storage";
 import type { SessionSort } from "@shared/protocol";
 import { DEFAULT_SESSION_SORT } from "../logic/workspaces";
@@ -53,7 +54,7 @@ export function bootstrap(): Promise<void> {
 let offlineSince: number | null = null;
 let foregroundAt: number | null = null;
 client.onStatus((status) => {
-  console.log(`[conn] ${status}${client.route ? ` via ${routeAddress(client.route)}` : ""}`);
+  console.log(`[conn] ${status}${client.route ? ` via ${routeLabel(client.route)}` : ""}`);
   if (status === "unauthorized") stopAlerts();
   if (status === "offline" && offlineSince === null) offlineSince = Date.now();
   if (status === "online") {
@@ -79,8 +80,18 @@ AppState.addEventListener("change", (next) => {
   });
 });
 
+async function pairEitherWay(info: PairingInfo, deviceName: string) {
+  if (info.relay) {
+    const relayed = await pairOverRelay(info.relay, info.code, deviceName);
+    if (relayed.ok) return { ...relayed, relay: { ...info.relay, privateKey: relayed.privateKey } };
+    if (relayed.reason === "rejected" || info.hosts.length === 0) return relayed;
+  }
+  const direct = await pairWithHost(info, deviceName);
+  return direct.ok ? { ...direct, relay: undefined } : direct;
+}
+
 export async function pairAndConnect(info: PairingInfo, deviceName: string): Promise<PairOutcome> {
-  const outcome = await pairWithHost(info, deviceName);
+  const outcome = await pairEitherWay(info, deviceName);
   if (!outcome.ok) return outcome;
   clearSessionViews();
   await store.reset();
@@ -90,13 +101,14 @@ export async function pairAndConnect(info: PairingInfo, deviceName: string): Pro
     deviceId: outcome.result.deviceId,
     hostName: outcome.result.host,
     pairedAt: new Date().toISOString(),
+    ...(outcome.relay ? { relay: outcome.relay } : {}),
   };
   await saveConnection(saved);
   setConnection(saved);
   store.attach(client);
   markStart("launch-sync");
   client.configure(saved);
-  return outcome;
+  return { ok: true, result: outcome.result, host: "host" in outcome ? outcome.host : "relay" };
 }
 
 export async function unpair() {

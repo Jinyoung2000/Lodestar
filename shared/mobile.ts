@@ -60,7 +60,11 @@ export type MobilePreview = { kind: "html"; html: string } | { kind: "image" | "
 
 export type MobileHost = { address: string; iface: string; kind: "lan" | "tailscale" };
 
-export type MobileDevice = { id: string; name: string; createdAt: string; lastSeenAt: string | null; online: boolean };
+export type MobileRoute = "lan" | "tailscale" | "relay" | "other";
+export type MobileDevice = { id: string; name: string; createdAt: string; lastSeenAt: string | null; online: boolean; route: MobileRoute | null };
+
+export type MobileRelayState = "off" | "unconfigured" | "connecting" | "online" | "error";
+export type MobileRelayStatus = { state: MobileRelayState; error: string | null };
 
 export type MobileStatus = {
   enabled: boolean;
@@ -70,7 +74,10 @@ export type MobileStatus = {
   hosts: MobileHost[];
   devices: MobileDevice[];
   error: string | null;
+  relay: MobileRelayStatus;
 };
+
+export type MobileRelayPairing = { url: string; id: string; key: string };
 
 export type PairingOffer = {
   // 표시용: ABCD-EFGH
@@ -82,6 +89,7 @@ export type PairingOffer = {
   manual: string;
   hosts: MobileHost[];
   port: number;
+  relay: boolean;
 };
 
 export type PairResult = { deviceId: string; deviceToken: string; host: string; protocol: number };
@@ -164,8 +172,8 @@ export function pairingCodeLabel(code: string): string {
   return `${code.slice(0, 4)}-${code.slice(4)}`;
 }
 
-export function buildPairingUri(parts: { hosts: string[]; port: number; code: string; name: string }): string {
-  const query = new URLSearchParams({ v: String(MOBILE_PROTOCOL), h: parts.hosts.join(","), p: String(parts.port), c: parts.code, n: parts.name });
+export function buildPairingUri(parts: { hosts: string[]; port: number; code: string; name: string; relay?: MobileRelayPairing | null }): string {
+  const query = new URLSearchParams({ v: String(MOBILE_PROTOCOL), h: parts.hosts.join(","), p: String(parts.port), c: parts.code, n: parts.name, ...(parts.relay ? { r: parts.relay.url, i: parts.relay.id, k: parts.relay.key } : {}) });
   return `lodestar://pair?${query.toString()}`;
 }
 

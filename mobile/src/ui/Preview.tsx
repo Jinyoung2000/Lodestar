@@ -135,7 +135,7 @@ type OpenPreview = { file: Preview; content?: MobilePreview; error?: string; thu
 function playableVideo(path: string): MobilePreview {
   if (/^https?:\/\//i.test(path)) return { kind: "video", uri: path };
   const uri = client.hostUrl(path);
-  if (!uri) throw new Error("Connect to your Mac to play this video.");
+  if (!uri) throw new Error(client.viaRelay ? "Videos play only on the same network as your Mac or over Tailscale." : "Connect to your Mac to play this video.");
   return { kind: "video", uri };
 }
 

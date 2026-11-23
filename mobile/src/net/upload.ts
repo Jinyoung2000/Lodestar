@@ -1,13 +1,18 @@
 import { routeAddress, type ConnectionRoute } from "../logic/routes";
+import { relayHttp, type RelayEndpoint } from "./relay";
 
-export type UploadTarget = ConnectionRoute & { token: string };
+type DirectTarget = ConnectionRoute & { token: string };
+type RelayUploadTarget = { relay: RelayEndpoint; token: string };
+export type UploadTarget = DirectTarget | RelayUploadTarget;
 export type UploadResult = { id: string };
 
-export function uploadUrl(target: UploadTarget) {
+export const isRelayTarget = (target: UploadTarget): target is RelayUploadTarget => typeof target.relay === "object";
+
+export function uploadUrl(target: DirectTarget) {
   return `${routeAddress(target)}/mobile/images`;
 }
 
-export function uploadHeaders(target: UploadTarget, name: string, mime: string): Record<string, string> {
+export function uploadHeaders(target: { token: string }, name: string, mime: string): Record<string, string> {
   return { authorization: `Bearer ${target.token}`, "content-type": mime, "x-image-name": encodeURIComponent(name) };
 }
 
@@ -27,7 +32,31 @@ type XhrLike = {
 
 export type UploadOptions = { onProgress?: (fraction: number) => void; signal?: AbortSignal; xhr?: () => XhrLike; timeoutMs?: number };
 
+function blobBytes(body: unknown): Promise<Uint8Array> {
+  if (body instanceof Uint8Array) return Promise.resolve(body);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+    reader.onerror = () => reject(new Error("Could not read the image"));
+    reader.readAsArrayBuffer(body as Blob);
+  });
+}
+
+async function uploadThroughRelay(target: RelayUploadTarget, body: unknown, name: string, mime: string, opts: UploadOptions): Promise<UploadResult> {
+  const bytes = await blobBytes(body);
+  const response = await relayHttp(target.relay, { method: "POST", path: "/mobile/images", headers: uploadHeaders(target, name, mime), body: bytes }, { onProgress: opts.onProgress, signal: opts.signal, timeoutMs: opts.timeoutMs });
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(response.body)) as Record<string, unknown>;
+  } catch {
+    parsed = {};
+  }
+  if (response.status === 200 && typeof parsed.id === "string") return { id: parsed.id };
+  throw new Error(typeof parsed.error === "string" ? parsed.error : `Upload failed (${response.status})`);
+}
+
 export function uploadImage(target: UploadTarget, body: unknown, name: string, mime: string, opts: UploadOptions = {}): Promise<UploadResult> {
+  if (isRelayTarget(target)) return uploadThroughRelay(target, body, name, mime, opts);
   const make = opts.xhr ?? (typeof XMLHttpRequest !== "undefined" ? () => new XMLHttpRequest() as unknown as XhrLike : null);
   if (!make) return uploadWithFetch(target, body, name, mime, opts);
   return new Promise((resolve, reject) => {
@@ -57,7 +86,7 @@ export function uploadImage(target: UploadTarget, body: unknown, name: string, m
   });
 }
 
-async function uploadWithFetch(target: UploadTarget, body: unknown, name: string, mime: string, opts: UploadOptions): Promise<UploadResult> {
+async function uploadWithFetch(target: DirectTarget, body: unknown, name: string, mime: string, opts: UploadOptions): Promise<UploadResult> {
   const response = await fetch(uploadUrl(target), { method: "POST", headers: uploadHeaders(target, name, mime), body: body as BodyInit, signal: opts.signal });
   const parsed = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (response.status === 200 && typeof parsed.id === "string") {

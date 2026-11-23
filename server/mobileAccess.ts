@@ -5,7 +5,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 import { dirname } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { buildManualPairing, buildPairingUri, MOBILE_EVENT_TYPES, MOBILE_MEDIA_PATH, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, mobileModelId, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileModelSelection, type MobileReady, type PairingOffer } from "../shared/mobile";
+import { buildManualPairing, buildPairingUri, MOBILE_EVENT_TYPES, MOBILE_MEDIA_PATH, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, mobileModelId, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileModelSelection, type MobileReady, type MobileRelayPairing, type MobileRoute, type PairingOffer, type PairResult } from "../shared/mobile";
 import { MAX_IMAGE_BYTES, MAX_IMAGES } from "../shared/images";
 import { HARNESS_VALUES, isEffortLevel, type Agent, type Harness, type ServerEvent } from "../shared/protocol";
 import { resolveAddable, resolveFolder } from "./mobileFolders";
@@ -17,6 +17,7 @@ export const PAIRING_TTL_MS = 5 * 60_000;
 export const PAIRING_MAX_FAILURES = 5;
 
 export type RedeemResult = "ok" | "invalid" | "expired" | "locked";
+export type PairOutcome = { ok: true; result: PairResult } | { ok: false; status: number; error: string };
 
 export class PairingCodes {
   private current: { code: string; expiresAt: number; failures: number } | null = null;
@@ -86,7 +87,7 @@ export class AttemptLimiter {
   }
 }
 
-type DeviceRecord = { id: string; name: string; tokenHash: string; createdAt: string; lastSeenAt: string | null };
+type DeviceRecord = { id: string; name: string; tokenHash: string; createdAt: string; lastSeenAt: string | null; relayKey?: string };
 
 const TOKEN_RE = /^[0-9a-f]{64}$/;
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -102,10 +103,10 @@ export class MobileDevices {
     return this.records;
   }
 
-  add(rawName: unknown): { device: DeviceRecord; token: string } {
+  add(rawName: unknown, relayKey?: string): { device: DeviceRecord; token: string } {
     const name = typeof rawName === "string" ? rawName.replace(/[\u0000-\u001f]/g, "").trim().slice(0, 40) : "";
     const token = randomBytes(32).toString("hex");
-    const device: DeviceRecord = { id: randomUUID(), name: name || "iPhone", tokenHash: sha256(token), createdAt: new Date().toISOString(), lastSeenAt: null };
+    const device: DeviceRecord = { id: randomUUID(), name: name || "iPhone", tokenHash: sha256(token), createdAt: new Date().toISOString(), lastSeenAt: null, ...(relayKey ? { relayKey } : {}) };
     this.records.push(device);
     this.save();
     return { device, token };
@@ -117,6 +118,10 @@ export class MobileDevices {
     let found: DeviceRecord | null = null;
     for (const record of this.records) if (timingSafeEqual(hash, Buffer.from(record.tokenHash, "hex"))) found = record;
     return found;
+  }
+
+  byRelayKey(relayKey: string): DeviceRecord | null {
+    return this.records.find((record) => record.relayKey === relayKey) ?? null;
   }
 
   challenge(deviceId: unknown, nonce: unknown) {
@@ -167,15 +172,16 @@ export function lanHosts(interfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = netwo
   return hosts.sort((x, y) => Number(y.iface === "en0") - Number(x.iface === "en0") || Number(x.kind === "tailscale") - Number(y.kind === "tailscale"));
 }
 
-export function makeOffer(issued: { code: string; expiresAt: number }, hosts: MobileHost[], port: number, name: string): PairingOffer {
+export function makeOffer(issued: { code: string; expiresAt: number }, hosts: MobileHost[], port: number, name: string, relay: MobileRelayPairing | null = null): PairingOffer {
   const first = hosts[0]?.address ?? "127.0.0.1";
   return {
     code: pairingCodeLabel(issued.code),
     expiresAt: issued.expiresAt,
-    uri: buildPairingUri({ hosts: hosts.map((h) => h.address), port, code: issued.code, name }),
+    uri: buildPairingUri({ hosts: hosts.map((h) => h.address), port, code: issued.code, name, relay }),
     manual: buildManualPairing(first, port, issued.code),
     hosts,
     port,
+    relay: relay !== null,
   };
 }
 
@@ -345,6 +351,7 @@ export type MobileServerDeps = {
   serveMedia?: (req: IncomingMessage, res: ServerResponse, url: URL) => Promise<void>;
   hostName: string;
   allowedOrigins?: ReadonlySet<string>;
+  relayBridgeKey?: string;
   onClose?: (client: WebSocket) => void;
   onReady?: (client: WebSocket) => void;
   log?: (line: string) => void;
@@ -421,6 +428,7 @@ export class MobileServer {
   private wss: WebSocketServer | null = null;
   private sockets = new Map<WebSocket, string>();
   private activitySockets = new WeakSet<WebSocket>();
+  private socketRoutes = new WeakMap<WebSocket, MobileRoute>();
   private unauthenticated = 0;
   private alive = new WeakSet<WebSocket>();
   private keepalive: NodeJS.Timeout | null = null;
@@ -453,7 +461,11 @@ export class MobileServer {
       const peer = req.socket.remoteAddress?.replace(/^::ffff:/, "") ?? "";
       const directLan = /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|f[cd][0-9a-f]{2}:)/i.test(peer)
         && !req.headers.forwarded && !req.headers["x-forwarded-for"];
-      wss.handleUpgrade(req, socket, head, (ws) => this.accept(ws, directLan));
+      const route = this.routeOf(req, peer, directLan);
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        this.socketRoutes.set(ws, route);
+        this.accept(ws, directLan);
+      });
     });
     try {
       await new Promise<void>((resolve, reject) => {
@@ -521,8 +533,18 @@ export class MobileServer {
   }
 
   devices(): MobileDevice[] {
-    const online = this.onlineDeviceIds();
-    return this.deps.devices.list().map((d) => ({ id: d.id, name: d.name, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt, online: online.has(d.id) }));
+    const routes = new Map<string, MobileRoute>();
+    for (const [ws, id] of this.sockets) if (!routes.has(id) || !this.activitySockets.has(ws)) routes.set(id, this.socketRoutes.get(ws) ?? "other");
+    return this.deps.devices.list().map((d) => ({ id: d.id, name: d.name, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt, online: routes.has(d.id), route: routes.get(d.id) ?? null }));
+  }
+
+  private routeOf(req: IncomingMessage, peer: string, directLan: boolean): MobileRoute {
+    const bridge = req.headers["x-lodestar-relay-bridge"];
+    const key = this.deps.relayBridgeKey;
+    if (key && typeof bridge === "string" && bridge.length === key.length && timingSafeEqual(Buffer.from(bridge), Buffer.from(key)) && /^(127\.|::1$)/.test(peer)) return "relay";
+    const [a, b] = peer.split(".").map(Number);
+    if (a === 100 && b >= 64 && b <= 127) return "tailscale";
+    return directLan ? "lan" : "other";
   }
 
   broadcast(event: ServerEvent) {
@@ -689,13 +711,25 @@ export class MobileServer {
     } catch {
       return json(res, 400, { error: T.errMobileParam("body") });
     }
-    const result = this.deps.pairing.redeem(body.code);
-    if (result === "locked") return json(res, 429, { error: T.errMobilePairLocked });
-    if (result === "expired") return json(res, 401, { error: T.errMobilePairExpired });
-    if (result !== "ok") return json(res, 401, { error: T.errMobilePairInvalid });
-    const { device, token } = this.deps.devices.add(body.deviceName);
-    this.deps.log?.(`[mobile] paired ${device.name}`);
-    json(res, 200, { deviceId: device.id, deviceToken: token, host: this.deps.hostName, protocol: MOBILE_PROTOCOL });
+    const outcome = this.redeemPairing(body.code, body.deviceName);
+    if (outcome.ok) json(res, 200, outcome.result);
+    else json(res, outcome.status, { error: outcome.error });
+  }
+
+  pairOverRelay(code: unknown, deviceName: unknown, relayKey: string): PairOutcome {
+    if (!this.listening) return { ok: false, status: 503, error: T.errMobileOff };
+    if (!this.pairAttempts.take()) return { ok: false, status: 429, error: T.errMobilePairLimited };
+    return this.redeemPairing(code, deviceName, relayKey);
+  }
+
+  private redeemPairing(code: unknown, deviceName: unknown, relayKey?: string): PairOutcome {
+    const result = this.deps.pairing.redeem(code);
+    if (result === "locked") return { ok: false, status: 429, error: T.errMobilePairLocked };
+    if (result === "expired") return { ok: false, status: 401, error: T.errMobilePairExpired };
+    if (result !== "ok") return { ok: false, status: 401, error: T.errMobilePairInvalid };
+    const { device, token } = this.deps.devices.add(deviceName, relayKey);
+    this.deps.log?.(`[mobile] paired ${device.name}${relayKey ? " over the relay" : ""}`);
+    return { ok: true, result: { deviceId: device.id, deviceToken: token, host: this.deps.hostName, protocol: MOBILE_PROTOCOL } };
   }
 
   private async serveMedia(serve: NonNullable<MobileServerDeps["serveMedia"]>, req: IncomingMessage, res: ServerResponse, url: URL) {

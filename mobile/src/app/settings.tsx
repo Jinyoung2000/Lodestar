@@ -2,7 +2,7 @@ import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
-import { hasMixedRoutes, parseConnectionRoutes, routeAddress } from "../logic/routes";
+import { hasMixedRoutes, parseConnectionRoutes, routeAddress, routeLabel } from "../logic/routes";
 import { activitySupported, alertsEnabled, enableAlerts, stopAlerts } from "../state/activity";
 import { durationLabel } from "../logic/time";
 import { allMetrics, subscribeMetrics, type Metric } from "../state/perf";
@@ -135,7 +135,7 @@ export default function Settings() {
     ]);
   };
 
-  const statusText = conn === "online" ? `Connected${client.route ? ` via ${routeAddress(client.route)}` : ""}` : conn === "unauthorized" ? "Removed from your Mac" : conn === "idle" ? "Not connected" : conn === "offline" ? "Offline · Retrying" : "Reconnecting…";
+  const statusText = conn === "online" ? `Connected${client.route ? ` via ${routeLabel(client.route)}` : ""}` : conn === "unauthorized" ? "Removed from your Mac" : conn === "idle" ? "Not connected" : conn === "offline" ? "Offline · Retrying" : "Reconnecting…";
   return <>
     <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
       <Section title="Appearance">

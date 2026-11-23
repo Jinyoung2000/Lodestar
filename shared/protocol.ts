@@ -328,6 +328,7 @@ export type Settings = {
   pinnedPanelSide: "left" | "right" | null;
   chatInEditorLayout: "docked" | "floating" | null;
   mobileAccess: boolean;
+  mobileRelay: boolean;
 };
 
 export type DefaultSource = "agent-nav" | "vscode" | "claude" | "builtin";

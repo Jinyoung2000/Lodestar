@@ -1,7 +1,8 @@
 
 export const DEFAULT_PORT = 7789;
 
-export type PairingInfo = { secure?: boolean; hosts: string[]; port: number; code: string; name: string | null };
+export type PairingRelay = { url: string; id: string; key: string };
+export type PairingInfo = { secure?: boolean; hosts: string[]; port: number; code: string; name: string | null; relay?: PairingRelay };
 
 const HOST_RE = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/;
 const CODE_RE = /^[A-HJ-NP-Z2-9]{8}$/;
@@ -46,8 +47,19 @@ function parseUri(text: string): PairingInfo | null {
   const hosts = (params.get("h") ?? "").split(",").map((h) => h.trim()).filter((h) => HOST_RE.test(h) && isLocalNetworkHost(h));
   const port = Number(params.get("p") ?? DEFAULT_PORT);
   const code = normalizeCode(params.get("c") ?? "");
-  if (hosts.length === 0 || !validPort(port) || !CODE_RE.test(code)) return null;
-  return { hosts, port, code, name: params.get("n") || null };
+  const relay = relayOf(params.get("r"), params.get("i"), params.get("k"));
+  if ((hosts.length === 0 && !relay) || !validPort(port) || !CODE_RE.test(code)) return null;
+  return { hosts, port, code, name: params.get("n") || null, ...(relay ? { relay } : {}) };
+}
+
+function relayOf(url: string | undefined, id: string | undefined, key: string | undefined): PairingRelay | null {
+  if (!url || !id || !key || !/^[0-9a-f]{32}$/.test(id) || !/^[A-Za-z0-9_-]{43}$/.test(key)) return null;
+  const match = /^(https?):\/\/([A-Za-z0-9.-]+)(?::(\d+))?$/.exec(url);
+  if (!match) return null;
+  const [, scheme, host, port] = match;
+  if (port !== undefined && !validPort(Number(port))) return null;
+  if (scheme === "http" && !isLocalNetworkHost(host)) return null;
+  return { url, id, key };
 }
 
 function parseManual(text: string): PairingInfo | null {

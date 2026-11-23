@@ -1,6 +1,10 @@
 import { parseServerAddress, type PairingInfo } from "./pairing";
 
-export type ConnectionRoute = { host: string; port: number; secure?: boolean };
+export type ConnectionRoute = { host: string; port: number; secure?: boolean; relay?: true };
+
+export function routeLabel(route: ConnectionRoute) {
+  return route.relay ? "the relay" : routeAddress(route);
+}
 
 export function routesFromAddress({ hosts, port, secure }: Pick<PairingInfo, "hosts" | "port" | "secure">): ConnectionRoute[] {
   return hosts.map((host) => ({ host, port, ...(secure && { secure }) }));

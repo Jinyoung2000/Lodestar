@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { allowProviderEnv } from "./claude";
 import { closeSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
@@ -28,6 +29,7 @@ import { mediaKey, mentionedMedia, resolveMediaBatch, type MediaContext } from "
 import { handleMedia } from "./mediaHttp";
 import { handleUpload } from "./fileAttach";
 import { lanHosts, makeOffer, MobileDevices, MobileServer, PairingCodes } from "./mobileAccess";
+import { loadRelayIdentity, normalizeRelayUrl, RelayLink, RELAY_URL_DEFAULT } from "./mobileRelay";
 import { WorkspaceIcons } from "./workspaceIcons";
 import { mobilePreview } from "./mobilePreview";
 import { listFolder } from "./mobileFolders";
@@ -139,8 +141,12 @@ const clients = new Set<WebSocket>();
 const MOBILE_PORT = Number(process.env.AGENT_NAV_MOBILE_PORT ?? PORT + 1);
 const MOBILE_BIND = process.env.AGENT_NAV_MOBILE_BIND ?? "0.0.0.0";
 const mobilePairing = new PairingCodes();
+const mobileDevices = new MobileDevices(join(HOME, "mobile-devices.json"));
+const RELAY_URL = normalizeRelayUrl(process.env.AGENT_NAV_RELAY_URL ?? RELAY_URL_DEFAULT);
+const RELAY_BRIDGE_KEY = randomBytes(24).toString("hex");
+let relayLink: RelayLink | null = null;
 const mobile = new MobileServer({
-  devices: new MobileDevices(join(HOME, "mobile-devices.json")),
+  devices: mobileDevices,
   pairing: mobilePairing,
   call: (method, params, client) => {
     const handler = (mobileHandlers[method] ?? handlers[method as RpcMethod]) as (params: unknown, client: WebSocket) => unknown;
@@ -150,6 +156,7 @@ const mobile = new MobileServer({
   serveMedia: (req, res, url) => handleMedia(req, res, url, { key: MOBILE_MEDIA_KEY, origins: "any" }),
   hostName: hostname().replace(/\.local$/, ""),
   allowedOrigins: new Set((process.env.AGENT_NAV_MOBILE_ALLOW_ORIGIN ?? "").split(",").filter(Boolean)),
+  relayBridgeKey: RELAY_BRIDGE_KEY,
   onClose: (client) => runner.dropOpenAgents(client),
   onReady: () => { for (const harness of HARNESS_VALUES) void phoneModels.provider(harness); },
   log: (line) => console.log(line),
@@ -457,7 +464,7 @@ process.on("unhandledRejection", (reason) => console.error("[daemon] unhandled r
 const sessionChanges = createSessionChanges({ store, feedback });
 
 const settingsEffects: SettingsEffect[] = [
-  { keys: ["mobileAccess"], apply: () => applyMobileAccess() },
+  { keys: ["mobileAccess", "mobileRelay"], apply: () => applyMobileAccess() },
   { keys: ["inboxIntervalMinutes", "showSlack"], apply: () => armInboxTimer() },
   { keys: ["showSlack"], apply: () => mentions.kick() },
   { keys: ["keepIdleSessionsWarmMinutes"], apply: () => runner.rearmIdleCloses() },
@@ -532,11 +539,12 @@ const handlers: Handlers = {
   "mobile.status": () => mobileStatus(),
   "mobile.pairingCode": () => {
     if (!mobile.listening) throw new Error(T.errMobileOff);
-    return makeOffer(mobilePairing.issue(), lanHosts(), mobile.port, hostname().replace(/\.local$/, ""));
+    return makeOffer(mobilePairing.issue(), lanHosts(), mobile.port, hostname().replace(/\.local$/, ""), relayLink?.pairing ?? null);
   },
   "mobile.revokeDevice": ({ id }) => {
     if (!mobile.deviceExists(id)) throw new Error(T.errMobileDevice);
     mobile.revokeDevice(id);
+    relayLink?.closeDevice(id);
     return mobileStatus();
   },
   "browser.probe": ({ url }) => probeFrame(url),
@@ -702,10 +710,37 @@ async function applyMobileAccess() {
   } else if (mobile.listening) {
     await mobile.stop();
   }
+  applyMobileRelay();
+}
+
+function applyMobileRelay() {
+  const wanted = store.settings.mobileAccess === true && store.settings.mobileRelay === true && mobile.listening && RELAY_URL !== null;
+  if (!wanted) {
+    relayLink?.stop();
+    relayLink = null;
+    return;
+  }
+  if (relayLink) return;
+  relayLink = new RelayLink({
+    url: RELAY_URL,
+    identity: loadRelayIdentity(join(HOME, "mobile-relay.json")),
+    devices: mobileDevices,
+    pair: (code, deviceName, relayKey) => mobile.pairOverRelay(code, deviceName, relayKey),
+    local: () => (mobile.listening ? { host: /^(0\.0\.0\.0|::|)$/.test(mobile.bind) ? "127.0.0.1" : mobile.bind, port: mobile.port } : null),
+    bridgeKey: RELAY_BRIDGE_KEY,
+    log: (line) => console.log(line),
+  });
+  relayLink.start();
+}
+
+function mobileRelayStatus(): MobileStatus["relay"] {
+  if (store.settings.mobileRelay !== true || store.settings.mobileAccess !== true) return { state: "off", error: null };
+  if (RELAY_URL === null) return { state: "unconfigured", error: null };
+  return relayLink?.state ?? { state: "off", error: null };
 }
 
 function mobileStatus(): MobileStatus {
-  return { enabled: store.settings.mobileAccess === true, listening: mobile.listening, port: mobile.listening ? mobile.port : MOBILE_PORT, bind: mobile.listening ? mobile.bind : MOBILE_BIND, hosts: lanHosts(), devices: mobile.devices(), error: mobile.error };
+  return { enabled: store.settings.mobileAccess === true, listening: mobile.listening, port: mobile.listening ? mobile.port : MOBILE_PORT, bind: mobile.listening ? mobile.bind : MOBILE_BIND, hosts: lanHosts(), devices: mobile.devices(), error: mobile.error, relay: mobileRelayStatus() };
 }
 
 function topWorkspaceOf(id: unknown): string | null {

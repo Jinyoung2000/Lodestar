@@ -1,11 +1,12 @@
 import type { MobileBrowseResult, MobileMethod, MobileModelCatalog, MobileModelSelection, MobilePreview, MobileReady, MobileSessionRequest } from "@shared/mobile";
 import type { Agent, Harness, RpcMethods, ServerEvent } from "@shared/protocol";
 import { reconnectDelay } from "../logic/backoff";
-import { hasMixedRoutes, routeAddress, routesFromAddress, routeSocketUrl, type ConnectionRoute } from "../logic/routes";
+import { hasMixedRoutes, routeAddress, routeLabel, routesFromAddress, routeSocketUrl, type ConnectionRoute } from "../logic/routes";
+import { relayHost, RelaySocket, type RelayEndpoint, type RelaySocketFactory } from "./relay";
 import { routeHandshake } from "./routeAuth";
-import type { UploadTarget } from "./upload";
+import { isRelayTarget, type UploadTarget } from "./upload";
 
-type RoutedEndpoint = { routes: ConnectionRoute[]; token: string; deviceId?: string };
+type RoutedEndpoint = { routes: ConnectionRoute[]; token: string; deviceId?: string; relay?: RelayEndpoint };
 type LegacyEndpoint = { hosts: string[]; port: number; secure?: boolean; token: string };
 export type Endpoint = RoutedEndpoint | LegacyEndpoint;
 export type ConnStatus = "idle" | "connecting" | "online" | "offline" | "unauthorized";
@@ -34,6 +35,8 @@ type SocketLike = {
 
 export type RpcOptions = {
   socket?: (url: string) => SocketLike;
+  relaySocket?: RelaySocketFactory;
+  relayPingIntervalMs?: number;
   pingIntervalMs?: number;
   pingTimeoutMs?: number;
   connectTimeoutMs?: number;
@@ -78,21 +81,31 @@ export class RpcClient {
 
   imageUploadTarget(): UploadTarget | null {
     if (this.status !== "online" || !this.route || !this.endpoint) return null;
-    const { routes, token } = this.endpoint;
+    const { routes, token, relay } = this.endpoint;
+    if (this.route.relay) return relay ? { relay, token } : null;
     const route = this.route.secure ? this.route : routes.find((candidate) => candidate.secure) ?? this.route;
     return { ...route, token };
   }
 
+  get viaRelay() {
+    return this.route?.relay === true;
+  }
+
   hostUrl(path: string): string | null {
     const target = this.imageUploadTarget();
-    return target ? `${routeAddress(target)}${path}` : null;
+    return target && !isRelayTarget(target) ? `${routeAddress(target)}${path}` : null;
+  }
+
+  private candidates(endpoint: RoutedEndpoint): ConnectionRoute[] {
+    const direct = endpoint.routes.filter((route) => !route.relay);
+    return endpoint.relay ? [...direct, { host: relayHost(endpoint.relay), port: 443, secure: true, relay: true }] : direct;
   }
 
   configure(endpoint: Endpoint | null) {
     this.endpoint = endpoint && ("routes" in endpoint ? endpoint : { routes: routesFromAddress(endpoint), token: endpoint.token });
     this.teardown();
     this.attempt = 0;
-    if (!this.endpoint?.routes.length) {
+    if (!this.endpoint?.routes.length && !this.endpoint?.relay) {
       this.wanted = false;
       this.setStatus("idle");
       return;
@@ -197,7 +210,8 @@ export class RpcClient {
     if (!endpoint || !this.wanted) return;
     const generation = ++this.generation;
     if (this.status !== "offline") this.setStatus("connecting");
-    const { routes, deviceId, token } = endpoint;
+    const { deviceId, token } = endpoint;
+    const routes = this.candidates(endpoint);
     const mixedRoutes = hasMixedRoutes(routes);
     let index = 0;
     let rejected = 0;
@@ -223,10 +237,11 @@ export class RpcClient {
   }
 
   private candidate(route: ConnectionRoute, token: string, handshake: ReturnType<typeof routeHandshake> | null, next: (badToken?: boolean) => void) {
-    const address = routeAddress(route);
+    const address = routeLabel(route);
+    const relay = this.endpoint?.relay;
     let socket: SocketLike;
     try {
-      socket = this.makeSocket(routeSocketUrl(route));
+      socket = route.relay && relay ? new RelaySocket(relay, this.opts.relaySocket) : this.makeSocket(routeSocketUrl(route));
     } catch (error) {
       this.opts.log?.(`[rpc] could not open ${address}: ${String(error)}`);
       next();
@@ -293,7 +308,7 @@ export class RpcClient {
         if (rejected) this.unauthorized();
         else this.lost();
       } else if (socket === this.openingSocket) {
-        next(rejected && authSent);
+        next(rejected && (authSent || route.relay === true));
       }
     };
   }
@@ -317,7 +332,8 @@ export class RpcClient {
 
   private startPing() {
     if (!this.foreground || this.pingTimer) return;
-    this.pingTimer = setInterval(() => void this.checkPing(), this.opts.pingIntervalMs ?? 10_000);
+    const interval = this.route?.relay ? this.opts.relayPingIntervalMs ?? 25_000 : this.opts.pingIntervalMs ?? 10_000;
+    this.pingTimer = setInterval(() => void this.checkPing(), interval);
   }
 
   private checkPing() {
