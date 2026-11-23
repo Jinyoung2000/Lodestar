@@ -292,6 +292,7 @@ export type Settings = {
   maxWarmSessions: number;
   feedbackAutoTidy: boolean;
   autoUpdateWhenIdle: boolean;
+  runFromSource: boolean;
   autoAddRequests: boolean;
   mentionAnalysisModel: string;
   mentionAnalysisBudgetUsd: number | null;

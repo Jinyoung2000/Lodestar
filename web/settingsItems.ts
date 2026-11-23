@@ -323,6 +323,7 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     set: (v) => save({ morningReviewTime: v.trim() }),
     validate: (v) => (parseReviewTime(v) ? null : S.reviewTimeInvalid),
   },
+  { ...text("runFromSource"), group: "general", kind: "switch", ...plain("runFromSource", false), value: (c) => c.settings.runFromSource ?? false, set: (v) => save({ runFromSource: v }), keywords: "source folder repository build developer agent-nav feedback github" },
   { ...text("autoUpdateWhenIdle"), group: "general", kind: "switch", ...plain("autoUpdateWhenIdle", false), value: (c) => c.settings.autoUpdateWhenIdle ?? false, set: (v) => save({ autoUpdateWhenIdle: v }), keywords: "update restart install build idle away automatic" },
   { ...text("notifyOnResponse"), group: "notifications", kind: "switch", ...plain("notifyOnResponse", true), value: (c) => c.settings.notifyOnResponse ?? true, set: (v) => save({ notifyOnResponse: v }) },
   { ...text("notifyOnApproval"), group: "notifications", kind: "switch", ...plain("notifyOnApproval", true), value: (c) => c.settings.notifyOnApproval ?? true, set: (v) => save({ notifyOnApproval: v }) },

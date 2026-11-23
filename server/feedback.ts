@@ -79,6 +79,7 @@ export type FeedbackDeps = {
   agents: AgentRunner;
   emit: (event: ServerEvent) => void;
   srcRoot: string;
+  sourceEnabled?: () => boolean;
   port: number;
   restart: () => RestartOutcome | void;
   daemon?: DaemonBuild;
@@ -337,6 +338,7 @@ export class FeedbackRunner {
   }
 
   async sourceReady() {
+    if (this.deps.sourceEnabled && !this.deps.sourceEnabled()) return false;
     return (await gitOps.repoRoot(this.deps.srcRoot)) === this.deps.srcRoot;
   }
 

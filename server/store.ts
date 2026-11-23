@@ -132,6 +132,7 @@ const DEFAULT_SETTINGS: Settings = {
   maxWarmSessions: 4,
   feedbackAutoTidy: false,
   autoUpdateWhenIdle: false,
+  runFromSource: false,
   autoAddRequests: false,
   mentionAnalysisModel: "sonnet",
   mentionAnalysisBudgetUsd: null,
@@ -209,6 +210,7 @@ function sanitizeSettings(patch: Partial<Settings>): Partial<Settings> {
   if ("keepIdleSessionsWarmMinutes" in next && !(Number.isInteger(next.keepIdleSessionsWarmMinutes) && finite(next.keepIdleSessionsWarmMinutes, 0, 1440))) delete next.keepIdleSessionsWarmMinutes;
   if ("feedbackAutoTidy" in next && typeof next.feedbackAutoTidy !== "boolean") delete next.feedbackAutoTidy;
   if ("autoUpdateWhenIdle" in next && typeof next.autoUpdateWhenIdle !== "boolean") delete next.autoUpdateWhenIdle;
+  if ("runFromSource" in next && typeof next.runFromSource !== "boolean") delete next.runFromSource;
   if ("maxWarmSessions" in next && !(Number.isInteger(next.maxWarmSessions) && finite(next.maxWarmSessions, 0, 50))) delete next.maxWarmSessions;
   if ("autoAddRequests" in next && typeof next.autoAddRequests !== "boolean") delete next.autoAddRequests;
   if ("mentionAnalysisModel" in next && !(typeof next.mentionAnalysisModel === "string" && ["sonnet", "haiku", "opus"].includes(next.mentionAnalysisModel))) delete next.mentionAnalysisModel;

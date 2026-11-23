@@ -95,7 +95,9 @@ const ROOT = process.env.AGENT_NAV_ROOT ?? resolve(import.meta.dirname, "..");
 const DIST = join(ROOT, "dist");
 const SRC_ROOT = realDir(process.env.AGENT_NAV_SRC ?? (existsSync(join(ROOT, "web", "App.tsx")) ? ROOT : join(homedir(), "Repository", "agent-nav")));
 const SRC_DIST = join(SRC_ROOT, "dist");
-const webDist = () => (SRC_ROOT !== ROOT && existsSync(join(HOME, "feedback", "live-dist")) && existsSync(join(SRC_DIST, "index.html")) ? SRC_DIST : DIST);
+const PACKAGED = process.env.AGENT_NAV_PACKAGED === "1";
+const sourceEnabled = () => !PACKAGED || store.settings.runFromSource === true;
+const webDist = () => (SRC_ROOT !== ROOT && sourceEnabled() && existsSync(join(HOME, "feedback", "live-dist")) && existsSync(join(SRC_DIST, "index.html")) ? SRC_DIST : DIST);
 const RUNTIME: RuntimeInfo = {
   kind: process.env.AGENT_NAV_RUNTIME === "repo" || process.env.AGENT_NAV_RUNTIME === "bundle" ? process.env.AGENT_NAV_RUNTIME : existsSync(join(ROOT, "web", "App.tsx")) ? "repo" : "bundle",
   root: ROOT,
@@ -270,6 +272,7 @@ const feedback: FeedbackRunner = new FeedbackRunner({
   agents: runner,
   emit: broadcast,
   srcRoot: SRC_ROOT,
+  sourceEnabled,
   port: PORT,
   restart: () => restartScheduler.request(),
   daemon: daemonBuild(),
@@ -364,7 +367,7 @@ function daemonBuild() {
 const busyNow = () => runner.activeCount() + quick.activeCount() + side.activeCount() + termAsk.activeCount() + feedback.checkingCount();
 
 if (process.env.AGENT_NAV_PACKAGED === "1" && !process.env.AGENT_NAV_HOME && process.env.AGENT_NAV_NO_AUTOUPDATE !== "1") {
-  new IdleUpdater({ home: HOME, srcRoot: SRC_ROOT, enabled: () => store.settings.autoUpdateWhenIdle !== false, busy: busyNow, startedAt: daemonStartedAt, restart: () => restartScheduler.request(), log: console.log, daemonControl }).start();
+  new IdleUpdater({ home: HOME, srcRoot: SRC_ROOT, enabled: () => sourceEnabled() && store.settings.autoUpdateWhenIdle !== false, busy: busyNow, startedAt: daemonStartedAt, restart: () => restartScheduler.request(), log: console.log, daemonControl }).start();
 }
 
 const restartScheduler = new RestartScheduler({
@@ -451,6 +454,12 @@ const settingsEffects: SettingsEffect[] = [
   },
   { apply: (next) => allowProviderEnv(next.useProviderEnv === true) },
   { keys: ["autoAddRequests"], apply: () => mentions.kick() },
+  {
+    keys: ["runFromSource"],
+    apply: (next, previous) => {
+      if (PACKAGED && (next.runFromSource === true) !== (previous.runFromSource === true)) restartScheduler.request();
+    },
+  },
   { keys: ["notionBypassWrites"], apply: () => runner.releaseNotionCards() },
 ];
 

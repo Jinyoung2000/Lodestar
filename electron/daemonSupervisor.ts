@@ -56,7 +56,16 @@ function report(next: DaemonState["state"], reload = false) {
   for (const client of clients) send(client, event);
 }
 
+function runFromSourceOn() {
+  try {
+    return (JSON.parse(readFileSync(join(home, "settings.json"), "utf8")) as { runFromSource?: unknown }).runFromSource === true;
+  } catch {
+    return false;
+  }
+}
+
 function repoBuildProblem(): string | null {
+  if (!runFromSourceOn()) return "run from the source folder is off";
   if (!existsSync(srcRoot)) return "source folder not found";
   try {
     if (!statSync(join(srcRoot, "dist", "index.html")).isFile() ||
