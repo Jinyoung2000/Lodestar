@@ -13,7 +13,8 @@ function providerOf(harness: Harness, choices: PickerModel[], defaultId: string 
   if (!visible.length) return null;
   const reportedDefault = visible.find((model) => model.value === defaultId) ?? visible.find((model) => defaultId !== null && model.resolved === defaultId);
   const advertisedDefault = harness === "claude" ? visible.find((model) => model.value === "default") : undefined;
-  const defaultModel = (reportedDefault ?? advertisedDefault)?.value ?? null;
+  const namedDefault = defaultId !== null && mobileModelId(defaultId) ? defaultId : null;
+  const defaultModel = reportedDefault?.value ?? namedDefault ?? advertisedDefault?.value ?? null;
   const models = visible.map((model) => {
     const resolved = mobileModelId(model.resolved) ? model.resolved : null;
     const displayName = model.value === "default" && resolved ? modelNameFromId(resolved) ?? model.displayName : model.displayName;
