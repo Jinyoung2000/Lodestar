@@ -18,6 +18,8 @@ class SessionActivityService : Service() {
   private val client = OkHttpClient.Builder().connectTimeout(8, TimeUnit.SECONDS)
     .pingInterval(25, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build()
   private val questions = mutableMapOf<String, String>()
+  private val activity = mutableMapOf<String, String>()
+  private var liveQueued = false
   private val sessions = linkedMapOf<String, Session>()
   private lateinit var notifications: SessionNotifications
   private var endpoint: Endpoint? = null
@@ -43,6 +45,7 @@ class SessionActivityService : Service() {
       sessions.keys.forEach(notifications::dismiss)
       sessions.clear()
       questions.clear()
+      activity.clear()
       endpoint = next
       host = 0
       failures = 0
@@ -52,7 +55,8 @@ class SessionActivityService : Service() {
   }
 
   private fun showLive() {
-    startForeground(SessionNotifications.LIVE_ID, notifications.live(sessions.values, connected))
+    liveQueued = false
+    startForeground(SessionNotifications.LIVE_ID, notifications.live(sessions.values, connected, activity, questions))
   }
 
   private fun connect(target: Endpoint) {
@@ -111,8 +115,19 @@ class SessionActivityService : Service() {
         if (question.isNullOrBlank()) return
         val id = event.optString("agentId")
         if (questions.put(id, question) != question && connected) sessions[id]?.takeIf { it.status == "waiting" }?.let { notifications.alert(it, question) }
+        if (connected) showLive()
       }
       "agentRemoved" -> if (remove(event.optString("agentId"))) showLive()
+      "activity" -> {
+        val id = event.optString("agentId")
+        val text = event.optString("text").take(120)
+        if (text.isBlank() || activity[id] == text) return
+        activity[id] = text
+        if (sessions[id]?.status == "running" && !liveQueued) {
+          liveQueued = true
+          handler.postDelayed({ if (liveQueued) showLive() }, LIVE_REFRESH_MS)
+        }
+      }
     }
   }
 
@@ -120,6 +135,7 @@ class SessionActivityService : Service() {
     if (sessions.remove(id) == null) return false
     notifications.dismiss(id)
     questions.remove(id)
+    activity.remove(id)
     return true
   }
 
@@ -135,7 +151,7 @@ class SessionActivityService : Service() {
       if (next.status == "running") notifications.dismiss(id)
       val finished = next.status == "idle" && (previous?.status == "running" || previous?.status == "waiting")
       val needsAction = next.status in listOf("waiting", "error") && (previous != null || announceNew)
-      if (finished || needsAction) notifications.alert(next, if (next.status == "waiting") questions[id] else null)
+      if (finished || needsAction) notifications.alert(next, if (next.status == "waiting") questions[id] else null, activity[id])
     }
     return true
   }
@@ -170,5 +186,9 @@ class SessionActivityService : Service() {
     client.dispatcher.executorService.shutdown()
     client.connectionPool.evictAll()
     super.onDestroy()
+  }
+
+  companion object {
+    private const val LIVE_REFRESH_MS = 1500L
   }
 }

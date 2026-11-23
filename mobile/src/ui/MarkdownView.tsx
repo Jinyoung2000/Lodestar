@@ -158,7 +158,7 @@ function List({ token, selectable, marginBottom }: { token: Any; selectable: boo
               {marker}
             </Text>
             <View style={{ flex: 1 }}>
-              {(item.tokens as Token[]).map((t, i, all) => (
+              {(item.tokens as Token[]).filter((t) => t.type !== "checkbox").map((t, i, all) => (
                 <Block key={i} token={t as Any} selectable={selectable} last={i === all.length - 1 || (t as Any).type === "text"} />
               ))}
             </View>

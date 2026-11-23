@@ -49,24 +49,38 @@ internal class SessionNotifications(private val context: Context) {
     return context.createConfigurationContext(systemConfig).getColor(R.color.session_notification_accent)
   }
 
-  fun live(sessions: Collection<Session>, connected: Boolean): Notification {
+  fun live(sessions: Collection<Session>, connected: Boolean, activity: Map<String, String>, questions: Map<String, String>): Notification {
     val waiting = sessions.filter { it.status == "waiting" }
     val running = sessions.filter { it.status == "running" }
-    val lead = waiting.firstOrNull() ?: running.firstOrNull()
+    val active = waiting + running
+    val lead = active.firstOrNull()
+    val line = { session: Session -> if (session.status == "waiting") questions[session.id] ?: "Needs your reply" else activity[session.id] ?: "Working" }
     val title = when {
-      !connected -> "Connecting to your Mac"
-      waiting.isNotEmpty() -> if (waiting.size == 1) "Waiting for your reply" else "${waiting.size} sessions need a reply"
-      running.isNotEmpty() -> if (running.size == 1) "Session in progress" else "${running.size} sessions in progress"
-      else -> "Session alerts are on"
+      !connected -> "Lodestar"
+      lead == null -> "Lodestar"
+      active.size == 1 -> lead.title
+      else -> listOfNotNull(
+        if (running.isNotEmpty()) "${running.size} running" else null,
+        if (waiting.isNotEmpty()) "${waiting.size} waiting" else null,
+      ).joinToString(" · ")
     }
     val detail = when {
-      !connected -> "Reconnecting to Lodestar"
-      lead != null -> lead.title
-      else -> "Listening for questions and results"
+      !connected -> "Reconnecting to your Mac"
+      lead == null -> "Listening for questions and results"
+      active.size == 1 -> line(lead)
+      else -> "${lead.title} · ${line(lead)}"
     }
     val notification = builder(LIVE, title, detail, if (connected) lead?.id else null)
       .setOnlyAlertOnce(true).setOngoing(true).setShowWhen(false)
       .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+    if (connected && active.size > 1) {
+      val inbox = NotificationCompat.InboxStyle().setBigContentTitle(title)
+      active.take(5).forEach { inbox.addLine("${it.title} · ${line(it)}") }
+      if (active.size > 5) inbox.setSummaryText("+${active.size - 5} more")
+      notification.setStyle(inbox)
+    } else if (connected && lead != null) {
+      notification.setStyle(NotificationCompat.BigTextStyle().bigText(detail))
+    }
     if (connected && lead != null) {
       notification.setRequestPromotedOngoing(true)
       notification.setShortCriticalText(if (waiting.isNotEmpty()) "Reply" else "Running")
@@ -80,16 +94,16 @@ internal class SessionNotifications(private val context: Context) {
     return state.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
   }
 
-  fun alert(session: Session, question: String? = null) {
+  fun alert(session: Session, question: String? = null, summary: String? = null) {
     if (appOnScreen()) return
-    val title = when (session.status) {
-      "waiting" -> "Your reply is needed"
-      "idle" -> "Session finished"
-      "error" -> "Session needs attention"
+    val text = when (session.status) {
+      "waiting" -> question ?: "Needs your reply"
+      "idle" -> summary ?: "Finished"
+      "error" -> "Stopped with an error"
       else -> return
     }
-    manager.notify(session.id, ALERT_ID, builder(ALERT, if (question == null) title else session.title, question ?: session.title, session.id)
-      .setStyle(NotificationCompat.BigTextStyle().bigText(question ?: session.title)).setOnlyAlertOnce(true)
+    manager.notify(session.id, ALERT_ID, builder(ALERT, session.title, text, session.id)
+      .setStyle(NotificationCompat.BigTextStyle().bigText(text)).setOnlyAlertOnce(true)
       .setCategory(NotificationCompat.CATEGORY_STATUS).setAutoCancel(true).build())
   }
 

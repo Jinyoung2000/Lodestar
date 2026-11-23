@@ -64,14 +64,16 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   useEffect(() => () => meter.stop(), [meter]);
 
   const [memory] = useState(() => sessionViewState(id));
-  const restoreOffset = useRef(memory.offset);
+  const hasNews = !!agent && (!!agent.unread || agent.status === "running" || agent.status === "waiting");
+  const restoreOffset = useRef(hasNews || focusQuestion ? null : memory.offset);
+  const followEnd = useRef(restoreOffset.current === null);
   const showGallery = useCallback(() => {
     Keyboard.dismiss();
     navigation.setParams({ gallery: "1" });
   }, [navigation]);
   const closeGallery = useCallback(() => navigation.setParams({ gallery: undefined }), [navigation]);
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
-  const chatPadding = (paneWidth || windowWidth) < 360 ? spacing.md : spacing.lg;
+  const chatPadding = (paneWidth || windowWidth) < 360 ? spacing.lg : spacing.xl;
   const keyboardTop = useKeyboardTop();
   const insets = useSafeAreaInsets();
   const availableHeight = (keyboardTop ?? windowHeight) - insets.top;
@@ -232,7 +234,10 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
                 renderItem={({ item }) => <ChatRow agentId={id} row={item} showGallery={showGallery} openPreview={openPreview} />}
                 ItemSeparatorComponent={Gap}
                 contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm, paddingBottom: spacing.lg }}
-                onContentSizeChange={(_, height) => { contentHeight.current = height; }}
+                onContentSizeChange={(_, height) => {
+                  contentHeight.current = height;
+                  if (followEnd.current && listHeight.current !== null) void listRef.current?.scrollToOffset({ offset: Math.max(0, height - listHeight.current), animated: false });
+                }}
                 maintainVisibleContentPosition={{ autoscrollToBottomThreshold: 0.25, startRenderingFromBottom: true, animateAutoScrollToBottom: false }}
                 onLoad={() => {
                   const offset = restoreOffset.current;
@@ -242,9 +247,18 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
                 onStartReached={() => void store.loadOlder(id)}
                 onStartReachedThreshold={0.5}
                 onScroll={onScroll}
-                onScrollBeginDrag={meter.start}
-                onMomentumScrollEnd={meter.stop}
-                onScrollEndDrag={() => setTimeout(meter.stop, 500)}
+                onScrollBeginDrag={() => {
+                  followEnd.current = false;
+                  meter.start();
+                }}
+                onMomentumScrollEnd={() => {
+                  followEnd.current = atBottomRef.current;
+                  meter.stop();
+                }}
+                onScrollEndDrag={() => {
+                  followEnd.current = atBottomRef.current;
+                  setTimeout(meter.stop, 500);
+                }}
                 scrollEventThrottle={64}
                 keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="handled"

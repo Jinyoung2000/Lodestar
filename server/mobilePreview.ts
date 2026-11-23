@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { open, realpath, stat } from "node:fs/promises";
-import { dirname, extname, join, relative, resolve, sep } from "node:path";
+import { homedir } from "node:os";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { MAX_IMAGE_BYTES, sniffImageType } from "../shared/images";
 import type { MobilePreview } from "../shared/mobile";
 import type { TimelineItem } from "../shared/protocol";
@@ -17,6 +18,18 @@ function hasWorkspaceFile(item: TimelineItem | undefined, target: string): boole
   return Array.from(links).some((m) => (m[1] ?? m[2]) === target);
 }
 
+function insideVisible(base: string | null, real: string): boolean {
+  if (!base) return false;
+  return relative(base, real).split(sep).every((part) => part && !part.startsWith("."));
+}
+
+async function insideHome(real: string): Promise<boolean> {
+  const home = await realpath(homedir()).catch(() => null);
+  const data = await realpath(HOME).catch(() => HOME);
+  if (!home || real === data || real.startsWith(data + sep)) return false;
+  return insideVisible(home, real);
+}
+
 export async function mobilePreview(root: string | null, item: TimelineItem | undefined, target: string): Promise<MobilePreview> {
   if (item?.kind === "tool" && item.status === "done" && /(?:^|__)html_render$/.test(item.name) && target === "rendered-html" && typeof item.input.html === "string") {
     if (Buffer.byteLength(item.input.html) > MAX_IMAGE_BYTES) throw new Error("Previews support files up to 5 MB.");
@@ -31,13 +44,13 @@ export async function mobilePreview(root: string | null, item: TimelineItem | un
     const shot = item.shots?.[Number(shotTarget[1])];
     if (shot && dirname(shot) === join(HOME, "tool-shots")) path = shot;
   }
-  if (root && hasWorkspaceFile(item, target)) {
-    const base = await realpath(root);
+  if (hasWorkspaceFile(item, target)) {
     const raw = item?.kind === "assistant" ? decodeURIComponent(target) : target;
-    const real = await realpath(resolve(base, raw)).catch(() => null);
-    if (real) {
-      const parts = relative(base, real).split(sep);
-      if (parts.every((part) => part && !part.startsWith(".")) && extname(real).toLowerCase() === extname(raw).toLowerCase()) path = real;
+    const expanded = raw.startsWith("~/") ? join(homedir(), raw.slice(2)) : raw;
+    if (root || isAbsolute(expanded)) {
+      const base = root ? await realpath(root) : null;
+      const real = await realpath(base ? resolve(base, expanded) : expanded).catch(() => null);
+      if (real && extname(real).toLowerCase() === extname(raw).toLowerCase() && (insideVisible(base, real) || await insideHome(real))) path = real;
     }
   }
   if (!path || !/\.(html?|png|jpe?g|gif|webp|svg|md|markdown|csv)$/i.test(path)) throw new Error("This file is unavailable in this session.");

@@ -1,7 +1,7 @@
 {
   "name": "agent-nav",
   "private": true,
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Local macOS app for running many Claude Code sessions side by side, with diffs, an editor, a terminal and git in one window.",
   "license": "MIT",
   "author": "Jinyoung Sung",
@@ -32,7 +32,8 @@
     "prebuild": "npm run tokens && npm run lint:hooks",
     "predev": "npm run tokens",
     "lint:hooks": "oxlint -c .oxlintrc.json web",
-    "postdist": "codesign --force --deep --sign - release/mac-arm64/Lodestar.app && codesign --verify --deep --strict release/mac-arm64/Lodestar.app"
+    "postdist": "codesign --force --deep --sign - release/mac-arm64/Lodestar.app && codesign --verify --deep --strict release/mac-arm64/Lodestar.app",
+    "release:mac": "node scripts/release-mac.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.296",
@@ -143,7 +144,11 @@
             ]
           }
         ]
-      }
+      },
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "directories": {
       "output": "release"

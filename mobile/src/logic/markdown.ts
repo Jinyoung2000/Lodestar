@@ -1,7 +1,29 @@
-import { marked, type Token } from "marked";
+import { Marked, type Token, type TokenizerExtension } from "marked";
 
 const CACHE_LIMIT = 200;
 const cache = new Map<string, Token[]>();
+
+const closeStrong: TokenizerExtension = {
+  name: "strong",
+  level: "inline",
+  start: (src) => src.indexOf("**"),
+  tokenizer(src) {
+    const match = /^\*\*(?![\s*])([^\n]*?[^\s*])\*\*(?!\*)/.exec(src);
+    if (!match) return undefined;
+    return { type: "strong", raw: match[0], text: match[1], tokens: this.lexer.inlineTokens(match[1]) };
+  },
+};
+
+const parser = new Marked({ gfm: true, breaks: false }).use({
+  extensions: [closeStrong],
+  tokenizer: {
+    del(src) {
+      if (src.startsWith("~~")) return false;
+      if (src.startsWith("~")) return { type: "text", raw: "~", text: "~" } as never;
+      return false;
+    },
+  },
+});
 
 export function parseMarkdown(text: string): Token[] {
   const hit = cache.get(text);
@@ -10,7 +32,7 @@ export function parseMarkdown(text: string): Token[] {
     cache.set(text, hit);
     return hit;
   }
-  const tokens = marked.lexer(text, { gfm: true, breaks: false });
+  const tokens = parser.lexer(text);
   cache.set(text, tokens);
   if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value as string);
   return tokens;

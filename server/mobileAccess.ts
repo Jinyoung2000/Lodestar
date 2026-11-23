@@ -345,6 +345,7 @@ export type MobileServerDeps = {
   hostName: string;
   allowedOrigins?: ReadonlySet<string>;
   onClose?: (client: WebSocket) => void;
+  onReady?: (client: WebSocket) => void;
   log?: (line: string) => void;
 };
 
@@ -359,9 +360,53 @@ function activityAgent({ id, title, status, done }: Agent) {
   return { id, title, status, done };
 }
 
+const ACTIVITY_TEXT_LIMIT = 90;
+const TOOL_ACTIONS: Record<string, string> = { Read: "Reading", Edit: "Editing", MultiEdit: "Editing", Write: "Writing", Grep: "Searching", Glob: "Finding files", WebFetch: "Reading", WebSearch: "Searching the web", TodoWrite: "Updating todos", Skill: "Using" };
+
+const clip = (text: string) => text.length > ACTIVITY_TEXT_LIMIT ? `${text.slice(0, ACTIVITY_TEXT_LIMIT - 1).trimEnd()}…` : text;
+const fileName = (value: unknown) => typeof value === "string" ? value.split("/").filter(Boolean).pop() ?? null : null;
+const hostOf = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  try {
+    return new URL(value).host;
+  } catch {
+    return null;
+  }
+};
+
+function toolActivity(name: string, input: Record<string, unknown>): string {
+  const text = (key: string) => typeof input[key] === "string" ? (input[key] as string).split("\n")[0].trim() : null;
+  if (name === "Bash") return text("description") ?? `Running ${text("command") ?? "a command"}`;
+  if (name === "Agent" || name === "Task") return `Subagent: ${text("description") ?? "working"}`;
+  const action = TOOL_ACTIONS[name];
+  if (action) {
+    const target = fileName(input.file_path) ?? hostOf(input.url) ?? text("pattern") ?? text("query") ?? text("skill");
+    return target ? `${action} ${target}` : action;
+  }
+  const mcp = /^mcp__(.+?)__(.+)$/.exec(name);
+  return mcp ? `${mcp[1]}: ${mcp[2].replace(/_/g, " ")}` : name;
+}
+
+function assistantActivity(text: string): string | null {
+  const line = text.split("\n").map((part) => part.replace(/^[#>*\-\s]+/, "").replace(/[*_`]/g, "").trim()).find(Boolean);
+  if (!line) return null;
+  return line.match(/^.+?[.!?。](?=\s|$)/)?.[0] ?? line;
+}
+
+function activityText(item: Extract<ServerEvent, { type: "timelineUpsert" }>["item"]): string | null {
+  if (item.kind === "tool" && item.status === "running" && !item.parentToolUseId) return toolActivity(item.name, item.input);
+  if (item.kind === "assistant") return assistantActivity(item.text);
+  if (item.kind === "thinking") return "Thinking";
+  return null;
+}
+
 function activityEvent(event: ServerEvent) {
   if (event.type === "agent") return { type: event.type, agent: activityAgent(event.agent) };
   if (event.type === "agentRemoved") return event;
+  if (event.type === "timelineUpsert" && event.item.kind !== "permission") {
+    const text = activityText(event.item);
+    return text ? { type: "activity", agentId: event.agentId, text: clip(text) } : null;
+  }
   if (event.type === "timelineUpsert" && event.item.kind === "permission" && event.item.status === "pending") {
     const entries = event.item.input.questions;
     const question = Array.isArray(entries) && entries[0]?.question;
@@ -607,6 +652,7 @@ export class MobileServer {
         this.deps.devices.touch(device.id);
         const ready: MobileReady = { protocol: MOBILE_PROTOCOL, host: this.deps.hostName, serverTime: Date.now() };
         ws.send(JSON.stringify({ ready }));
+        if (message.feed !== "activity") this.deps.onReady?.(ws);
         return;
       }
       const id = typeof message.id === "number" ? message.id : -1;

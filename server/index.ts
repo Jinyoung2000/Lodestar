@@ -147,6 +147,7 @@ const mobile = new MobileServer({
   hostName: hostname().replace(/\.local$/, ""),
   allowedOrigins: new Set((process.env.AGENT_NAV_MOBILE_ALLOW_ORIGIN ?? "").split(",").filter(Boolean)),
   onClose: (client) => runner.dropOpenAgents(client),
+  onReady: () => { for (const harness of HARNESS_VALUES) void phoneModels.provider(harness); },
   log: (line) => console.log(line),
 });
 const daemonStartedAt = Math.round(Date.now() - process.uptime() * 1000);

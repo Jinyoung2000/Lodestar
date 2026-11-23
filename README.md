@@ -30,13 +30,7 @@ A detailed feature reference, written in Korean during development, is in [docs/
 ### Download (Apple Silicon)
 
 1. Download `Lodestar-<version>-mac-arm64.zip` from [Releases](https://github.com/Jinyoung2000/Lodestar/releases/latest), unzip it and move `Lodestar.app` to `/Applications`.
-2. The build is ad-hoc signed and not notarized, so macOS blocks the first launch. Clear the download flag once:
-
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/Lodestar.app
-   ```
-
-3. Install Claude Code and sign in (`claude auth login`), then open Lodestar.
+2. Install Claude Code and sign in (`claude auth login`), then open Lodestar. Releases from 0.4.4 are signed with a Developer ID and notarized by Apple, so they open without extra steps.
 
 The downloaded app needs no Node.js. Node is required only to build from source.
 
@@ -93,6 +87,7 @@ Environment variables that matter:
 ```bash
 npm run build   # also regenerates design tokens and runs the hooks lint first
 npm run dist    # release/mac-arm64/Lodestar.app, ad-hoc signed, not notarized
+npm run release:mac  # Developer ID signed and notarized zip; needs the identity in the keychain and LODESTAR_NOTARY_KEY_ID, LODESTAR_NOTARY_ISSUER, LODESTAR_NOTARY_KEY
 ```
 
 `npm run tokens` regenerates `web/tokens.css` from `design-system/tokens.json`. `npm run icon` rebuilds the app icon from `build/icon.svg`.

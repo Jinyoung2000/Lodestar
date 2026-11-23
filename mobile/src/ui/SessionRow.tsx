@@ -43,7 +43,7 @@ export function SessionRowFrame({ agent, selected, state, stamp, emphasized, sho
 }
 
 const styles = StyleSheet.create({
-  row: { minHeight: 52, justifyContent: "center", paddingHorizontal: spacing.lg, paddingVertical: 10, gap: 2 },
+  row: { minHeight: 52, justifyContent: "center", paddingHorizontal: spacing.xl, paddingVertical: spacing.md, gap: 2 },
   line: { flexDirection: "row", alignItems: "center", gap: 12 },
   title: { flex: 1, minWidth: 0, fontSize: 16, lineHeight: 22, fontWeight: "400" },
   strong: { fontWeight: "600" },

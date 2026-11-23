@@ -31,7 +31,6 @@ type Props = {
 };
 
 const MIN_HEIGHT = MIN_TOUCH;
-const IDLE_MODEL_WIDTH = 112;
 const INPUT_LINE_HEIGHT = 22;
 const INPUT_FONT_LIMIT = 1.6;
 const INPUT_PADDING = spacing.xs;
@@ -245,8 +244,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const showStop = !!(running && onStop);
   const showSend = !showStop || hasDraft || pendingSend;
   const compactStart = MIN_TOUCH + spacing.xs;
-  const idleModelLabel = !!modelControl && !hasDraft;
-  const modelWidth = idleModelLabel ? IDLE_MODEL_WIDTH : modelControl ? MIN_TOUCH : 0;
+  const modelWidth = modelControl ? MIN_TOUCH : 0;
   const compactEnd = modelWidth + MIN_TOUCH * (Number(showStop) + Number(showSend)) + spacing.xs;
   const expanded = !!text.length && (wraps || text.includes("\n"));
   const token = editing && modelAvailable && selection.start === selection.end ? text.slice(0, selection.start).match(/(?:^|\s)(\/[a-z]*)$/i)?.[1] : undefined;
@@ -353,10 +351,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
               accessibilityState={{ disabled: !modelAvailable }} disabled={!modelAvailable} onPress={modelControl.onPress}
               style={({ pressed }) => [styles.model, expanded ? styles.modelExpanded : { width: modelWidth }, pressed && { backgroundColor: colors.pressed }]}>
               <ProviderMark harness={modelControl.harness} size={18} selected />
-              {expanded ? <ModelSubtitle name={modelControl.name} effort={modelControl.effort} /> : <>
-                {idleModelLabel && <Text variant="caption" numberOfLines={1} color="textMuted" style={{ flexShrink: 1 }}>{modelControl.name}</Text>}
-                <Icon name="chevron.down" size={12} color="textMuted" />
-              </>}
+              {expanded ? <ModelSubtitle name={modelControl.name} effort={modelControl.effort} /> : <Icon name="chevron.down" size={12} color="textMuted" />}
             </Pressable>}
             {showStop && <Pressable accessibilityRole="button" accessibilityLabel="Stop" disabled={!canSend} onPress={onStop} style={styles.iconButton}>
               <View style={[styles.send, { backgroundColor: withAlpha(colors.danger, 0.16) }]}><Icon name="stop.fill" size={12} color="danger" /></View>
@@ -398,7 +393,7 @@ function QueueChip({ message, label, onCancel, onNow }: { message: QueuedMessage
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.xs },
+  wrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.xs },
   surface: { borderRadius: 24, borderWidth: StyleSheet.hairlineWidth },
   row: { flexDirection: "row", alignItems: "center", minHeight: MIN_TOUCH },
   measure: { position: "absolute", opacity: 0 },
