@@ -132,6 +132,19 @@ function htmlDocument(html: string, background: string, authored = false) {
 
 type OpenPreview = { file: Preview; content?: MobilePreview; error?: string; thumbnail?: boolean };
 
+function playableVideo(path: string): MobilePreview {
+  if (/^https?:\/\//i.test(path)) return { kind: "video", uri: path };
+  const uri = client.hostUrl(path);
+  if (!uri) throw new Error("Connect to your Mac to play this video.");
+  return { kind: "video", uri };
+}
+
+const originOf = (uri: string) => /^https?:\/\/[^/?#]+/i.exec(uri)?.[0] ?? "";
+
+function videoDocument(uri: string, background: string) {
+  return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src ${originOf(uri)}; style-src 'unsafe-inline'"><style>html,body{margin:0;height:100%;background:${background}}video{display:block;width:100vw;height:100dvh;object-fit:contain;background:${background}}</style><video controls autoplay playsinline preload="metadata" src="${escapeHtml(uri)}"></video>`;
+}
+
 export function usePreview(agentId: string, files: readonly Preview[] = []) {
   const [selected, setSelected] = useState<OpenPreview | null>(null);
   const open = useCallback(async (file: Preview) => {
@@ -145,7 +158,8 @@ export function usePreview(agentId: string, files: readonly Preview[] = []) {
         ? await client.call("mobile.preview", { agentId, itemId: file.itemId, target: file.target })
         : undefined);
       if (!content) throw new Error("Connect to your Mac to open this file.");
-      setSelected((current) => current === request ? { file, content } : current);
+      const playable = content.kind === "video" ? playableVideo(content.uri) : content;
+      setSelected((current) => current === request ? { file, content: playable } : current);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Could not load the file.";
       const message = detail.includes("cannot call mobile.preview") ? "Update Lodestar on your Mac to open workspace files." : detail;
@@ -176,12 +190,24 @@ function PreviewContent({ content, title, tile, onImageError }: { content: Mobil
     if (failedUri === content.uri) return <View style={styles.center}><Text color="textMuted">Could not display this image.</Text></View>;
     return <Image source={{ uri: content.uri }} accessibilityLabel={title} onError={() => { setFailedUri(content.uri); onImageError?.(); }} resizeMode="contain" style={StyleSheet.absoluteFill} />;
   }
+  if (content.kind === "video") return <VideoPlayer uri={content.uri} />;
   if (content.kind === "markdown") return <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.document}><MarkdownView text={content.text} /></ScrollView>;
   return <WebView javaScriptEnabled={!tile && content.kind === "html"} scrollEnabled={!tile && content.kind !== "svg"} source={source}
     containerStyle={{ backgroundColor: colors.surfaceBase, ...(tile ? { borderWidth: 1, borderColor: colors.separator } : {}) }}
     style={{ backgroundColor: colors.surfaceBase, opacity: loadedDocument === document ? 1 : 0 }}
     onLoadEnd={() => setLoadedDocument(document)} forceDarkOn={false} originWhitelist={["*"]}
     onShouldStartLoadWithRequest={(r) => r.url === "about:blank" || r.url === "about:srcdoc"} onOpenWindow={() => {}} allowFileAccess={false} allowFileAccessFromFileURLs={false} allowUniversalAccessFromFileURLs={false} domStorageEnabled={false} geolocationEnabled={false} incognito mixedContentMode="never" />;
+}
+
+function VideoPlayer({ uri }: { uri: string }) {
+  const colors = useColors();
+  const origin = originOf(uri);
+  const source = useMemo(() => ({ html: videoDocument(uri, colors.surfaceBase), baseUrl: origin }), [uri, origin, colors.surfaceBase]);
+  return <WebView source={source} javaScriptEnabled={false} scrollEnabled={false}
+    containerStyle={{ backgroundColor: colors.surfaceBase }} style={{ backgroundColor: colors.surfaceBase }}
+    mediaPlaybackRequiresUserAction={false} allowsInlineMediaPlayback allowsFullscreenVideo forceDarkOn={false} originWhitelist={["*"]}
+    onShouldStartLoadWithRequest={(r) => r.url === "about:blank" || r.url === origin || r.url === `${origin}/`} onOpenWindow={() => {}}
+    allowFileAccess={false} allowFileAccessFromFileURLs={false} allowUniversalAccessFromFileURLs={false} domStorageEnabled={false} geolocationEnabled={false} incognito />;
 }
 
 function samePreview(left: Preview, right: Preview) {

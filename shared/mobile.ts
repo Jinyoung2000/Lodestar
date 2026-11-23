@@ -54,7 +54,9 @@ export type MobileDefaults = { requestQueuing: RequestQueuing };
 
 export type MobileWorkspaceIcons = Record<string, string | null>;
 
-export type MobilePreview = { kind: "html"; html: string } | { kind: "image"; uri: string } | { kind: "markdown" | "svg" | "csv"; text: string };
+export const MOBILE_MEDIA_PATH = "/mobile/media";
+
+export type MobilePreview = { kind: "html"; html: string } | { kind: "image" | "video"; uri: string } | { kind: "markdown" | "svg" | "csv"; text: string };
 
 export type MobileHost = { address: string; iface: string; kind: "lan" | "tailscale" };
 

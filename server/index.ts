@@ -111,6 +111,7 @@ if (dataLock === null) {
 }
 const TOKEN = loadToken();
 const MEDIA_KEY = mediaKey(TOKEN);
+const MOBILE_MEDIA_KEY = mediaKey(`${TOKEN}:mobile`);
 
 const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 const ALLOWED_ORIGINS = new Set([
@@ -144,6 +145,7 @@ const mobile = new MobileServer({
     return handler(params, client);
   },
   saveImage: saveImageBytes,
+  serveMedia: (req, res, url) => handleMedia(req, res, url, { key: MOBILE_MEDIA_KEY, origins: "any" }),
   hostName: hostname().replace(/\.local$/, ""),
   allowedOrigins: new Set((process.env.AGENT_NAV_MOBILE_ALLOW_ORIGIN ?? "").split(",").filter(Boolean)),
   onClose: (client) => runner.dropOpenAgents(client),
@@ -636,7 +638,7 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
   "mobile.preview": ({ agentId, itemId, target }: { agentId: string; itemId: string; target: string }) => {
     const agent = phoneAgent(agentId);
     const item = store.timeline(agentId).find((entry) => entry.id === itemId);
-    return mobilePreview(agent.workspaceId ? agent.worktree?.root ?? phoneWorkspace(agent.workspaceId).dir : null, item, target);
+    return mobilePreview(agent.workspaceId ? agent.worktree?.root ?? phoneWorkspace(agent.workspaceId).dir : null, item, target, MOBILE_MEDIA_KEY);
   },
   "mobile.browse": ({ dir, display }: { dir: string; display: string }) =>
     listFolder({ dir, display }, new Map(store.workspaces.filter((w) => !w.feedback && !w.parentId).map((w) => [w.dir, w.id]))),

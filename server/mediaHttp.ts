@@ -3,7 +3,7 @@ import { open, realpath } from "node:fs/promises";
 import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 import { sizeLimit, sniffMedia, extensionOf, verifyMedia } from "./media";
 
-export type MediaGuard = { key: Buffer; origins: ReadonlySet<string> };
+export type MediaGuard = { key: Buffer; origins: ReadonlySet<string> | "any" };
 
 export function mediaOriginAllowed(headers: IncomingHttpHeaders, origins: ReadonlySet<string>) {
   const origin = headers.origin;
@@ -41,7 +41,7 @@ export async function handleMedia(req: IncomingMessage, res: ServerResponse, url
     res.writeHead(status, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }).end(status === 403 ? "forbidden" : status === 416 ? "range not satisfiable" : "not found");
   };
   if (req.method !== "GET" && req.method !== "HEAD") return void res.writeHead(405, { allow: "GET, HEAD" }).end();
-  if (!mediaOriginAllowed(req.headers, guard.origins)) return fail(403);
+  if (guard.origins !== "any" && !mediaOriginAllowed(req.headers, guard.origins)) return fail(403);
   const path = url.searchParams.get("p") ?? "";
   const mtime = url.searchParams.get("m") ?? "";
   const signature = url.searchParams.get("s") ?? "";

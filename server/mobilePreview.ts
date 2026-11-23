@@ -3,10 +3,11 @@ import { open, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { MAX_IMAGE_BYTES, sniffImageType } from "../shared/images";
-import type { MobilePreview } from "../shared/mobile";
+import { MOBILE_MEDIA_PATH, type MobilePreview } from "../shared/mobile";
 import type { TimelineItem } from "../shared/protocol";
 import { HOME } from "./store";
 import { imagePath } from "./images";
+import { inspectMediaFile, mediaUrl } from "./media";
 
 function hasWorkspaceFile(item: TimelineItem | undefined, target: string): boolean {
   if (item?.kind === "tool") {
@@ -30,7 +31,7 @@ async function insideHome(real: string): Promise<boolean> {
   return insideVisible(home, real);
 }
 
-export async function mobilePreview(root: string | null, item: TimelineItem | undefined, target: string): Promise<MobilePreview> {
+export async function mobilePreview(root: string | null, item: TimelineItem | undefined, target: string, videoKey?: Buffer): Promise<MobilePreview> {
   if (item?.kind === "tool" && item.status === "done" && /(?:^|__)html_render$/.test(item.name) && target === "rendered-html" && typeof item.input.html === "string") {
     if (Buffer.byteLength(item.input.html) > MAX_IMAGE_BYTES) throw new Error("Previews support files up to 5 MB.");
     return { kind: "html", html: item.input.html };
@@ -52,6 +53,11 @@ export async function mobilePreview(root: string | null, item: TimelineItem | un
       const real = await realpath(base ? resolve(base, expanded) : expanded).catch(() => null);
       if (real && extname(real).toLowerCase() === extname(raw).toLowerCase() && (insideVisible(base, real) || await insideHome(real))) path = real;
     }
+  }
+  if (path && videoKey && /\.(mp4|mov|webm)$/i.test(path)) {
+    const video = await inspectMediaFile(path);
+    if (!video || video.kind !== "video") throw new Error("This video cannot be played. Videos up to 512 MB in MP4, MOV or WebM work.");
+    return { kind: "video", uri: mediaUrl(videoKey, video).replace(/^\/media\?/, `${MOBILE_MEDIA_PATH}?`) };
   }
   if (!path || !/\.(html?|png|jpe?g|gif|webp|svg|md|markdown|csv)$/i.test(path)) throw new Error("This file is unavailable in this session.");
   if (!(await stat(path)).isFile()) throw new Error("Choose a regular file.");

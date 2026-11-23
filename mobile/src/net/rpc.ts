@@ -83,6 +83,11 @@ export class RpcClient {
     return { ...route, token };
   }
 
+  hostUrl(path: string): string | null {
+    const target = this.imageUploadTarget();
+    return target ? `${routeAddress(target)}${path}` : null;
+  }
+
   configure(endpoint: Endpoint | null) {
     this.endpoint = endpoint && ("routes" in endpoint ? endpoint : { routes: routesFromAddress(endpoint), token: endpoint.token });
     this.teardown();

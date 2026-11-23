@@ -5,7 +5,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 import { dirname } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { buildManualPairing, buildPairingUri, MOBILE_EVENT_TYPES, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, mobileModelId, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileModelSelection, type MobileReady, type PairingOffer } from "../shared/mobile";
+import { buildManualPairing, buildPairingUri, MOBILE_EVENT_TYPES, MOBILE_MEDIA_PATH, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, mobileModelId, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileModelSelection, type MobileReady, type PairingOffer } from "../shared/mobile";
 import { MAX_IMAGE_BYTES, MAX_IMAGES } from "../shared/images";
 import { HARNESS_VALUES, isEffortLevel, type Agent, type Harness, type ServerEvent } from "../shared/protocol";
 import { resolveAddable, resolveFolder } from "./mobileFolders";
@@ -342,6 +342,7 @@ export type MobileServerDeps = {
   pairing: PairingCodes;
   call: (method: string, params: Record<string, unknown>, client: WebSocket) => Promise<unknown> | unknown;
   saveImage: (bytes: Buffer, mediaType: string, name: string) => { id: string };
+  serveMedia?: (req: IncomingMessage, res: ServerResponse, url: URL) => Promise<void>;
   hostName: string;
   allowedOrigins?: ReadonlySet<string>;
   onClose?: (client: WebSocket) => void;
@@ -676,6 +677,7 @@ export class MobileServer {
     if (req.method === "GET" && url.pathname === "/mobile/health") return json(res, 200, { ok: true, protocol: MOBILE_PROTOCOL });
     if (req.method === "POST" && url.pathname === "/mobile/pair") return void this.pair(req, res);
     if (req.method === "POST" && url.pathname === "/mobile/images") return void this.uploadImage(req, res, url);
+    if (url.pathname === MOBILE_MEDIA_PATH && this.deps.serveMedia) return void this.serveMedia(this.deps.serveMedia, req, res, url);
     json(res, 404, { error: "not found" });
   }
 
@@ -694,6 +696,15 @@ export class MobileServer {
     const { device, token } = this.deps.devices.add(body.deviceName);
     this.deps.log?.(`[mobile] paired ${device.name}`);
     json(res, 200, { deviceId: device.id, deviceToken: token, host: this.deps.hostName, protocol: MOBILE_PROTOCOL });
+  }
+
+  private async serveMedia(serve: NonNullable<MobileServerDeps["serveMedia"]>, req: IncomingMessage, res: ServerResponse, url: URL) {
+    try {
+      await serve(req, res, url);
+    } catch (error) {
+      this.deps.log?.(`[mobile] media failed ${error instanceof Error ? error.message : String(error)}`);
+      if (!res.headersSent) res.writeHead(500).end("media failed");
+    }
   }
 
   private async uploadImage(req: IncomingMessage, res: ServerResponse, url: URL) {

@@ -13,6 +13,7 @@ export const MATERIAL_ICONS: Record<string, readonly [AndroidSymbol, number]> = 
   "arrow.up.circle": ["arrow_circle_up", 0xf182],
   "rectangle.and.hand.point.up.left": ["touch_app", 0xe913],
   "scribble.variable": ["gesture", 0xe155],
+  film: ["movie", 0xe02c],
   "doc.text": ["article", 0xef42],
   tablecells: ["table_chart", 0xe265],
   doc: ["description", 0xe873],

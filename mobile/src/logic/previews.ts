@@ -6,7 +6,7 @@ export type PreviewKind = MobilePreview["kind"];
 export type Preview = { title: string; itemId: string; kind: PreviewKind; thumb?: string; path?: string; at?: string } & ({ content: MobilePreview } | { target: string });
 
 export const formatLabel: Record<PreviewKind, string> = {
-  html: "Interactive HTML", image: "Image", svg: "Vector graphic", markdown: "Markdown", csv: "Spreadsheet",
+  html: "Interactive HTML", image: "Image", video: "Video", svg: "Vector graphic", markdown: "Markdown", csv: "Spreadsheet",
 };
 
 const cache = new WeakMap<TimelineItem, Preview[]>();
@@ -17,16 +17,17 @@ function fileKind(path: string): PreviewKind | undefined {
   if (ext === "md" || ext === "markdown") return "markdown";
   if (ext === "svg" || ext === "csv") return ext;
   if (ext && ["png", "jpeg", "jpg", "webp", "gif"].includes(ext)) return "image";
+  if (ext && ["mp4", "mov", "webm"].includes(ext)) return "video";
 }
 
-function fromText(kind: Exclude<PreviewKind, "image">, text: string): MobilePreview {
+function fromText(kind: Exclude<PreviewKind, "image" | "video">, text: string): MobilePreview {
   return kind === "html" ? { kind, html: text } : { kind, text };
 }
 
 export function fencePreview(lang: string, body: string, itemId: string): Preview | undefined {
   const [language, ...name] = lang.trim().split(/\s+/);
   const kind = language.toLowerCase() === "lodestar-preview" ? "html" : fileKind(`.${language}`);
-  if (!kind || kind === "image") return;
+  if (!kind || kind === "image" || kind === "video") return;
   const heading = kind === "markdown" ? body.match(/^#\s+(.+)$/m)?.[1] : body.match(/<title(?:\s[^>]*)?>([^<]{1,160})<\/title>/i)?.[1];
   const title = name.join(" ").trim() || heading?.trim() || formatLabel[kind];
   return { kind, title, itemId, content: fromText(kind, body) };
@@ -94,7 +95,7 @@ function previewsOf(item: TimelineItem): Preview[] {
       if (kind) {
         const title = path.split("/").pop() || path;
         const text = item.input.content;
-        const inline = item.name === "Write" && kind !== "image" && typeof text === "string" && !/\n… \(\d+ more characters\)$/.test(text);
+        const inline = item.name === "Write" && kind !== "image" && kind !== "video" && typeof text === "string" && !/\n… \(\d+ more characters\)$/.test(text);
         files.push({ itemId, kind, title, path, ...(inline ? { content: fromText(kind, text) } : { target: path }) });
       }
     }

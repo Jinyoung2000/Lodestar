@@ -9,7 +9,7 @@ import { MarkdownView } from "./MarkdownView";
 import { Icon } from "./Icon";
 import { Text } from "./Text";
 
-export const previewGlyph = { html: "rectangle.and.hand.point.up.left", svg: "scribble.variable", image: "photo", csv: "tablecells", markdown: "doc.text" } as const;
+export const previewGlyph = { html: "rectangle.and.hand.point.up.left", svg: "scribble.variable", image: "photo", csv: "tablecells", markdown: "doc.text", video: "film" } as const;
 const thumbnails = new Map<string, { content: MobilePreview; expires: number }>();
 const requests = new Map<string, Promise<MobilePreview>>();
 const thumbnailLimit = 4;
@@ -38,7 +38,7 @@ function useThumbnail(agentId: string | undefined, file: Preview, enabled: boole
   const key = agentId && target ? cacheKey(agentId, itemId, target) : undefined;
   const [loaded, setLoaded] = useState<{ key: string; content: MobilePreview }>();
   useEffect(() => {
-    if (!enabled || file.thumb || !agentId || !target || !key) return;
+    if (!enabled || file.thumb || file.kind === "video" || !agentId || !target || !key) return;
     let active = true;
     async function load() {
       if (!agentId || !target || !key) return;
