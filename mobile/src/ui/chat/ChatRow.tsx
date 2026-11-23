@@ -24,13 +24,11 @@ export const ChatRow = memo(function ChatRow({ row, showGallery, openPreview, ag
         <View style={styles.userWrap}>
           <View style={imageOnly ? styles.imageBubble : [styles.userBubble, { backgroundColor: colors.userBubble }]}>
             {images.length > 0 && (
-              <ImageDisclosure key={item.id} agentId={agentId} itemId={item.id} count={images.length}>
-                <View style={styles.thumbs}>
-                  {images.map((image, index) => (
-                    <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Open ${image.title}`} onPress={() => openPreview(image)}><Image source={{ uri: image.thumb }} style={[styles.thumb, imageOnly && images.length === 1 && styles.singleImage, { backgroundColor: colors.surfaceBase }]} /></Pressable>
-                  ))}
-                </View>
-              </ImageDisclosure>
+              <View style={styles.thumbs}>
+                {images.map((image, index) => (
+                  <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Open ${image.title}`} onPress={() => openPreview(image)}><Image source={{ uri: image.thumb }} style={[styles.thumb, imageOnly && images.length === 1 && styles.singleImage, { backgroundColor: colors.surfaceBase }]} /></Pressable>
+                ))}
+              </View>
             )}
             {chips.map((chip, i) => (
               <Text key={i} variant="caption" color="textMuted" numberOfLines={1}>{`@ ${"label" in chip ? chip.label : ""}`}</Text>

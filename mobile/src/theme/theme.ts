@@ -30,6 +30,10 @@ const themes = {
     colors: {
       ...palette.dark,
       background: "#08090b",
+      textStrong: "#ffffff",
+      text: "#f2f2f2",
+      textMuted: "#c4c4c4",
+      textSubtle: "#a3a3a3",
       surfaceBase: "#0c0d10",
       surface: "#111216",
       overlay: "#191a20",
