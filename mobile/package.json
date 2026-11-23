@@ -43,6 +43,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/sync-relay.mjs --check && tsx test/pairing.test.ts && tsx test/backoff.test.ts && tsx test/timeline.test.ts && tsx test/rows.test.ts && tsx test/agents.test.ts && tsx test/workspaces.test.ts && tsx test/images.test.ts && tsx test/questions.test.ts && tsx test/markdown.test.ts && tsx test/store.test.ts && tsx test/rpc.test.ts && tsx test/typeonly.test.ts && tsx test/iconnames.test.ts",
     "update:android": "eas update --platform android --channel production --environment production --input-dir .expo/android-update",
+    "ota": "node scripts/ota-plan.mjs",
     "relay": "node scripts/sync-relay.mjs"
   },
   "private": true,
