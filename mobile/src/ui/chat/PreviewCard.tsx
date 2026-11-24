@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
-import { previewFrameDocument, readPreviewCard } from "../../logic/previewCard";
+import { PREVIEW_FRAME_WIDTH, previewFrameDocument, readPreviewCard } from "../../logic/previewCard";
 import type { Preview } from "../../logic/previews";
 import type { ToolItem } from "../../logic/timeline";
 import { MIN_TOUCH, radius, spacing, useColors } from "../../theme/theme";
@@ -43,15 +43,25 @@ export const PreviewCardRow = memo(function PreviewCardRow({ item, open }: Previ
 });
 
 export function HtmlFrameView({ html, maxHeight = FRAME_MAX_HEIGHT }: { html: string; maxHeight?: number }) {
-  const document = useMemo(() => previewFrameDocument(html, "Canvas"), [html]);
+  const [width, setWidth] = useState(0);
+  const scale = width ? Math.min(1, width / PREVIEW_FRAME_WIDTH) : 0;
+  return (
+    <View pointerEvents="none" onLayout={(event) => setWidth(Math.round(event.nativeEvent.layout.width))}>
+      {scale > 0 ? <ScaledFrame key={scale} html={html} scale={scale} maxHeight={maxHeight} /> : <View style={{ height: FRAME_MIN_HEIGHT * 2 }} />}
+    </View>
+  );
+}
+
+function ScaledFrame({ html, scale, maxHeight }: { html: string; scale: number; maxHeight: number }) {
+  const document = useMemo(() => previewFrameDocument(html, "Canvas", scale), [html, scale]);
   const source = useMemo(() => ({ html: document, baseUrl: "about:blank" }), [document]);
   const [height, setHeight] = useState<number | null>(null);
   const onMessage = (event: WebViewMessageEvent) => {
-    const next = Number(event.nativeEvent.data);
+    const next = Number(event.nativeEvent.data) * scale;
     if (Number.isFinite(next) && next > 0) setHeight(Math.max(FRAME_MIN_HEIGHT, Math.min(maxHeight, Math.ceil(next))));
   };
   return (
-    <View pointerEvents="none" style={{ height: height ?? FRAME_MIN_HEIGHT * 2 }}>
+    <View style={{ height: height ?? FRAME_MIN_HEIGHT * 2 }}>
       <WebView source={source} javaScriptEnabled injectedJavaScript={REPORT_HEIGHT} onMessage={onMessage} scrollEnabled={false}
         style={{ backgroundColor: "transparent", opacity: height === null ? 0 : 1 }} forceDarkOn={false} originWhitelist={["*"]}
         onShouldStartLoadWithRequest={(r) => r.url === "about:blank" || r.url === "about:srcdoc"} onOpenWindow={() => {}}

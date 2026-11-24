@@ -27,11 +27,11 @@ export const looksLikeHtml = (value: string) => /^\s*</.test(value) && /<\/?[a-z
 
 const FRAME_POLICY = "default-src 'none'; img-src data: https:; media-src data: https:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src data: https://fonts.gstatic.com";
 
-export function previewFrameDocument(html: string, background: string): string {
+export function previewFrameDocument(html: string, background: string, scale = 1): string {
   return [
     "<!doctype html><html><head><meta charset=\"utf-8\">",
     `<meta http-equiv="Content-Security-Policy" content="${FRAME_POLICY}">`,
-    `<meta name="viewport" content="width=${PREVIEW_FRAME_WIDTH}, initial-scale=1">`,
+    `<meta name="viewport" content="width=${PREVIEW_FRAME_WIDTH}, initial-scale=${scale}, minimum-scale=${scale}, maximum-scale=${scale}, user-scalable=no">`,
     `<style>html,body{margin:0;background:${background};-webkit-text-size-adjust:100%}body{display:flow-root}</style>`,
     "</head><body>",
     html,
