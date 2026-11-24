@@ -637,7 +637,7 @@ test("서버: 장치를 해제하면 열린 연결이 끊기고 토큰이 더는
   }
 });
 
-test("서버: 이벤트는 거르고, 같은 항목의 빠른 갱신은 하나로 묶고, 삭제는 앞선 갱신 뒤에 온다", async () => {
+test("서버: 이벤트는 거르고, 같은 항목의 갱신은 처음 자리에서 하나로 묶고, 삭제도 같은 묶음에 순서대로 온다", async () => {
   const m = await memoryServer();
   try {
     const { token } = await m.pair();
@@ -649,10 +649,9 @@ test("서버: 이벤트는 거르고, 같은 항목의 빠른 갱신은 하나�
     m.server.broadcast({ type: "timelineUpsert", agentId: "a", item: { ...item("final"), streaming: false } });
     await new Promise((r) => setTimeout(r, 200));
     const events = client.messages.map((x) => (x as { event: ServerEvent }).event);
-    expect(events.length === 3, `3 events, got ${events.length}: ${events.map((e) => e.type).join()}`);
-    expect(events[0].type === "timelineUpsert" && (events[0].item as { text: string }).text === "x".repeat(20), "only the latest of the burst");
-    expect(events[1].type === "timelineRemove", "remove after the flushed upsert");
-    expect(events[2].type === "timelineUpsert" && (events[2].item as { text: string }).text === "final", "last upsert");
+    expect(events.length === 2, `2 events, got ${events.length}: ${events.map((e) => e.type).join()}`);
+    expect(events[0].type === "timelineUpsert" && (events[0].item as { text: string }).text === "final", "the burst keeps its first place and carries the latest text");
+    expect(events[1].type === "timelineRemove", "remove keeps its order after the earlier item");
     client.ws.close();
     return "ok";
   } finally {

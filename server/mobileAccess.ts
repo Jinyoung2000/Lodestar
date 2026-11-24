@@ -553,9 +553,8 @@ export class MobileServer {
     if (this.sockets.size === 0) return;
     const shaped = shapeMobileEvent(event);
     if (!shaped) return;
-    if (shaped.type === "timelineUpsert" || shaped.type === "agent") {
-      const key = shaped.type === "agent" ? `agent:${shaped.agent.id}` : `item:${shaped.agentId}:${shaped.item.id}`;
-      this.pending.delete(key);
+    if (shaped.type === "timelineUpsert" || shaped.type === "timelineRemove" || shaped.type === "agent") {
+      const key = shaped.type === "agent" ? `agent:${shaped.agent.id}` : `item:${shaped.agentId}:${shaped.type === "timelineRemove" ? shaped.itemId : shaped.item.id}`;
       this.pending.set(key, shaped);
       this.flushTimer ??= setTimeout(() => this.flush(), FLUSH_MS);
       return;

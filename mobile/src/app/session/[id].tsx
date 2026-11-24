@@ -247,7 +247,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
                 getItemType={rowType}
                 renderItem={({ item }) => <ChatRow agentId={id} row={item} showGallery={showGallery} openPreview={openPreview} />}
                 ItemSeparatorComponent={Gap}
-                contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm, paddingBottom: spacing.lg }}
+                contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm, paddingBottom: spacing.xs }}
                 onContentSizeChange={(_, height) => {
                   const viewport = listHeight.current;
                   const shrankPastEnd = viewport !== null && height < contentHeight.current && height < scrollOffset.current + viewport / 2;
@@ -264,7 +264,8 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
                   }
                   if (followEnd.current && listHeight.current !== null) void listRef.current?.scrollToOffset({ offset: Math.max(0, height - listHeight.current), animated: false });
                 }}
-                maintainVisibleContentPosition={{ autoscrollToBottomThreshold: 0.25, startRenderingFromBottom: true, animateAutoScrollToBottom: false }}
+                maintainVisibleContentPosition={{ startRenderingFromBottom: true }}
+                drawDistance={windowHeight}
                 onLoad={() => {
                   const offset = restoreOffset.current;
                   if (offset !== null && !focusQuestion) void listRef.current?.scrollToOffset({ offset, animated: false });
@@ -288,8 +289,8 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
                 scrollEventThrottle={64}
                 keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="handled"
-                ListHeaderComponent={timeline?.loadingOlder ? <ActivityIndicator style={{ marginBottom: spacing.md }} /> : rows.length === 0 ? <Text color="textMuted" style={{ textAlign: "center" }}>No messages yet.</Text> : null}
-                ListFooterComponent={showWorking ? <Working /> : null}
+                ListHeaderComponent={timeline?.hasMore ? <View style={styles.olderSlot}>{timeline.loadingOlder && <ActivityIndicator />}</View> : rows.length === 0 ? <Text color="textMuted" style={{ textAlign: "center" }}>No messages yet.</Text> : null}
+                ListFooterComponent={<View style={styles.workingSlot}>{showWorking && <Working />}</View>}
               />
               {!atBottom && (
                 <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => toEnd(true)} style={[styles.latestTarget, { right: chatPadding - 6 }]}>
@@ -379,6 +380,8 @@ const styles = StyleSheet.create({
   opening: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.md },
   openingText: { flex: 1 },
   readingWidth: { width: 720, alignSelf: "center" },
+  olderSlot: { height: 36, marginBottom: spacing.md, alignItems: "center", justifyContent: "center" },
+  workingSlot: { height: 32 },
   working: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingTop: spacing.md },
   latestTarget: { position: "absolute", bottom: spacing.xs, width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   latest: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },

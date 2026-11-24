@@ -1749,8 +1749,9 @@ export class AgentRunner {
             run.apiError = true;
             this.upsert(agentId, { id, kind: "error", text: block.text, auth: AUTH_API_ERRORS.has(message.error) });
           } else if (block.type === "text") {
-            this.clearDraft(agentId, run);
-            this.upsert(agentId, { id, kind: "assistant", text: block.text, streaming: false, at: new Date().toISOString(), model: message.message.model });
+            const streamedId = run.draftId;
+            run.draftId = null;
+            this.upsert(agentId, { id: streamedId ?? id, kind: "assistant", text: block.text, streaming: false, at: new Date().toISOString(), model: message.message.model });
           } else if (block.type === "thinking" && block.thinking.trim()) {
             this.upsert(agentId, { id, kind: "thinking", text: block.thinking });
           } else if (block.type === "tool_use") {
