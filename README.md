@@ -34,6 +34,10 @@ A detailed feature reference, written in Korean during development, is in [docs/
 
 The downloaded app needs no Node.js. Node is required only to build from source.
 
+### Android phone app
+
+Download `Lodestar-<version>-android-arm64.apk` from the same release and open it on the phone to install it (allow installs from your browser or file manager when Android asks). Later versions install over it, and smaller changes arrive as over-the-air updates. Pair it with the Mac as described under [Android companion](#android-companion).
+
 ### VS Code extension
 
 If you work in VS Code, install `lodestar-vscode-<version>.vsix` from the same release (`code --install-extension lodestar-vscode-<version>.vsix`). It lists the sessions of the folder open in VS Code and shows the conversation in a side bar view, backed by the running Lodestar app. This is the recommended way to use Lodestar next to VS Code; the app's own editor-centered layout is optional (Settings, "Default layout").
@@ -99,6 +103,7 @@ Both Macs must be on the same network or the same Tailscale network. Pairing wor
 npm run build   # also regenerates design tokens and runs the hooks lint first
 npm run dist    # release/mac-arm64/Lodestar.app, ad-hoc signed, not notarized
 npm run release:mac  # Developer ID signed and notarized zip; needs the identity in the keychain and LODESTAR_NOTARY_KEY_ID, LODESTAR_NOTARY_ISSUER, LODESTAR_NOTARY_KEY
+npm run release:android  # signed APK for the release; needs mobile/.signing from the checkout that built the installed APKs and a build registered in mobile/native-builds.json
 ```
 
 `npm run tokens` regenerates `web/tokens.css` from `design-system/tokens.json`. `npm run icon` rebuilds the app icon from `build/icon.svg`.
