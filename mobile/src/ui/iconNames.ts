@@ -39,6 +39,7 @@ export const MATERIAL_ICONS: Record<string, readonly [AndroidSymbol, number]> = 
   gearshape: ["settings", 0xe8b8],
   "largecircle.fill.circle": ["radio_button_checked", 0xe837],
   "list.bullet.clipboard": ["checklist", 0xe6b1],
+  "line.3.horizontal": ["menu", 0xe5d2],
   pencil: ["edit", 0xe3c9],
   pin: ["keep", 0xe6aa],
   "pin.slash": ["keep_off", 0xe6f9],

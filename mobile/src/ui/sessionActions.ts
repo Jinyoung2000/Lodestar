@@ -2,14 +2,15 @@ import { useCallback, useState } from "react";
 import { Alert } from "react-native";
 import type { Agent } from "@shared/protocol";
 import { store } from "../state/app";
-import { showActionMenu } from "./actionMenu";
+import { showActionMenu, type ActionChoice } from "./actionMenu";
 
 export function useSessionActions() {
   const [renaming, setRenaming] = useState<Agent | null>(null);
   const fail = useCallback((error: unknown) => Alert.alert("Could not update the session", error instanceof Error ? error.message : String(error)), []);
   const open = useCallback(
-    (agent: Agent | undefined, { closeConversation, createPreview, reloadMessages }: { closeConversation?: () => void; createPreview?: () => void; reloadMessages?: () => void } = {}) => {
+    (agent: Agent | undefined, { closeConversation, createPreview, reloadMessages, leading = [] }: { closeConversation?: () => void; createPreview?: () => void; reloadMessages?: () => void; leading?: ActionChoice[] } = {}) => {
       showActionMenu(agent?.title ?? "Session", [
+        ...leading,
         ...(createPreview ? [{ label: "New preview", onPress: createPreview }] : []),
         ...(reloadMessages ? [{ label: "Reload messages", onPress: reloadMessages }] : []),
         ...(agent ? [

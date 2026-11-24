@@ -7,6 +7,7 @@ import { relativeTime } from "../logic/time";
 import { store } from "../state/app";
 import { spacing, useColors, withAlpha } from "../theme/theme";
 import { Icon } from "./Icon";
+import { endSplitPress } from "./SplitDrag";
 import { ProjectIcon } from "./ProjectIcon";
 import { ProviderLabel, ProviderMark, sessionIdentity } from "./ProviderMark";
 import { Text } from "./Text";
@@ -44,7 +45,7 @@ export function SessionRowFrame({ agent, selected, state, stamp, emphasized, sho
     <Animated.View {...swipe.handlers} style={{ transform: [{ translateX: swipe.offset }], backgroundColor: colors.background }}>
       <Pressable accessibilityRole="button" accessibilityLabel={[agent.title, sessionIdentity(agent.harness, state), agent.pinned ? "Pinned" : null, agent.done ? "Done" : null, detailsLabel, stamp].filter(Boolean).join(", ")} accessibilityState={selected === undefined ? undefined : { selected }} accessibilityHint="Long press for more actions"
         accessibilityActions={[{ name: "toggleDone", label: doneLabel }]} onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === "toggleDone") toggleDone(); }}
-        onPress={() => onPress(agent.id)} onLongPress={() => onLongPress(agent)}
+        onPress={() => onPress(agent.id)} onLongPress={() => onLongPress(agent)} onPressOut={endSplitPress}
         style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.pressed : selected ? colors.selected : colors.background }]}>
         {({ pressed }) => <>
           {state === "waiting" && !selected && !pressed && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(colors.warning, 0.14) }]} />}

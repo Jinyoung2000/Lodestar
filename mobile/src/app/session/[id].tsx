@@ -11,6 +11,7 @@ import { readQuestions } from "../../logic/questions";
 import { requestDraft, sessionViewState } from "../../state/sessionView";
 import { releasePreview, useExpandedPreview } from "../../state/expandedPreview";
 import { store, useAppState } from "../../state/app";
+import { closePane, commitPanes, isDrawerOpen, setDrawerOpen } from "../../state/split";
 import { sessionPreviews, type Preview } from "../../logic/previews";
 import { PreviewGallery, PreviewModal, usePreview } from "../../ui/Preview";
 import { CreatePreview } from "../../ui/CreatePreview";
@@ -29,19 +30,68 @@ import { Text } from "../../ui/Text";
 import { ChatRow, rowType } from "../../ui/chat/ChatRow";
 import { ApprovalCard, QuestionCard, PlanCard, type Actions } from "../../ui/chat/Cards";
 import { useSessionActions } from "../../ui/sessionActions";
+import { armSplitDrag, endSplitPress } from "../../ui/SplitDrag";
+import { SplitPanes } from "../../ui/SplitPanes";
 
 const NEAR_BOTTOM = 120;
 type SessionParams = { id: string; draft?: string; focusQuestion?: string; gallery?: string; viewer?: string };
 
+type PaneUi = { galleryOpen: boolean; viewerOpen: boolean; setGallery: (open: boolean) => void; setViewer: (open: boolean) => void };
+type PaneRole = { active: boolean; first: boolean; onClose: () => void };
+type SessionViewProps = { id: string; draft?: string; focusQuestion: boolean; ui: PaneUi; pane?: PaneRole };
+
 export default function Session() {
   const params = useLocalSearchParams<SessionParams>();
-  return <SessionView key={params.id} id={params.id} draft={params.draft} focusQuestion={params.focusQuestion === "1"} galleryOpen={params.gallery === "1"} viewerOpen={params.viewer === "1"} />;
+  const { panes } = useFoldLayout();
+  if (panes.length > 1) return <SplitSessions panes={panes} params={params} />;
+  return <RoutedSession key={params.id} params={params} />;
 }
 
-function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id: string; draft?: string; focusQuestion: boolean; galleryOpen: boolean; viewerOpen: boolean }) {
-  const router = useRouter();
+function RoutedSession({ params }: { params: SessionParams }) {
   const navigation = useNavigation<NativeStackNavigationProp<{ "session/[id]": SessionParams }, "session/[id]">>();
-  const { expanded, paneWidth, connectionInRail } = useFoldLayout();
+  const ui = useMemo<PaneUi>(() => ({
+    galleryOpen: params.gallery === "1",
+    viewerOpen: params.viewer === "1",
+    setGallery: (open) => navigation.setParams({ gallery: open ? "1" : undefined }),
+    setViewer: (open) => navigation.setParams({ viewer: open ? "1" : undefined }),
+  }), [navigation, params.gallery, params.viewer]);
+  return <SessionView id={params.id} draft={params.draft} focusQuestion={params.focusQuestion === "1"} ui={ui} />;
+}
+
+function SplitSessions({ panes, params }: { panes: readonly string[]; params: SessionParams }) {
+  const router = useRouter();
+  const activeId = params.id;
+  const focus = useCallback((paneId: string) => {
+    commitPanes(panes, paneId);
+    router.setParams({ id: paneId, focusQuestion: undefined, gallery: undefined, viewer: undefined });
+  }, [panes, router]);
+  const close = (paneId: string) => {
+    const next = closePane(panes, paneId, activeId);
+    if (!next.active) {
+      router.dismissTo("/");
+      return;
+    }
+    commitPanes(next.panes, next.active);
+    router.setParams({ id: next.active, focusQuestion: undefined });
+  };
+  return <SplitPanes panes={panes} activeId={activeId} onFocus={focus} renderPane={(paneId, index) => (
+    <PaneSession id={paneId} draft={paneId === activeId ? params.draft : undefined} focusQuestion={paneId === activeId && params.focusQuestion === "1"}
+      pane={{ active: paneId === activeId, first: index === 0, onClose: () => close(paneId) }} />
+  )} />;
+}
+
+function PaneSession({ id, draft, focusQuestion, pane }: { id: string; draft?: string; focusQuestion: boolean; pane: PaneRole }) {
+  const [galleryOpen, setGallery] = useState(false);
+  const [viewerOpen, setViewer] = useState(false);
+  const ui = useMemo<PaneUi>(() => ({ galleryOpen, viewerOpen, setGallery, setViewer }), [galleryOpen, viewerOpen]);
+  return <SessionView id={id} draft={draft} focusQuestion={focusQuestion} ui={ui} pane={pane} />;
+}
+
+function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
+  const { galleryOpen, viewerOpen, setGallery, setViewer } = ui;
+  const router = useRouter();
+  const { expanded, paneWidth, connectionInRail, railCollapsed, waiting } = useFoldLayout();
+  const ownsScreen = !pane || pane.active;
   const colors = useColors();
   const agent = useAppState((s) => s.agents.find((a) => a.id === id));
   const conn = useAppState((s) => s.conn);
@@ -71,9 +121,9 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   const followEnd = useRef(restoreOffset.current === null);
   const showGallery = useCallback(() => {
     Keyboard.dismiss();
-    navigation.setParams({ gallery: "1" });
-  }, [navigation]);
-  const closeGallery = useCallback(() => navigation.setParams({ gallery: undefined }), [navigation]);
+    setGallery(true);
+  }, [setGallery]);
+  const closeGallery = useCallback(() => setGallery(false), [setGallery]);
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const chatPadding = (paneWidth || windowWidth) < 360 ? spacing.lg : spacing.xl;
   const keyboardTop = useKeyboardTop();
@@ -91,15 +141,20 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   const previewOpen = viewerOpen && !!preview.selected;
   const fullPreview = useExpandedPreview() === id;
   const openPreview = useCallback((file: Preview) => {
-    navigation.setParams({ viewer: "1" });
+    setViewer(true);
     void open(file);
-  }, [navigation, open]);
+  }, [open, setViewer]);
   const closePreview = useCallback(() => {
-    navigation.setParams({ viewer: undefined });
+    setViewer(false);
     close();
-  }, [close, navigation]);
+  }, [close, setViewer]);
   useFocusEffect(useCallback(() => {
+    if (!ownsScreen) return;
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (isDrawerOpen()) {
+        setDrawerOpen(false);
+        return true;
+      }
       if (modelOpen) {
         closeModel();
         return true;
@@ -118,7 +173,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
       return true;
     });
     return () => back.remove();
-  }, [closeGallery, closeModel, closePreview, expanded, fullPreview, galleryOpen, id, modelOpen, previewOpen]));
+  }, [closeGallery, closeModel, closePreview, expanded, fullPreview, galleryOpen, id, modelOpen, ownsScreen, previewOpen]));
   const listGeneration = useRef(0);
   const [listReset, setListReset] = useState(0);
   const rows = useMemo(() => {
@@ -201,23 +256,29 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   const state = agent ? stateOf(agent) : "idle";
   const workspace = agent ? workspaceName(agent, workspaces) : "";
   const hideChatToolbar = !!pending && availableHeight < 200 && !galleryOpen;
+  const showSessions = !!pane?.first && railCollapsed;
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: !galleryOpen && !previewOpen && !modelOpen }} />
-      <View style={{ flex: 1, paddingRight: expanded ? insets.right : 0, paddingBottom: expanded && keyboardTop === undefined ? insets.bottom : 0 }} pointerEvents={previewOpen || modelOpen ? "none" : "auto"} accessibilityElementsHidden={previewOpen || modelOpen} importantForAccessibility={previewOpen || modelOpen ? "no-hide-descendants" : "auto"}>
+      {ownsScreen && <Stack.Screen options={{ headerShown: false, gestureEnabled: !galleryOpen && !previewOpen && !modelOpen }} />}
+      <View style={{ flex: 1, paddingRight: expanded && !pane ? insets.right : 0, paddingBottom: expanded && keyboardTop === undefined ? insets.bottom : 0 }} pointerEvents={previewOpen || modelOpen ? "none" : "auto"} accessibilityElementsHidden={previewOpen || modelOpen} importantForAccessibility={previewOpen || modelOpen ? "no-hide-descendants" : "auto"}>
       <SafeAreaView edges={expanded ? ["top"] : ["top", "left", "right"]} style={{ backgroundColor: colors.background }}>
         <View>
-          {!hideChatToolbar && <View style={[styles.bar, expanded && styles.expandedBar]} pointerEvents={galleryOpen ? "none" : "auto"} accessibilityElementsHidden={galleryOpen} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"}>
+          {!hideChatToolbar && <View style={[styles.bar, expanded && !showSessions && styles.expandedBar]} pointerEvents={galleryOpen ? "none" : "auto"} accessibilityElementsHidden={galleryOpen} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"}>
+            {pane?.active && <View pointerEvents="none" style={[styles.activeLine, { backgroundColor: colors.accentText }]} />}
             {!expanded && <ToolbarButton icon="chevron.left" label="Back" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />}
-            <ConnectionTitle title={title} subtitle={workspace} hidden={connectionInRail || galleryOpen || previewOpen || modelOpen} style={styles.title}
-              detail={agent ? <ProviderLabel harness={agent.harness} workspaceId={agent.workspaceId} parts={[workspace]} state={state} maxFontSizeMultiplier={1.2} /> : undefined}>
-              <View accessible accessibilityRole="header" accessibilityLabel={agent ? `${title}, ${sessionIdentity(agent.harness, state)}` : title} style={styles.titleLine}>
-                <Text style={styles.titleText} color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
-              </View>
-            </ConnectionTitle>
+            {showSessions && <ToolbarButton icon="line.3.horizontal" label={waiting ? `Sessions, ${waiting} ${waiting === 1 ? "needs" : "need"} your reply` : "Sessions"} badge={waiting || undefined} onPress={() => { Keyboard.dismiss(); setDrawerOpen(true); }} />}
+            <Pressable accessible={false} style={styles.title} disabled={!pane} onLongPress={() => armSplitDrag({ agentId: id, title })} onPressOut={endSplitPress}>
+              <ConnectionTitle title={title} subtitle={workspace} hidden={connectionInRail || galleryOpen || previewOpen || modelOpen} style={styles.fill}
+                detail={agent ? <ProviderLabel harness={agent.harness} workspaceId={agent.workspaceId} parts={[workspace]} state={state} maxFontSizeMultiplier={1.2} /> : undefined}>
+                <View accessible accessibilityRole="header" accessibilityLabel={agent ? `${title}, ${sessionIdentity(agent.harness, state)}` : title} style={styles.titleLine}>
+                  <Text style={styles.titleText} color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
+                </View>
+              </ConnectionTitle>
+            </Pressable>
             {files.length > 0 && <ToolbarButton icon="photo.on.rectangle" count={files.length} label={`Open previews, ${files.length} ${files.length === 1 ? "preview" : "previews"}`} onPress={showGallery} />}
-            {(agent || createPreview || reloadMessages) && <ToolbarButton icon="ellipsis" label="Session actions" onPress={() => sessionActions.open(agent, { closeConversation: expanded ? () => router.dismissTo("/") : undefined, createPreview, reloadMessages })} />}
+            {(agent || createPreview || reloadMessages) && <ToolbarButton icon="ellipsis" label="Session actions" onPress={() => sessionActions.open(agent, { closeConversation: expanded && !pane ? () => router.dismissTo("/") : undefined, createPreview, reloadMessages })} />}
+            {pane && <ToolbarButton icon="xmark" label="Close conversation" onPress={pane.onClose} />}
           </View>}
           {galleryOpen && <View style={[styles.bar, StyleSheet.absoluteFill, { backgroundColor: colors.background }]} onAccessibilityEscape={closeGallery}>
             <ToolbarButton icon="chevron.left" label="Close previews" onPress={closeGallery} />
@@ -347,12 +408,15 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   );
 }
 
-function ToolbarButton({ icon, label, count, onPress }: { icon: ComponentProps<typeof Icon>["name"]; label: string; count?: number; onPress?: () => void }) {
+function ToolbarButton({ icon, label, count, badge, onPress }: { icon: ComponentProps<typeof Icon>["name"]; label: string; count?: number; badge?: number; onPress?: () => void }) {
   const colors = useColors();
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !onPress }} disabled={!onPress} onPress={onPress}
     style={({ pressed }) => [styles.headerButton, count !== undefined && styles.countButton, pressed && { backgroundColor: colors.pressed }]}>
     <Icon name={icon} size={20} color={onPress ? "textStrong" : "textSubtle"} />
     {count !== undefined && <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.count}>{count}</Text>}
+    {badge !== undefined && <View style={[styles.badge, { backgroundColor: colors.warning }]}>
+      <Text variant="caption" color="background" numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.badgeText}>{badge}</Text>
+    </View>}
   </Pressable>;
 }
 
@@ -378,6 +442,10 @@ const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
   count: { fontVariant: ["tabular-nums"] },
   title: { flex: 1, minWidth: 0 },
+  fill: { flex: 1 },
+  activeLine: { position: "absolute", top: 0, left: 0, right: 0, height: 2 },
+  badge: { position: "absolute", top: 5, right: 1, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: "center", justifyContent: "center" },
+  badgeText: { fontSize: 12, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] },
   titleText: { flexShrink: 1, fontSize: 17, lineHeight: 22, fontWeight: "600" },
   titleLine: { flexDirection: "row", alignItems: "center", marginBottom: 1 },
   opening: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.md },

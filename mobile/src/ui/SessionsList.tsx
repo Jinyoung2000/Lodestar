@@ -25,6 +25,8 @@ import type { ListView } from "../state/sortPrefs";
 import { relativeTime } from "../logic/time";
 import { Text } from "./Text";
 import { useSessionActions } from "./sessionActions";
+import { armSplitDrag } from "./SplitDrag";
+import type { ActionChoice } from "./actionMenu";
 import { NEW_SESSION_CLEARANCE, NewSessionButton } from "./NewSessionButton";
 import { WorkspacesView } from "./WorkspacesView";
 
@@ -33,12 +35,13 @@ const GROUPING_OPTIONS = [{ value: "workspace", label: "Workspace" }, { value: "
 const tabs = ["sessions", "waiting", "workspaces"] as const;
 type Tab = (typeof tabs)[number];
 
-export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId, onOpenSession, headerHeight = 0 }: {
+export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId, onOpenSession, splitChoices, headerHeight = 0 }: {
   docked?: boolean;
   paneWidth?: number;
   sessionId?: string;
   workspaceId?: string;
   onOpenSession?: (id: string, focusQuestion: boolean) => void;
+  splitChoices?: (agent: Agent) => ActionChoice[];
   headerHeight?: number;
 }) {
   const router = useRouter();
@@ -69,6 +72,12 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
   const ownHeader = docked || Platform.OS === "android";
   const insets = useSafeAreaInsets();
   const actions = useSessionActions();
+  const { open: openActions } = actions;
+  const longPress = useCallback((agent: Agent) => {
+    const menu = () => openActions(agent, { leading: splitChoices?.(agent) });
+    if (docked) armSplitDrag({ agentId: agent.id, title: agent.title }, menu);
+    else menu();
+  }, [docked, openActions, splitChoices]);
   const [refreshing, setRefreshing] = useState(false);
 
   const waitingAgents = useMemo(() => agents.filter((agent) => agent.status === "waiting"), [agents]);
@@ -266,9 +275,9 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
               }
               if (tab === "waiting") {
                 const pending = timelines[item.agent.id]?.items.findLast((entry): entry is Extract<TimelineItem, { kind: "permission" }> => entry.kind === "permission" && entry.status === "pending");
-                return <WaitingRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} workspace={item.workspace} pending={pending} onPress={open} onLongPress={actions.open} />;
+                return <WaitingRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} workspace={item.workspace} pending={pending} onPress={open} onLongPress={longPress} />;
               }
-              return <SessionRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} subtitle={item.workspace} time={scopedWorkspace ? scopedSort : view.ordering} onPress={open} onLongPress={actions.open} />;
+              return <SessionRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} subtitle={item.workspace} time={scopedWorkspace ? scopedSort : view.ordering} onPress={open} onLongPress={longPress} />;
             }}
           />
         )}

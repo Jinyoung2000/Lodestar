@@ -1,18 +1,21 @@
 import { DarkTheme, DefaultTheme, SplashScreen, Stack, ThemeProvider as NavigationThemeProvider, useGlobalSearchParams, useRouter, useSegments, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo } from "react";
-import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
+import type { Agent } from "@shared/protocol";
+import { useCallback, useEffect, useMemo, useRef, type ComponentRef } from "react";
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { bootstrap, store, useAppState, useConnection } from "../state/app";
 import { releasePreview, useExpandedPreview } from "../state/expandedPreview";
+import { applyDrop, commitPanes, PANE_MIN, paneCapacity, setDrawerOpen, shownPanes, useSplitState, type DropTarget } from "../state/split";
 import { loadThemeChoice, useThemeChoice } from "../state/themePrefs";
 import { applySystemTheme } from "../theme/systemTheme";
-import { ThemeProvider, useSchemeColors } from "../theme/theme";
+import { scrim, ThemeProvider, useSchemeColors } from "../theme/theme";
 import { ActionMenuHost } from "../ui/ActionMenuHost";
 import { ConnectionStatusProvider } from "../ui/ConnectionTitle";
 import { foldRailWidth, FoldLayoutContext, useWindowFontScale } from "../ui/FoldLayout";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
 import { SessionsList } from "../ui/SessionsList";
+import { measureSplitRegion, SplitDragLayer, useSplitDropRegion } from "../ui/SplitDrag";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -36,17 +39,32 @@ export default function RootLayout() {
   const expanded = primary && railWidth > 0;
   const sessionId = route === "session" ? id : undefined;
   const previewOwner = useExpandedPreview();
-  const showRail = expanded && (!sessionId || previewOwner !== sessionId);
+  const split = useSplitState();
+  const agentIds = useAppState((state) => state.agents.map((agent) => agent.id).join("\n"));
+  const waiting = useAppState((state) => state.agents.filter((agent) => agent.status === "waiting").length);
+  const capacity = expanded && sessionId ? paneCapacity(width, fontScale) : 1;
+  const panes = useMemo(() => {
+    const known = new Set(agentIds.split("\n"));
+    return shownPanes(split, sessionId, capacity, (paneId) => known.has(paneId));
+  }, [agentIds, capacity, sessionId, split]);
+  const railDocked = panes.length <= 1 || width - railWidth >= panes.length * PANE_MIN;
+  const railCollapsed = expanded && !railDocked;
+  const drawerOpen = railCollapsed && split.drawerOpen;
+  const showRail = expanded && (railDocked || drawerOpen) && (!sessionId || previewOwner !== sessionId);
+  const dockedRail = showRail && railDocked;
   const missingSession = useAppState((state) => !!sessionId && state.conn === "online" &&
     !state.agents.some((agent) => agent.id === sessionId));
   const layout = useMemo(() => ({
-    connectionInRail: showRail,
+    connectionInRail: dockedRail,
     wide: railWidth > 0,
     fontScale,
     expanded,
-    railWidth: showRail ? railWidth : 0,
-    paneWidth: showRail ? width - railWidth : width,
-  }), [expanded, fontScale, railWidth, showRail, width]);
+    railWidth: dockedRail ? railWidth : 0,
+    paneWidth: dockedRail ? width - railWidth : width,
+    panes,
+    railCollapsed,
+    waiting,
+  }), [dockedRail, expanded, fontScale, panes, railCollapsed, railWidth, waiting, width]);
 
   const openDetail = useCallback((href: Href) => {
     if (detail) router.replace(href);
@@ -54,12 +72,34 @@ export default function RootLayout() {
   }, [detail, router]);
 
   const openSession = useCallback((nextId: string, focusQuestion: boolean) => {
+    setDrawerOpen(false);
+    if (route === "session" && id && panes.length > 1) {
+      commitPanes(panes.includes(nextId) ? panes : panes.map((paneId) => paneId === id ? nextId : paneId), nextId);
+      router.setParams({ id: nextId, focusQuestion: focusQuestion ? "1" : undefined, gallery: undefined, viewer: undefined });
+      return;
+    }
     if (route === "session" && id === nextId) {
       if (focusQuestion) router.setParams({ focusQuestion: "1", gallery: undefined, viewer: undefined });
       return;
     }
     openDetail({ pathname: "/session/[id]", params: focusQuestion ? { id: nextId, focusQuestion: "1" } : { id: nextId } });
-  }, [id, openDetail, route, router]);
+  }, [id, openDetail, panes, route, router]);
+
+  const dropInSplit = useCallback((agentId: string, target: DropTarget) => {
+    setDrawerOpen(false);
+    commitPanes(applyDrop(panes, agentId, target), agentId);
+    router.setParams({ id: agentId, focusQuestion: undefined, gallery: undefined, viewer: undefined });
+  }, [panes, router]);
+  const dropRegion = useMemo(() => capacity > 1 ? { panes, capacity, drop: dropInSplit } : null, [capacity, dropInSplit, panes]);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const splitChoices = useCallback((agent: Agent) => {
+    if (!dropRegion || panes.includes(agent.id)) return [];
+    if (panes.length < capacity) return [{ label: "Open in split", onPress: () => dropInSplit(agent.id, { index: Math.max(0, panes.indexOf(id ?? "")), zone: "after" }) }];
+    const titles = new Map(store.getState().agents.map((known) => [known.id, known.title]));
+    return panes.map((paneId, index) => ({ label: `Open in place of ${titles.get(paneId) ?? "session"}`, onPress: () => dropInSplit(agent.id, { index, zone: "center" }) }));
+  }, [capacity, dropInSplit, dropRegion, id, panes]);
+  useSplitDropRegion(dropRegion, closeDrawer);
+  const detailRef = useRef<ComponentRef<typeof View>>(null);
 
   useEffect(() => {
     if (!expanded || !sessionId || !missingSession) return;
@@ -92,16 +132,18 @@ export default function RootLayout() {
         <ConnectionStatusProvider>
         <FoldLayoutContext.Provider value={layout}>
           <View onLayout={SplashScreen.hide} style={[styles.shell, { backgroundColor: colors.background }]}>
+            <SplitDragLayer>
             <View style={styles.panes}>
+            {drawerOpen && <Pressable accessibilityLabel="Close sessions" onPress={closeDrawer} style={[StyleSheet.absoluteFill, styles.drawerScrim]} />}
             {railWidth > 0 && (
               <SafeAreaView edges={["top", "left", "bottom"]} pointerEvents={showRail ? "auto" : "none"}
                 accessibilityElementsHidden={!showRail} importantForAccessibility={showRail ? "auto" : "no-hide-descendants"}
-                style={[styles.rail, { width: railWidth, display: showRail ? "flex" : "none", borderRightColor: colors.separator }]}>
+                style={[styles.rail, railCollapsed && [styles.drawer, { backgroundColor: colors.background }], { width: railWidth, display: showRail ? "flex" : "none", borderRightColor: colors.separator }]}>
                 <SessionsList docked sessionId={sessionId} workspaceId={route === "workspace" ? id : undefined}
-                  paneWidth={railWidth} onOpenSession={openSession} />
+                  paneWidth={railWidth} onOpenSession={openSession} splitChoices={splitChoices} />
               </SafeAreaView>
             )}
-            <View style={styles.detail}>
+            <View ref={detailRef} style={styles.detail} onLayout={() => measureSplitRegion(detailRef.current)}>
               <SafeAreaProvider style={styles.detail}>
                 <Stack
                   screenLayout={({ route: screen, children }) => screen.name === "settings" || screen.name === "connect"
@@ -128,6 +170,7 @@ export default function RootLayout() {
               </SafeAreaProvider>
             </View>
             </View>
+            </SplitDragLayer>
           </View>
           {expanded && <KeyboardSpacer keyboardOnly />}
           <ActionMenuHost />
@@ -147,4 +190,6 @@ const styles = StyleSheet.create({
   detail: { flex: 1, minWidth: 0 },
   form: { flex: 1, width: "100%", maxWidth: 560, alignSelf: "center" },
   rail: { borderRightWidth: 1 },
+  drawer: { position: "absolute", top: 0, bottom: 0, left: 0, zIndex: 2, elevation: 2 },
+  drawerScrim: { zIndex: 1, backgroundColor: scrim },
 });
