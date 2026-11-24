@@ -1,7 +1,7 @@
 export const QUESTION_TOOL = "AskUserQuestion";
 export const PLAN_TOOL = "ExitPlanMode";
 
-export type Question = { question: string; header: string; multiSelect: boolean; options: { label: string; description: string }[] };
+export type Question = { question: string; header: string; multiSelect: boolean; options: { label: string; description: string; preview?: string }[] };
 export type QuestionState = { picked: string[]; other: boolean; text: string };
 
 const str = (value: unknown) => (typeof value === "string" ? value : "");
@@ -16,8 +16,10 @@ export function readQuestions(input: Record<string, unknown>): Question[] {
     if (!question) continue;
     const options = (Array.isArray(q.options) ? q.options : []).flatMap((o) => {
       if (typeof o !== "object" || o === null) return [];
-      const label = str((o as Record<string, unknown>).label).trim();
-      return label ? [{ label, description: str((o as Record<string, unknown>).description) }] : [];
+      const option = o as Record<string, unknown>;
+      const label = str(option.label).trim();
+      const preview = str(option.preview);
+      return label ? [{ label, description: str(option.description), ...(preview.trim() ? { preview } : {}) }] : [];
     });
     out.push({ question, header: str(q.header), multiSelect: q.multiSelect === true, options });
   }

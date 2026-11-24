@@ -41,6 +41,8 @@ import { getState, openAgent, openChanges, openDiff, openFile, setChangesScope, 
 import { S } from "./strings";
 import { createdNewFile, currentStep, foldTaskSteps, formatClock, interactiveStep, modelLabel, queuedStepIds, stepsChanges, systemMessageView, toolChanges, turnFooter, type PermissionItem, type StepEntry, type Turn, type UserItem } from "./timelineModel";
 import { isInteractiveTool } from "../shared/interactive";
+import { isPreviewTool } from "../shared/previewCard";
+import { PreviewCard } from "./PreviewCard";
 
 export { ApprovalCard } from "./Approval";
 export { groupTurns, reuseTurns, splitTurns } from "./timelineModel";
@@ -358,6 +360,8 @@ export const TimelineRow = memo(function TimelineRow({ item }: { item: TimelineI
           {mayContainMedia(item.text) && <InlineMedia agentId={agentId} text={improvement ? withoutQuestionMarker(item.text) : item.text} streaming={item.streaming} />}
         </>
       );
+    case "tool":
+      return isPreviewTool(item.name) ? <PreviewCard input={item.input} /> : null;
     case "restored":
       return <RestoredMarker redoable={item.redoable} chatOnly={item.chatOnly} />;
     case "notice":

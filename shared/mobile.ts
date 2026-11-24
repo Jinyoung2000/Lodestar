@@ -1,5 +1,6 @@
 // MOBILE: iOS 클라이언트(mobile/)가 데몬의 모바일 포트와 주고받는 값. 데몬(server/mobileAccess.ts), 웹 Settings, 모바일 앱이 같은 모양을 쓴다.
 import type { SwitchBlock } from "./harnessSwitch";
+import { PREVIEW_HTML_MAX_CHARS } from "./previewCard";
 import type { PickerModel } from "./modelChoices";
 import type { EffortLevel, Harness, ImageRef, RequestQueuing, TimelineItem } from "./protocol";
 
@@ -137,11 +138,13 @@ function clip(text: string, max: number): string {
   return `${text.slice(0, max)}\n… (${text.length - max} more characters)`;
 }
 
+const RENDERED_KEYS = new Set(["html", "preview"]);
+
 function clipValue(value: unknown, max: number, depth = 0): unknown {
   if (typeof value === "string") return clip(value, max);
   if (depth >= 3 || value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.slice(0, 50).map((v) => clipValue(v, max, depth + 1));
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, clipValue(v, max, depth + 1)]));
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, clipValue(v, RENDERED_KEYS.has(k) ? Math.max(max, PREVIEW_HTML_MAX_CHARS) : max, depth + 1)]));
 }
 
 export function compactTimelineItem(item: TimelineItem): TimelineItem {

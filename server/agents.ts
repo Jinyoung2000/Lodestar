@@ -65,11 +65,15 @@ import { isAsideTool } from "../shared/asideTool";
 import { notionWriteGate, type NotionWriteGate } from "../shared/notionApproval";
 import { notionToolServer, type NotionToolHost } from "./notionTools";
 import { NOTION_SERVER, OWN_SERVER } from "../shared/notionMcp";
+import { isPreviewTool, PREVIEW_SERVER, PREVIEW_TOOL } from "../shared/previewCard";
+import { previewToolServer } from "./previewTool";
 
 const MAX_TOOL_OUTPUT = 20_000;
 const SESSION_PROMPT_APPEND = [
   "When you write a Slack message or draft for the user to send, put the message body alone in a fenced code block with the language `slack`, written in Slack mrkdwn: *bold*, _italic_, ~strike~, `code`, <https://example.com|link text>, <@U123> mentions, > quotes, and lines starting with • or - for bullets.",
   "Lodestar shows that block as a Slack preview with a button that copies it with Slack formatting. Keep explanations outside the block.",
+  `When you change or propose a screen, show it in the chat with ${PREVIEW_TOOL} (As-is and To-be frames) instead of pointing to an image path or describing it in words.`,
+  "When the user should choose between screen options, call AskUserQuestion and put each option's self-contained HTML in its preview field; Lodestar renders it inline at phone width.",
 ].join(" ");
 const BACKGROUND_NOTICE_MAX = 120;
 const CLAUDE_SCRATCH_ROOTS = typeof process.getuid === "function" ? [`/tmp/claude-${process.getuid()}`, `/private/tmp/claude-${process.getuid()}`] : [];
@@ -830,6 +834,7 @@ export class AgentRunner {
     const mcpServers: Record<string, McpServerConfig> = {};
     if (this.browserBridge && !agent.feedbackId) mcpServers[BROWSER_SERVER_NAME] = browserMcpServer(this.browserBridge, () => this.store.settings.browserChatTools, agentId, () => [...this.store.agentRoots(this.store.agent(agentId)), join(HOME, "browser-shots"), ...CLAUDE_SCRATCH_ROOTS, ...writtenDirs(this.store.timeline(agentId))]);
     if (notionServer) mcpServers[OWN_SERVER] = notionServer;
+    if (!agent.feedbackId) mcpServers[PREVIEW_SERVER] = previewToolServer();
     if (overriddenNotion) mcpServers[NOTION_SERVER] = overriddenNotion as McpServerConfig;
     const q = query({
       prompt: input,
@@ -854,7 +859,7 @@ export class AgentRunner {
         canUseTool: (toolName, input, { signal, toolUseID }) =>
           isBlockedNotionWrite(toolName) && this.notionGate(agentId) !== "apply"
             ? Promise.resolve({ behavior: "deny" as const, message: BLOCKED_NOTION_WRITE_MESSAGE })
-            : classifyTool(toolName) === "own"
+            : classifyTool(toolName) === "own" || isPreviewTool(toolName)
               ? Promise.resolve({ behavior: "allow" as const, updatedInput: input })
               : !isInteractiveTool(toolName) && ((isBrowserToolName(toolName) && !browserToolNeedsApproval(toolName, input)) || this.store.agent(agentId).permissionMode === "bypassPermissions")
                 ? Promise.resolve({ behavior: "allow" as const, updatedInput: input })

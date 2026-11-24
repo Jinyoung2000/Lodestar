@@ -7,6 +7,7 @@ import type { MobileFileRef } from "@shared/mobile";
 import type { ImageRef } from "@shared/protocol";
 import { stateOf, workspaceName } from "../../logic/agents";
 import { buildRows, stabilizeRows, type Row } from "../../logic/timeline";
+import { readQuestions } from "../../logic/questions";
 import { requestDraft, sessionViewState } from "../../state/sessionView";
 import { releasePreview, useExpandedPreview } from "../../state/expandedPreview";
 import { store, useAppState } from "../../state/app";
@@ -175,7 +176,8 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
     void listRef.current?.scrollToOffset({ offset, animated: false });
   }, []);
 
-  const normalDockLimit = keyboardTop === undefined ? Math.min(availableHeight * 0.5, chatHeight - 40) : chatHeight - 40;
+  const dockShare = pending?.type === "question" && readQuestions(pending.item.input).some((q) => q.options.some((o) => o.preview)) ? 0.7 : 0.5;
+  const normalDockLimit = keyboardTop === undefined ? Math.min(availableHeight * dockShare, chatHeight - 40) : chatHeight - 40;
   const dockLimit = shortDock ? chatHeight : Math.max(120, normalDockLimit);
   const dock = pending ? { draft: requestDraft(memory, pending.item.id), limit: dockLimit, compact: compactDock, short: shortDock, offline: conn !== "online", focusOnOpen: focusQuestion && !galleryOpen && !previewOpen, onOpen: () => { if (focusQuestion || restoreOffset.current === null) toEnd(false); } } : null;
 
@@ -302,7 +304,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
               )}
             </View>
           )}
-          {dock && pending?.type === "question" && <QuestionCard key={pending.key} item={pending.item} actions={actions} {...dock} />}
+          {dock && pending?.type === "question" && <QuestionCard key={pending.key} item={pending.item} actions={actions} openPreview={openPreview} {...dock} />}
           {dock && pending?.type === "approval" && <ApprovalCard key={pending.key} item={pending.item} tool={pending.tool} reviewOnDesktop={pending.reviewOnDesktop} actions={actions} {...dock} />}
           {dock && pending?.type === "plan" && <PlanCard key={pending.key} item={pending.item} actions={actions} {...dock} />}
           <View style={pending ? { display: "none" } : undefined}>

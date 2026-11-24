@@ -3,6 +3,7 @@ import { countLineChanges } from "../shared/lineDiff";
 import { modelNameFromId, versionedDisplayName } from "../shared/modelName";
 import { isInternalStep } from "../shared/internalSteps";
 import { planText, QUESTION_TOOL, readQuestions } from "../shared/interactive";
+import { isPreviewTool } from "../shared/previewCard";
 import { isAgentTool, mainFlow, type ToolItem } from "../shared/subagents";
 import { isTaskTool } from "../shared/tasks";
 
@@ -95,7 +96,7 @@ export function groupTurns(all: TimelineItem[]): Block[] {
       flush();
       turnStart = i;
     }
-    if (STEP_KINDS.has(item.kind)) {
+    if (STEP_KINDS.has(item.kind) && !(item.kind === "tool" && isPreviewTool(item.name))) {
       if (item.kind === "permission" && item.toolUseId && permissionByTool.get(item.toolUseId) === item) continue;
       if (item.kind === "tool" && isAgentTool(item.name) && item.task) {
         if (current.length) flush();
