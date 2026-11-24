@@ -40,7 +40,7 @@ async function setup(port = 0) {
   return { dir, server, devices, pairing, saved, flags, token, pair, stop: async () => { await server.stop(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
-const fast = { backoff: () => 40, pingIntervalMs: 200, pingTimeoutMs: 300, connectTimeoutMs: 1000, hostStaggerMs: 60 };
+const fast = { backoff: () => 40, pingIntervalMs: 200, pingTimeoutMs: 300, connectTimeoutMs: 1000 };
 
 test("인증하고 호출한다: ready 이후 online, 첫 프레임 인증이라 주소에 토큰이 없다", async () => {
   const s = await setup();

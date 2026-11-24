@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
 import { hasMixedRoutes, parseConnectionRoutes, routeAddress, routeLabel } from "../logic/routes";
 import { relayHost } from "../net/relay";
+import type { ConnFailure } from "../net/rpc";
 import { activitySupported, alertsEnabled, enableAlerts, stopAlerts } from "../state/activity";
 import { client, store, unpair, updateRoutes, useAppState, useConnection } from "../state/app";
 import { setThemeChoice, useThemeChoice, type ThemeChoice } from "../state/themePrefs";
@@ -13,6 +14,12 @@ import { useReconnect } from "../ui/ConnectionTitle";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
 import { Segmented, type SegmentedOption } from "../ui/Segmented";
 import { Text } from "../ui/Text";
+
+const FAILURE_TEXT: Record<ConnFailure, string> = {
+  "mac-off-relay": "Your Mac is not on the relay",
+  "relay-silent": "No answer through the relay",
+  "mac-silent": "No answer from your Mac",
+};
 
 const themeOptions: SegmentedOption<ThemeChoice>[] = [
   { value: "system", label: "System" },
@@ -118,7 +125,7 @@ export default function Settings() {
     ]);
   };
 
-  const statusText = conn === "online" ? `Connected${client.route ? ` via ${routeLabel(client.route)}` : ""}` : conn === "unauthorized" ? "Removed from your Mac" : conn === "idle" ? "Not connected" : conn === "offline" ? "Offline · Retrying" : "Reconnecting…";
+  const statusText = conn === "online" ? `Connected${client.route ? ` via ${routeLabel(client.route)}` : ""}` : conn === "unauthorized" ? "Removed from your Mac" : conn === "idle" ? "Not connected" : conn === "offline" ? `Offline · ${client.failure ? FAILURE_TEXT[client.failure] : "Retrying"}` : "Reconnecting…";
   return <>
     <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
       <Section title="Appearance">

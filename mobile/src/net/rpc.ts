@@ -10,6 +10,9 @@ type RoutedEndpoint = { routes: ConnectionRoute[]; token: string; deviceId?: str
 type LegacyEndpoint = { hosts: string[]; port: number; secure?: boolean; token: string };
 export type Endpoint = RoutedEndpoint | LegacyEndpoint;
 export type ConnStatus = "idle" | "connecting" | "online" | "offline" | "unauthorized";
+export type ConnFailure = "mac-off-relay" | "relay-silent" | "mac-silent";
+
+const RELAY_MAC_OFFLINE = 4404;
 
 export type { MobileMethod };
 
@@ -37,10 +40,10 @@ export type RpcOptions = {
   socket?: (url: string) => SocketLike;
   relaySocket?: RelaySocketFactory;
   relayPingIntervalMs?: number;
+  relayHeadStartMs?: number;
   pingIntervalMs?: number;
   pingTimeoutMs?: number;
   connectTimeoutMs?: number;
-  hostStaggerMs?: number;
   backoff?: (attempt: number) => number;
   log?: (line: string) => void;
   onCall?: (method: string, ms: number, ok: boolean) => void;
@@ -56,16 +59,17 @@ export class RpcClient {
   status: ConnStatus = "idle";
   route: ConnectionRoute | null = null;
   rttMs: number | null = null;
+  failure: ConnFailure | null = null;
   private endpoint: RoutedEndpoint | null = null;
   private socket: SocketLike | null = null;
-  private openingSocket: SocketLike | null = null;
+  private opening = new Set<SocketLike>();
   private nextId = 1;
   private pending = new Map<number, Pending>();
   private attempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pingProbe: { id: number; result: Promise<number | undefined> } | null = null;
-  private connectTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectTimers = new Set<ReturnType<typeof setTimeout>>();
   private wanted = false;
   private foreground = true;
   private generation = 0;
@@ -137,7 +141,7 @@ export class RpcClient {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     this.setStatus("connecting");
-    if (!this.openingSocket) this.open();
+    if (!this.opening.size && !this.connectTimers.size) this.open();
   }
 
   call<M extends MobileMethod>(method: M, params: MobileRpc[M]["params"], timeoutMs = 15_000): Promise<MobileRpc[M]["result"]> {
@@ -213,30 +217,52 @@ export class RpcClient {
     const { deviceId, token } = endpoint;
     const routes = this.candidates(endpoint);
     const mixedRoutes = hasMixedRoutes(routes);
-    let index = 0;
+    const direct = routes.filter((route) => !route.relay);
+    const relayed = routes.filter((route) => route.relay);
+    const live = () => generation === this.generation && !this.socket;
     let rejected = 0;
-    const next = (badToken = false) => {
-      if (generation !== this.generation || this.socket) return;
-      this.clearOpeningSocket();
-      if (badToken) rejected++;
-      const route = routes[index++];
-      if (!route) {
-        if (rejected === routes.length) this.unauthorized();
-        else this.failAttempt(generation);
-        return;
-      }
-      const verifyRoute = mixedRoutes && !route.secure;
-      if (verifyRoute && !deviceId) return next();
-      const handshake = verifyRoute && deviceId ? routeHandshake(deviceId, token) : null;
-      const connectTimeout = this.opts.connectTimeoutMs ?? (route.secure ? 15_000 : 6000);
-      const fallbackTimeout = !route.secure && index < routes.length ? this.opts.hostStaggerMs ?? 1500 : connectTimeout;
-      this.connectTimer = setTimeout(next, Math.min(connectTimeout, fallbackTimeout));
-      this.candidate(route, token, handshake, next);
+    let running = 0;
+    let relayStarted = false;
+    let relayFailure: ConnFailure = "relay-silent";
+    const startRelay = () => {
+      if (relayStarted || !live()) return;
+      relayStarted = true;
+      for (const route of relayed) tryRoute(route);
     };
-    next();
+    const tryRoute = (route: ConnectionRoute) => {
+      const verifyRoute = mixedRoutes && !route.secure;
+      if (verifyRoute && !deviceId) return;
+      running++;
+      let socket: SocketLike | null = null;
+      let ended = false;
+      const end = (badToken = false, closeCode?: number) => {
+        if (ended || !live()) return;
+        ended = true;
+        this.disarm(timer);
+        if (socket) this.dropOpening(socket);
+        if (badToken) rejected++;
+        if (route.relay && closeCode === RELAY_MAC_OFFLINE) relayFailure = "mac-off-relay";
+        running--;
+        startRelay();
+        if (running > 0) return;
+        if (rejected === routes.length) return this.unauthorized();
+        this.failure = relayed.length ? relayFailure : "mac-silent";
+        this.failAttempt(generation);
+      };
+      const timer = this.arm(() => end(), this.opts.connectTimeoutMs ?? (route.secure ? 15_000 : 6000));
+      socket = this.candidate(route, token, verifyRoute && deviceId ? routeHandshake(deviceId, token) : null, end);
+      if (!socket) end();
+    };
+    for (const route of direct) tryRoute(route);
+    if (!live()) return;
+    if (!running) startRelay();
+    else if (relayed.length) this.arm(startRelay, this.opts.relayHeadStartMs ?? 400);
+    if (running || !live()) return;
+    this.failure = "mac-silent";
+    this.failAttempt(generation);
   }
 
-  private candidate(route: ConnectionRoute, token: string, handshake: ReturnType<typeof routeHandshake> | null, next: (badToken?: boolean) => void) {
+  private candidate(route: ConnectionRoute, token: string, handshake: ReturnType<typeof routeHandshake> | null, next: (badToken?: boolean, closeCode?: number) => void): SocketLike | null {
     const address = routeLabel(route);
     const relay = this.endpoint?.relay;
     let socket: SocketLike;
@@ -244,10 +270,9 @@ export class RpcClient {
       socket = route.relay && relay ? new RelaySocket(relay, this.opts.relaySocket) : this.makeSocket(routeSocketUrl(route));
     } catch (error) {
       this.opts.log?.(`[rpc] could not open ${address}: ${String(error)}`);
-      next();
-      return;
+      return null;
     }
-    this.openingSocket = socket;
+    this.opening.add(socket);
     let authSent = false;
     const send = (data: object) => {
       try {
@@ -257,12 +282,12 @@ export class RpcClient {
       }
     };
     socket.onopen = () => {
-      if (socket !== this.openingSocket) return;
+      if (!this.opening.has(socket)) return;
       authSent = handshake === null;
       send(handshake?.request ?? { auth: token });
     };
     socket.onmessage = (message) => {
-      if (socket !== this.openingSocket && socket !== this.socket) return;
+      if (!this.opening.has(socket) && socket !== this.socket) return;
       let data: Record<string, unknown>;
       try {
         data = JSON.parse(String(message.data)) as Record<string, unknown>;
@@ -270,7 +295,7 @@ export class RpcClient {
         return;
       }
       if (!data || typeof data !== "object") return;
-      if (socket === this.openingSocket) {
+      if (this.opening.has(socket)) {
         if (!authSent) {
           const auth = handshake?.verify(data);
           if (!auth) {
@@ -307,10 +332,11 @@ export class RpcClient {
       if (socket === this.socket) {
         if (rejected) this.unauthorized();
         else this.lost();
-      } else if (socket === this.openingSocket) {
-        next(rejected && (authSent || route.relay === true));
+      } else if (this.opening.has(socket)) {
+        next(rejected && (authSent || route.relay === true), event.code);
       }
     };
+    return socket;
   }
 
   private unauthorized() {
@@ -320,12 +346,12 @@ export class RpcClient {
   }
 
   private adopt(socket: SocketLike, route: ConnectionRoute) {
-    if (this.connectTimer) clearTimeout(this.connectTimer);
-    this.connectTimer = null;
-    this.openingSocket = null;
+    this.opening.delete(socket);
+    this.clearOpening();
     this.socket = socket;
     this.route = route;
     this.attempt = 0;
+    this.failure = null;
     this.setStatus("online");
     this.startPing();
   }
@@ -391,18 +417,37 @@ export class RpcClient {
   private teardownSocket() {
     this.generation++;
     this.stopPing();
-    this.clearOpeningSocket();
+    this.clearOpening();
     if (this.socket) this.closeSocket(this.socket);
     this.socket = null;
     this.route = null;
     this.rttMs = null;
   }
 
-  private clearOpeningSocket() {
-    if (this.connectTimer) clearTimeout(this.connectTimer);
-    this.connectTimer = null;
-    if (this.openingSocket) this.closeSocket(this.openingSocket);
-    this.openingSocket = null;
+  private arm(run: () => void, ms: number) {
+    const timer = setTimeout(() => {
+      this.connectTimers.delete(timer);
+      run();
+    }, ms);
+    this.connectTimers.add(timer);
+    return timer;
+  }
+
+  private disarm(timer: ReturnType<typeof setTimeout>) {
+    clearTimeout(timer);
+    this.connectTimers.delete(timer);
+  }
+
+  private dropOpening(socket: SocketLike) {
+    this.opening.delete(socket);
+    this.closeSocket(socket);
+  }
+
+  private clearOpening() {
+    for (const timer of this.connectTimers) clearTimeout(timer);
+    this.connectTimers.clear();
+    for (const socket of this.opening) this.closeSocket(socket);
+    this.opening.clear();
   }
 
   private closeSocket(socket: SocketLike) {
