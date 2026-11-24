@@ -67,6 +67,7 @@ export type RelayLinkDeps = {
 
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 const KEEPALIVE_MS = 30_000;
+const FIRST_RETRY_MS = 100;
 const PONG_TIMEOUT_MS = 10_000;
 const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 const MAX_CHANNELS = 32;
@@ -171,7 +172,8 @@ export class RelayLink {
   private scheduleRetry() {
     if (!this.running || this.retry) return;
     if (this.state.state !== "error") this.state = { state: "connecting", error: this.state.error ?? "Reconnecting" };
-    const delay = Math.min(60_000, 1000 * 2 ** Math.min(this.attempt++, 6)) + Math.floor(Math.random() * 1000);
+    const delay = this.attempt === 0 ? FIRST_RETRY_MS : Math.min(60_000, 1000 * 2 ** Math.min(this.attempt, 6)) + Math.floor(Math.random() * 1000);
+    this.attempt++;
     this.retry = setTimeout(() => {
       this.retry = null;
       this.connect();
