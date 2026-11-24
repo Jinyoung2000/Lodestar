@@ -16,7 +16,21 @@ const F = S.followUp;
 const NOTHING = { items: [], notes: [] };
 const activeText = (agent: Agent, now: number) => F.active(agoText(new Date(lastActiveAt(agent)).toISOString(), now));
 
-export function FollowUpsView() {
+export function FollowUpsRefresh() {
+  const state = useStore((s) => s.followUps);
+  const now = useNow();
+  const checking = state?.checking === true;
+  return (
+    <>
+      <span className="followups-checked">{state?.checkedAt ? F.checked(agoText(state.checkedAt, now)) : F.neverChecked}</span>
+      <Button aria-label={F.checkNow} title={F.checkNow} disabled={!state || checking} onClick={checkFollowUps}>
+        <Codicon name="refresh" size={14} spin={checking} />
+      </Button>
+    </>
+  );
+}
+
+export function FollowUpsBody() {
   const state = useStore((s) => s.followUps);
   const agents = useStore((s) => s.agents);
   const workspaces = useStore((s) => s.workspaces);
@@ -25,50 +39,38 @@ export function FollowUpsView() {
   const sections = useMemo(() => followUpSections(agents, state ?? NOTHING, now), [agents, state, now]);
   const workspace = (agent: Agent) => workspaceNameOf(workspaces, agent.workspaceId);
   const nothing = sections.decisions.length === 0 && sections.progress.length === 0 && sections.finished.length === 0;
-  const checking = state?.checking === true;
   const snoozed = sections.decisions.filter((row) => row.snoozed).length;
 
   return (
-    <section className="followups" aria-label={S.followUps}>
-      <div className="pane-header followups-header">
-        <h1 className="followups-heading">{S.followUps}</h1>
-        <span className="spacer" />
-        <span className="followups-checked">{state?.checkedAt ? F.checked(agoText(state.checkedAt, now)) : F.neverChecked}</span>
-        <Button variant="secondary" disabled={!state || checking} onClick={checkFollowUps}>
-          <Codicon name="refresh" size={14} spin={checking} />
-          {checking ? F.checking : F.checkNow}
-        </Button>
-      </div>
-      <div className="followups-body">
-        {state?.error && (
-          <p className="followups-error" role="alert">
-            {state.error}
-          </p>
-        )}
-        {nothing && <p className="followups-empty">{F.empty}</p>}
-        {sections.decisions.length > 0 && (
-          <Group title={F.sections.decisions} count={sections.decisions.length - snoozed} note={snoozed > 0 ? F.snoozedCount(snoozed) : null}>
-            {sections.decisions.map((row) => (
-              <FollowUpDecision key={row.item.id} row={row} workspace={workspace(row.agent)} now={now} />
-            ))}
-          </Group>
-        )}
-        {sections.progress.length > 0 && (
-          <Group title={F.sections.progress} count={sections.progress.length}>
-            {sections.progress.map((row) => (
-              <ProgressItem key={row.agent.id} row={row} workspace={workspace(row.agent)} cardKey={cardKeyOf(board, row.agent.id)} now={now} />
-            ))}
-          </Group>
-        )}
-        {sections.finished.length > 0 && (
-          <Group title={F.sections.finished} count={sections.finished.length}>
-            {sections.finished.map((row) => (
-              <FinishedItem key={row.agent.id} row={row} workspace={workspace(row.agent)} />
-            ))}
-          </Group>
-        )}
-      </div>
-    </section>
+    <div className="followups followups-body" aria-label={F.listAria}>
+      {state?.error && (
+        <p className="followups-error" role="alert">
+          {state.error}
+        </p>
+      )}
+      {nothing && <p className="followups-empty">{F.empty}</p>}
+      {sections.decisions.length > 0 && (
+        <Group title={F.sections.decisions} count={sections.decisions.length - snoozed} note={snoozed > 0 ? F.snoozedCount(snoozed) : null}>
+          {sections.decisions.map((row) => (
+            <FollowUpDecision key={row.item.id} row={row} workspace={workspace(row.agent)} now={now} />
+          ))}
+        </Group>
+      )}
+      {sections.progress.length > 0 && (
+        <Group title={F.sections.progress} count={sections.progress.length}>
+          {sections.progress.map((row) => (
+            <ProgressItem key={row.agent.id} row={row} workspace={workspace(row.agent)} cardKey={cardKeyOf(board, row.agent.id)} now={now} />
+          ))}
+        </Group>
+      )}
+      {sections.finished.length > 0 && (
+        <Group title={F.sections.finished} count={sections.finished.length}>
+          {sections.finished.map((row) => (
+            <FinishedItem key={row.agent.id} row={row} workspace={workspace(row.agent)} />
+          ))}
+        </Group>
+      )}
+    </div>
   );
 }
 

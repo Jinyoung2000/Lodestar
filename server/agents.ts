@@ -151,6 +151,7 @@ export type AssistantAsk = (toolName: string, input: Record<string, unknown>, si
 
 export type AssistantHooks = {
   options: (agent: Agent, ask: AssistantAsk) => Partial<Options> | null;
+  silentTurn: (agentId: string) => boolean;
 };
 
 export type BoardHooks = {
@@ -1172,7 +1173,8 @@ export class AgentRunner {
     this.settleRunningTools(agentId, outcome === "interrupted");
     if (outcome === "interrupted") this.upsert(agentId, { id: randomUUID(), kind: "notice", text: T.stopped });
     this.setStatus(agentId, run.apiError && outcome !== "interrupted" ? "error" : "idle");
-    this.store.updateAgent(agentId, { unread: true });
+    const silent = this.store.agent(agentId).assistant === true && this.assistantHooks?.silentTurn(agentId) === true;
+    this.store.updateAgent(agentId, silent ? {} : { unread: true });
     this.emit({ type: "agent", agent: this.store.agent(agentId) });
     const agent = this.store.agent(agentId);
     if (agent.feedbackId) this.feedbackHooks?.afterTurn(agentId);

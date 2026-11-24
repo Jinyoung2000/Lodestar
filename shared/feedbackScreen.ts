@@ -1,7 +1,7 @@
 import type { ScreenContext } from "./protocol";
 
 export type ScreenInput = {
-  centerView: "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "skills" | "automations" | "followUps";
+  centerView: "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "skills" | "automations" | "mate";
   overlay: { kind: string } | null;
   panes: { id: string; kind: "agent" | "draft"; agentId?: string }[];
   activePaneId: string;
@@ -18,7 +18,7 @@ export type ScreenInput = {
   height: number;
 };
 
-const CENTER: Record<ScreenInput["centerView"], string> = { sessions: "Sessions", board: "Board", inbox: "Inbox", pr: "Pull requests", improvements: "Improvements", notion: "Notion", skills: "Skills", automations: "Automations", followUps: "Follow-ups" };
+const CENTER: Record<ScreenInput["centerView"], string> = { sessions: "Sessions", board: "Board", inbox: "Inbox", pr: "Pull requests", improvements: "Improvements", notion: "Notion", skills: "Skills", automations: "Automations", mate: "Mate" };
 const OVERLAY: Record<string, string> = {
   quickOpen: "Quick open",
   symbols: "Go to symbol",

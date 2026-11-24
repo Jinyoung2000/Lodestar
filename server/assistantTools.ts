@@ -16,6 +16,12 @@ export type AssistantToolHost = {
   cancelReminder: (id: string) => string;
   snooze: (session: string, choice: (typeof SNOOZE_CHOICES)[number]) => string;
   dismiss: (session: string) => string;
+  answerQuestion: (session: string, answer: string) => string;
+  respondToApproval: (session: string, decision: "allow" | "deny") => string;
+  stop: (session: string) => Promise<string>;
+  rename: (session: string, title: string) => string;
+  pin: (session: string, pinned: boolean) => string;
+  pendingOf: (session: string) => string | null;
 };
 
 const text = (value: string, isError = false): CallToolResult => ({ content: [{ type: "text", text: value }], ...(isError ? { isError: true } : {}) });
@@ -71,6 +77,21 @@ export function assistantToolServer(host: AssistantToolHost) {
       (args) => answer(() => host.snooze(args.session, args.until)),
     ),
     tool(ASSISTANT_TOOLS.dismissDecision, "Drop the open decision of a session from the tracked list because the user says it is not needed.", { session }, (args) => answer(() => host.dismiss(args.session))),
+    tool(
+      ASSISTANT_TOOLS.answerQuestion,
+      "Answer the question card a session is showing (read_session lists it as waiting with its choices). Give one of the offered choices or the user's own words. The user approves each call on a card.",
+      { session, answer: z.string().min(1).max(2000) },
+      (args) => answer(() => host.answerQuestion(args.session, args.answer)),
+    ),
+    tool(
+      ASSISTANT_TOOLS.respondToApproval,
+      "Allow or deny the tool call a session is waiting on (read_session lists it as waiting). Only when the user has told you what to do with it. The user approves each call on a card that shows the pending tool call.",
+      { session, decision: z.enum(["allow", "deny"]) },
+      (args) => answer(() => host.respondToApproval(args.session, args.decision)),
+    ),
+    tool(ASSISTANT_TOOLS.stopSession, "Stop the running turn of a session. The user approves each call on a card.", { session }, (args) => answer(() => host.stop(args.session))),
+    tool(ASSISTANT_TOOLS.renameSession, "Rename a session.", { session, title: z.string().min(1).max(200) }, (args) => answer(() => host.rename(args.session, args.title))),
+    tool(ASSISTANT_TOOLS.pinSession, "Pin a session so it stays in view and is not tidied away, or unpin it.", { session, pinned: z.boolean() }, (args) => answer(() => host.pin(args.session, args.pinned))),
   ];
   return createSdkMcpServer({ name: ASSISTANT_SERVER, tools: tools as never });
 }

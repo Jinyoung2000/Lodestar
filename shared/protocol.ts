@@ -984,7 +984,9 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
   "followUps.keepOpen": { params: { agentId: string }; result: FollowUpsState };
   "assistant.get": { params: Record<string, never>; result: AssistantState };
   "assistant.checkIn": { params: Record<string, never>; result: AssistantState };
-  "assistant.openNotes": { params: Record<string, never>; result: null };
+  "assistant.cancelReminder": { params: { id: string }; result: AssistantState };
+  "assistant.readNotes": { params: Record<string, never>; result: { text: string } };
+  "assistant.writeNotes": { params: { text: string }; result: { text: string } };
   "notion.pins.list": { params: Record<string, never>; result: NotionPin[] };
   "notion.pins.add": { params: NotionPinInput; result: { pin: NotionPin; added: boolean } };
   "notion.pins.update": { params: { id: string; patch: NotionPinPatch }; result: NotionPin };

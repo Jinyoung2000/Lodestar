@@ -331,7 +331,7 @@ export type Overlay =
 
 export type RightTab = "changes" | "card" | string;
 
-export type CenterView = "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "skills" | "automations" | "followUps";
+export type CenterView = "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "skills" | "automations" | "mate";
 
 export type McpBusy = "reconnect" | "enable" | "disable";
 export type McpNote = { ok: boolean; text: string };
@@ -1528,17 +1528,24 @@ export function openSkills() {
   setState({ centerView: "skills" });
 }
 
-export function toggleFollowUps() {
-  setState((s) => ({ centerView: s.centerView === "followUps" ? "sessions" : "followUps" }));
+export function toggleAssistant() {
+  setState((s) => ({ centerView: s.centerView === "mate" ? "sessions" : "mate" }));
+  readAssistant();
 }
 
 export function openAssistant() {
-  const agentId = getState().assistant?.agentId;
-  if (agentId && getState().agents.some((a) => a.id === agentId)) openAgent(agentId);
+  setState({ centerView: "mate" });
+  readAssistant();
 }
 
-export function openFollowUps() {
-  setState({ centerView: "followUps" });
+export function readAssistant() {
+  const agent = state.agents.find((a) => a.id === state.assistant?.agentId);
+  if (agent?.unread && state.centerView === "mate" && document.visibilityState === "visible") void rpc.call("agents.markRead", { agentId: agent.id, read: true }).catch(() => undefined);
+}
+
+function receiveAssistant(assistant: AssistantState | null) {
+  setState({ assistant });
+  if (assistant?.agentId) ensureTimeline(assistant.agentId);
 }
 
 export type AutomationEditorTarget = { mode: "create" } | { mode: "edit"; id: string };
@@ -2218,7 +2225,7 @@ export function initStore() {
     void refreshReview();
     void rpc.call("automations.list", {}).then((automations) => setState({ automations })).catch(() => setState({ automations: null }));
     void rpc.call("followUps.get", {}).then((followUps) => setState({ followUps })).catch(() => setState({ followUps: null }));
-    void rpc.call("assistant.get", {}).then((assistant) => setState({ assistant })).catch(() => setState({ assistant: null }));
+    void rpc.call("assistant.get", {}).then(receiveAssistant).catch(() => receiveAssistant(null));
     void rpc.call("release.get", {}).then((release) => setState({ release })).catch(() => setState({ release: null }));
     void rpc.call("defaults.get", {}).then((defaults) => setState({ defaults })).catch(() => setState({ defaults: null }));
     void rpc.call("sessionOrder.list", {}).then((sessionOrders) => setState({ sessionOrders })).catch(() => setState({ sessionOrders: {} }));
@@ -2263,7 +2270,7 @@ export function initStore() {
         receiveFollowUps(event.state);
         return;
       case "assistant":
-        setState({ assistant: event.state });
+        receiveAssistant(event.state);
         return;
       case "release":
         setState({ release: event.release });
@@ -2288,6 +2295,7 @@ export function initStore() {
             ? s.agents.map((a) => (a.id === event.agent.id ? event.agent : a))
             : [...s.agents, event.agent],
         }));
+        if (event.agent.assistant) readAssistant();
         return;
       case "showAgent": {
         if (EMBED || !state.agents.some((a) => a.id === event.agentId)) return;

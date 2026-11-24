@@ -712,10 +712,7 @@ body[data-electron="1"] .titlebar > button {
 .agent > .pane-header {
   height: var(--size-tabs-header);
 }
-.agent > .pane-header[data-assistant] {
-  container-type: inline-size;
-}
-.pane-header[data-assistant] .agent-title {
+.agent-title {
   flex: none;
   min-width: 0;
 }

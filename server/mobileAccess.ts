@@ -1,4 +1,7 @@
 // 모바일 포트는 JSON 몇 개와 WebSocket 하나, 이미지 업로드 하나만 받는다. 메인 토큰은 이 서버에서 통하지 않고, 장치마다 다른 장치 토큰만 통한다.
+import { isSilentReply } from "../shared/assistant";
+import { isSnoozeChoice } from "../shared/followups";
+import { PUSH_TOKEN_RE } from "./mobilePush";
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -87,7 +90,7 @@ export class AttemptLimiter {
   }
 }
 
-type DeviceRecord = { id: string; name: string; tokenHash: string; createdAt: string; lastSeenAt: string | null; relayKey?: string };
+type DeviceRecord = { id: string; name: string; tokenHash: string; createdAt: string; lastSeenAt: string | null; relayKey?: string; pushToken?: string };
 
 const TOKEN_RE = /^[0-9a-f]{64}$/;
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -138,6 +141,15 @@ export class MobileDevices {
     if (!record) return;
     record.lastSeenAt = new Date().toISOString();
     this.save();
+  }
+
+  setPush(id: string, token: string | null): boolean {
+    const record = this.records.find((r) => r.id === id);
+    if (!record) return false;
+    if (token) record.pushToken = token;
+    else delete record.pushToken;
+    this.save();
+    return true;
   }
 
   revoke(id: string): boolean {
@@ -325,6 +337,20 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
       const ids = Array.isArray(p.agentIds) && p.agentIds.length <= 10 ? p.agentIds.map((id) => idOf(id, "agentIds")) : fail(T.errMobileParam("agentIds"));
       return { agentIds: ids };
     }
+    case "followUps.get":
+    case "assistant.get":
+    case "assistant.checkIn":
+    case "mobile.unregisterPush":
+      return {};
+    case "followUps.snooze":
+      return { id: idOf(p.id, "id"), choice: isSnoozeChoice(p.choice) ? p.choice : fail(T.errMobileParam("choice")) };
+    case "followUps.dismiss":
+    case "assistant.cancelReminder":
+      return { id: idOf(p.id, "id") };
+    case "followUps.keepOpen":
+      return { agentId: idOf(p.agentId, "agentId") };
+    case "mobile.registerPush":
+      return { token: typeof p.token === "string" && PUSH_TOKEN_RE.test(p.token) ? p.token : fail(T.errMobileParam("token")) };
   }
   return fail(T.errMobileMethod(method));
 }
@@ -403,7 +429,7 @@ function assistantActivity(text: string): string | null {
 
 function activityText(item: Extract<ServerEvent, { type: "timelineUpsert" }>["item"]): string | null {
   if (item.kind === "tool" && item.status === "running" && !item.parentToolUseId) return toolActivity(item.name, item.input);
-  if (item.kind === "assistant") return assistantActivity(item.text);
+  if (item.kind === "assistant") return isSilentReply(item.text) ? null : assistantActivity(item.text);
   if (item.kind === "thinking") return "Thinking";
   return null;
 }
@@ -427,6 +453,10 @@ export class MobileServer {
   private http: Server | null = null;
   private wss: WebSocketServer | null = null;
   private sockets = new Map<WebSocket, string>();
+
+  deviceIdOf(client: WebSocket): string | null {
+    return this.sockets.get(client) ?? null;
+  }
   private activitySockets = new WeakSet<WebSocket>();
   private socketRoutes = new WeakMap<WebSocket, MobileRoute>();
   private unauthenticated = 0;

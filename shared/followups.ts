@@ -1,5 +1,10 @@
 import { PLAN_TOOL, QUESTION_TOOL, readQuestions } from "./interactive";
+import { ACTIVE_DAYS } from "./mateCore";
+import type { SnoozeChoice } from "./mateCore";
 import type { Agent, TimelineItem } from "./protocol";
+
+export { ACTIVE_DAYS, SNOOZE_CHOICES, followUpSections, isSnoozeChoice, isSnoozed, isTracked, lastActiveAt, openDecisionCount } from "./mateCore";
+export type { DecisionRow, FinishedRow, FollowUpSections, ProgressPhase, ProgressRow, SnoozeChoice } from "./mateCore";
 
 export type FollowUpKind = "approval" | "question" | "plan" | "ask";
 
@@ -32,10 +37,6 @@ export type FollowUpsState = {
   nudge: FollowUpNudge | null;
 };
 
-export const SNOOZE_CHOICES = ["2h", "tomorrow", "nextWeek"] as const;
-export type SnoozeChoice = (typeof SNOOZE_CHOICES)[number];
-export const isSnoozeChoice = (value: unknown): value is SnoozeChoice => typeof value === "string" && (SNOOZE_CHOICES as readonly string[]).includes(value);
-
 export const FOLLOW_UP_MODELS = ["haiku", "sonnet", "opus"] as const;
 export const FOLLOW_UP_DEFAULT_MODEL = "haiku";
 export const FOLLOW_UP_DEFAULT_MORNING = "09:30";
@@ -53,7 +54,7 @@ export const FOLLOW_UP_LIMITS = {
   batchesPerCheck: 5,
   callsPerDay: 60,
   settleMs: 120_000,
-  activeDays: 7,
+  activeDays: ACTIVE_DAYS,
   scanDays: 14,
   promptChars: 40_000,
   nudgeFreshMs: 90_000,
@@ -103,16 +104,11 @@ export function snoozeUntil(choice: SnoozeChoice, now: Date, morning: Morning): 
   return morningOf(new Date(now.getTime() + 7 * DAY_MS), morning);
 }
 
-export const isSnoozed = (item: Pick<FollowUpItem, "snoozedUntil">, now: number) => item.snoozedUntil !== null && Date.parse(item.snoozedUntil) > now;
-
-type TrackedRef = Pick<Agent, "done" | "feedbackId" | "automationId" | "assistant">;
-export const isTracked = (agent: TrackedRef) => !agent.done && !agent.feedbackId && !agent.automationId && !agent.assistant;
-
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 const clip = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
 const tail = (text: string, max: number) => (text.length <= max ? text : `…${text.slice(text.length - max + 1)}`);
 
-export type PendingAsk = { kind: "approval" | "question" | "plan"; itemId: string; text: string; options: string[] };
+export type PendingAsk = { kind: "approval" | "question" | "plan"; itemId: string; text: string; options: string[]; question?: string };
 
 export type SessionScan = {
   agentId: string;
@@ -147,6 +143,7 @@ function pendingOf(items: readonly TimelineItem[]): PendingAsk | null {
           kind: "question",
           itemId: item.id,
           text: clip(squash(question?.question ?? ""), FOLLOW_UP_LIMITS.text),
+          ...(question ? { question: question.question } : {}),
           options: (question?.options ?? []).slice(0, FOLLOW_UP_LIMITS.options).map((o) => clip(squash(o.label), FOLLOW_UP_LIMITS.option)),
         };
       }
@@ -279,54 +276,4 @@ export function parseAnalysis(raw: unknown, input: AnalysisInput): AnalysisResul
     out.push({ ...target, state, text, options });
   }
   return out;
-}
-
-export type ProgressPhase = "working" | "error" | "paused";
-export type DecisionRow = { item: FollowUpItem; agent: Agent; snoozed: boolean };
-export type ProgressRow = { agent: Agent; phase: ProgressPhase; text: string };
-export type FinishedRow = { agent: Agent; text: string };
-export type FollowUpSections = { decisions: DecisionRow[]; progress: ProgressRow[]; finished: FinishedRow[] };
-
-const atOf = (iso: string | null | undefined) => {
-  const at = iso ? Date.parse(iso) : NaN;
-  return Number.isFinite(at) ? at : 0;
-};
-
-export const lastActiveAt = (agent: Pick<Agent, "updatedAt" | "reopenedAt">) => Math.max(atOf(agent.updatedAt), atOf(agent.reopenedAt));
-
-export function followUpSections(agents: readonly Agent[], state: Pick<FollowUpsState, "items" | "notes">, now: number): FollowUpSections {
-  const tracked = new Map(agents.filter(isTracked).map((a) => [a.id, a]));
-  const decisions: DecisionRow[] = [];
-  const decided = new Set<string>();
-  for (const item of state.items) {
-    const agent = tracked.get(item.agentId);
-    if (!agent) continue;
-    decided.add(agent.id);
-    decisions.push({ item, agent, snoozed: isSnoozed(item, now) });
-  }
-  decisions.sort((a, b) => Number(a.snoozed) - Number(b.snoozed) || (a.snoozed ? atOf(a.item.snoozedUntil) - atOf(b.item.snoozedUntil) : atOf(a.item.since) - atOf(b.item.since)));
-
-  const noteOf = new Map(state.notes.map((n) => [n.agentId, n]));
-  const progress: ProgressRow[] = [];
-  const finished: FinishedRow[] = [];
-  const quietBefore = now - FOLLOW_UP_LIMITS.activeDays * DAY_MS;
-  for (const agent of tracked.values()) {
-    if (decided.has(agent.id)) continue;
-    const note = noteOf.get(agent.id);
-    if (agent.status === "running" || agent.status === "waiting") progress.push({ agent, phase: "working", text: "" });
-    else if (agent.status === "error") progress.push({ agent, phase: "error", text: "" });
-    else if (note?.phase === "finished") finished.push({ agent, text: note.text });
-    else if (lastActiveAt(agent) >= quietBefore) progress.push({ agent, phase: "paused", text: note?.text ?? "" });
-  }
-  const recent = (a: Agent, b: Agent) => lastActiveAt(b) - lastActiveAt(a);
-  const rank = (row: ProgressRow) => (row.phase === "working" ? 0 : row.phase === "error" ? 1 : 2);
-  progress.sort((a, b) => rank(a) - rank(b) || recent(a.agent, b.agent));
-  finished.sort((a, b) => recent(a.agent, b.agent));
-  return { decisions, progress, finished };
-}
-
-export function openDecisionCount(agents: readonly Agent[], items: readonly FollowUpItem[], now: number): number {
-  if (items.length === 0) return 0;
-  const tracked = new Set(agents.filter(isTracked).map((a) => a.id));
-  return items.filter((item) => tracked.has(item.agentId) && !isSnoozed(item, now)).length;
 }

@@ -86,21 +86,24 @@ env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_SSE_PORT npm start > 
 
 사이드바 New Session 아래의 "Mate" 는 끝나지 않는 대화 하나로 사는 에이전트다. 사용자의 세션들을 지켜보다가 결정이 필요한 일을 먼저 말해 주고, 시키면 세션에 답을 보내거나 새 세션을 시작한다. OpenAI Dots, Claude Duet, Meta Muse 와 같은 부류이고, 지켜보는 범위는 Lodestar 의 세션이다. 명령 팔레트 "Mate: Open" 으로도 연다.
 
-- Mate 는 Lodestar 세션 하나다(`assistant: true`, 작업 폴더 `~/.agent-nav/assistant`, 워크스페이스 없음). 세션 목록, 아침 리뷰, 자동 완료 처리, Follow-ups 추적에서는 빠진다. 대화 칸, 승인 카드, 모델 고르기는 보통 세션과 같고 처음 모델은 sonnet 이다. 지우면 1분 안에 새로 생긴다(대화는 새로 시작)
-- 체크인: Lodestar 가 Mate 에게 보내는 자동 메시지다. 대화에는 접힌 한 줄(Automated message)로 보이고 펼치면 보낸 내용 전체가 나온다. 깨우는 때는 넷이다. 세션이 답에서 결정을 묻고 멈춘 것이 새로 잡혔을 때(10분에 한 번으로 묶는다), 열린 결정의 리마인드 기한이 됐을 때, Mate 가 스스로 건 리마인드가 됐을 때, 하루 한 번 아침 브리핑(Board 의 Review time, 추적 중인 일이 있을 때만). 스스로 깨는 것은 하루 30번까지다
-- 체크인에서 말할 것이 없으면 Mate 는 NOTHING 만 답하고, Lodestar 는 그 체크인과 답을 대화에서 지운다. 머리줄에 "Checked in 12 min ago, nothing to report" 로만 남는다. 말할 것이 있으면 대화에 쓰고, 창이 뒤에 있으면 macOS 알림(제목 Mate, 본문은 첫머리)으로 알린다
-- 도구(`lodestar_work` 서버): `list_work`(Follow-ups 장부를 세션 id 와 함께), `read_session`(한 세션의 마지막 메시지), `set_reminder`, `list_reminders`, `cancel_reminder`, `snooze_decision`, `dismiss_decision` 은 묻지 않고 실행한다. `send_to_session`(그 세션에 사용자가 친 것처럼 메시지를 보낸다), `start_session`(워크스페이스에 새 세션), `mark_done` 은 매번 승인 카드를 띄운다("Send to <세션 제목>?" 과 보낼 글). 카드의 Allow in session 으로 그 도구를 계속 허용할 수 있다. Mate 의 작업 폴더 안 파일 쓰기는 묻지 않고, 그 밖의 도구(Bash 등)는 보통 세션처럼 묻는다
-- 메모: 작업 폴더의 `CLAUDE.md` 가 Mate 의 장기 기억이다. 시작할 때마다 읽히고, 사용자가 추적 방식을 말하면 Mate 가 적는다. 머리줄 Notes 가 기본 앱으로 연다
-- 머리줄: 상태 글(Checking in…, Checked in N ago), Tracking N(Follow-ups 목록을 연다, N 은 열린 결정 수), Notes, Check in now(지금 상황을 묻는 체크인을 바로 보낸다). 칸이 550px 보다 좁으면 상태 글이, 420px 보다 좁으면 칩과 단추의 글자가 빠진다
+- 화면은 둘로 나뉜다. 왼쪽은 대화(가운데 위에 아이콘, 이름, 상태 줄. 그 아래 말풍선과 카드, 맨 아래 입력칸), 오른쪽은 Mate 가 지켜보는 것의 탭 넷이다: Tracking(Follow-ups 장부), Reminders(Mate 가 건 리마인드와 미뤄 둔 결정), Activity(체크인 기록: 언제, 왜, 말을 했는지), Notes(메모 파일을 그 자리에서 고치고 저장). 화면 폭이 720px 보다 좁으면 대화만 남는다
+- 대화 안의 카드: 체크인에서 알린 결정은 Mate 의 말 아래에 결정 카드로 붙는다(세션 제목, 기다린 시간, 질문, 선택지 단추). 선택지를 누르면 "Send "5회" to <세션>?" 확인이 뜨고 Send 가 그 세션에 메시지로 보낸다(Mate 를 거치지 않는다). Later 는 미루고 Not needed 는 장부에서 뺀다. 미뤄 둔 결정은 카드로 나오지 않는다. Mate 가 행동하려 할 때는 승인 카드(Allow, Skip)가 뜬다
+- Mate 는 Lodestar 세션 하나다(`assistant: true`, 작업 폴더 `~/.agent-nav/assistant`, 워크스페이스 없음). 세션 목록, 아침 리뷰, 자동 완료 처리, Follow-ups 추적에서는 빠진다. 처음 모델은 sonnet 이고, 머리줄 더보기의 Open as a session 으로 보통 세션 칸에서 열어 모델과 권한 모드를 바꾼다. 지우면 1분 안에 새로 생긴다(대화는 새로 시작)
+- 체크인: Lodestar 가 Mate 에게 보내는 자동 메시지다. 대화에는 "Check-in, 9:30 AM" 한 줄로 보인다. 깨우는 때는 넷이다. 세션이 답에서 결정을 묻고 멈춘 것이 새로 잡혔을 때(10분에 한 번으로 묶는다), 열린 결정의 리마인드 기한이 됐을 때, Mate 가 스스로 건 리마인드가 됐을 때, 하루 한 번 아침 브리핑(Board 의 Review time, 추적 중인 일이 있을 때만). 머리줄의 새로 고침 단추는 지금 상황을 묻는 체크인을 바로 보낸다. 스스로 깨는 것은 하루 30번까지다
+- 체크인에서 말할 것이 없으면 Mate 는 NOTHING 만 답하고, Lodestar 는 그 체크인과 답을 대화에서 지운다. 안 읽음 표시도 붙지 않고 Activity 에 "Nothing to report" 로만 남는다. 말할 것이 있으면 대화에 쓰고, 창이 뒤에 있으면 macOS 알림(제목 Mate, 본문은 첫머리)으로 알린다
+- 도구(`lodestar_work` 서버). 묻지 않고 실행: `list_work`(장부를 세션 id 와 함께), `read_session`(한 세션의 마지막 메시지와 대기 중인 카드), `set_reminder`, `list_reminders`, `cancel_reminder`, `snooze_decision`, `dismiss_decision`, `rename_session`, `pin_session`. 매번 승인 카드: `send_to_session`(그 세션에 사용자가 친 것처럼 보낸다), `start_session`(워크스페이스에 새 세션), `mark_done`, `answer_question`(세션의 질문 카드에 답한다), `respond_to_approval`(세션이 기다리는 도구 호출을 허용하거나 거절한다. 카드에 그 도구 호출이 보인다), `stop_session`(도는 턴을 멈춘다). Mate 의 작업 폴더 안 파일 쓰기는 묻지 않고, 그 밖의 도구(Bash 등)는 보통 세션처럼 묻는다
+- 메모: 작업 폴더의 `CLAUDE.md` 가 Mate 의 장기 기억이다. 시작할 때마다 읽히고, 사용자가 추적 방식을 말하면 Mate 가 적는다
 - 사이드바 항목 오른쪽 끝: 열린 결정이 있으면 그 수, 없고 안 읽은 말이 있으면 점
 - Mate 가 켜져 있으면 열린 결정의 리마인드는 따로 알림을 내지 않고 Mate 가 대화에서 전한다. 꺼져 있으면 Follow-ups 가 직접 알림을 낸다
+- 폰: 세션 목록 맨 위에 Mate 줄(아이콘, 상태, 열린 결정 수 또는 안 읽음 점)이 있고 누르면 Mate 화면이 열린다. 위에 아이콘과 이름과 상태, 그 아래 탭 셋: Chat(말풍선, 결정 카드, 승인 카드, 입력칸), Tracking(장부, Looks finished 는 Mark done), Reminders. 폰에서는 메모를 고치지 않는다. Mate 는 보통 세션 목록에 섞이지 않고, 세션 링크로 열어도 Mate 화면으로 간다
+- 폰 알림: 안드로이드는 기존 세션 알림 서비스(Settings 의 알림 스위치)가 Mate 의 말과 세션의 승인 대기를 알린다. 조용한 체크인은 알리지 않는다. iOS 용으로는 데몬에 Expo 푸시 발송 경로가 있다(`mobile.registerPush` 로 기기 토큰을 받은 기기에만, Mate 가 먼저 말했을 때와 세션이 승인, 질문, 계획 확인을 기다리기 시작했을 때 제목과 본문을 `exp.host` 로 보낸다). 앱 쪽 토큰 등록은 아직 없어서 지금은 아무것도 보내지 않는다
 - Settings 의 Mate: 켜고 끄기(끄면 사이드바 항목이 사라지고 스스로 깨지 않는다), 아침 브리핑, 세션 추적, 리마인드, 추적 모델
-- 테스트와 E2E 인스턴스에서는 스스로 깨지 않는다. 수동 확인 때는 `AGENT_NAV_ASSISTANT_AUTO=1`
-- 저장은 `~/.agent-nav/assistant.json`(리마인드, 이미 전한 결정, 마지막 체크인). RPC `assistant.get`, `checkIn`, `openNotes`, 이벤트 `assistant`
+- 테스트와 E2E 인스턴스에서는 Mate 세션을 만들지 않고 스스로 깨지 않는다. 수동 확인 때는 `AGENT_NAV_ASSISTANT_AUTO=1`. 푸시는 그런 인스턴스에서 보내지 않고, `AGENT_NAV_PUSH_URL` 을 주면 그 주소로만 보낸다
+- 저장은 `~/.agent-nav/assistant.json`(리마인드, 이미 전한 결정, 체크인 기록 40개). RPC `assistant.get`, `checkIn`, `cancelReminder`, `readNotes`, `writeNotes`, 이벤트 `assistant`. 폰에는 `followUps.get`, `snooze`, `dismiss`, `keepOpen`, `assistant.get`, `checkIn`, `cancelReminder` 와 두 이벤트를 연다
 
 ## Follow-ups (진행 중인 일과 미룬 결정)
 
-Follow-ups 는 데몬이 세션들을 스스로 살펴서 만든 목록이고 Mate 가 일하는 장부다. 사용자가 적는 것은 없다. Mate 대화 칸 머리줄의 Tracking 과 명령 팔레트 "Follow-ups: Open" 으로 연다.
+Follow-ups 는 데몬이 세션들을 스스로 살펴서 만든 목록이고 Mate 가 일하는 장부다. 사용자가 적는 것은 없다. Mate 화면 오른쪽의 Tracking 탭에 보인다.
 
 - 세 구역이다. Needs a decision(세션이 사용자의 결정을 기다리는 일), In progress(지금 도는 세션과 최근 일주일 안에 멈춘 세션), Looks finished(끝난 것 같은 세션)
 - 결정은 두 길로 찾는다. 승인 카드, AskUserQuestion 질문, 확인을 기다리는 계획은 타임라인에서 바로 읽는다(모델을 부르지 않는다). 턴이 끝난 세션은 마지막 답이 사용자에게 고르거나 확인해 달라고 묻고 끝났는지를 모델이 읽는다(Asked in reply). 모델은 세션마다 decision, paused, finished 중 하나와 한 문장을 돌려주고, 그 문장이 행에 보인다. 사용자가 쓰는 언어로 쓴다

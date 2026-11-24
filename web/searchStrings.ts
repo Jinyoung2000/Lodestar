@@ -46,7 +46,6 @@ export const G = {
     mentions: "Open Mentions",
     improvements: "Show Improvements",
     automations: "Open Automations",
-    followUps: "Open Follow-ups",
     assistant: "Talk to Mate",
     settings: "Settings",
     commandPalette: "Show All Commands",

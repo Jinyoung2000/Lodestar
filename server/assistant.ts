@@ -10,13 +10,17 @@ import {
   ASSISTANT_NOTES_TEMPLATE,
   ASSISTANT_PROMPT,
   ASSISTANT_SERVER,
+  ASSISTANT_TOOLS,
   assistantToolAsks,
+  assistantToolName,
   buildCheckIn,
+  checkInItemIds,
   checkInReason,
   clockText,
   dayText,
   isAssistantTool,
   isSilentReply,
+  pushPreview,
   workDigest,
   type AssistantCheckIn,
   type AssistantReminder,
@@ -24,7 +28,7 @@ import {
   type CheckInEvent,
   type CheckInReason,
 } from "../shared/assistant";
-import { isTracked, parseMorning, scanSession, type FollowUpsState, type SnoozeChoice } from "../shared/followups";
+import { isTracked, parseMorning, scanSession, type FollowUpItem, type FollowUpsState, type SnoozeChoice } from "../shared/followups";
 import type { Agent, ServerEvent, TimelineItem } from "../shared/protocol";
 import type { AssistantAsk, CreateParams } from "./agents";
 import { assistantToolServer, type AssistantToolHost } from "./assistantTools";
@@ -37,12 +41,18 @@ const FILE_VERSION = 1;
 const TICK_MS = 60_000;
 const FIRST_TICK_MS = 12_000;
 const SETTLE_MS = 500;
+const NOTES_LIMIT = 64_000;
 
 type AssistantStoreView = Pick<Store, "settings" | "agents" | "workspaces" | "timeline" | "addAgent" | "patchAgent" | "removeItem">;
 type AssistantRunner = {
   send: (agentId: string, prompt: string, options?: { system?: boolean }) => Promise<{ queued: boolean }>;
   create: (params: CreateParams) => Promise<Agent>;
   setDone: (agentId: string, done: boolean) => void;
+  answerQuestion: (agentId: string, itemId: string, answers: Record<string, string>) => void;
+  respondPermission: (agentId: string, itemId: string, decision: "allow" | "deny") => void;
+  interrupt: (agentId: string) => Promise<unknown>;
+  rename: (agentId: string, title: string) => void;
+  setPinned: (agentId: string, pinned: boolean) => void;
 };
 type AssistantFollowUps = { state: () => FollowUpsState; refresh: () => void; snooze: (id: string, choice: unknown) => FollowUpsState; dismiss: (id: string) => FollowUpsState };
 
@@ -52,13 +62,14 @@ export type AssistantDeps = {
   followUps: AssistantFollowUps;
   emit: (event: ServerEvent) => void;
   autoBlocked?: () => boolean;
+  push?: (message: { title: string; body: string; agentId?: string }) => Promise<unknown> | void;
   now?: () => Date;
   dir?: string;
   file?: string;
 };
 
-type Wake = { startedAt: number; before: number; reason: CheckInReason; running: boolean };
-type Saved = { version: number; reminders: AssistantReminder[]; told: string[]; lastNudgeId: string | null; lastCheckIn: AssistantCheckIn | null; morningDate: string | null; ledger: { day: string; wakes: number } };
+type Wake = { startedAt: number; before: number; reason: CheckInReason; itemIds: string[]; running: boolean };
+type Saved = { version: number; reminders: AssistantReminder[]; told: string[]; lastNudgeId: string | null; checkIns: AssistantCheckIn[]; morningDate: string | null; ledger: { day: string; wakes: number } };
 
 const dayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const clip = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
@@ -68,13 +79,14 @@ export class AssistantService {
   private reminders: AssistantReminder[] = [];
   private told = new Set<string>();
   private lastNudgeId: string | null = null;
-  private lastCheckIn: AssistantCheckIn | null = null;
+  private checkIns: AssistantCheckIn[] = [];
   private morningDate: string | null = null;
   private ledger = { day: "", wakes: 0 };
   private queue: CheckInEvent[] = [];
   private wake: Wake | null = null;
   private lastWakeAt = 0;
   private timers: NodeJS.Timeout[] = [];
+  private started = false;
 
   constructor(private deps: AssistantDeps) {
     this.load();
@@ -102,7 +114,7 @@ export class AssistantService {
 
   state(): AssistantState {
     const agent = this.agent();
-    return { enabled: this.enabled, agentId: agent?.id ?? null, notesPath: agent ? join(agent.cwd, ASSISTANT_NOTES_FILE) : null, busy: this.wake !== null, lastCheckIn: this.lastCheckIn, reminders: this.reminders };
+    return { enabled: this.enabled, agentId: agent?.id ?? null, notesPath: agent ? join(agent.cwd, ASSISTANT_NOTES_FILE) : null, busy: this.wake !== null, lastCheckIn: this.checkIns[0] ?? null, checkIns: this.checkIns, reminders: this.reminders };
   }
 
   private get standing() {
@@ -112,6 +124,7 @@ export class AssistantService {
   start() {
     if (this.standing) this.ensureAgent();
     this.onFollowUps(this.deps.followUps.state());
+    this.started = true;
     const first = setTimeout(() => this.tick(), FIRST_TICK_MS);
     const every = setInterval(() => this.tick(), TICK_MS);
     first.unref();
@@ -161,23 +174,45 @@ export class AssistantService {
 
   options(agent: Agent, ask: AssistantAsk): Partial<Options> {
     const root = resolve(agent.cwd);
+    const host = this.host();
     const titled = (input: Record<string, unknown>) => {
       const target = typeof input.session === "string" ? this.deps.store.agents.find((a) => a.id === input.session) : undefined;
-      return target ? { ...input, session_title: target.title } : input;
+      if (!target) return input;
+      const pending = host.pendingOf(target.id);
+      return { ...input, session_title: target.title, ...(pending ? { pending } : {}) };
     };
     return {
       settingSources: ["user", "project"],
       systemPrompt: { type: "preset", preset: "claude_code", append: ASSISTANT_PROMPT },
-      mcpServers: { [ASSISTANT_SERVER]: assistantToolServer(this.host()) },
+      mcpServers: { [ASSISTANT_SERVER]: assistantToolServer(host) },
       canUseTool: async (toolName, input, { signal, toolUseID }) => {
         const allow = { behavior: "allow" as const, updatedInput: input };
-        if (isAssistantTool(toolName)) return assistantToolAsks(toolName) && this.agent()?.permissionMode !== "bypassPermissions" ? ask(toolName, titled(input), signal, toolUseID) : allow;
+        if (isAssistantTool(toolName)) {
+          const refusal = this.refusal(toolName, input);
+          if (refusal) return { behavior: "deny" as const, message: refusal };
+          return assistantToolAsks(toolName) && this.agent()?.permissionMode !== "bypassPermissions" ? ask(toolName, titled(input), signal, toolUseID) : allow;
+        }
         const path = typeof input.file_path === "string" ? resolve(root, input.file_path) : null;
         if ((toolName === "Edit" || toolName === "Write") && path && (path === root || path.startsWith(root + sep))) return allow;
         if (this.agent()?.permissionMode === "bypassPermissions") return allow;
         return ask(toolName, input, signal, toolUseID);
       },
     };
+  }
+
+  private refusal(toolName: string, input: Record<string, unknown>): string | null {
+    const wants = toolName === assistantToolName(ASSISTANT_TOOLS.answerQuestion) ? "question" : toolName === assistantToolName(ASSISTANT_TOOLS.respondToApproval) ? "approval" : null;
+    if (!wants) return null;
+    const agent = typeof input.session === "string" ? this.deps.store.agents.find((a) => a.id === input.session && !a.assistant && !a.feedbackId) : undefined;
+    if (!agent) return null;
+    const pending = scanSession(agent, this.deps.store.timeline(agent.id)).pending;
+    return pending?.kind === wants ? null : T.errAssistantNothingPending(agent.title, wants === "question" ? "question" : "tool call");
+  }
+
+  silentTurn(agentId: string): boolean {
+    if (!this.wake) return false;
+    const reply = this.deps.store.timeline(agentId).findLast((item) => item.kind === "assistant" && !item.streaming && item.text.trim() !== "");
+    return reply?.kind === "assistant" && isSilentReply(reply.text);
   }
 
   observe(event: ServerEvent) {
@@ -195,6 +230,7 @@ export class AssistantService {
       this.told.add(item.id);
       changed = true;
       if (item.kind === "ask") this.queue.push({ kind: "decision", itemId: item.id });
+      else this.pushWaiting(item);
     }
     for (const id of [...this.told]) {
       if (live.has(id)) continue;
@@ -208,6 +244,14 @@ export class AssistantService {
       if (this.now().getTime() - Date.parse(nudge.at) < ASSISTANT_LIMITS.nudgeFreshMs) this.queue.push({ kind: "reminder", itemIds: nudge.itemIds });
     }
     if (changed) this.save();
+  }
+
+  private pushWaiting(item: FollowUpItem) {
+    if (!this.started) return;
+    const agent = this.deps.store.agents.find((a) => a.id === item.agentId);
+    if (!agent) return;
+    const fallback = item.kind === "plan" ? "A plan is ready for your review." : item.kind === "question" ? "It asked you a question." : "It needs your approval.";
+    void this.deps.push?.({ title: agent.title, body: item.text ? pushPreview(item.text) : fallback, agentId: agent.id });
   }
 
   private onOwnStatus(agent: Agent) {
@@ -236,14 +280,16 @@ export class AssistantService {
       if (agent.unread) this.deps.emit({ type: "agent", agent: this.deps.store.patchAgent(agent.id, { unread: false }) });
     }
     console.log(`[assistant] check-in ${wake.reason} ${spoke ? "spoke" : "silent"}`);
-    this.endWake(spoke);
+    const first = turn[0];
+    this.endWake(spoke, spoke && first?.kind === "user" && first.source === "system" ? first.id : null);
+    if (spoke && reply) void this.deps.push?.({ title: agent.title, body: pushPreview(reply.text), agentId: agent.id });
   }
 
-  private endWake(spoke: boolean) {
+  private endWake(spoke: boolean, anchorId: string | null = null) {
     const wake = this.wake;
     if (!wake) return;
     this.wake = null;
-    this.lastCheckIn = { at: this.now().toISOString(), spoke, reason: wake.reason };
+    this.checkIns = [{ at: this.now().toISOString(), spoke, reason: wake.reason, itemIds: spoke ? wake.itemIds : [], anchorId }, ...this.checkIns].slice(0, ASSISTANT_LIMITS.checkIns);
     this.save();
     this.publish();
   }
@@ -274,6 +320,26 @@ export class AssistantService {
     this.save();
     const tracked = this.deps.store.agents.some((a) => isTracked(a) && a.status !== "idle") || this.deps.followUps.state().items.length > 0 || this.deps.followUps.state().notes.length > 0;
     if (tracked) this.queue.push({ kind: "morning" });
+  }
+
+  cancelReminder(id: string): AssistantState {
+    if (!this.reminders.some((r) => r.id === id)) throw new Error(T.errAssistantReminderUnknown(id));
+    this.reminders = this.reminders.filter((r) => r.id !== id);
+    this.save();
+    this.publish();
+    return this.state();
+  }
+
+  readNotes(): { text: string } {
+    const path = this.state().notesPath;
+    return { text: path && existsSync(path) ? readFileSync(path, "utf8").slice(0, NOTES_LIMIT) : "" };
+  }
+
+  writeNotes(text: unknown): { text: string } {
+    if (typeof text !== "string" || text.length > NOTES_LIMIT) throw new Error(T.errAssistantNotes);
+    const agent = this.ensureAgent();
+    writeFileSync(join(agent.cwd, ASSISTANT_NOTES_FILE), text);
+    return { text };
   }
 
   async checkIn(): Promise<AssistantState> {
@@ -328,7 +394,7 @@ export class AssistantService {
     });
     this.queue = [];
     if (events.length === 0) return;
-    const wake: Wake = { startedAt: now.getTime(), before: this.deps.store.timeline(agent.id).length, reason: checkInReason(events), running: false };
+    const wake: Wake = { startedAt: now.getTime(), before: this.deps.store.timeline(agent.id).length, reason: checkInReason(events), itemIds: checkInItemIds(events), running: false };
     this.wake = wake;
     this.lastWakeAt = now.getTime();
     this.ledger.wakes++;
@@ -419,6 +485,41 @@ export class AssistantService {
         followUps.dismiss(itemOf(agent).id);
         return `Dropped the decision of "${agent.title}" from the list.`;
       },
+      answerQuestion: (session, answer) => {
+        const agent = this.target(session);
+        const pending = scanSession(agent, store.timeline(agent.id)).pending;
+        if (pending?.kind !== "question") throw new Error(T.errAssistantNothingPending(agent.title, "question"));
+        runner.answerQuestion(agent.id, pending.itemId, { [pending.question ?? pending.text]: answer });
+        return `Answered "${agent.title}": ${answer}`;
+      },
+      respondToApproval: (session, decision) => {
+        const agent = this.target(session);
+        const pending = scanSession(agent, store.timeline(agent.id)).pending;
+        if (pending?.kind !== "approval") throw new Error(T.errAssistantNothingPending(agent.title, "tool call"));
+        runner.respondPermission(agent.id, pending.itemId, decision);
+        return `${decision === "allow" ? "Allowed" : "Denied"} the tool call in "${agent.title}": ${pending.text}`;
+      },
+      stop: async (session) => {
+        const agent = this.target(session);
+        if (agent.status !== "running" && agent.status !== "waiting") throw new Error(T.errAssistantNotRunning(agent.title));
+        await runner.interrupt(agent.id);
+        return `Stopped "${agent.title}".`;
+      },
+      rename: (session, title) => {
+        const agent = this.target(session);
+        runner.rename(agent.id, title);
+        return `Renamed "${agent.title}" to "${title.trim()}".`;
+      },
+      pin: (session, pinned) => {
+        const agent = this.target(session);
+        runner.setPinned(agent.id, pinned);
+        return `${pinned ? "Pinned" : "Unpinned"} "${agent.title}".`;
+      },
+      pendingOf: (session) => {
+        const agent = store.agents.find((a) => a.id === session);
+        const pending = agent ? scanSession(agent, store.timeline(agent.id)).pending : null;
+        return pending ? pending.text : null;
+      },
     };
   }
 
@@ -427,7 +528,7 @@ export class AssistantService {
   }
 
   private save() {
-    const saved: Saved = { version: FILE_VERSION, reminders: this.reminders, told: [...this.told], lastNudgeId: this.lastNudgeId, lastCheckIn: this.lastCheckIn, morningDate: this.morningDate, ledger: this.ledger };
+    const saved: Saved = { version: FILE_VERSION, reminders: this.reminders, told: [...this.told], lastNudgeId: this.lastNudgeId, checkIns: this.checkIns, morningDate: this.morningDate, ledger: this.ledger };
     const tmp = `${this.file}.${process.pid}.tmp`;
     writeFileSync(tmp, JSON.stringify(saved, null, 2));
     renameSync(tmp, this.file);
@@ -442,8 +543,11 @@ export class AssistantService {
       this.reminders = (Array.isArray(raw.reminders) ? raw.reminders : []).filter((r): r is AssistantReminder => !!r && typeof r.id === "string" && typeof r.text === "string" && iso(r.at) && iso(r.createdAt));
       this.told = new Set((Array.isArray(raw.told) ? raw.told : []).filter((id): id is string => typeof id === "string"));
       this.lastNudgeId = typeof raw.lastNudgeId === "string" ? raw.lastNudgeId : null;
-      const last = raw.lastCheckIn;
-      if (last && iso(last.at) && typeof last.spoke === "boolean" && (last.reason === "morning" || last.reason === "decision" || last.reason === "reminder" || last.reason === "manual")) this.lastCheckIn = { at: last.at, spoke: last.spoke, reason: last.reason };
+      const reasons = new Set(["morning", "decision", "reminder", "manual"]);
+      this.checkIns = (Array.isArray(raw.checkIns) ? raw.checkIns : [])
+        .filter((c): c is AssistantCheckIn => !!c && iso(c.at) && typeof c.spoke === "boolean" && reasons.has(c.reason))
+        .map((c) => ({ at: c.at, spoke: c.spoke, reason: c.reason, itemIds: (Array.isArray(c.itemIds) ? c.itemIds : []).filter((id): id is string => typeof id === "string"), anchorId: typeof c.anchorId === "string" ? c.anchorId : null }))
+        .slice(0, ASSISTANT_LIMITS.checkIns);
       this.morningDate = typeof raw.morningDate === "string" ? raw.morningDate : null;
       if (raw.ledger && typeof raw.ledger.day === "string" && Number.isInteger(raw.ledger.wakes)) this.ledger = { day: raw.ledger.day, wakes: raw.ledger.wakes };
     } catch (error) {

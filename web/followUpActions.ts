@@ -3,7 +3,7 @@ import { clampTitle } from "../shared/sessionTitle";
 import { notify } from "./notices";
 import { rpc } from "./rpc";
 import { assistantShown, followUpsShown } from "./screenVisibility";
-import { flash, getState, openAgent, openFollowUps, setState } from "./store";
+import { flash, getState, openAgent, openAssistant, setState } from "./store";
 import { S } from "./strings";
 
 const F = S.followUp;
@@ -33,8 +33,8 @@ async function remindOf(state: FollowUpsState, itemIds: string[]) {
   const body = due.length === 1 ? F.remindBody(itemText(first), session) : F.remindBodyMany(itemText(first), due.length - 1);
   const shown = await window.agentNavNative?.notify?.({ agentId: first.agentId, kind: "reminder", title, body, actionLabel: S.notificationOpenSession }).catch(() => false);
   if (shown === true) return;
-  if (getState().centerView === "followUps" && document.visibilityState === "visible") return;
-  notify({ key: "follow-ups", message: due.length === 1 ? F.remindToast(itemText(first)) : F.remindTitleMany(due.length), actions: [{ label: F.show, primary: true, run: openFollowUps }] });
+  if (getState().centerView === "mate" && document.visibilityState === "visible") return;
+  notify({ key: "follow-ups", message: due.length === 1 ? F.remindToast(itemText(first)) : F.remindTitleMany(due.length), actions: [{ label: F.show, primary: true, run: openAssistant }] });
 }
 
 export const itemText = (item: Pick<FollowUpItem, "kind" | "text">) => item.text || F.kindFallback[item.kind];

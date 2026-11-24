@@ -10,7 +10,7 @@ export const assistantShown = (settings: VisibilitySettings): boolean => setting
 export function centerViewHidden(view: CenterViewName, settings: VisibilitySettings): boolean {
   if (view === "board") return !boardShown(settings);
   if (view === "inbox") return !slackShown(settings);
-  if (view === "followUps") return !followUpsShown(settings);
+  if (view === "mate") return !assistantShown(settings);
   return false;
 }
 
@@ -25,7 +25,6 @@ export function hiddenCommands(settings: VisibilitySettings): ReadonlySet<string
     hidden.add("morningReview");
   }
   if (!slackShown(settings)) hidden.add("inbox");
-  if (!followUpsShown(settings)) hidden.add("followUps");
   if (!assistantShown(settings)) hidden.add("assistant");
   return hidden;
 }

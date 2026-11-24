@@ -30,7 +30,7 @@ import { publishSessionLists, stepFolder, stepSession } from "./sessionReorder";
 import { runCommand } from "./shortcuts";
 import { assistantShown, boardShown, followUpsShown, slackShown } from "./screenVisibility";
 import { openPrBesideByUrl } from "./prStore";
-import { addTerminal, ensureTimeline, flash, refreshPrs, isTopWorkspace, openAgent, openCard, setState, startDraft, startQuickChat, openAutomation, toggleAutomations, openAssistant, toggleBoard, toggleImprovements, toggleInbox,topWorkspaceId, useStore } from "./store";
+import { addTerminal, ensureTimeline, flash, refreshPrs, isTopWorkspace, openAgent, openCard, setState, startDraft, startQuickChat, openAutomation, toggleAutomations, toggleAssistant, toggleBoard, toggleImprovements, toggleInbox,topWorkspaceId, useStore } from "./store";
 import { S } from "./strings";
 import { useEditPreview } from "./useEditPreview";
 import { Button } from "./ui/button";
@@ -57,7 +57,6 @@ export function Sidebar({ width }: { width: number | null }) {
   const followUpItems = useStore((s) => s.followUps?.items);
   const showFollowUps = useStore((s) => followUpsShown(s.settings));
   const assistantId = useStore((s) => (assistantShown(s.settings) ? (s.assistant?.agentId ?? null) : null));
-  const assistantOpen = useStore((s) => s.centerView === "sessions" && !!assistantId && s.panes.some((p) => p.id === s.activePaneId && p.kind === "agent" && p.agentId === assistantId));
   const showBoard = useStore((s) => boardShown(s.settings));
   const showSlack = useStore((s) => slackShown(s.settings));
   const reviewUnread = useStore((s) => !!s.review?.unreadDate);
@@ -121,7 +120,7 @@ export function Sidebar({ width }: { width: number | null }) {
           <SideKeycaps command="newSession" />
         </button>
         {assistantAgent && (
-          <button type="button" className="side-item" data-active={assistantOpen || undefined} aria-pressed={assistantOpen} title={S.assistant.openTitle} onClick={() => openAssistant()}>
+          <button type="button" className="side-item" data-active={centerView === "mate" || undefined} aria-pressed={centerView === "mate"} title={S.assistant.openTitle} onClick={() => toggleAssistant()}>
             <Codicon name="compass" /> {assistantAgent.title}
             {showFollowUps && followUpsWaiting > 0 ? (
               <span className="inbox-badge" aria-label={S.assistant.waiting(followUpsWaiting)}>

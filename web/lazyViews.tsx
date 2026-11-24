@@ -40,7 +40,7 @@ const pullRequestTab = slot(() => import("./PullRequestView").then((m) => m.Pull
 const notion = slot(() => import("./NotionView").then((m) => m.NotionView));
 const skills = slot(() => import("./SkillsView").then((m) => m.SkillsView));
 const automations = slot(() => import("./AutomationsView").then((m) => m.AutomationsView));
-const followUps = slot(() => import("./FollowUpsView").then((m) => m.FollowUpsView));
+const mate = slot(() => import("./MateView").then((m) => m.MateView));
 const automationEditor = slot(() => import("./AutomationEditor").then((m) => m.AutomationEditorHost));
 const sideChat = slot(() => import("./SideChat").then((m) => m.SideChat));
 const settings = slot(() => import("./SettingsView").then((m) => m.SettingsView));
@@ -91,8 +91,8 @@ export function AutomationsView() {
   return Loaded ? <Loaded /> : null;
 }
 
-export function FollowUpsView() {
-  const Loaded = useSlot(followUps);
+export function MateView() {
+  const Loaded = useSlot(mate);
   return Loaded ? <Loaded /> : null;
 }
 

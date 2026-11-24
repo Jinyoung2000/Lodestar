@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { moveBottomTab, useBottomTabOrder, type BottomTab } from "./bottomTabOrder";
-import { AutomationEditorHost, AutomationsView, BoardView, FollowUpsView, ImprovementsView, InboxView, NotionView, Overlays, PullRequestView, SettingsView, SideChat, SkillsView, TerminalView } from "./lazyViews";
+import { AutomationEditorHost, AutomationsView, BoardView, MateView, ImprovementsView, InboxView, NotionView, Overlays, PullRequestView, SettingsView, SideChat, SkillsView, TerminalView } from "./lazyViews";
 import { FeedbackLayer } from "./Feedback";
 import { ChevronDown, Close, Codicon, Plus, Split, TerminalIcon, Warning } from "./icons";
 import { ChordHint } from "./ChordHint";
@@ -170,7 +170,7 @@ export function App() {
             {centerView === "notion" && <NotionView />}
             {centerView === "skills" && <SkillsView />}
             {centerView === "automations" && <AutomationsView />}
-            {centerView === "followUps" && <FollowUpsView />}
+            {centerView === "mate" && <MateView />}
             {side && <SideChat key={side.id} side={side} />}
             {rightOpen && !editorLayout && (
               <>

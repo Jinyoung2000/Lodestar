@@ -1,28 +1,17 @@
 import { followUpSections, isSnoozed, lastActiveAt, type FollowUpItem, type FollowUpsState } from "./followups";
+import { ASSISTANT_SERVER, ASSISTANT_TOOLS, SILENT_REPLY, assistantToolName, clockText, dayText } from "./mateCore";
 import type { Agent, Workspace } from "./protocol";
 
+export { ASSISTANT_SERVER, ASSISTANT_TOOLS, SILENT_REPLY, assistantApproval, assistantToolName, clockText, dayText, isAssistantTool, isSilentReply, mateFeed } from "./mateCore";
+export type { AssistantApproval, MateEntry, MateFeedSource } from "./mateCore";
+
 export const ASSISTANT_NAME = "Mate";
-export const ASSISTANT_SERVER = "lodestar_work";
 export const ASSISTANT_DEFAULT_MODEL = "sonnet";
 export const ASSISTANT_NOTES_FILE = "CLAUDE.md";
 
-export const ASSISTANT_TOOLS = {
-  listWork: "list_work",
-  readSession: "read_session",
-  sendToSession: "send_to_session",
-  startSession: "start_session",
-  markDone: "mark_done",
-  setReminder: "set_reminder",
-  listReminders: "list_reminders",
-  cancelReminder: "cancel_reminder",
-  snoozeDecision: "snooze_decision",
-  dismissDecision: "dismiss_decision",
-} as const;
-
-const PREFIX = `mcp__${ASSISTANT_SERVER}__`;
-export const assistantToolName = (tool: string) => `${PREFIX}${tool}`;
-export const isAssistantTool = (full: string) => full.startsWith(PREFIX);
-const ASK_FIRST = new Set<string>([ASSISTANT_TOOLS.sendToSession, ASSISTANT_TOOLS.startSession, ASSISTANT_TOOLS.markDone].map(assistantToolName));
+const ASK_FIRST = new Set<string>(
+  [ASSISTANT_TOOLS.sendToSession, ASSISTANT_TOOLS.startSession, ASSISTANT_TOOLS.markDone, ASSISTANT_TOOLS.answerQuestion, ASSISTANT_TOOLS.respondToApproval, ASSISTANT_TOOLS.stopSession].map(assistantToolName),
+);
 export const assistantToolAsks = (full: string) => ASK_FIRST.has(full);
 
 export const ASSISTANT_LIMITS = {
@@ -36,14 +25,13 @@ export const ASSISTANT_LIMITS = {
   wakesPerDay: 30,
   staleWakeMs: 30 * 60_000,
   nudgeFreshMs: 10 * 60_000,
+  checkIns: 40,
+  pushBody: 180,
 };
 
-export const SILENT_REPLY = "NOTHING";
-export const isSilentReply = (text: string) => text.replace(/[\s.`*"'!]/g, "").toUpperCase() === SILENT_REPLY;
-
 export type AssistantReminder = { id: string; text: string; at: string; createdAt: string };
-export type AssistantCheckIn = { at: string; spoke: boolean; reason: CheckInReason };
-export type AssistantState = { enabled: boolean; agentId: string | null; notesPath: string | null; busy: boolean; lastCheckIn: AssistantCheckIn | null; reminders: AssistantReminder[] };
+export type AssistantCheckIn = { at: string; spoke: boolean; reason: CheckInReason; itemIds: string[]; anchorId: string | null };
+export type AssistantState = { enabled: boolean; agentId: string | null; notesPath: string | null; busy: boolean; lastCheckIn: AssistantCheckIn | null; checkIns: AssistantCheckIn[]; reminders: AssistantReminder[] };
 
 export type CheckInReason = "morning" | "decision" | "reminder" | "manual";
 export type CheckInEvent = { kind: "decision"; itemId: string } | { kind: "reminder"; itemIds: string[] } | { kind: "ownReminder"; reminder: AssistantReminder } | { kind: "morning" } | { kind: "manual" };
@@ -56,6 +44,8 @@ export const ASSISTANT_PROMPT = [
   `- ${ASSISTANT_TOOLS.listWork}: the current list of sessions that need a decision, are in progress, or look finished. Call it before you answer anything about the state of the work; do not answer from memory.`,
   `- ${ASSISTANT_TOOLS.readSession}: the last messages of one session. Use it before you describe or answer a session in any detail.`,
   `- ${ASSISTANT_TOOLS.sendToSession}, ${ASSISTANT_TOOLS.startSession}, ${ASSISTANT_TOOLS.markDone}: these act on the user's sessions. Lodestar shows the user an approval card for each call, so when the user has told you to do it, call the tool directly instead of asking again in prose. Never call them on your own initiative; propose the action and wait for the user to say yes.`,
+  `- ${ASSISTANT_TOOLS.answerQuestion}, ${ASSISTANT_TOOLS.respondToApproval}, ${ASSISTANT_TOOLS.stopSession}: act on a session that is waiting or running: answer the question card it shows, allow or deny the tool call it waits on, or stop its running turn. Each call shows the user an approval card. Read the session first so you know exactly what is pending, and never allow a tool call the user has not told you to allow.`,
+  `- ${ASSISTANT_TOOLS.renameSession}, ${ASSISTANT_TOOLS.pinSession}: tidy up. Rename a session whose title no longer says what it is about, or pin one the user wants kept in view. Only when the user asks.`,
   `- ${ASSISTANT_TOOLS.setReminder}, ${ASSISTANT_TOOLS.listReminders}, ${ASSISTANT_TOOLS.cancelReminder}: your own reminders. When one is due, Lodestar wakes you with a check-in. Use them when the user says to bring something up later, and when you promise to follow up.`,
   `- ${ASSISTANT_TOOLS.snoozeDecision}, ${ASSISTANT_TOOLS.dismissDecision}: put off or drop a decision on the tracked list when the user says so. Lodestar reminds about open decisions on its own schedule, so when the user asks to hear about one later, snooze it as well as setting any reminder for an exact time, or they are reminded twice.`,
   "",
@@ -130,16 +120,6 @@ export function workDigest(source: WorkSource): string {
   return lines.join("\n");
 }
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-export function clockText(date: Date): string {
-  const hour = date.getHours() % 12 || 12;
-  return `${hour}:${String(date.getMinutes()).padStart(2, "0")} ${date.getHours() < 12 ? "AM" : "PM"}`;
-}
-
-export const dayText = (date: Date) => `${WEEKDAYS[date.getDay()]} ${MONTHS[date.getMonth()]} ${date.getDate()}`;
-
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export function checkInReason(events: readonly CheckInEvent[]): CheckInReason {
@@ -192,20 +172,11 @@ export function buildCheckIn(events: readonly CheckInEvent[], source: WorkSource
   return blocks.join("\n");
 }
 
-export type AssistantApproval = { title: string; message: string; code?: string; disclaimer?: string };
+export function checkInItemIds(events: readonly CheckInEvent[]): string[] {
+  return [...new Set(events.flatMap((e) => (e.kind === "decision" ? [e.itemId] : e.kind === "reminder" ? e.itemIds : [])))];
+}
 
-export function assistantApproval(toolName: string, input: Record<string, unknown>): AssistantApproval | null {
-  if (!isAssistantTool(toolName)) return null;
-  const text = (key: string) => (typeof input[key] === "string" ? (input[key] as string) : "");
-  const session = text("session_title") || text("session");
-  switch (toolName.slice(PREFIX.length)) {
-    case ASSISTANT_TOOLS.sendToSession:
-      return { title: `Send to ${session}?`, message: text("text") };
-    case ASSISTANT_TOOLS.startSession:
-      return { title: `Start a session in ${text("workspace")}?`, message: text("prompt") };
-    case ASSISTANT_TOOLS.markDone:
-      return { title: `Mark ${session} done?`, message: "" };
-    default:
-      return null;
-  }
+export function pushPreview(text: string): string {
+  const flat = text.replace(/```[\s\S]*?```/g, " ").replace(/[*_`#>]/g, "").replace(/\s+/g, " ").trim();
+  return flat.length <= ASSISTANT_LIMITS.pushBody ? flat : `${flat.slice(0, ASSISTANT_LIMITS.pushBody - 1)}…`;
 }

@@ -1,0 +1,351 @@
+.mate {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--surface-raised);
+  container-type: inline-size;
+}
+.mate-chat {
+  flex: 0 1 var(--size-chat-editing);
+  min-width: var(--size-chat-floor);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-subtle);
+}
+.mate-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mate-head {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  padding: var(--space-3) var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.mate-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-0_5);
+  min-width: 0;
+}
+.mate-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-lg, var(--space-8));
+  height: var(--size-control-lg, var(--space-8));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-base);
+  color: var(--fg-strong);
+}
+.mate-avatar[data-busy] {
+  border-color: var(--running);
+  color: var(--running);
+}
+.mate-name {
+  margin: 0;
+  color: var(--fg-strong);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  font-weight: var(--weight-ui-strong);
+}
+.mate-status {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+}
+.mate-head-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+.mate-feed {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column-reverse;
+}
+.mate-feed-inner {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: var(--space-2);
+  padding: var(--space-3);
+}
+.mate-checkin {
+  justify-self: center;
+  color: var(--fg-subtle);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+}
+.mate-bubble {
+  justify-self: start;
+  box-sizing: border-box;
+  max-width: 92%; /* lint-tokens: allow 말풍선이 칸 끝까지 닿지 않게 남기는 여백 */
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-xl);
+  background: var(--surface-overlay);
+  color: var(--fg-strong);
+  font-size: var(--text-chat);
+  line-height: var(--leading-chat);
+  overflow-wrap: anywhere;
+}
+.mate-bubble[data-from="user"] {
+  justify-self: end;
+  background: var(--chat-user-bg);
+  white-space: pre-wrap;
+}
+.mate-bubble .row-assistant > :first-child {
+  margin-top: 0;
+}
+.mate-bubble .row-assistant > :last-child {
+  margin-bottom: 0;
+}
+.mate-card {
+  justify-self: start;
+  box-sizing: border-box;
+  width: 96%; /* lint-tokens: allow 카드가 말풍선보다 조금 넓고 칸 끝에는 닿지 않게 */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1_5);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+.mate-card-meta {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  min-width: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mate-card-meta:hover .mate-card-session {
+  text-decoration: underline;
+}
+.mate-card-meta:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: 1px;
+}
+.mate-card-session {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mate-card-title {
+  color: var(--fg-strong);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  font-weight: var(--weight-ui-strong);
+}
+.mate-card-text {
+  color: var(--fg-strong);
+  font-size: var(--text-chat);
+  line-height: var(--leading-chat);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mate-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1_5);
+}
+.mate-card-confirm {
+  flex: 1 1 100%;
+  color: var(--fg);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+}
+.mate-choice {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mate-working {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  color: var(--fg-muted);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui);
+}
+.mate-error {
+  color: var(--danger);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+  white-space: pre-wrap;
+}
+.mate-composer {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin: var(--space-2) var(--space-3) var(--space-3);
+  padding: var(--space-1_5) var(--space-1_5) var(--space-1_5) var(--space-3);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-xl);
+  background: var(--input-bg);
+}
+.mate-composer:focus-within {
+  border-color: var(--accent);
+}
+.mate-input {
+  flex: 1 1 0;
+  min-width: 0;
+  max-height: calc(var(--leading-chat) * 8);
+  padding: var(--space-0_5) 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  field-sizing: content;
+  background: transparent;
+  color: var(--fg-strong);
+  font: inherit;
+  font-size: var(--text-chat);
+  line-height: var(--leading-chat);
+}
+.mate-input::placeholder {
+  color: var(--fg-subtle);
+}
+.mate-tabs {
+  gap: var(--space-1);
+  height: calc(var(--size-pane-header) - var(--space-0_5));
+  padding: 0 var(--space-2);
+}
+.mate-tab {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  height: var(--size-control-sm);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+  cursor: pointer;
+}
+.mate-tab:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.mate-tab[aria-selected="true"] {
+  color: var(--fg-strong);
+  font-weight: var(--weight-ui-strong);
+}
+.mate-tab:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: 1px;
+}
+.mate-tab .inbox-badge {
+  margin-left: 0;
+}
+.mate-panel-body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+.mate-empty,
+.mate-hint {
+  margin: 0;
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+  font-weight: var(--weight-ui-strong);
+}
+.mate-hint {
+  padding: var(--space-3);
+  text-align: left;
+  font-weight: var(--weight-ui);
+}
+.mate-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.mate-row-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mate-row-text {
+  color: var(--fg-strong);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  overflow-wrap: anywhere;
+}
+.mate-row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  min-width: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+}
+.mate-row-state {
+  color: var(--fg-muted);
+  font-size: var(--text-ui-sm);
+  white-space: nowrap;
+}
+.mate-row-state[data-spoke] {
+  color: var(--fg);
+}
+.mate-notes {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+}
+.mate-notes-text {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-3);
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  outline: none;
+  resize: none;
+  background: var(--surface-base);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-ui);
+  line-height: var(--leading-chat);
+}
+@container (max-width: 720px) { /* lint-tokens: allow 컨테이너 쿼리는 var() 를 못 쓴다. 대화와 패널이 나란히 읽히는 최소 폭 */
+  .mate-panel {
+    display: none;
+  }
+  .mate-chat {
+    flex: 1 1 0;
+    border-right: 0;
+  }
+}

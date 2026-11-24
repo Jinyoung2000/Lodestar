@@ -1,4 +1,3 @@
-import { AssistantActions, AssistantStatus } from "./AssistantBar";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { harnessOf, type Agent, type Harness, type FileRef as ProtocolFileRef, type ImageRef, type PermissionMode } from "../shared/protocol";
 import { checkpointLocked, isSwitchDivider } from "../shared/harnessSwitch";
@@ -256,7 +255,6 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
     <section className="agent" aria-label={S.sessionAria(agent.title)}>
       {!embedded && <div
         className="pane-header"
-        data-assistant={agent.assistant || undefined}
         onPointerDown={
           closable
             ? (e) => {
@@ -276,7 +274,6 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
         <span className="agent-title" title={agent.title}>
           {agent.title}
         </span>
-        {agent.assistant && <AssistantStatus />}
         {agent.backgroundTasks > 0 && <span className="faint xs">{S.backgroundTasks(agent.backgroundTasks)}</span>}
         {cards && cards.length > 0 && (
           <button type="button" className="chip card-chip" title={S.linkedCard(cards[0].title)} onClick={() => openCard(cards[0].id)}>
@@ -286,7 +283,6 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
           </button>
         )}
         <span className="spacer" />
-        {agent.assistant && <AssistantActions agent={agent} />}
         {closable && (
           <Button size="icon" aria-label={S.closePane} title={S.closePaneKeep} onClick={() => closePane(paneId)}>
             <Close />

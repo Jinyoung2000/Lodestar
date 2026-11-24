@@ -71,7 +71,7 @@ import { automationHandlers } from "./automationHandlers";
 import { FollowUpsService } from "./followUps";
 import { followUpHandlers } from "./followUpHandlers";
 import { AssistantService } from "./assistant";
-import { openWithDefaultApp } from "./reveal";
+import { MobilePush } from "./mobilePush";
 import { ReleaseCheck } from "./releaseCheck";
 import { assistantAutoBlocked, automationsAutoBlocked, followUpsAutoBlocked, mentionCollectionBlocked, morningReviewAutoBlocked } from "./mentionGate";
 import { MetaService } from "./meta";
@@ -143,6 +143,8 @@ const MOBILE_PORT = Number(process.env.AGENT_NAV_MOBILE_PORT ?? PORT + 1);
 const MOBILE_BIND = process.env.AGENT_NAV_MOBILE_BIND ?? "0.0.0.0";
 const mobilePairing = new PairingCodes();
 const mobileDevices = new MobileDevices(join(HOME, "mobile-devices.json"));
+const PUSH_URL = process.env.AGENT_NAV_PUSH_URL;
+const mobilePush = new MobilePush({ devices: mobileDevices, url: PUSH_URL, blocked: () => !PUSH_URL && (process.env.AGENT_NAV_INACTIVE === "1" || !!process.env.AGENT_NAV_E2E_PORT || process.env.AGENT_NAV_NO_MENTIONS === "1") });
 const RELAY_URL = normalizeRelayUrl(process.env.AGENT_NAV_RELAY_URL ?? RELAY_URL_DEFAULT);
 const RELAY_BRIDGE_KEY = randomBytes(24).toString("hex");
 let relayLink: RelayLink | null = null;
@@ -286,13 +288,23 @@ followUps = new FollowUpsService({ store, emit: broadcast, autoBlocked: () => fo
 followUps.start();
 assistant = new AssistantService({
   store,
-  runner: { send: (agentId, prompt, options) => runner.send(agentId, prompt, options), create: (params) => runner.create(params), setDone: (agentId, done) => runner.setDone(agentId, done) },
+  runner: {
+    send: (agentId, prompt, options) => runner.send(agentId, prompt, options),
+    create: (params) => runner.create(params),
+    setDone: (agentId, done) => runner.setDone(agentId, done),
+    answerQuestion: (agentId, itemId, answers) => runner.answerQuestion(agentId, itemId, answers),
+    respondPermission: (agentId, itemId, decision) => runner.respondPermission(agentId, itemId, decision),
+    interrupt: (agentId) => runner.interrupt(agentId),
+    rename: (agentId, title) => runner.rename(agentId, title),
+    setPinned: (agentId, pinned) => runner.setPinned(agentId, pinned),
+  },
   followUps,
   emit: broadcast,
   autoBlocked: () => assistantAutoBlocked(process.env),
+  push: (message) => mobilePush.send(message),
 });
 const assistantService = assistant;
-runner.setAssistantHooks({ options: (agent, ask) => assistantService.options(agent, ask) });
+runner.setAssistantHooks({ options: (agent, ask) => assistantService.options(agent, ask), silentTurn: (agentId) => assistantService.silentTurn(agentId) });
 assistant.start();
 const releaseCheck = new ReleaseCheck({ enabled: () => store.settings.notifyNewVersion === true, onChange: (release) => broadcast({ type: "release", release }) });
 releaseCheck.start();
@@ -542,11 +554,9 @@ const handlers: Handlers = {
   ...followUpHandlers(followUps),
   "assistant.get": () => assistantService.state(),
   "assistant.checkIn": () => assistantService.checkIn(),
-  "assistant.openNotes": async () => {
-    const path = assistantService.state().notesPath;
-    if (path) await openWithDefaultApp(path);
-    return null;
-  },
+  "assistant.cancelReminder": ({ id }) => assistantService.cancelReminder(String(id)),
+  "assistant.readNotes": () => assistantService.readNotes(),
+  "assistant.writeNotes": ({ text }) => assistantService.writeNotes(text),
   ...terminalHandlers({ termAsk }),
   "perf.stats": ({ reset }) => {
     const snapshot = perfSnapshot();
@@ -668,6 +678,15 @@ async function createPhoneSession({ workspaceId, prompt, images, worktree }: Mob
 
 const mobileHandlers: Record<string, (params: never, client: WebSocket) => unknown> = {
   "mobile.ping": () => ({ now: Date.now() }),
+  "mobile.registerPush": ({ token }: { token: string }, client: WebSocket) => {
+    const deviceId = mobile.deviceIdOf(client);
+    return { registered: !!deviceId && mobileDevices.setPush(deviceId, token) };
+  },
+  "mobile.unregisterPush": (_params: Record<string, never>, client: WebSocket) => {
+    const deviceId = mobile.deviceIdOf(client);
+    if (deviceId) mobileDevices.setPush(deviceId, null);
+    return { registered: false };
+  },
   "mobile.defaults": (): MobileDefaults => ({ requestQueuing: defaultsReader.resolve(store.settings).requestQueuing.value }),
   "mobile.workspaceIcons": (): MobileWorkspaceIcons => Object.fromEntries(store.workspaces.filter((w) => !w.feedback).map((w) => [w.id, workspaceIcons.icon(w.dir)])),
   "workspaces.list": () => store.workspaces.filter((w) => !w.feedback),
