@@ -4,7 +4,7 @@ import { Alert, FlatList, Pressable, StyleSheet, TextInput, View } from "react-n
 import type { AssistantState } from "@shared/assistant";
 import type { FollowUpItem } from "@shared/followups";
 import { clockText, mateFeed, SNOOZE_CHOICES, type MateEntry } from "../../logic/mateCore.generated";
-import type { Agent } from "@shared/protocol";
+import type { Agent, EffortLevel, Harness } from "@shared/protocol";
 import { ageText, itemText, SNOOZE_LABEL } from "../../logic/mate";
 import { store, useAppState } from "../../state/app";
 import { MIN_TOUCH, radius, spacing, useColors } from "../../theme/theme";
@@ -13,14 +13,17 @@ import { Button } from "../Button";
 import { Icon } from "../Icon";
 import { KeyboardSpacer } from "../KeyboardSpacer";
 import { MarkdownView } from "../MarkdownView";
+import { ModelSubtitle, modelPickerLabel } from "../ModelPicker";
+import { ProviderMark, PROVIDER_NAMES } from "../ProviderMark";
 import { Text } from "../Text";
 
 const NO_ITEMS: never[] = [];
 const report = (error: unknown) => Alert.alert("Mate could not do that", error instanceof Error ? error.message : String(error));
 
-type MateChatProps = { agent: Agent; assistant: AssistantState };
+type MateModelControl = { harness: Harness; name: string; effort: EffortLevel | null; onPress: () => void };
+type MateChatProps = { agent: Agent; assistant: AssistantState; modelControl: MateModelControl };
 
-export function MateChat({ agent, assistant }: MateChatProps) {
+export function MateChat({ agent, assistant, modelControl }: MateChatProps) {
   const colors = useColors();
   const items = useAppState((s) => s.timelines[agent.id]?.items) ?? NO_ITEMS;
   const open = useAppState((s) => s.followUps?.items) ?? NO_ITEMS;
@@ -56,6 +59,16 @@ export function MateChat({ agent, assistant }: MateChatProps) {
           onChangeText={setDraft}
           style={[styles.input, { color: colors.textStrong }]}
         />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${PROVIDER_NAMES[modelControl.harness]}, ${modelPickerLabel(modelControl.name, modelControl.effort)}`}
+          hitSlop={4}
+          onPress={modelControl.onPress}
+          style={({ pressed }) => [styles.model, pressed && { backgroundColor: colors.pressed }]}
+        >
+          <ProviderMark harness={modelControl.harness} size={18} selected />
+          <ModelSubtitle name={modelControl.name} effort={modelControl.effort} />
+        </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Send" disabled={!draft.trim()} onPress={send} style={[styles.send, { backgroundColor: draft.trim() ? colors.accent : colors.overlay }]}>
           <Icon name="arrow.up" size={20} color={draft.trim() ? "onAccent" : "textSubtle"} />
         </Pressable>
@@ -142,18 +155,17 @@ function DecisionCard({ item }: DecisionCardProps) {
   const router = useRouter();
   const agent = useAppState((s) => s.agents.find((a) => a.id === item.agentId));
   const workspace = useAppState((s) => s.workspaces.find((w) => w.id === agent?.workspaceId)?.name ?? "");
-  const [pick, setPick] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
+  const [sending, setSending] = useState<string | null>(null);
   if (!agent) return null;
   const openSession = () => router.push({ pathname: "/session/[id]", params: { id: agent.id } });
-  const send = () => {
-    if (!pick || sending) return;
-    setSending(true);
+  const choose = (option: string) => {
+    if (item.kind !== "ask") return openSession();
+    if (sending) return;
+    setSending(option);
     store
-      .send(agent.id, pick)
-      .then(() => setPick(null))
+      .send(agent.id, option)
       .catch(report)
-      .finally(() => setSending(false));
+      .finally(() => setSending(null));
   };
   const later = () => showActionMenu("Remind me", SNOOZE_CHOICES.map((choice) => ({ label: SNOOZE_LABEL[choice], onPress: () => void store.snoozeFollowUp(item.id, choice).catch(report) })));
   return (
@@ -164,36 +176,24 @@ function DecisionCard({ item }: DecisionCardProps) {
         </Text>
       </Pressable>
       <Text color="textStrong">{itemText(item)}</Text>
-      {pick ? (
-        <>
-          <Text variant="secondary" color="text">{`Send "${pick}" to ${agent.title}?`}</Text>
-          <View style={styles.actions}>
-            <Button title="Send" kind="primary" flex busy={sending} onPress={send} />
-            <Button title="Cancel" flex onPress={() => setPick(null)} />
-          </View>
-        </>
-      ) : (
-        <>
-          <View style={styles.choices}>
-            {item.options.map((option) => (
-              <Button key={option} title={option} onPress={() => (item.kind === "ask" ? setPick(option) : openSession())} />
-            ))}
-            {item.options.length === 0 && <Button title="Open session" onPress={openSession} />}
-          </View>
-          <View style={styles.footer}>
-            <Pressable accessibilityRole="button" onPress={later} hitSlop={10} style={styles.footerAction}>
-              <Text variant="secondary" color="textMuted">
-                Later
-              </Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => void store.dismissFollowUp(item.id).catch(report)} hitSlop={10} style={styles.footerAction}>
-              <Text variant="secondary" color="textMuted">
-                Not needed
-              </Text>
-            </Pressable>
-          </View>
-        </>
-      )}
+      <View style={styles.choices}>
+        {item.options.map((option) => (
+          <Button key={option} title={option} busy={sending === option} disabled={sending !== null} onPress={() => choose(option)} />
+        ))}
+        {item.options.length === 0 && <Button title="Open session" onPress={openSession} />}
+      </View>
+      <View style={styles.footer}>
+        <Pressable accessibilityRole="button" onPress={later} hitSlop={10} style={styles.footerAction}>
+          <Text variant="secondary" color="textMuted">
+            Later
+          </Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => void store.dismissFollowUp(item.id).catch(report)} hitSlop={10} style={styles.footerAction}>
+          <Text variant="secondary" color="textMuted">
+            Not needed
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -214,5 +214,6 @@ const styles = StyleSheet.create({
   working: { alignSelf: "flex-start", marginVertical: spacing.xs },
   composer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, marginHorizontal: spacing.md, marginBottom: spacing.sm, paddingLeft: spacing.lg, paddingRight: spacing.xs, paddingVertical: spacing.xs, borderWidth: 1, borderRadius: 22 },
   input: { flex: 1, minHeight: MIN_TOUCH - spacing.sm, maxHeight: 140, paddingVertical: spacing.sm, fontSize: 16, lineHeight: 22 },
+  model: { flexShrink: 1, maxWidth: 170, height: 36, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.md, marginBottom: 2 },
   send: { width: 36, height: 36, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", marginBottom: 2 },
 });

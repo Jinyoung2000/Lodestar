@@ -6,7 +6,7 @@ export const CARRY_MAX_FILES = 100;
 
 export const HARNESS_NAMES: Record<Harness, string> = { claude: "Claude", codex: "Codex", antigravity: "Antigravity" };
 
-export type SwitchBlock = "running" | "background" | "waiting" | "notion" | "feedback";
+export type SwitchBlock = "running" | "background" | "waiting" | "notion" | "feedback" | "assistant";
 
 type SwitchDivider = Extract<TimelineItem, { kind: "notice" }> & { switched: Harness };
 type CarryAgent = Pick<Agent, "harness" | "sessionId" | "resumeFrom" | "codexThreadId" | "seenThrough" | "cwd"> & Partial<Pick<Agent, "antigravitySessionId">>;
@@ -72,7 +72,8 @@ export function checkpointLocked(items: readonly TimelineItem[], harness: Harnes
   return locked;
 }
 
-export function switchBlock(agent: Pick<Agent, "status" | "backgroundTasks" | "feedbackId">, items: readonly TimelineItem[]): SwitchBlock | null {
+export function switchBlock(agent: Pick<Agent, "status" | "backgroundTasks" | "feedbackId" | "assistant">, items: readonly TimelineItem[]): SwitchBlock | null {
+  if (agent.assistant) return "assistant";
   if (agent.feedbackId) return "feedback";
   if (items.some((item) => item.kind === "user" && item.attachments?.some((a) => a.kind === "notion"))) return "notion";
   if (agent.status === "waiting" || items.some((item) => item.kind === "permission" && item.status === "pending")) return "waiting";

@@ -19,10 +19,13 @@ export function FollowUpDecision({ row, workspace, now }: FollowUpDecisionProps)
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const openSession = () => openFollowUpSession(agent.id);
-  const pick = (option: string) => {
+  const pick = async (option: string) => {
     if (!canReply) return openSession();
-    setDraft(option);
-    setOpen(true);
+    if (sending) return;
+    setSending(true);
+    const sent = await replyToFollowUp(item, option);
+    setSending(false);
+    if (sent) flash(F.sent);
   };
   const send = async () => {
     if (sending) return;
@@ -63,7 +66,7 @@ export function FollowUpDecision({ row, workspace, now }: FollowUpDecisionProps)
       {item.options.length > 0 && !snoozed && (
         <div className="followup-extra followup-options">
           {item.options.map((option) => (
-            <Button key={option} variant="secondary" className="followup-option" onClick={() => pick(option)}>
+            <Button key={option} variant="secondary" className="followup-option" disabled={sending} onClick={() => void pick(option)}>
               {option}
             </Button>
           ))}

@@ -14,6 +14,9 @@ const ASK_FIRST = new Set<string>(
 );
 export const assistantToolAsks = (full: string) => ASK_FIRST.has(full);
 
+export const CHECK_IN_GAPS = [30, 60, 180, 0] as const;
+export const CHECK_IN_GAP_DEFAULT = 60;
+
 export const ASSISTANT_LIMITS = {
   reminders: 100,
   reminderText: 300,
@@ -21,7 +24,6 @@ export const ASSISTANT_LIMITS = {
   readMessages: 12,
   readChars: 1500,
   digestRows: 30,
-  decisionGapMs: 10 * 60_000,
   wakesPerDay: 30,
   staleWakeMs: 30 * 60_000,
   nudgeFreshMs: 10 * 60_000,

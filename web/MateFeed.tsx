@@ -6,7 +6,7 @@ import { ageText, workspaceNameOf } from "./followUpsModel";
 import { DotSpinner } from "./icons";
 import { openMateSession, respondToMate } from "./mateActions";
 import { useNow } from "./PrBits";
-import { useStore } from "./store";
+import { flash, useStore } from "./store";
 import { S } from "./strings";
 import { Markdown } from "./Timeline";
 import { Button } from "./ui/button";
@@ -102,16 +102,16 @@ function DecisionCard({ item }: DecisionCardProps) {
   const agent = useStore((s) => s.agents.find((a) => a.id === item.agentId) ?? null);
   const workspace = useStore((s) => workspaceNameOf(s.workspaces, agent?.workspaceId ?? null));
   const now = useNow();
-  const [pick, setPick] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   if (!agent) return null;
   const openSession = () => openFollowUpSession(agent.id);
-  const send = async () => {
-    if (!pick || sending) return;
+  const choose = async (option: string) => {
+    if (item.kind !== "ask") return openSession();
+    if (sending) return;
     setSending(true);
-    await replyToFollowUp(item, pick);
+    const sent = await replyToFollowUp(item, option);
     setSending(false);
-    setPick(null);
+    if (sent) flash(A.sentTo(option, agent.title));
   };
   return (
     <div className="mate-card" role="group" aria-label={agent.title}>
@@ -123,41 +123,31 @@ function DecisionCard({ item }: DecisionCardProps) {
         <span>{A.waitingFor(ageText(item.since, now))}</span>
       </button>
       <div className="mate-card-text">{itemText(item)}</div>
-      {pick ? (
-        <div className="mate-card-actions">
-          <span className="mate-card-confirm">{A.sendTo(pick, agent.title)}</span>
-          <Button variant="primary" disabled={sending} onClick={() => void send()}>
-            {A.send}
+      <div className="mate-card-actions">
+        {item.options.map((option) => (
+          <Button key={option} variant="secondary" className="mate-choice" disabled={sending} onClick={() => void choose(option)}>
+            {option}
           </Button>
-          <Button onClick={() => setPick(null)}>{A.cancel}</Button>
-        </div>
-      ) : (
-        <div className="mate-card-actions">
-          {item.options.map((option) => (
-            <Button key={option} variant="secondary" className="mate-choice" onClick={() => (item.kind === "ask" ? setPick(option) : openSession())}>
-              {option}
-            </Button>
-          ))}
-          {item.options.length === 0 && (
-            <Button variant="secondary" onClick={openSession}>
-              {A.openSession}
-            </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button>{A.later}</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {SNOOZE_CHOICES.map((choice) => (
-                <DropdownMenuItem key={choice} onSelect={() => snoozeFollowUp(item.id, choice)}>
-                  {S.followUp.snooze[choice]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button onClick={() => dismissFollowUp(item.id)}>{A.notNeeded}</Button>
-        </div>
-      )}
+        ))}
+        {item.options.length === 0 && (
+          <Button variant="secondary" onClick={openSession}>
+            {A.openSession}
+          </Button>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button>{A.later}</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {SNOOZE_CHOICES.map((choice) => (
+              <DropdownMenuItem key={choice} onSelect={() => snoozeFollowUp(item.id, choice)}>
+                {S.followUp.snooze[choice]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button onClick={() => dismissFollowUp(item.id)}>{A.notNeeded}</Button>
+      </div>
     </div>
   );
 }

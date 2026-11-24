@@ -175,6 +175,8 @@ export function mateFeed(source: MateFeedSource): MateEntry[] {
     } else if (item.kind === "error") entries.push({ kind: "error", id: item.id, text: item.text });
   }
   flushCards();
+  const untold = [...open.values()].filter((item) => !shown.has(item.id));
+  if (untold.length) entries.push({ kind: "decisions", id: "open:cards", items: untold });
   const last = entries[entries.length - 1];
   if (status === "running" && !(last?.kind === "mate" && last.streaming)) entries.push({ kind: "working", id: "working" });
   return entries;

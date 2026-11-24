@@ -19,10 +19,32 @@ import "./mate.css";
 
 const A = S.assistant;
 const NO_ITEMS: never[] = [];
+const PANEL_KEY = "lodestar.mate.panel";
+
+function savedPanel() {
+  try {
+    return localStorage.getItem(PANEL_KEY) === "open";
+  } catch {
+    return false;
+  }
+}
+
+function savePanel(open: boolean) {
+  try {
+    localStorage.setItem(PANEL_KEY, open ? "open" : "closed");
+  } catch {
+    return;
+  }
+}
 
 export function MateView() {
   const state = useStore((s) => s.assistant);
   const agent = useStore((s) => s.agents.find((a) => a.id === s.assistant?.agentId) ?? null);
+  const [panel, setPanel] = useState(savedPanel);
+  const togglePanel = () => {
+    savePanel(!panel);
+    setPanel(!panel);
+  };
   if (!state || !agent) {
     return (
       <section className="mate" aria-label={A.name}>
@@ -31,16 +53,16 @@ export function MateView() {
     );
   }
   return (
-    <div className="mate">
-      <MateChat agent={agent} state={state} />
-      <MatePanel state={state} />
+    <div className="mate" data-panel={panel ? "open" : "closed"}>
+      <MateChat agent={agent} state={state} panel={panel} onTogglePanel={togglePanel} />
+      {panel && <MatePanel state={state} />}
     </div>
   );
 }
 
-type MateChatProps = { agent: Agent; state: AssistantState };
+type MateChatProps = { agent: Agent; state: AssistantState; panel: boolean; onTogglePanel: () => void };
 
-function MateChat({ agent, state }: MateChatProps) {
+function MateChat({ agent, state, panel, onTogglePanel }: MateChatProps) {
   const items = useStore((s) => s.timelines[agent.id]) ?? NO_ITEMS;
   const open = useStore((s) => s.followUps?.items) ?? NO_ITEMS;
   const now = useNow();
@@ -62,6 +84,9 @@ function MateChat({ agent, state }: MateChatProps) {
         <div className="mate-head-actions">
           <Button size="icon" aria-label={A.checkInNow} disabled={state.busy || agent.status !== "idle"} onClick={checkInMate}>
             <Codicon name="refresh" spin={state.busy} />
+          </Button>
+          <Button size="icon" aria-label={panel ? A.hidePanel : A.showPanel} title={panel ? A.hidePanel : A.showPanel} aria-pressed={panel} onClick={onTogglePanel}>
+            <Codicon name="layout-sidebar-right" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

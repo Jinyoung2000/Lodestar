@@ -11,6 +11,7 @@ import { NOTION_LINK_TARGETS } from "../shared/notionLink";
 import { parseReviewTime, REVIEW_DEFAULT_TIME } from "../shared/morningReview";
 import { AUTOMATION_DEFAULT_CONCURRENCY, AUTOMATION_LIMITS } from "../shared/automations";
 import { FOLLOW_UP_DEFAULT_MODEL, FOLLOW_UP_MODELS } from "../shared/followups";
+import { CHECK_IN_GAP_DEFAULT, CHECK_IN_GAPS } from "../shared/assistant";
 import { parseAccelerator, QUICK_ENTRY_DEFAULT_SHORTCUT } from "../shared/quickEntry";
 import { DEFAULT_NOTION_BYPASS_WRITES, NOTION_BYPASS_WRITES } from "../shared/notionApproval";
 import { realDir } from "./paths";
@@ -131,6 +132,7 @@ const DEFAULT_SETTINGS: Settings = {
   followUpsModel: FOLLOW_UP_DEFAULT_MODEL,
   assistantEnabled: false,
   assistantMorningBrief: true,
+  assistantCheckInGap: CHECK_IN_GAP_DEFAULT,
   notifyOnResponse: true,
   notifyOnApproval: true,
   notifyNewVersion: false,
@@ -215,6 +217,7 @@ function sanitizeSettings(patch: Partial<Settings>): Partial<Settings> {
   if ("followUpsEnabled" in next && typeof next.followUpsEnabled !== "boolean") delete next.followUpsEnabled;
   if ("assistantEnabled" in next && typeof next.assistantEnabled !== "boolean") delete next.assistantEnabled;
   if ("assistantMorningBrief" in next && typeof next.assistantMorningBrief !== "boolean") delete next.assistantMorningBrief;
+  if ("assistantCheckInGap" in next && !(CHECK_IN_GAPS as readonly unknown[]).includes(next.assistantCheckInGap)) delete next.assistantCheckInGap;
   if ("followUpsReminders" in next && typeof next.followUpsReminders !== "boolean") delete next.followUpsReminders;
   if ("followUpsModel" in next && !(typeof next.followUpsModel === "string" && (FOLLOW_UP_MODELS as readonly string[]).includes(next.followUpsModel))) delete next.followUpsModel;
   if ("notifyOnResponse" in next && typeof next.notifyOnResponse !== "boolean") delete next.notifyOnResponse;

@@ -11,6 +11,7 @@ import {
   ASSISTANT_PROMPT,
   ASSISTANT_SERVER,
   ASSISTANT_TOOLS,
+  CHECK_IN_GAP_DEFAULT,
   assistantToolAsks,
   assistantToolName,
   buildCheckIn,
@@ -28,7 +29,7 @@ import {
   type CheckInEvent,
   type CheckInReason,
 } from "../shared/assistant";
-import { isTracked, parseMorning, scanSession, type FollowUpItem, type FollowUpsState, type SnoozeChoice } from "../shared/followups";
+import { FOLLOW_UP_LIMITS, isTracked, parseMorning, scanSession, type FollowUpItem, type FollowUpsState, type SnoozeChoice } from "../shared/followups";
 import type { Agent, ServerEvent, TimelineItem } from "../shared/protocol";
 import type { AssistantAsk, CreateParams } from "./agents";
 import { assistantToolServer, type AssistantToolHost } from "./assistantTools";
@@ -310,10 +311,16 @@ export class AssistantService {
     void this.flush();
   }
 
+  private quiet(now: Date) {
+    const morning = parseMorning(this.deps.store.settings.morningReviewTime);
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    return now.getHours() >= FOLLOW_UP_LIMITS.quietFromHour || minutes < morning.hour * 60 + morning.minute;
+  }
+
   private queueMorning(now: Date) {
     if (this.deps.store.settings.assistantMorningBrief === false) return;
     const today = dayKey(now);
-    if (this.morningDate === today) return;
+    if (this.morningDate === today || now.getHours() >= FOLLOW_UP_LIMITS.quietFromHour) return;
     const morning = parseMorning(this.deps.store.settings.morningReviewTime);
     if (now.getHours() * 60 + now.getMinutes() < morning.hour * 60 + morning.minute) return;
     this.morningDate = today;
@@ -370,8 +377,15 @@ export class AssistantService {
     const agent = this.agent();
     if (!agent || agent.status !== "idle" || agent.queue?.length) return;
     const now = this.now();
-    const urgent = this.queue.some((e) => e.kind !== "decision");
-    if (!urgent && now.getTime() - this.lastWakeAt < ASSISTANT_LIMITS.decisionGapMs) return;
+    const urgent = this.queue.some((e) => e.kind === "manual" || e.kind === "morning" || e.kind === "ownReminder");
+    if (!urgent) {
+      const gapMinutes = this.deps.store.settings.assistantCheckInGap ?? CHECK_IN_GAP_DEFAULT;
+      if (gapMinutes === 0) {
+        this.queue = [];
+        return;
+      }
+      if (this.quiet(now) || now.getTime() - this.lastWakeAt < gapMinutes * 60_000) return;
+    }
     const today = dayKey(now);
     if (this.ledger.day !== today) this.ledger = { day: today, wakes: 0 };
     if (!manual && this.ledger.wakes >= ASSISTANT_LIMITS.wakesPerDay) {

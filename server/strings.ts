@@ -85,6 +85,7 @@ export const T = {
     waiting: "Answer the pending request before switching tools",
     notion: "Notion page chats run on Claude only",
     feedback: "Improvement sessions run on Claude only",
+    assistant: "Mate runs on Claude only",
   },
   errCheckpointBeforeSwitch: "Checkpoints are only available for messages sent since the last switch to Claude",
   codexExtraPermission: "Codex asked for extra permissions (network or file access beyond the sandbox). This is not supported yet, so it was denied.",

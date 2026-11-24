@@ -1,6 +1,6 @@
 import { Redirect, Stack } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { Alert, BackHandler, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { openDecisionCount } from "../logic/mateCore.generated";
 import { mateStatus } from "../logic/mate";
@@ -10,6 +10,7 @@ import { Icon } from "../ui/Icon";
 import { MateChat } from "../ui/mate/MateChat";
 import { MateReminders, MateTracking } from "../ui/mate/MateLists";
 import { MateAvatar } from "../ui/mate/MateRow";
+import { ModelPicker, useModelPicker } from "../ui/ModelPicker";
 import { Segmented } from "../ui/Segmented";
 import { Text } from "../ui/Text";
 
@@ -24,6 +25,17 @@ export default function Mate() {
   const [tab, setTab] = useState<Tab>("chat");
   const agentId = assistant?.agentId ?? null;
   const agent = agents.find((a) => a.id === agentId);
+  const model = useModelPicker(agent);
+  const { open: modelOpen, close: closeModel } = model;
+
+  useEffect(() => {
+    if (!modelOpen) return;
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      closeModel();
+      return true;
+    });
+    return () => back.remove();
+  }, [modelOpen, closeModel]);
 
   useEffect(() => {
     if (!agentId) return;
@@ -42,6 +54,8 @@ export default function Mate() {
       <Stack.Screen
         options={{
           title: "",
+          headerShown: !modelOpen,
+          gestureEnabled: !modelOpen,
           headerBackButtonDisplayMode: "minimal",
           headerRight: () => (
             <Pressable accessibilityRole="button" accessibilityLabel="Check in now" disabled={busy} onPress={checkIn} style={styles.headerButton}>
@@ -60,7 +74,8 @@ export default function Mate() {
         </Text>
       </View>
       <Segmented underline options={[{ value: "chat", label: "Chat" }, { value: "tracking", label: "Tracking", count: waiting, countTone: "attention" }, { value: "reminders", label: "Reminders" }]} value={tab} onChange={setTab} />
-      {tab === "chat" ? <MateChat agent={agent} assistant={assistant} /> : tab === "tracking" ? <MateTracking /> : <MateReminders assistant={assistant} />}
+      {tab === "chat" ? <MateChat agent={agent} assistant={assistant} modelControl={{ harness: model.selection.harness, name: model.name, effort: model.effort, onPress: model.show }} /> : tab === "tracking" ? <MateTracking /> : <MateReminders assistant={assistant} />}
+      {modelOpen && <ModelPicker agentId={agent.id} selection={model.selection} close={closeModel} claudeOnly apply={(selection) => store.setModel(agent.id, selection)} />}
     </SafeAreaView>
   );
 }

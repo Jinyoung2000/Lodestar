@@ -293,6 +293,7 @@ export type Settings = {
   followUpsModel: string;
   assistantEnabled: boolean;
   assistantMorningBrief: boolean;
+  assistantCheckInGap: number;
   notifyOnResponse: boolean;
   notifyOnApproval: boolean;
   notifyNewVersion?: boolean;
