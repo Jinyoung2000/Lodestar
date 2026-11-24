@@ -7,11 +7,29 @@ import { ChevronRightCompact, Codicon, DotSpinner } from "./icons";
 import { Popup } from "./Popup";
 import { useStore } from "./store";
 import { S } from "./strings";
-import type { PermissionItem } from "./timelineModel";
+import type { PermissionItem, StepEntry } from "./timelineModel";
 import { revealAllSteps } from "./timelineReveal";
 import { sameArray, useStoreDerived } from "./useStoreDerived";
 
-export function AgentStepRow({ item, permission, renderStep, renderText }: { item: ToolItem; permission: PermissionItem | null; renderStep: (step: ToolItem) => ReactNode; renderText: (text: string) => ReactNode }) {
+type AgentRenderers = { renderStep: (step: ToolItem) => ReactNode; renderText: (text: string) => ReactNode; renderActivity: (step: ToolItem) => ReactNode };
+
+export function AgentGroup({ entries, ...renderers }: { entries: StepEntry[] } & AgentRenderers) {
+  const tasks = entries.flatMap(({ item }) => (item.kind === "tool" && item.task ? [item.task] : []));
+  const count = (status: SubagentTask["status"]) => tasks.filter((t) => t.status === status).length;
+  return (
+    <div className="agent-group">
+      {entries.length > 1 && (
+        <div className="agent-group-head">
+          <Codicon name="robot" size={14} />
+          <span>{S.agentsCount(entries.length, count("completed"), count("failed"), count("stopped"))}</span>
+        </div>
+      )}
+      {entries.map(({ item, permission }) => (item.kind === "tool" ? <AgentStepRow key={item.id} item={item} permission={permission} {...renderers} /> : null))}
+    </div>
+  );
+}
+
+export function AgentStepRow({ item, permission, renderStep, renderText, renderActivity }: { item: ToolItem; permission: PermissionItem | null } & AgentRenderers) {
   const { agentId, revealAll } = useContext(TimelineContext);
   const steps = useStoreDerived((s) => s.timelines[agentId], (items) => subagentSteps(items, item.id), sameArray, [item.id]);
   const task = item.task!;
@@ -19,44 +37,53 @@ export function AgentStepRow({ item, permission, renderStep, renderText }: { ite
   const denied = permission?.status === "denied";
   const running = task.status === "running" && !waiting && !denied;
   const elapsed = useElapsed(task, running);
-  const verb = denied ? S.stepSkipped : waiting ? S.verbsBase.Agent : task.status === "running" ? S.subagentRunning : task.status === "completed" ? S.subagentRan : task.status === "failed" ? S.subagentFailed : S.subagentStopped;
   const tools = Math.max(task.toolUses, steps.length);
   const result = useMemo(() => (item.output && !ASYNC_LAUNCH_PATTERN.test(item.output) ? cleanSubagentOutput(item.output) : null), [item.output]);
   const summary = summaryOf(task);
   const body = summary && result?.text.split("\n")[0].trim().slice(0, 300) === summary ? result.text.split("\n").slice(1).join("\n").trim() : (result?.text ?? "");
-  const showOutput = !!body;
   const [built, setBuilt] = useState(false);
   const showBody = built || revealAll;
+  const state = denied ? "denied" : waiting ? "waiting" : task.status;
+  const lastStep = steps.length ? steps[steps.length - 1] : null;
+  const firstResultLine = (summary ?? result?.text.split("\n").find((line) => line.trim()) ?? "").replace(/\*\*|`/g, "");
+  const preview =
+    state === "denied" ? S.stepSkipped
+    : state === "waiting" ? S.stepWaiting
+    : state === "running" ? (lastStep ? renderActivity(lastStep) : (task.activity ?? S.subagentNoSteps))
+    : state === "failed" ? (firstResultLine ? S.subagentFailedWith(firstResultLine) : S.subagentFailed)
+    : state === "stopped" ? S.subagentStopped
+    : firstResultLine || S.subagentRan;
   return (
-    <details className="step step-agent" onToggle={(e) => e.currentTarget.open && setBuilt(true)} data-tool={item.name} data-subagent={item.id} data-status={denied ? "denied" : waiting ? "running" : task.status === "running" ? "running" : task.status === "completed" ? "done" : "error"}>
+    <details className="agent-run" onToggle={(e) => e.currentTarget.open && setBuilt(true)} data-tool={item.name} data-subagent={item.id} data-status={state}>
       <summary onClickCapture={() => setBuilt(true)}>
-        <span className="step-icon">{running ? <DotSpinner size={14} /> : <Codicon name={task.status === "failed" || task.status === "stopped" || denied ? "error" : "robot"} size={14} />}</span>
-        <span className="step-verb">{verb}</span>
-        {!denied && <span className="step-detail agent-name">{task.description}</span>}
-        {!denied && task.backgrounded && task.status === "running" && <span className="agent-tag">{S.subagentBackground}</span>}
-        {waiting && <span className="faint xs">{S.stepWaiting}</span>}
-        {!denied && !waiting && (tools > 0 || elapsed) && <span className="agent-stats faint xs">{S.subagentStats(tools, formatTokens(task.tokens), elapsed)}</span>}
-        <span className="step-chevron">
+        <span className="agent-run-icon">{running || waiting ? <DotSpinner size={14} state={waiting ? "waiting" : "running"} /> : <Codicon name={STATUS_ICON[state] ?? "check"} size={14} />}</span>
+        <span className="agent-run-main">
+          <span className="agent-run-title">
+            <span className="agent-run-name">{task.description}</span>
+            {task.subagentType && <span className="agent-run-type">{task.subagentType}</span>}
+            {task.backgrounded && running && <span className="agent-tag">{S.subagentBackground}</span>}
+          </span>
+          <span className="agent-run-preview">{preview}</span>
+        </span>
+        {!waiting && !denied && elapsed && <span className="agent-run-time">{elapsed}</span>}
+        <span className="agent-run-chevron">
           <ChevronRightCompact size={12} />
         </span>
       </summary>
       {showBody && (
         <div className="agent-body">
-          {task.subagentType && (
-            <div className="agent-meta faint xs">
-              {task.subagentType}
-              {running && task.activity ? `, ${task.activity}` : ""}
-            </div>
-          )}
-          {steps.length === 0 && task.status === "running" && <div className="agent-empty faint xs">{S.subagentNoSteps}</div>}
+          {steps.length === 0 && running && <div className="agent-empty faint xs">{task.activity ?? S.subagentNoSteps}</div>}
           {steps.map((step) => renderStep(step))}
           {summary && <div className="agent-summary">{renderText(summary)}</div>}
-          {showOutput && renderText(body)}
+          {!!body && renderText(body)}
+          {(tools > 0 || task.tokens > 0) && <div className="agent-stats">{S.subagentUsage(tools, formatTokens(task.tokens))}</div>}
         </div>
       )}
     </details>
   );
 }
+
+const STATUS_ICON: Record<string, string> = { completed: "check", failed: "error", stopped: "circle-slash", denied: "circle-slash" };
 
 function summaryOf(task: SubagentTask) {
   return (task.summary ? cleanSubagentOutput(task.summary).text : "") || null;

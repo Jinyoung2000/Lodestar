@@ -2071,13 +2071,19 @@ export const S = {
   contextEstimate: "Estimated while the reply is still coming. The exact value arrives when the turn ends.",
   contextCompact: "Compact Conversation",
   contextCompactBusy: "Wait for the reply to finish",
-  subagentRunning: "Running subagent",
-  subagentRan: "Ran subagent",
-  subagentFailed: "Subagent failed",
-  subagentStopped: "Subagent stopped",
+  subagentRan: "Done",
+  subagentFailed: "Failed",
+  subagentStopped: "Stopped",
   subagentBackground: "Background",
   subagentNoSteps: "No steps yet",
   subagentStats: (tools: number, tokens: string, time: string) => `${plural(tools, "tool")}, ${tokens} tokens, ${time}`,
+  subagentUsage: (tools: number, tokens: string) => `${plural(tools, "tool")} · ${tokens} tokens`,
+  subagentFailedWith: (line: string) => `Failed · ${line}`,
+  agentsCount: (total: number, done: number, failed: number, stopped: number) => {
+    if (done === total) return `${total} agents done`;
+    const parts = [done && `${done} done`, failed && `${failed} failed`, stopped && `${stopped} stopped`].filter(Boolean);
+    return parts.length ? `${total} agents · ${parts.join(", ")}` : `${total} agents`;
+  },
   agentsRunning: (n: number) => `${n} ${n === 1 ? "agent" : "agents"} running`,
   agentsListTitle: "Subagents",
   agentsListAria: "Show subagents",
