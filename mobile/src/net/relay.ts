@@ -183,7 +183,7 @@ export function pairOverRelay(target: RelayTarget, code: string, deviceName: str
   });
 }
 
-export type RelayUploadOptions = { onProgress?: (fraction: number) => void; signal?: AbortSignal; timeoutMs?: number; factory?: RelaySocketFactory };
+export type RelayUploadOptions = { onProgress?: (fraction: number) => void; onHead?: (head: RelayHttpResponse) => void; onBody?: (chunk: Uint8Array) => void; idleTimeoutMs?: number; signal?: AbortSignal; timeoutMs?: number; factory?: RelaySocketFactory };
 
 export function relayHttp(target: RelayEndpoint, request: { method: "GET" | "POST"; path: string; headers: Record<string, string>; body?: Uint8Array }, opts: RelayUploadOptions = {}): Promise<{ status: number; headers: Record<string, string>; body: Uint8Array }> {
   return new Promise((resolve, reject) => {
@@ -222,13 +222,21 @@ export function relayHttp(target: RelayEndpoint, request: { method: "GET" | "POS
       },
       message: (frame) => {
         const type = frame[0];
-        if (type === RelayFrame.head) head = JSON.parse(decodeText(frame.subarray(1))) as RelayHttpResponse;
-        else if (type === RelayFrame.body) chunks.push(frame.slice(1));
-        else if (type === RelayFrame.end) finish(null);
+        if (opts.idleTimeoutMs) {
+          clearTimeout(timer);
+          timer = setTimeout(() => finish(new Error("Your Mac stopped answering")), opts.idleTimeoutMs);
+        }
+        if (type === RelayFrame.head) {
+          head = JSON.parse(decodeText(frame.subarray(1))) as RelayHttpResponse;
+          opts.onHead?.(head);
+        } else if (type === RelayFrame.body) {
+          if (opts.onBody) opts.onBody(frame.subarray(1));
+          else chunks.push(frame.slice(1));
+        } else if (type === RelayFrame.end) finish(null);
       },
       closed: () => finish(head ? null : new Error("Could not reach your Mac through the relay")),
     }, opts.factory);
-    const timer = setTimeout(() => finish(new Error("The upload took too long")), opts.timeoutMs ?? 60_000);
+    let timer = setTimeout(() => finish(new Error(opts.idleTimeoutMs ? "Your Mac stopped answering" : "The upload took too long")), opts.idleTimeoutMs ?? opts.timeoutMs ?? 60_000);
     opts.signal?.addEventListener("abort", () => finish(new Error("Upload cancelled")));
   });
 }
