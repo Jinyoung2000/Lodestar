@@ -1,6 +1,7 @@
 import { classifyDrop, fileProblemText, oversizeImageNotice } from "../shared/files";
 import type { FileRef } from "../shared/protocol";
 import { addImageFiles } from "./imageAttach";
+import { localNative } from "./remote";
 import { httpUrl, rpc, TOKEN } from "./rpc";
 import { addAttachment, attachmentsOf, flash, getState, removeAttachment, updateAttachment, type Attachment, type FileAttachment } from "./store";
 
@@ -49,7 +50,7 @@ function attachFile(paneId: string, file: File, name: string) {
 
 export function nativePath(file: File): string | null {
   try {
-    const path = window.agentNavNative?.pathForFile?.(file) ?? "";
+    const path = localNative()?.pathForFile?.(file) ?? "";
     return path.startsWith("/") ? path : null;
   } catch {
     return null;

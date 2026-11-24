@@ -1,15 +1,16 @@
 import type { Workspace } from "../shared/protocol";
 import { displayPath } from "./displayPath";
 import { openTextPrompt } from "./QuickChoice";
+import { localNative } from "./remote";
 import { rpc } from "./rpc";
 import { newFolderParent } from "./sessionFolders";
 import { flash, startDraft, takePickFolderOnStart } from "./store";
 import { S } from "./strings";
 
-export const canPickFolder = () => typeof window !== "undefined" && !!window.agentNavNative?.pickFolder;
+export const canPickFolder = () => typeof window !== "undefined" && !!localNative()?.pickFolder;
 
 async function chooseFolderPath(): Promise<string | null> {
-  const pick = window.agentNavNative?.pickFolder;
+  const pick = localNative()?.pickFolder;
   if (pick) return pick();
   return openTextPrompt({ title: S.openFolderTitle, placeholder: S.openFolderPlaceholder });
 }

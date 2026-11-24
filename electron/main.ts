@@ -29,7 +29,7 @@ import { notificationTarget, pinnedFromSetting } from "../shared/miniChat";
 import { chromeLikeUserAgent, guestPopupDecision } from "./guestPopup";
 import { S } from "../web/strings";
 import tokens from "../design-system/tokens.json";
-import { addNewWindow, applyClose, cascade, closePolicy, EMPTY_REGISTRY, fitBounds, launchPlan, newWindowPlan, quitWhenAllWindowsClosed, targetWindow, updateRecord, windowForAgent, windowUrl, type Registry, type WindowRecord } from "../shared/windows";
+import { addNewWindow, applyClose, cascade, closePolicy, EMPTY_REGISTRY, fitBounds, isRemoteId, launchPlan, newWindowPlan, quitWhenAllWindowsClosed, targetWindow, updateRecord, windowForAgent, windowUrl, type Registry, type WindowRecord } from "../shared/windows";
 import { loadRegistry, saveRegistry } from "./windowRegistry";
 import { argvOpenPaths, classifyOpenPath, containingDir, fileUnder, OpenQueue, planOpenWindow, type OpenTarget, type PathFs } from "../shared/openPath";
 import type { LayoutMode } from "../web/floatLayout";
@@ -63,7 +63,7 @@ if (INVISIBLE) {
 const SRC_ROOT = process.env.AGENT_NAV_SRC ?? join(homedir(), "Repository", "agent-nav");
 
 
-type AppWindow = { id: string; win: BrowserWindow; initialChat: boolean; layoutMode: LayoutMode | null; hung: boolean; hungTimer: ReturnType<typeof setTimeout> | null; loadRecovery: boolean; reloads: number[]; loadCount: number; boundsTimer?: ReturnType<typeof setTimeout> | null };
+type AppWindow = { id: string; win: BrowserWindow; remote?: string; initialChat: boolean; layoutMode: LayoutMode | null; hung: boolean; hungTimer: ReturnType<typeof setTimeout> | null; loadRecovery: boolean; reloads: number[]; loadCount: number; boundsTimer?: ReturnType<typeof setTimeout> | null };
 const appWindows = new Map<string, AppWindow>();
 let registry: Registry = EMPTY_REGISTRY;
 let lastActiveId: string | null = null;
@@ -323,7 +323,7 @@ function createWindow(record: WindowRecord, options: { deferLoad?: boolean; init
     titleBarStyle: "hiddenInset",
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: true, preload: join(import.meta.dirname, "preload.cjs") },
   });
-  const entry: AppWindow = { id, win, initialChat: options.initialChat ?? false, layoutMode: null, hung: false, hungTimer: null, loadRecovery: false, reloads: [], loadCount: 0 };
+  const entry: AppWindow = { id, win, ...(record.remote ? { remote: record.remote } : {}), initialChat: options.initialChat ?? false, layoutMode: null, hung: false, hungTimer: null, loadRecovery: false, reloads: [], loadCount: 0 };
   appWindows.set(id, entry);
   lastActiveId = id;
   win.on("focus", () => {
@@ -406,6 +406,21 @@ function openNewWindow(initialChat = false): AppWindow {
   return createWindow(plan.record, { initialChat });
 }
 
+function openRemoteWindow(remote: string): AppWindow {
+  const showing = liveWindows().find((w) => w.remote === remote);
+  if (showing) {
+    if (!INACTIVE) showing.win.focus();
+    return showing;
+  }
+  const from = currentWindow();
+  const area = from ? screen.getDisplayMatching(from.win.getBounds()).workArea : screen.getPrimaryDisplay().workArea;
+  const plan = addNewWindow(registry, from ? cascade(from.win.getNormalBounds(), area) : null, remote);
+  registry = plan.registry;
+  persistRegistry();
+  logLine(`[electron] new window ${plan.record.id} for remote ${remote}`);
+  return createWindow(plan.record);
+}
+
 function closeWindowEntry(entry: AppWindow | null) {
   if (entry && !entry.win.isDestroyed()) entry.win.close();
 }
@@ -467,7 +482,7 @@ const HUNG_RELOAD_MS = 15_000;
 const RENDERER_RELOADS_PER_MIN = 3;
 const BOUNDS_SAVE_MS = 500;
 
-const pageUrl = (entry: AppWindow) => windowUrl(URL_BASE, entry.id, entry.initialChat);
+const pageUrl = (entry: AppWindow) => windowUrl(URL_BASE, entry.id, entry.initialChat, entry.remote);
 
 function watchRenderer(entry: AppWindow) {
   const contents = entry.win.webContents;
@@ -681,7 +696,11 @@ const { deviceRequests, stopWatchingFile } = registerBrowserGuestIpc({ fromOurPa
 
 const notifier = new Notifier(dispatchNotificationAction);
 
-function windowForNotification(agentId: string, candidates = liveWindows()): AppWindow | null {
+const agentRemotes = new Map<string, string | null>();
+
+function windowForNotification(agentId: string, all = liveWindows()): AppWindow | null {
+  const remote = agentRemotes.get(agentId);
+  const candidates = remote === undefined ? all : all.filter((w) => (w.remote ?? null) === remote);
   const windows = candidates.map((w) => ({ id: w.id, agentIds: openAgents.get(w.id) ?? new Set<string>() }));
   const id = windowForAgent({ windows, agentId, focusedId: focusedWindowId(), lastActiveId });
   return candidates.find((w) => w.id === id) ?? null;
@@ -1048,6 +1067,11 @@ ipcMain.handle("agent-nav:new-window", (event) => {
   openNewWindow();
 });
 
+ipcMain.handle("agent-nav:open-remote-window", (event, remote: unknown) => {
+  if (!fromOurPage(event) || !isRemoteId(remote)) throw new Error("remote window refused");
+  openRemoteWindow(remote);
+});
+
 ipcMain.handle("agent-nav:close-window", (event) => {
   const source = appWindowOf(event);
   if (!source) throw new Error("close window refused");
@@ -1092,6 +1116,8 @@ ipcMain.handle("agent-nav:notify", (event, payload: unknown) => {
   if (miniRoute === "suppress") return true;
   if (liveWindows().some((w) => w.win.isFocused()) || NOTIFY_FOCUSED) return false;
   const sourceId = fromMini ? "mini" : appWindowOf(event)!.id;
+  if (agentRemotes.size > 500) agentRemotes.clear();
+  agentRemotes.set(payload.agentId, fromMini ? null : (appWindowOf(event)!.remote ?? null));
   const key = `${payload.agentId}:${payload.kind}:${payload.body}`;
   const previous = recentNotify.get(key);
   recentNotify.set(key, { at: Date.now(), windowId: sourceId });

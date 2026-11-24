@@ -1,10 +1,11 @@
 import type { MobileHost } from "./mobile";
 import { encodeText, fromBase64Url, RELAY_KEY_BYTES, toBase64Url } from "./relayNoise";
+import { REMOTE_WINDOW_QUERY } from "./windows";
 
 export const DESKTOP_LINK_PROTOCOL = 1;
 export const DESKTOP_LINK_PATH = "/link";
 export const DESKTOP_LINK_PROLOGUE = encodeText("lodestar-desktop-link-v1");
-export const REMOTE_QUERY = "remote";
+export const REMOTE_QUERY = REMOTE_WINDOW_QUERY;
 export const REMOTE_PREFIX = "/remote";
 export const REMOTE_ID_RE = /^[0-9a-f]{16}$/;
 
@@ -56,7 +57,7 @@ export const REMOTE_LOCKED_SETTINGS: readonly string[] = ["useProviderEnv", "mob
 
 export function remoteDenial(method: unknown, params: unknown): string | null {
   if (typeof method !== "string") return "bad request";
-  if (REMOTE_DENIED_METHODS.has(method)) return `${method} is not available from another Mac`;
+  if (REMOTE_DENIED_METHODS.has(method)) return "This works only on that Mac itself, not from another Mac";
   if (method === "settings.set" && params && typeof params === "object") {
     const locked = REMOTE_LOCKED_SETTINGS.find((key) => key in params);
     if (locked) return `The ${locked} setting can be changed only on that Mac`;

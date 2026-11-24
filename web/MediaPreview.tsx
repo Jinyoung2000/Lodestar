@@ -6,6 +6,7 @@ import { Codicon } from "./icons";
 import { LightboxCopy } from "./LightboxCopy";
 import { knownMedia, resolveMediaPaths } from "./mediaResolve";
 import { MD } from "./mediaStrings";
+import { daemonPath } from "./remote";
 import { rpc } from "./rpc";
 import "./mediaPreview.css";
 
@@ -41,7 +42,7 @@ export const MediaPreview = memo(function MediaPreview({ info }: { info: MediaIn
   const [failed, setFailed] = useState(false);
   const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
   if (failed) return null;
-  const src = new URL(info.url, location.href).href;
+  const src = new URL(daemonPath(info.url), location.href).href;
   const naturalStyle = natural ? ({ "--media-nat-w": natural.width, "--media-ratio": natural.width / natural.height } as CSSProperties) : undefined;
   return (
     <figure className="media-item" data-kind={info.kind} style={naturalStyle}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Refresh, Warning } from "./icons";
+import { localNative } from "./remote";
 import { useStore } from "./store";
 import { S } from "./strings";
 import { Button } from "./ui/button";
@@ -28,7 +29,7 @@ export function DaemonBanner() {
       return;
     }
     const timer = setTimeout(() => setLate(true), SHOW_AFTER_MS);
-    const bridge = window.agentNavNative;
+    const bridge = localNative();
     void bridge?.daemonState?.().then(setNative).catch(() => undefined);
     const off = bridge?.onDaemonState?.(setNative);
     return () => {

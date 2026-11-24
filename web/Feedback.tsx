@@ -72,6 +72,7 @@ declare global {
       pickFolder?: () => Promise<string | null>;
       windowZoom?: (action: "in" | "out" | "reset") => Promise<number>;
       newWindow?: () => Promise<void>;
+      openRemoteWindow?: (remote: string) => Promise<void>;
       closeWindow?: () => Promise<void>;
       setOpenAgents?: (agentIds: string[], layoutMode: "chat" | "editor") => Promise<void>;
       openNotificationSession?: (agentId: string) => Promise<void>;

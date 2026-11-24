@@ -1,4 +1,5 @@
 import type { RpcMethod, RpcMethods, ServerEvent, ServerMessage } from "../shared/protocol";
+import { daemonPath } from "./remote";
 import { S } from "./strings";
 import { frameAfterGap, UpsertHold } from "./upsertHold";
 
@@ -8,12 +9,12 @@ export const TOKEN =
 export function wsUrl(path: string, params: Record<string, string> = {}) {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   const search = new URLSearchParams({ ...params, token: TOKEN });
-  return `${protocol}//${location.host}${path}?${search}`;
+  return `${protocol}//${location.host}${daemonPath(path)}?${search}`;
 }
 
 export function httpUrl(path: string, params: Record<string, string> = {}) {
   const search = new URLSearchParams(params).toString();
-  return `${location.protocol}//${location.host}${path}${search ? `?${search}` : ""}`;
+  return `${location.protocol}//${location.host}${daemonPath(path)}${search ? `?${search}` : ""}`;
 }
 
 const HELD_UPSERT_MAX_MS = 100;

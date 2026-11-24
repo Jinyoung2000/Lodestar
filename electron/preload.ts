@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld("agentNavNative", {
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke("agent-nav:pick-folder"),
   windowZoom: (action: "in" | "out" | "reset"): Promise<number> => ipcRenderer.invoke("agent-nav:zoom", action),
   newWindow: (): Promise<void> => ipcRenderer.invoke("agent-nav:new-window"),
+  openRemoteWindow: (remote: string): Promise<void> => ipcRenderer.invoke("agent-nav:open-remote-window", remote),
   closeWindow: (): Promise<void> => ipcRenderer.invoke("agent-nav:close-window"),
   setOpenAgents: (agentIds: string[], layoutMode: "chat" | "editor"): Promise<void> => ipcRenderer.invoke("agent-nav:open-agents", agentIds, layoutMode),
   openNotificationSession: (agentId: string): Promise<void> => ipcRenderer.invoke("agent-nav:open-notification-session", agentId),
