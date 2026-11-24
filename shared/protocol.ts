@@ -1,3 +1,4 @@
+import type { CustomProvider, CustomProviderView, ProviderModel } from "./customProviders";
 import type { ActivityBarPrefs } from "./activityBar";
 import type { EditorOptions, ResolvedEditorOptions } from "./editorOptions";
 import type { SearchSettings } from "./searchSettings";
@@ -87,6 +88,7 @@ export type Agent = {
   codexThreadId?: string | null;
   antigravitySessionId?: string | null;
   cursorSessionId?: string | null;
+  providerId?: string | null;
   seenThrough?: HarnessSeen;
   carryPending?: boolean;
   automationId?: string;
@@ -173,7 +175,7 @@ export type TimelineItem =
     }
   | { id: string; kind: "result"; isError: boolean; durationMs: number; costUsd: number | null; changes?: TurnChanges; tokens?: number }
   | { id: string; kind: "restored"; redoable: boolean; chatOnly?: boolean }
-  | { id: string; kind: "notice"; text: string; detail?: string; fold?: { label: string; text: string }; divider?: boolean; openAgentId?: string; switched?: Harness; switchedFrom?: Harness; movedFrom?: string }
+  | { id: string; kind: "notice"; text: string; detail?: string; fold?: { label: string; text: string }; divider?: boolean; openAgentId?: string; switched?: Harness; switchedFrom?: Harness; switchedName?: string; movedFrom?: string }
   | { id: string; kind: "error"; text: string; auth: boolean };
 
 export type TurnChangedFile = { path: string; additions: number; deletions: number };
@@ -750,7 +752,7 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
   "mcp.toggle": { params: { name: string; enabled: boolean }; result: McpActionResult };
   "runtime.info": { params: Record<string, never>; result: RuntimeInfo };
   "models.pins": { params: Record<string, never>; result: string[] };
-  "models.setPin": { params: { harness: Harness; model: string; pinned: boolean }; result: string[] };
+  "models.setPin": { params: { harness: Harness; model: string; pinned: boolean; providerId?: string | null }; result: string[] };
   "models.importPins": { params: { pins: string[] }; result: string[] };
   "settings.get": { params: Record<string, never>; result: Settings };
   "defaults.get": { params: Record<string, never>; result: ResolvedDefaults };
@@ -772,6 +774,7 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
       images?: ImageRef[];
       files?: FileRef[];
       harness?: Harness;
+      providerId?: string | null;
       extraWorkspaceIds?: string[];
     };
     result: Agent;
@@ -800,7 +803,11 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
   "agents.setPermissionMode": { params: { agentId: string; mode: PermissionMode }; result: null };
   "agents.setModel": { params: { agentId: string; model: string | null }; result: null };
   "agents.setEffort": { params: { agentId: string; effort: EffortLevel | null }; result: null };
-  "agents.switchHarness": { params: { agentId: string; harness: Harness; model: string | null; effort: EffortLevel | null }; result: null };
+  "agents.switchHarness": { params: { agentId: string; harness: Harness; model: string | null; effort: EffortLevel | null; providerId?: string | null }; result: null };
+  "providers.list": { params: Record<string, never>; result: CustomProviderView[] };
+  "providers.save": { params: { provider: CustomProviderInput; key?: string | null }; result: CustomProviderView[] };
+  "providers.delete": { params: { id: string }; result: CustomProviderView[] };
+  "providers.loadModels": { params: { id: string | null; baseUrl: string; key: string | null }; result: ProviderModel[] };
   "agents.respondPermission": {
     params: { agentId: string; itemId: string; decision: PermissionDecision };
     result: null;
@@ -966,6 +973,7 @@ export type RpcRequest = { id: number; method: RpcMethod; params: unknown };
 export type ServerEvent =
   | { type: "workspaces"; workspaces: Workspace[] }
   | { type: "modelPins"; pins: string[] }
+  | { type: "customProviders"; providers: CustomProviderView[] }
   | { type: "sessionOrders"; orders: SessionOrders }
   | { type: "agent"; agent: Agent }
   | { type: "agentRemoved"; agentId: string }
@@ -1000,3 +1008,5 @@ export type ServerMessage =
   | { id: number; result: unknown }
   | { id: number; error: string }
   | { event: ServerEvent };
+
+export type CustomProviderInput = Omit<CustomProvider, "id"> & { id: string | null };

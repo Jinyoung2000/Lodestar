@@ -84,6 +84,17 @@ export const T = {
   cursorResumeFailed: "Cursor could not resume the earlier conversation, so this session continues in a new conversation without the earlier context.",
   cursorRefused: "Cursor declined to continue this turn.",
   cursorStopped: (reason: string) => (reason === "max_tokens" ? "Cursor stopped because the reply reached its token limit." : "Cursor stopped because the turn reached its request limit."),
+  providerInvalid: (field: string) =>
+    ({ name: "Give the provider a name of up to 40 characters.", baseUrl: "Enter a base URL that starts with https://.", models: "Add at least one model.", modelId: "A model ID can use letters, digits and . _ - : / @ [ ] = , only.", defaultModel: "Pick the default model from the list." } as Record<string, string>)[field] ?? "Check the provider details.",
+  providerMissing: "This provider was removed. Close the form and add it again.",
+  providerTooMany: (max: number) => `You can add up to ${max} providers.`,
+  providerNoKeyForModels: "Enter the API key first so Lodestar can ask the endpoint for its models.",
+  providerModelsUnreachable: "Could not reach the endpoint. Check the base URL and your connection.",
+  providerModelsRejected: "The endpoint rejected the key.",
+  providerModelsUnlisted: "This endpoint did not list its models. Add model IDs by hand.",
+  providerGone: "This session's custom provider was removed. Switch the session to another model to continue.",
+  providerNoKey: (name: string) => `No API key is saved for ${name}. Add it in Settings > Model Providers, then send again.`,
+  providerKeyUnreadable: (name: string) => `Could not read the API key for ${name} from the Keychain. Allow Lodestar to use it, then send again.`,
   codexPlanUnavailable: "Codex sessions cannot use Plan mode",
   switchedTo: (tool: string, model: string | null) => (model && model !== "default" ? `Switched to ${tool} · ${model}` : `Switched to ${tool}`),
   switchBlocked: {

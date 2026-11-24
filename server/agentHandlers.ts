@@ -81,8 +81,8 @@ export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<Metho
       runner.setEffort(agentId, effort);
       return null;
     },
-    "agents.switchHarness": async ({ agentId, harness, model, effort }) => {
-      await runner.switchHarness(agentId, harness, model, effort);
+    "agents.switchHarness": async ({ agentId, harness, model, effort, providerId }) => {
+      await runner.switchHarness(agentId, harness, model, effort, providerId ?? null);
       return null;
     },
     "agents.respondPermission": ({ agentId, itemId, decision }) => {

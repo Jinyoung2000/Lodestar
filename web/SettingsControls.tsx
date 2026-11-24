@@ -4,6 +4,7 @@ import { missingFirstFamily } from "./editorFont";
 import { McpSection } from "./McpPanel";
 import { DesktopLinkIncoming, DesktopLinkOutgoing } from "./DesktopLink";
 import { MobileAccess } from "./MobileAccess";
+import { ProvidersSettings } from "./ProvidersSettings";
 import { Refresh } from "./icons";
 import { QuickEntryShortcut } from "./QuickEntryShortcut";
 import { rpc } from "./rpc";
@@ -29,6 +30,7 @@ export function SettingControl({ def, ctx }: { def: SettingDef; ctx: SettingsCtx
   if (def.component === "mobileAccess") return <MobileAccess />;
   if (def.component === "desktopLinkIncoming") return <DesktopLinkIncoming />;
   if (def.component === "desktopLinkOutgoing") return <DesktopLinkOutgoing />;
+  if (def.component === "customProviders") return <ProvidersSettings />;
   return <DaemonStatus />;
 }
 

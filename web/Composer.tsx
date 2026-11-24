@@ -15,7 +15,7 @@ import { addDropped, addFiles, fileRefsOf, removeFileChip } from "./fileAttach";
 import { formatBytes } from "../shared/files";
 import { SESSION_REF_PREFIX } from "../shared/sessionRef";
 import { browserAttachmentLabel, formatBrowserAttachment } from "./browserAttach";
-import { AddCompact, ArrowUpCompact, Codicon, DiffMultiple, ProviderIcon, Stop } from "./icons";
+import { AddCompact, ArrowUpCompact, Codicon, CustomProviderIcon, DiffMultiple, ProviderIcon, Stop } from "./icons";
 import { nextPermissionMode, PermissionRow } from "./PermissionMenu";
 import { PullRequestsChip } from "./PullRequestsChip";
 import { HandoffComposerChip } from "./HandoffChip";
@@ -41,7 +41,7 @@ import { hint } from "./hint";
 import { CODEX_MODE_NOTES } from "../shared/codexPermission";
 import { ANTIGRAVITY_MODE_NOTES } from "../shared/antigravityPermission";
 import { CURSOR_MODE_NOTES } from "../shared/cursorPermission";
-import { codexModelChip, compactModelName, usePaneHarness, useToolMeta } from "./harness";
+import { codexModelChip, compactModelName, useCustomProvider, usePaneHarness, usePaneProvider, useToolMeta } from "./harness";
 import { continueMarkdown as continueMarkdownEdit, indentMarkdown, type MarkdownEdit } from "./composerMarkdown";
 import { useCommandKey } from "./commandKeys";
 
@@ -90,6 +90,7 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
   const action = useStore((s) => (s.composerAction?.paneId === paneId ? s.composerAction : null));
   const meta = useStore((s) => s.meta);
   const harness = usePaneHarness(paneId, agent);
+  const provider = useCustomProvider(usePaneProvider(paneId));
   const pickerOpen = useStore((s) => s.activePaneId === paneId && (s.overlay?.kind === "models" || s.overlay?.kind === "effort"));
   const codexMeta = useToolMeta(harness);
   const sessionChanges = useStore((s) => (agent ? s.sessionChanges[agent.id] : undefined));
@@ -457,8 +458,9 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
   }, [tip]);
 
   const models = meta?.models ?? [];
-  const shown = harness !== "claude" ? codexModelChip(model, activeModel, codexMeta, S.harnessNames[harness]) : modelChip(model ?? defaults.model, activeModel, models);
-  const effortLabel = effortName(harness !== "claude" ? (effort ?? codexMeta?.defaultEffort ?? null) : (effort ?? defaults.effort ?? builtinEffort(supportedLevels(model ?? defaults.model))));
+  const providerModel = provider ? (provider.models.some((m) => m.id === model) ? model : provider.defaultModel) : null;
+  const shown = provider ? { name: provider.models.find((m) => m.id === providerModel)?.name ?? providerModel ?? provider.name, id: providerModel } : harness !== "claude" ? codexModelChip(model, activeModel, codexMeta, S.harnessNames[harness]) : modelChip(model ?? defaults.model, activeModel, models);
+  const effortLabel = provider ? null : effortName(harness !== "claude" ? (effort ?? codexMeta?.defaultEffort ?? null) : (effort ?? defaults.effort ?? builtinEffort(supportedLevels(model ?? defaults.model))));
   const permissionLabel = S.permissionModes[permissionMode];
   const files = sessionChanges?.files ?? [];
   const additions = files.reduce((n, f) => n + f.additions, 0);
@@ -562,7 +564,7 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
             aria-label={S.message}
             spellCheck={refs.length > 0 ? false : undefined}
             value={text}
-            placeholder={agent?.assistant ? S.assistant.placeholder : agent ? (harness === "codex" ? S.composerPlaceholderCodex : harness === "antigravity" ? S.composerPlaceholderAntigravity : harness === "cursor" ? S.composerPlaceholderCursor : S.composerPlaceholder) : harness === "codex" ? S.composerPlaceholderNewCodex : harness === "antigravity" ? S.composerPlaceholderNewAntigravity : harness === "cursor" ? S.composerPlaceholderNewCursor : S.composerPlaceholderNew}
+            placeholder={agent?.assistant ? S.assistant.placeholder : provider ? (agent ? S.composerPlaceholderProvider(provider.name) : S.composerPlaceholderNewProvider(provider.name)) : agent ? (harness === "codex" ? S.composerPlaceholderCodex : harness === "antigravity" ? S.composerPlaceholderAntigravity : harness === "cursor" ? S.composerPlaceholderCursor : S.composerPlaceholder) : harness === "codex" ? S.composerPlaceholderNewCodex : harness === "antigravity" ? S.composerPlaceholderNewAntigravity : harness === "cursor" ? S.composerPlaceholderNewCursor : S.composerPlaceholderNew}
             rows={1}
             onChange={(e) => {
               setText(e.target.value);
@@ -584,9 +586,9 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
           </button>
           <PermissionRow mode={permissionMode} onChange={onPermissionMode} harness={harness} tip={tipFor(harness !== "claude" ? `${S.permissionChipTip(permissionLabel)} (${(harness === "codex" ? CODEX_MODE_NOTES : harness === "cursor" ? CURSOR_MODE_NOTES : ANTIGRAVITY_MODE_NOTES)[permissionMode].split(". ")[0]})` : permissionMode === "bypassPermissions" ? S.permissionBypassNote : S.permissionChipTip(permissionLabel))} />
           <button type="button" className="chip" data-chip="model" data-model-chip aria-haspopup="dialog" aria-expanded={pickerOpen} {...tipFor(S.modelEffortChipTip(shown.name, shown.id, effortLabel, modelsKey))} onClick={() => setState({ overlay: { kind: "models" } })}>
-            <ProviderIcon harness={harness} size={14} />
+            {provider ? <CustomProviderIcon name={provider.name} size={14} /> : <ProviderIcon harness={harness} size={14} />}
             <span className="chip-label model-label chip-main">{harness === "claude" ? shown.name : compactModelName(shown.name)}</span>
-            <span className="chip-label">{effortLabel}</span>
+            {effortLabel && <span className="chip-label">{effortLabel}</span>}
           </button>
           {agent && <ContextGauge agent={agent} busy={busy} />}
           <span className="spacer" />

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEve
 import { canHandOff, startHandoff } from "./handoffActions";
 import { createWorktreePr, mergeWorktree } from "./worktreeActions";
 import { harnessOf, type Agent, type TimelineItem, type Workspace } from "../shared/protocol";
+import { useCustomProvider } from "./harness";
 import { needsReview, QUESTION_TOOL } from "../shared/interactive";
 import { displayPath } from "./displayPath";
 import { improvementsBusy, needsInputCount, notAppliedCount } from "./improvementRows";
@@ -10,7 +11,7 @@ import { GroupMenu, GroupOrderMenu } from "./GroupMenu";
 import { PullRequestsSection } from "./PullRequestsSection";
 import { SectionMoveItems } from "./SectionMoveItems";
 import { beginSectionDrag, useSectionDrag, useSidebarOrder, type SidebarSection } from "./sidebarOrder";
-import { BoardIcon, Chat, Check, ChevronDown, ChevronRight, Close, Codicon, CircleFilled, CircleSmallFilled, CommentDiscussion, DotSpinner, Filter, Folder, FolderCompact, Gear, More, Pin, Plus, ProviderIcon, Search, TreeItemExpanded, WorktreeCompact } from "./icons";
+import { BoardIcon, Chat, Check, ChevronDown, ChevronRight, Close, Codicon, CircleFilled, CircleSmallFilled, CommentDiscussion, CustomProviderIcon, DotSpinner, Filter, Folder, FolderCompact, Gear, More, Pin, Plus, ProviderIcon, Search, TreeItemExpanded, WorktreeCompact } from "./icons";
 import { RenameInput } from "./RenameInput";
 import { automationsAwaitingInput } from "./automationModel";
 import { openDecisionCount } from "../shared/followups";
@@ -487,8 +488,9 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
     !!automationTitle;
   const oneLine = (agent.workspaceId === null && agent.status === "idle") || !hasDetail;
   const branch = agent.worktree?.branch ?? gitBranch;
+  const providerName = useStore((s) => (agent.providerId ? (s.customProviders?.find((p) => p.id === agent.providerId)?.name ?? null) : null));
   const tooltip = [
-    `${agent.title} (${harnessOf(agent) === "claude" ? S.tipHarness : S.harnessNames[harnessOf(agent)]})`,
+    `${agent.title} (${providerName ?? (harnessOf(agent) === "claude" ? S.tipHarness : S.harnessNames[harnessOf(agent)])})`,
     workspace && `${S.tipWorkspace}: ${displayPath(workspace.dir)}`,
     agent.worktree && `${S.tipWorktree}: ${displayPath(agent.worktree.root)}`,
     branch && `${S.tipBranch}: ${branch}`,
@@ -555,7 +557,7 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
         <span className="session-text">
           <span className="session-title-line">
             <span className="session-harness">
-              <ProviderIcon harness={harnessOf(agent)} size={14} />
+              <SessionMark agent={agent} />
             </span>
             {renaming ? <RenameInput agent={agent} /> : <span className="session-title">{agent.title}</span>}
             {project && <span className="session-project">{project}</span>}
@@ -844,4 +846,9 @@ function SideKeycaps({ command }: { command: string }) {
       ))}
     </span>
   );
+}
+
+function SessionMark({ agent }: { agent: Agent }) {
+  const provider = useCustomProvider(agent.providerId);
+  return provider ? <CustomProviderIcon name={provider.name} size={14} /> : <ProviderIcon harness={harnessOf(agent)} size={14} />;
 }

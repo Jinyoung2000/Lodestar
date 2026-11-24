@@ -93,15 +93,15 @@ function relativeTo(cwd: string, path: string) {
   return cwd && path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : path;
 }
 
-export function carryTranscript(items: readonly TimelineItem[], agent: CarryAgent): string | null {
+export function carryTranscript(items: readonly TimelineItem[], agent: CarryAgent, selfName?: string): string | null {
   const current = harnessOf(agent);
   const start = carryStart(items, agent);
-  let tool = harnessAtStart(items, current);
+  let tool: string = HARNESS_NAMES[harnessAtStart(items, current)];
   const entries: string[] = [];
   const files = new Map<string, { additions: number; deletions: number }>();
   items.forEach((item, index) => {
     if (isSwitchDivider(item)) {
-      tool = item.switched;
+      tool = item.switchedName ?? HARNESS_NAMES[item.switched];
       return;
     }
     if (index < start) return;
@@ -110,7 +110,7 @@ export function carryTranscript(items: readonly TimelineItem[], agent: CarryAgen
       const text = typed || (item.attachments?.length ? `[Attached: ${item.attachments.map((a) => a.label).join(", ")}]` : "");
       if (text) entries.push(`User:\n${clip(text)}`);
     } else if (item.kind === "assistant" && !item.streaming && item.text.trim()) {
-      entries.push(`${HARNESS_NAMES[tool]}:\n${clip(item.text.trim())}`);
+      entries.push(`${tool}:\n${clip(item.text.trim())}`);
     } else if (item.kind === "result") {
       for (const file of item.changes?.list ?? []) {
         const seen = files.get(file.path) ?? { additions: 0, deletions: 0 };
@@ -121,8 +121,8 @@ export function carryTranscript(items: readonly TimelineItem[], agent: CarryAgen
   if (!entries.length && !files.size) return null;
   const lastDivider = items.findLast(isSwitchDivider);
   const intro = lastDivider?.movedFrom
-    ? `The text between these tags is the earlier conversation of this session. It started as a chat without a project folder (in ${lastDivider.movedFrom}), and the user moved it into this folder (${agent.cwd}), so you start fresh here and these turns are not in your memory. You are ${HARNESS_NAMES[current]}.`
-    : `The text between these tags is the earlier conversation of the same task in this folder (${agent.cwd}). You are ${HARNESS_NAMES[current]}. The user switched this session to you, and these turns are not in your memory.`;
+    ? `The text between these tags is the earlier conversation of this session. It started as a chat without a project folder (in ${lastDivider.movedFrom}), and the user moved it into this folder (${agent.cwd}), so you start fresh here and these turns are not in your memory. You are ${selfName ?? HARNESS_NAMES[current]}.`
+    : `The text between these tags is the earlier conversation of the same task in this folder (${agent.cwd}). You are ${selfName ?? HARNESS_NAMES[current]}. The user switched this session to you, and these turns are not in your memory.`;
   const head = [
     "<earlier-conversation>",
     `${intro} Replies labelled with a tool name (${HARNESS_VALUES.map((value) => HARNESS_NAMES[value]).join(", ")}) came from that tool. Treat this as background, not as a new request. The user's new message follows after the closing tag.`,

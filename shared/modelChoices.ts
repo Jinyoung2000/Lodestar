@@ -1,6 +1,8 @@
 import { CLAUDE_EFFORT_LEVELS, type CodexMeta, type EffortLevel, type Harness, type ModelInfo } from "./protocol";
 
-export type PickerModel = { tool: Harness; value: string; resolved: string | null; displayName: string; levels: EffortLevel[]; defaultLevel: EffortLevel | null; isDefault: boolean };
+import type { CustomProvider } from "./customProviders";
+
+export type PickerModel = { tool: Harness; providerId?: string | null; value: string; resolved: string | null; displayName: string; levels: EffortLevel[]; defaultLevel: EffortLevel | null; isDefault: boolean };
 
 const CLAUDE_BUILTIN_LEVEL: EffortLevel = "high";
 
@@ -32,6 +34,10 @@ export function toolModels(tool: Harness, meta: CodexMeta | null): PickerModel[]
   }));
 }
 
+export function providerModels(provider: CustomProvider): PickerModel[] {
+  return provider.models.map((m) => ({ tool: "claude", providerId: provider.id, value: m.id, resolved: null, displayName: m.name ?? m.id, levels: [], defaultLevel: null, isDefault: m.id === provider.defaultModel }));
+}
+
 export const isModel = (model: PickerModel, value: string | null) => value !== null && (model.value === value || model.resolved === value);
 
 export function carryLevel(current: EffortLevel | null, levels: readonly EffortLevel[], fallback: EffortLevel | null): EffortLevel | null {
@@ -39,6 +45,7 @@ export function carryLevel(current: EffortLevel | null, levels: readonly EffortL
   return current && levels.includes(current) ? current : fallback;
 }
 
-export function modelPinKey(harness: Harness, model: string): string {
+export function modelPinKey(harness: Harness, model: string, providerId?: string | null): string {
+  if (providerId) return `provider:${providerId}:${model}`;
   return harness === "claude" ? model : `${harness}:${model}`;
 }

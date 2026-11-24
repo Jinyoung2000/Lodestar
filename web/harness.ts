@@ -4,6 +4,37 @@ import { activePane, getState, loadAntigravityMeta, loadCodexMeta, loadCursorMet
 import { S } from "./strings";
 
 type StateLike = { agents: Agent[]; draftHarness: Record<string, Harness>; lastPicked: { harness?: Harness } };
+type ProviderStateLike = StateLike & { draftProvider: Record<string, string | null>; lastPicked: { harness?: Harness; providerId?: string | null }; customProviders: { id: string }[] | null };
+
+export function paneProviderId(s: ProviderStateLike, pane: Pane): string | null {
+  if (paneHarness(s, pane) !== "claude") return null;
+  if (pane.kind === "agent") return s.agents.find((a) => a.id === pane.agentId)?.providerId ?? null;
+  if (pane.handoff) return null;
+  const picked = pane.id in s.draftProvider ? s.draftProvider[pane.id] : (s.lastPicked.providerId ?? null);
+  return picked && s.customProviders?.some((p) => p.id === picked) ? picked : null;
+}
+
+export function activeProviderId(): string | null {
+  return paneProviderId(getState(), activePane());
+}
+
+export function usePaneProviderOfActive(): string | null {
+  return useStore((s) => {
+    const pane = s.panes.find((p) => p.id === s.activePaneId);
+    return pane ? paneProviderId(s, pane) : null;
+  });
+}
+
+export function useCustomProvider(providerId: string | null | undefined) {
+  return useStore((s) => (providerId ? (s.customProviders?.find((p) => p.id === providerId) ?? null) : null));
+}
+
+export function usePaneProvider(paneId: string): string | null {
+  return useStore((s) => {
+    const pane = s.panes.find((p) => p.id === paneId);
+    return pane ? paneProviderId(s, pane) : null;
+  });
+}
 
 export function paneHarness(s: StateLike, pane: Pane): Harness {
   if (pane.kind === "agent") {

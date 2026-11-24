@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { type BranchesResult, type FileRef, type Harness, type ImageRef, type Workspace } from "../shared/protocol";
 import { parentDisplay } from "./sessionFolders";
 import { codexSupportsMode, CODEX_FALLBACK_MODE } from "../shared/codexPermission";
-import { toolStatus, useToolMeta } from "./harness";
+import { toolStatus, useCustomProvider, usePaneProvider, useToolMeta } from "./harness";
 import { useDraftDefaults } from "./defaults";
 import { S } from "./strings";
 
@@ -35,6 +35,8 @@ export function NewAgentView({ paneId, workspaceId, extraWorkspaceIds, seed, han
   const mode = useStore((s) => s.draftPermission[paneId]);
   const pickedHarness = useStore((s) => s.draftHarness[paneId] ?? s.lastPicked.harness ?? "claude");
   const harness: Harness = handoff ? "claude" : pickedHarness;
+  const provider = useCustomProvider(usePaneProvider(paneId));
+  const lastProviderModel = useStore((s) => (provider ? (s.lastPicked.providerModels?.[provider.id] ?? null) : null));
   const codexMeta = useToolMeta(harness);
   const claudeMissing = useStore((s) => s.meta?.claudeMissing === true);
   const lastCodexModel = useStore((s) => s.lastPicked.codexModel);
@@ -81,8 +83,8 @@ export function NewAgentView({ paneId, workspaceId, extraWorkspaceIds, seed, han
   if (!chat && !workspace) return <EmptyStart />;
   const rawMode = mode ?? draft.permissionMode;
   const permissionMode = harness === "codex" && !codexSupportsMode(rawMode) ? CODEX_FALLBACK_MODE : rawMode;
-  const chosenModel = model === undefined ? (harness === "codex" ? (lastCodexModel ?? null) : harness === "antigravity" ? (lastAntigravityModel ?? null) : harness === "cursor" ? (lastCursorModel ?? null) : draft.model) : model;
-  const chosenEffort = effort === undefined ? (harness === "codex" ? (lastCodexEffort ?? null) : harness === "antigravity" ? (lastAntigravityEffort ?? null) : harness === "cursor" ? (lastCursorEffort ?? null) : draft.effort) : effort;
+  const chosenModel = provider ? (model ?? lastProviderModel ?? provider.defaultModel) : model === undefined ? (harness === "codex" ? (lastCodexModel ?? null) : harness === "antigravity" ? (lastAntigravityModel ?? null) : harness === "cursor" ? (lastCursorModel ?? null) : draft.model) : model;
+  const chosenEffort = provider ? null : effort === undefined ? (harness === "codex" ? (lastCodexEffort ?? null) : harness === "antigravity" ? (lastAntigravityEffort ?? null) : harness === "cursor" ? (lastCursorEffort ?? null) : draft.effort) : effort;
   const missingDefault = harness === "codex" && !!codexMeta && chosenModel === null && !!codexMeta.defaultModel && codexMeta.models.length > 0 && !codexMeta.models.some((m) => m.value === codexMeta.defaultModel);
   const canWorktree = !!git?.repoRoot && git.branches.length > 0;
   const worktreeDisabledReason = !git ? null : !git.repoRoot ? S.notGitRepo : git.branches.length === 0 ? S.repoNoCommits : null;
@@ -104,8 +106,8 @@ export function NewAgentView({ paneId, workspaceId, extraWorkspaceIds, seed, han
   };
   const create = async (prompt: string, from?: { sourceId: string; id: string; shown: string }, images?: ImageRef[], files?: FileRef[]) => {
     const worktree = worktreeParams();
-    const agent = await rpc.call("agents.create", { workspaceId: worktree ? worktreeParent : workspaceId, prompt, permissionMode, model: chosenModel, effort: chosenEffort, worktree, ...(extraIds.length ? { extraWorkspaceIds: extraIds } : {}), ...(harness !== "claude" ? { harness } : {}), ...(seed?.cardId ? { boardCardId: seed.cardId } : {}), ...(from ? { handoffFrom: from.sourceId, handoffId: from.id, shown: from.shown } : {}), ...(images?.length ? { images } : {}), ...(files?.length ? { files } : {}) });
-    setState((s) => ({ draftPermission: withoutPaneDraft(s.draftPermission, paneId), draftModel: withoutPaneDraft(s.draftModel, paneId), draftEffort: withoutPaneDraft(s.draftEffort, paneId), draftHarness: withoutPaneDraft(s.draftHarness, paneId) }));
+    const agent = await rpc.call("agents.create", { workspaceId: worktree ? worktreeParent : workspaceId, prompt, permissionMode, model: chosenModel, effort: chosenEffort, worktree, ...(extraIds.length ? { extraWorkspaceIds: extraIds } : {}), ...(harness !== "claude" ? { harness } : {}), ...(provider ? { providerId: provider.id } : {}), ...(seed?.cardId ? { boardCardId: seed.cardId } : {}), ...(from ? { handoffFrom: from.sourceId, handoffId: from.id, shown: from.shown } : {}), ...(images?.length ? { images } : {}), ...(files?.length ? { files } : {}) });
+    setState((s) => ({ draftPermission: withoutPaneDraft(s.draftPermission, paneId), draftModel: withoutPaneDraft(s.draftModel, paneId), draftEffort: withoutPaneDraft(s.draftEffort, paneId), draftHarness: withoutPaneDraft(s.draftHarness, paneId), draftProvider: withoutPaneDraft(s.draftProvider, paneId) }));
     return agent;
   };
   return (

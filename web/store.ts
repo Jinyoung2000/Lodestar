@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { defaultChangeScope, harnessOf, HARNESS_VALUES, PERMISSION_MODE_VALUES } from "../shared/protocol";
+import type { CustomProviderView } from "../shared/customProviders";
 import type { Agent, AntigravityMeta, CursorMeta, Board, BoardCard, ChangeScope, CodexMeta, Harness, InboxItem, InboxState, ChangedFile, CommandInfo, EffortLevel, ElementInfo, Feedback, FileChange, GitInfo, McpActionResult, Meta, PermissionMode, PullRequest, QuickRun, ResolvedDefaults, ScreenContext, Settings, ShellNote, SideRun, TimelineItem, Workspace } from "../shared/protocol";
 import { announceWorkspaceChanged } from "./workspaceEvents";
 import { cleanSlackText } from "../shared/inbox";
@@ -222,7 +223,7 @@ function loadLayout(): Layout {
   }
 }
 
-export type LastPicked = { model?: string | null; effort?: EffortLevel | null; permissionMode?: PermissionMode; harness?: Harness; codexModel?: string | null; codexEffort?: EffortLevel | null; antigravityModel?: string | null; antigravityEffort?: EffortLevel | null; cursorModel?: string | null; cursorEffort?: EffortLevel | null };
+export type LastPicked = { model?: string | null; effort?: EffortLevel | null; permissionMode?: PermissionMode; harness?: Harness; codexModel?: string | null; codexEffort?: EffortLevel | null; antigravityModel?: string | null; antigravityEffort?: EffortLevel | null; cursorModel?: string | null; cursorEffort?: EffortLevel | null; providerId?: string | null; providerModels?: Record<string, string> };
 const LAST_PICKED_KEY = "agent-nav:lastPicked";
 function loadLastPicked(): LastPicked {
   try {
@@ -238,6 +239,8 @@ function loadLastPicked(): LastPicked {
     if (typeof saved.antigravityEffort === "string" || saved.antigravityEffort === null) last.antigravityEffort = saved.antigravityEffort as EffortLevel | null;
     if (typeof saved.cursorModel === "string" || saved.cursorModel === null) last.cursorModel = saved.cursorModel;
     if (typeof saved.cursorEffort === "string" || saved.cursorEffort === null) last.cursorEffort = saved.cursorEffort as EffortLevel | null;
+    if (typeof saved.providerId === "string" || saved.providerId === null) last.providerId = saved.providerId;
+    if (saved.providerModels && typeof saved.providerModels === "object" && !Array.isArray(saved.providerModels)) last.providerModels = Object.fromEntries(Object.entries(saved.providerModels).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
     return last;
   } catch {
     return {};
@@ -376,6 +379,8 @@ export type State = {
   lastPicked: LastPicked;
   draftModel: Record<string, string | null>;
   draftHarness: Record<string, Harness>;
+  draftProvider: Record<string, string | null>;
+  customProviders: CustomProviderView[] | null;
   codexMeta: CodexMeta | null;
   antigravityMeta: AntigravityMeta | null;
   cursorMeta: CursorMeta | null;
@@ -520,6 +525,8 @@ let state: State = {
   lastPicked: loadLastPicked(),
   draftModel: {},
   draftHarness: {},
+  draftProvider: {},
+  customProviders: null,
   codexMeta: null,
   antigravityMeta: null,
   cursorMeta: null,
@@ -1522,6 +1529,7 @@ export function startDraft(workspaceId: string | null, where: "active" | "new" =
     const preset = {
       draftModel: options?.preset ? { ...s.draftModel, [pane.id]: options.preset.model } : withoutPaneDraft(s.draftModel, pane.id),
       draftHarness: withoutPaneDraft(s.draftHarness, pane.id),
+      draftProvider: withoutPaneDraft(s.draftProvider, pane.id),
       draftEffort: options?.preset ? { ...s.draftEffort, [pane.id]: options.preset.effort } : withoutPaneDraft(s.draftEffort, pane.id),
       draftPermission: options?.preset ? { ...s.draftPermission, [pane.id]: options.preset.permission } : withoutPaneDraft(s.draftPermission, pane.id),
     };
@@ -2225,6 +2233,13 @@ async function syncModelPins() {
   if (state.connected && state.modelPins === previousPins) setState({ modelPins });
 }
 
+export function loadCustomProviders(): Promise<void> {
+  return rpc.call("providers.list", {}).then(
+    (customProviders) => setState({ customProviders }),
+    () => setState({ customProviders: [] }),
+  );
+}
+
 export function initStore() {
   rpc.onStatus((connected) => {
     setState(connected ? { connected } : { connected, modelPins: null });
@@ -2239,6 +2254,7 @@ export function initStore() {
     }
     connectedBefore = true;
     void syncModelPins().catch((error: Error) => console.error("[model pins]", error.message));
+    void loadCustomProviders();
     void rpc.call("board.get", {}).then((board) => setState({ board })).catch(() => setState({ board: null }));
     void rpc.call("inbox.get", {}).then((inbox) => setState({ inbox })).catch(() => setState({ inbox: null }));
     void refreshReview();
@@ -2297,6 +2313,9 @@ export function initStore() {
         return;
       case "modelPins":
         setState({ modelPins: event.pins });
+        return;
+      case "customProviders":
+        setState({ customProviders: event.providers });
         return;
       case "sessionOrders":
         setState({ sessionOrders: event.orders });

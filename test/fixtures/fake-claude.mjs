@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 const LOG = process.env.FAKE_CLAUDE_LOG ?? "/tmp/fake-claude.log";
 const SPAWN_LOG = process.env.FAKE_CLAUDE_SPAWN_LOG;
 const spawnLog = (entry) => SPAWN_LOG && appendFileSync(SPAWN_LOG, `${JSON.stringify({ pid: process.pid, ...entry })}\n`);
-spawnLog({ kind: "spawn", cwd: process.cwd(), argv: process.argv.slice(2), env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("LODESTAR_"))) });
+spawnLog({ kind: "spawn", cwd: process.cwd(), argv: process.argv.slice(2), env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("LODESTAR_") || (key.startsWith("ANTHROPIC_") && !/KEY|TOKEN/.test(key)))), auth: { token: !!process.env.ANTHROPIC_AUTH_TOKEN, apiKey: !!process.env.ANTHROPIC_API_KEY } });
 const session = randomUUID();
 const out = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
 const usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };

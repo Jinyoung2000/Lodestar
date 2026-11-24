@@ -25,6 +25,7 @@ import { CODEX_FALLBACK_MODE, codexSupportsMode } from "../shared/codexPermissio
 import { CodexRunner, type CodexHost } from "./codex/runner";
 import { AntigravityRunner } from "./antigravity/runner";
 import { CursorRunner } from "./cursor/runner";
+import { providerEnv, type CustomProviders } from "./customProviders";
 import { checkpointMode, checkpointSession, commitRedo, dropRedo, keptEntryBefore, loadRedo, probeCheckpointModes, readRaw, resolveMessageId, saveRedo, sessionChain, splitTimeline, stageRedo, withRewindQuery } from "./checkpoints";
 import { applyRestore, hashesOf, redoFiles } from "./restoreGuard";
 import type { BrowserBridge } from "./browserBridge";
@@ -134,6 +135,7 @@ type Run = {
   stderrTail: () => string;
   cwd: string;
   folders: string;
+  providerKey: string | null;
 };
 
 const MODE_SETTLE_MS = 2000;
@@ -188,6 +190,7 @@ export type CreateParams = {
   shown?: string;
   notionContext?: { text: string; label: string; url: string; title: string };
   harness?: Harness;
+  providerId?: string | null;
   extraWorkspaceIds?: string[];
 };
 
@@ -207,6 +210,7 @@ export class AgentRunner {
 
   private codex: CodexRunner;
   private antigravity: AntigravityRunner;
+  private providers: CustomProviders | null = null;
   private cursor: CursorRunner;
 
   constructor(
@@ -253,6 +257,14 @@ export class AgentRunner {
 
   private notClaude(agentId: string) {
     return this.runnerOf(agentId) !== null;
+  }
+
+  setProviders(providers: CustomProviders) {
+    this.providers = providers;
+  }
+
+  private providerOf(providerId: string | null | undefined) {
+    return this.providers?.get(providerId) ?? null;
   }
 
   antigravityMeta(refresh = false) {
@@ -320,6 +332,7 @@ export class AgentRunner {
       ...(params.harness === "codex" ? { harness: "codex" as const, codexThreadId: null } : {}),
       ...(params.harness === "antigravity" ? { harness: "antigravity" as const, antigravitySessionId: null } : {}),
       ...(params.harness === "cursor" ? { harness: "cursor" as const, cursorSessionId: null } : {}),
+      ...((params.harness ?? "claude") === "claude" && this.providerOf(params.providerId) ? { providerId: params.providerId } : {}),
     };
     this.store.addAgent(agent);
     if (agent.startCommit) await captureForkBase(agent, this.store, agent.id).catch(() => false);
@@ -588,7 +601,7 @@ export class AgentRunner {
     const agent = this.store.agent(agentId);
     this.turnDivider.set(agentId, lastSwitchDividerId(this.store.timeline(agentId)));
     if (!agent.carryPending) return { prompt, options };
-    const block = carryTranscript(this.store.timeline(agentId), agent);
+    const block = carryTranscript(this.store.timeline(agentId), agent, this.providerOf(agent.providerId)?.name);
     if (!block) {
       this.clearCarry(agentId);
       return { prompt, options };
@@ -604,13 +617,16 @@ export class AgentRunner {
     this.emit({ type: "agent", agent: this.store.patchAgent(agentId, { carryPending: false }) });
   }
 
-  async switchHarness(agentId: string, target: Harness, model: string | null, effort: EffortLevel | null) {
+  async switchHarness(agentId: string, target: Harness, model: string | null, effort: EffortLevel | null, providerId: string | null = null) {
     const agent = this.store.agent(agentId);
     if (!HARNESS_VALUES.includes(target)) throw new Error(`Unknown tool: ${String(target)}`);
     const from = harnessOf(agent);
+    const provider = target === "claude" ? this.providerOf(providerId) : null;
+    if (providerId && !provider) throw new Error(T.providerGone);
+    const fromProvider = from === "claude" ? (agent.providerId ?? null) : null;
     const nextModel = typeof model === "string" && model.trim() ? model.trim() : null;
-    const nextEffort = target === "claude" ? claudeEffort(effort) : isEffortLevel(effort) ? effort : null;
-    if (from === target) {
+    const nextEffort = provider ? null : target === "claude" ? claudeEffort(effort) : isEffortLevel(effort) ? effort : null;
+    if (from === target && fromProvider === (provider?.id ?? null)) {
       this.emit({ type: "agent", agent: this.store.updateAgent(agentId, { model: nextModel, effort: nextEffort }) });
       return;
     }
@@ -621,7 +637,9 @@ export class AgentRunner {
     if (blocked) throw new Error(T.switchBlocked[blocked]);
     if (from === "claude") this.closeRun(agentId);
     else await this.runnerOf(agentId)?.remove(agentId);
-    const divider: TimelineItem = { id: randomUUID(), kind: "notice", text: T.switchedTo(HARNESS_NAMES[target], nextModel), divider: true, switched: target, switchedFrom: from };
+    const shownModel = provider && nextModel ? (provider.models.find((m) => m.id === nextModel)?.name ?? nextModel) : nextModel;
+    const divider: TimelineItem = { id: randomUUID(), kind: "notice", text: T.switchedTo(provider?.name ?? HARNESS_NAMES[target], shownModel), divider: true, switched: target, switchedFrom: from, ...(provider ? { switchedName: provider.name } : {}) };
+    const claudeIdentityChanged = from === "claude" && target === "claude";
     this.upsert(agentId, divider);
     const current = this.store.agent(agentId);
     this.emit({
@@ -638,6 +656,8 @@ export class AgentRunner {
         ...(target === "codex" ? { codexThreadId: null } : {}),
         ...(target === "antigravity" ? { antigravitySessionId: null } : {}),
         ...(target === "cursor" ? { cursorSessionId: null } : {}),
+        ...(target === "claude" ? { providerId: provider?.id ?? null } : {}),
+        ...(target === "claude" && (claudeIdentityChanged || provider || fromProvider) ? { sessionId: null, resumeFrom: null, resumeAt: null } : {}),
       }),
     });
   }
@@ -770,9 +790,24 @@ export class AgentRunner {
     const shownFields = { ...(shown.display !== undefined ? { shown: shown.display } : {}), ...(shown.attachments?.length ? { attachments: shown.attachments } : {}) };
     const agent = this.store.agent(agentId);
     const defaults = defaultsReader.resolve(this.store.settings);
-    const turnModel = agent.model ?? defaults.model.value;
-    const turnEffort = claudeEffort(agent.effort) ?? claudeEffort(defaults.effort.value);
+    const provider = agent.providerId ? this.providerOf(agent.providerId) : null;
+    const turnModel = provider ? (provider.models.some((m) => m.id === agent.model) ? agent.model : provider.defaultModel) : (agent.model ?? defaults.model.value);
+    const turnEffort = provider ? null : (claudeEffort(agent.effort) ?? claudeEffort(defaults.effort.value));
+    let customEnv: Record<string, string> | null = null;
+    if (agent.providerId) {
+      const failure = await this.providerFailure(agent.providerId);
+      if (typeof failure === "string") {
+        this.upsert(agentId, { id: randomUUID(), kind: "user", text: prompt, source: "user", at: new Date().toISOString(), ...shownFields });
+        this.upsert(agentId, { id: randomUUID(), kind: "error", text: failure, auth: true });
+        this.store.patchAgent(agentId, { unread: true });
+        this.setStatus(agentId, "error");
+        return;
+      }
+      customEnv = providerEnv(failure.provider, failure.key, turnModel ?? failure.provider.models[0].id);
+    }
+    const providerKey = agent.providerId ? `${agent.providerId}:${turnModel}` : null;
     const stale = this.runs.get(agentId);
+    if (stale && !stale.active && stale.providerKey !== providerKey) this.closeRun(agentId);
     if (stale && !stale.active && stale.folders !== this.foldersKey(agent) && (stale.cwd !== agent.cwd || this.backgroundTaskCount(agentId) === 0)) this.closeRun(agentId);
     if (!this.runs.has(agentId) && !(await isDirectory(agent.cwd))) {
       this.upsert(agentId, { id: randomUUID(), kind: "user", text: prompt, source: "user", at: new Date().toISOString(), ...shownFields });
@@ -809,7 +844,7 @@ export class AgentRunner {
       reuse = true;
       this.beginRun(run);
     } else {
-      run = this.openRun(agent, turnModel, turnEffort);
+      run = this.openRun(agent, turnModel, turnEffort, customEnv);
     }
     run.turnMessageId = messageId;
     void this.clearRedo(agentId).catch((error) => console.error("[agent] redo record not cleared", error));
@@ -840,14 +875,31 @@ export class AgentRunner {
       console.error("[agent] live model/effort/permission change failed, restarting the process", error);
       const turnMessageId = run.turnMessageId;
       this.closeRun(agentId);
-      const next = this.openRun(this.store.agent(agentId), model, effort);
+      const next = this.openRun(this.store.agent(agentId), model, effort, run.providerKey ? this.liveProviderEnv.get(agentId) ?? null : null);
       next.turnMessageId = turnMessageId;
       return next;
     }
   }
 
-  private openRun(agent: Agent, turnModel: string | null, turnEffort: ClaudeEffortLevel | null): Run {
+  private liveProviderEnv = new Map<string, Record<string, string>>();
+
+  private async providerFailure(providerId: string): Promise<string | { provider: NonNullable<ReturnType<CustomProviders["get"]>>; key: string }> {
+    const provider = this.providerOf(providerId);
+    if (!provider) return T.providerGone;
+    try {
+      const key = await this.providers!.keyFor(providerId);
+      return key ? { provider, key } : T.providerNoKey(provider.name);
+    } catch {
+      return T.providerKeyUnreadable(provider.name);
+    }
+  }
+
+  private openRun(agent: Agent, turnModel: string | null, turnEffort: ClaudeEffortLevel | null, customEnv: Record<string, string> | null = null): Run {
     const agentId = agent.id;
+    if (customEnv) this.liveProviderEnv.set(agentId, customEnv);
+    else this.liveProviderEnv.delete(agentId);
+    const baseEnv = { ...claudeEnv(), ...sessionEnv(agentId) };
+    if (customEnv) delete baseEnv.ANTHROPIC_API_KEY;
     const feedbackOptions = agent.feedbackId ? this.feedbackHooks?.options(agent) : null;
     const assistantOptions = agent.assistant ? this.assistantHooks?.options(agent, (toolName, toolInput, signal, toolUseId) => this.askPermission(agentId, toolName, toolInput, signal, toolUseId)) : null;
     const input = new PushQueue();
@@ -865,7 +917,7 @@ export class AgentRunner {
       prompt: input,
       options: {
         cwd: agent.cwd,
-        env: { ...claudeEnv(), ...sessionEnv(agentId) },
+        env: { ...baseEnv, ...(customEnv ?? {}) },
         ...(extraDirs.length ? { additionalDirectories: extraDirs } : {}),
         resume: agent.sessionId ?? agent.resumeFrom ?? undefined,
         resumeSessionAt: agent.resumeAt ?? undefined,
@@ -967,7 +1019,7 @@ export class AgentRunner {
         ...assistantOptions,
       },
     });
-    const run: Run = { query: q, input, draftId: null, active: true, interrupted: false, turnMessageId: null, steers: new Set(), model: turnModel, effort: turnEffort, permissionMode: agent.permissionMode, permissionSetAt: 0, idleTimer: null, idleSince: Date.now(), lastUsed: Date.now(), closed: false, apiError: false, approvalWaitMs: 0, stopWatch: null, ctxSeq: 0, stderrTail: spawner.stderrTail, cwd: agent.cwd, folders: this.foldersKey(agent) };
+    const run: Run = { query: q, input, draftId: null, active: true, interrupted: false, turnMessageId: null, steers: new Set(), model: turnModel, effort: turnEffort, permissionMode: agent.permissionMode, permissionSetAt: 0, idleTimer: null, idleSince: Date.now(), lastUsed: Date.now(), closed: false, apiError: false, approvalWaitMs: 0, stopWatch: null, ctxSeq: 0, stderrTail: spawner.stderrTail, cwd: agent.cwd, folders: this.foldersKey(agent), providerKey: customEnv ? `${agent.providerId}:${turnModel}` : null };
     run.stopWatch = watchDirectory(agent.cwd, () => this.workingDirectoryGone(agentId, run));
     this.runs.set(agentId, run);
     void this.consume(agentId, run).catch((error) => console.error("[agent] session cleanup failed", error));

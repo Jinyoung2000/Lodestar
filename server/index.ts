@@ -90,6 +90,7 @@ import { SideRunner } from "./side";
 import { HOME, Store, loadToken } from "./store";
 import { RepoMirrors } from "./repoMirror";
 import { primeLoginPath, withLoginPath } from "./loginPath";
+import { CustomProviders } from "./customProviders";
 import { WebBuildWatch } from "./webBuildWatch";
 
 process.env.PATH = withLoginPath(process.env.PATH);
@@ -203,6 +204,8 @@ const deliver = (event: ServerEvent) => {
   }
 };
 const runner = new AgentRunner(store, broadcast);
+const customProviders = new CustomProviders((providers) => broadcast({ type: "customProviders", providers }));
+runner.setProviders(customProviders);
 store.isLive = (agentId) => runner.isLive(agentId);
 for (const agentId of store.cutOffOnStart) runner.markCutOff(agentId);
 store.onRestored = (agents) => {
@@ -533,9 +536,9 @@ const handlers: Handlers = {
   ...gitHandlers({ store, feedback, broadcast, sessionChanges }),
   ...settingsHandlers({ store, broadcast, effects: settingsEffects }),
   "models.pins": () => store.modelPins,
-  "models.setPin": ({ harness, model, pinned }) => {
-    if (!HARNESS_VALUES.includes(harness) || !mobileModelId(model) || typeof pinned !== "boolean") throw new Error(T.errModelPin);
-    const key = modelPinKey(harness, model);
+  "models.setPin": ({ harness, model, pinned, providerId }) => {
+    if (!HARNESS_VALUES.includes(harness) || !mobileModelId(model) || typeof pinned !== "boolean" || (providerId != null && !customProviders.get(providerId))) throw new Error(T.errModelPin);
+    const key = modelPinKey(harness, model, providerId);
     const current = store.modelPins;
     const pins = store.setModelPin(key, pinned);
     if (current !== pins) broadcast({ type: "modelPins", pins });
@@ -601,6 +604,10 @@ const handlers: Handlers = {
   "codex.meta": ({ refresh }) => runner.codexMeta(refresh === true),
   "antigravity.meta": ({ refresh }) => runner.antigravityMeta(refresh === true),
   "cursor.meta": ({ refresh }) => runner.cursorMeta(refresh === true),
+  "providers.list": () => customProviders.views(),
+  "providers.save": ({ provider, key }) => customProviders.save(provider, key),
+  "providers.delete": ({ id }) => customProviders.remove(String(id)),
+  "providers.loadModels": ({ id, baseUrl, key }) => customProviders.loadModels({ id: id ?? null, baseUrl: String(baseUrl), key: key ?? null }),
   "meta.refresh": () => metaService.refresh(),
   "mcp.reconnect": ({ name }) => metaService.reconnect(name),
   "mcp.toggle": ({ name, enabled }) => metaService.toggle(name, enabled),

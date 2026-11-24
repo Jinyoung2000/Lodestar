@@ -13,6 +13,7 @@ This is a personal project published as-is. It is developed and used on macOS wi
 - Pull requests through the GitHub CLI: lists, an overview, file diffs, review comments and checkout into a worktree.
 - Optional integrations that reuse what your Claude Code already has: a read-only Slack inbox and Notion pages through your configured MCP servers, and a local kanban board.
 - Optional Codex, Antigravity and Cursor sessions when the Codex CLI, the Antigravity CLI (`agy`) or the Cursor CLI (`agent`) is installed and signed in, and switching a session between Claude, Codex, Antigravity and Cursor.
+- Custom model providers: add an Anthropic-compatible endpoint such as Z.ai GLM, Moonshot Kimi, DeepSeek or MiniMax in Settings > Model Providers, and its sessions run Claude Code against that address. The key is stored only in the macOS Keychain, and usage is billed by that provider.
 - Import of Claude sessions from the VS Code agent window (read-only access to VS Code's state).
 - A phone client (`mobile/`, Expo) that pairs with the daemon over the local network, a VS Code extension (`vscode-extension/`) that shows Lodestar sessions inside VS Code, and a small CLI (`bin/lodestar.mjs`) that opens folders and files in the app (`lodestar <path>[:line[:column]]`) and lists and messages sessions.
 
@@ -83,6 +84,7 @@ Environment variables that matter:
 | `AGENT_NAV_CODEX` | `~/.local/bin/codex`, then `codex` on the login shell `PATH` | Codex CLI to run |
 | `AGENT_NAV_ANTIGRAVITY` | `~/.local/bin/agy`, then `agy` on `PATH` | Antigravity CLI to run; point it at a fake `agy` for tests and checking instances |
 | `AGENT_NAV_CURSOR` | `~/.local/bin/cursor-agent`, `~/.local/bin/agent`, then `cursor-agent` on `PATH` | Cursor CLI to run; point it at `test/fixtures/cursor/agent.mjs` for checking instances |
+| `AGENT_NAV_SECURITY` | `/usr/bin/security` | Keychain tool for custom provider keys; point it at `test/fixtures/fake-security.mjs` for tests and checking instances |
 | `AGENT_NAV_GH` | `gh` on `PATH` | GitHub CLI to run |
 | `AGENT_NAV_SRC` | `~/Repository/agent-nav` when the app is installed | Source folder that the self-improvement and idle-update features build from |
 | `AGENT_NAV_MOBILE_PORT` | daemon port + 1 | Port for the phone client, only opened when phone access is turned on |

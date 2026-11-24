@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { harnessOf, type Agent, type Harness, type FileRef as ProtocolFileRef, type ImageRef, type PermissionMode } from "../shared/protocol";
 import { checkpointLocked, isSwitchDivider } from "../shared/harnessSwitch";
+import { useCustomProvider } from "./harness";
 import { TimelineContext, useCheckpointModes } from "./Checkpoint";
 import { ChatFind } from "./ChatFind";
 import { useChatFindOpen } from "./chatFindState";
@@ -10,7 +11,7 @@ import { DockFrame } from "./ChatDock";
 import { chatPanelId, chatTabId } from "./editorChat";
 import { FloatFrame, isDockedPane, isFloatingPane, useFloatStyle } from "./FloatingAgent";
 import { canHandOff, startHandoff } from "./handoffActions";
-import { BoardIcon, Branch, ChevronDown, CircleFilled, CircleSmallFilled, Close, Codicon, DotSpinner, More, ProviderIcon } from "./icons";
+import { BoardIcon, Branch, ChevronDown, CircleFilled, CircleSmallFilled, Close, Codicon, CustomProviderIcon, DotSpinner, More, ProviderIcon } from "./icons";
 import { NewAgentView } from "./NewSession";
 import { QueuedMessages } from "./Queue";
 import { rpc } from "./rpc";
@@ -269,7 +270,7 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
             <Branch size={14} /> {agent.worktree.branch}
           </span>
         )}
-        {codex && <HarnessBadge harness={harness} />}
+        {(codex || agent.providerId) && <HarnessBadge harness={harness} providerId={agent.providerId} />}
         <span className="agent-title" title={agent.title}>
           {agent.title}
         </span>
@@ -354,10 +355,12 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
   );
 }
 
-export function HarnessBadge({ harness = "codex" }: { harness?: Harness }) {
+export function HarnessBadge({ harness = "codex", providerId }: { harness?: Harness; providerId?: string | null }) {
+  const provider = useCustomProvider(providerId);
+  const name = provider?.name ?? S.harnessNames[harness];
   return (
-    <span className="harness-badge" data-harness={harness} title={S.harnessSessionTip(S.harnessNames[harness])} aria-label={S.harnessNames[harness]}>
-      <ProviderIcon harness={harness} size={14} />
+    <span className="harness-badge" data-harness={harness} title={S.harnessSessionTip(name)} aria-label={name}>
+      {provider ? <CustomProviderIcon name={provider.name} size={14} /> : <ProviderIcon harness={harness} size={14} />}
     </span>
   );
 }

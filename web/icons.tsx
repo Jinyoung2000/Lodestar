@@ -62,6 +62,14 @@ export const ModelIcon = make("claude");
 
 const PROVIDER_LETTERS = { antigravity: "A", cursor: "C" } as const;
 
+export function CustomProviderIcon({ name, size = 16 }: { name: string; size?: number }) {
+  return (
+    <span className="provider-mark provider-custom" data-small={size < 16 || undefined} aria-hidden="true">
+      {(name.trim()[0] ?? "?").toUpperCase()}
+    </span>
+  );
+}
+
 export function ProviderIcon({ harness, size = 16 }: { harness: "claude" | "codex" | "antigravity" | "cursor"; size?: number }) {
   if (harness === "antigravity" || harness === "cursor") {
     return (
