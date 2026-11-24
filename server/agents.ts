@@ -154,10 +154,6 @@ export type BoardHooks = {
   removed: (agentId: string) => void;
 };
 
-export type ImportHooks = {
-  beforeTurn: (agentId: string) => Promise<boolean>;
-  turnEnded: (agentId: string) => void;
-};
 
 export type NotionHooks = {
   host: (agentId: string, ask: NotionToolHost["ask"]) => NotionToolHost;
@@ -187,7 +183,6 @@ export class AgentRunner {
   private pending = new Map<string, PendingPermission>();
   private feedbackHooks: FeedbackHooks | null = null;
   private boardHooks: BoardHooks | null = null;
-  private importHooks: ImportHooks | null = null;
   private preparing = new Set<string>();
   private cancellingSteers = new Set<string>();
   private browserBridge: BrowserBridge | null = null;
@@ -367,7 +362,7 @@ export class AgentRunner {
   async moveToFolder(agentId: string, workspaceId: string) {
     const agent = this.store.agent(agentId);
     if (agent.workspaceId !== null) throw new Error(T.errMoveHasFolder);
-    if (agent.feedbackId || agent.imported) throw new Error(T.errMoveUnsupported);
+    if (agent.feedbackId) throw new Error(T.errMoveUnsupported);
     const workspace = this.store.workspace(workspaceId);
     if (workspace.feedback || workspace.archived) throw new Error(T.errFolderNotAddable(workspace.name));
     const from = agent.cwd;
@@ -415,24 +410,6 @@ export class AgentRunner {
 
   setBoardHooks(hooks: BoardHooks) {
     this.boardHooks = hooks;
-  }
-
-  setImportHooks(hooks: ImportHooks) {
-    this.importHooks = hooks;
-  }
-
-  adoptImported(agent: Agent, items: TimelineItem[]) {
-    this.store.addAgent(agent, items);
-    this.emit({ type: "agent", agent });
-  }
-
-  private markOwnWrite(agentId: string) {
-    if (!this.store.agents.some((a) => a.id === agentId && a.imported)) return;
-    for (const delay of [0, 2500, 8000]) setTimeout(() => this.importHooks?.turnEnded(agentId), delay).unref();
-  }
-
-  applyImported(agentId: string, items: TimelineItem[]) {
-    for (const item of items) this.upsert(agentId, item);
   }
 
   activeCount() {
@@ -775,16 +752,6 @@ export class AgentRunner {
       this.store.patchAgent(agentId, { unread: true });
       this.setStatus(agentId, "error");
       return;
-    }
-    if (agent.imported && this.importHooks) {
-      this.preparing.add(agentId);
-      try {
-        if (await this.importHooks.beforeTurn(agentId)) this.closeRun(agentId);
-      } catch (error) {
-        console.error("[import] sync before send failed", error);
-      } finally {
-        this.preparing.delete(agentId);
-      }
     }
     let modelPrompt = prompt;
     if (agent.feedbackId && this.feedbackHooks) {
@@ -1168,7 +1135,6 @@ export class AgentRunner {
       this.boardHooks?.turnEnded(agentId);
     }
     this.armIdleClose(agentId, run);
-    if (agent.imported) this.importHooks?.turnEnded(agentId);
     const next = outcome === "ok" ? agent.queue?.[0] : undefined;
     if (next) {
       this.takeQueued(agentId, next.id);
@@ -1498,7 +1464,6 @@ export class AgentRunner {
     } finally {
       this.restoring.delete(agentId);
       this.restoreCancelled.delete(agentId);
-      this.markOwnWrite(agentId);
     }
   }
 
@@ -1518,7 +1483,6 @@ export class AgentRunner {
       const plan = await planRestore(agent, this.store, preview.filesChanged ?? [], split.kept);
       return { files: plan.revert.length + plan.remove.length, plan };
     });
-    this.markOwnWrite(agentId);
     return result;
   }
 
@@ -1527,7 +1491,6 @@ export class AgentRunner {
     const agent = this.store.agent(agentId);
     if (this.runs.get(agentId)?.active || agent.status === "waiting" || this.restoring.has(agentId)) throw new Error(T.errAgentRunning);
     const modes = await probeCheckpointModes(agent, this.store.timeline(agentId));
-    this.markOwnWrite(agentId);
     return modes;
   }
 

@@ -28,7 +28,7 @@ export type SettingsCtx = {
   models: ModelInfo[];
 };
 
-export type CustomKind = "formatLanguages" | "importSessions" | "mcpServers" | "daemon" | "quickEntryShortcut" | "mobileAccess";
+export type CustomKind = "formatLanguages" | "mcpServers" | "daemon" | "quickEntryShortcut" | "mobileAccess";
 export type Option = { value: string; label: string; title?: string };
 
 type Common = {
@@ -532,7 +532,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   { ...text("mobilePairing"), group: "mobile", kind: "custom", component: "mobileAccess", wide: true, keywords: "iphone phone ios qr pairing device code", modified: () => false },
 
 
-  { ...text("importSessions"), group: "import", kind: "custom", component: "importSessions", wide: true, keywords: "vscode claude session history", modified: () => false },
   { ...text("mcpServers"), group: "mcp", kind: "custom", component: "mcpServers", wide: true, keywords: "server connector reconnect", modified: () => false },
   { ...text("daemon"), group: "status", kind: "custom", component: "daemon", wide: true, keywords: "account version connection", modified: () => false },
 ];

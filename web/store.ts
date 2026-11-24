@@ -313,7 +313,7 @@ export type Overlay =
   | { kind: "search"; tab?: SearchScope }
   | { kind: "commands"; query?: string }
   | { kind: "shortcuts" }
-  | { kind: "status"; section?: "browser" | "import" | "format" | "mentions" }
+  | { kind: "status"; section?: "browser" | "format" | "mentions" }
   | { kind: "browserHistory"; tabKey: string }
   | { kind: "sitePermissions"; url: string }
   | { kind: "devicePresets"; tabKey: string }

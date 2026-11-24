@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormatLanguage, FormatterId, RuntimeInfo } from "../shared/protocol";
 import { missingFirstFamily } from "./editorFont";
-import { ImportSettings } from "./ImportSettings";
 import { McpSection } from "./McpPanel";
 import { MobileAccess } from "./MobileAccess";
 import { Refresh } from "./icons";
@@ -24,7 +23,6 @@ export function SettingControl({ def, ctx }: { def: SettingDef; ctx: SettingsCtx
   if (def.kind === "number") return <NumberControl def={def} ctx={ctx} />;
   if (def.kind === "text") return <TextControl def={def} ctx={ctx} />;
   if (def.component === "formatLanguages") return <FormatLanguages ctx={ctx} />;
-  if (def.component === "importSessions") return <ImportSettings scroll={false} />;
   if (def.component === "mcpServers") return <McpSection />;
   if (def.component === "quickEntryShortcut") return <QuickEntryShortcut ctx={ctx} />;
   if (def.component === "mobileAccess") return <MobileAccess />;

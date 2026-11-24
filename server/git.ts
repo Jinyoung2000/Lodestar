@@ -1,7 +1,7 @@
 import { ghBin } from "./ghExec";
 import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { promisify } from "node:util";
 import type { ChangedFile, GitInfo, PullRequest } from "../shared/protocol";
 import { realDir } from "./paths";
@@ -426,4 +426,19 @@ export async function pullRequests(cwd: string): Promise<{ available: boolean; r
     } catch (error) {
       return { available: false, reason: T.prGhFailed(String((error as Error).message).split("\n")[0]), prs: [] };
     }
+}
+
+export async function detectWorktree(cwd: string): Promise<{ root: string; mainRoot: string; branch: string } | null> {
+  const run = async (args: string[]) => {
+    try {
+      return (await git(cwd, args)).trim();
+    } catch {
+      return null;
+    }
+  };
+  const root = await run(["rev-parse", "--show-toplevel"]);
+  const gitDir = await run(["rev-parse", "--path-format=absolute", "--git-dir"]);
+  const common = await run(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+  if (!root || !gitDir || !common || realDir(gitDir) === realDir(common) || basename(common) !== ".git") return null;
+  return { root: realDir(root), mainRoot: realDir(dirname(common)), branch: (await run(["rev-parse", "--abbrev-ref", "HEAD"])) ?? "HEAD" };
 }

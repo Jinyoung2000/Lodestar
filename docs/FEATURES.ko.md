@@ -156,14 +156,6 @@ env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_SSE_PORT npm start > 
 
 제목줄의 "Sync Changes N↑ N↓" 는 마지막 fetch 기준 ahead/behind 다. 옆의 새로고침이 `git fetch` 고, 버튼을 누르면 확인 뒤 behind 는 `pull --ff-only`, ahead 는 `push` 를 실행한다. 강제 push 와 자동 실행은 없다. PR 칩과 Checks 는 GitHub 원격일 때 `gh pr list` 로 읽는다.
 
-## VS Code 세션 가져오기
-
-VS Code 에이전트 창에서 쓰던 Claude 세션을 이어서 쓴다. Settings 의 Import from VS Code(또는 명령 팔레트 `Agents: Import Sessions from VS Code`)에서 고르고 Import 를 누른다. 기록을 복사하지 않고 같은 Claude 세션 id 를 가리키므로 두 앱이 같은 세션 기록(`~/.claude/projects/.../<id>.jsonl`)을 읽는다. 구조와 시험 결과는 `docs/ACCEPTANCE-import.md`.
-
-- 원본은 VS Code 의 `state.vscdb`(최근 세션 캐시), `agentSessionData/*/session.db`(VS Code 가 만든 세션의 Claude 세션 id, 다른 채팅, 보관 상태, 모델과 권한), Claude 세션 기록이다. 전부 읽기만 한다. 시험에서는 `AGENT_NAV_VSCODE_USER_DIR` 로 VS Code 의 User 폴더 위치를 바꾼다.
-- 같은 VS Code 세션의 다른 채팅(사이드 챗)은 기본 채팅 아래 자식 세션으로 묶인다. 서브에이전트 채팅은 이어 갈 세션이 아니라서 가져오지 않는다.
-- 이미 가져온 세션을 다시 가져오면 새 메시지만 더한다. VS Code 에서 더 쓴 세션에 처음 보내기 전에는 타임라인을 다시 읽어 맞추고, VS Code 가 지금 쓰는 것으로 보이면 입력창 위에 안내가 뜬다.
-
 ## 설정
 
 `~/.agent-nav/settings.json`. "설정과 상태" 패널에서 바꾼다.

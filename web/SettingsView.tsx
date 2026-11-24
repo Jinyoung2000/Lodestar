@@ -12,8 +12,8 @@ import { S } from "./strings";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent } from "./ui/dialog";
 
-type Section = "browser" | "import" | "format" | "mentions";
-const SECTION_GROUP: Record<Section, GroupId> = { browser: "browser", import: "import", format: "formatting", mentions: "mentions" };
+type Section = "browser" | "format" | "mentions";
+const SECTION_GROUP: Record<Section, GroupId> = { browser: "browser", format: "formatting", mentions: "mentions" };
 
 export function SettingsView() {
   const section = useStore((s) => (s.overlay?.kind === "status" ? s.overlay.section : undefined));

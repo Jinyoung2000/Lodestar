@@ -76,7 +76,6 @@ import { liveGroupLeaders, systemKillDeps, terminateGroups } from "./processGrou
 import { createDaemonShutdown } from "./shutdown";
 import { lockDaemonFile } from "./daemonLock";
 import { RestartScheduler, restartWaitMs } from "../shared/restartGate";
-import { importActivity, importVscodeSessions, listVscodeSessions, markSynced, reconcileBeforeTurn, type ImportDeps } from "./vscodeImport";
 import { bridgePty } from "./pty";
 import { TermAskRunner } from "./termask";
 import { QuickRunner } from "./quick";
@@ -339,8 +338,6 @@ function armAutoDone(delayMs = AUTO_DONE_FIRST_MS) {
 }
 armAutoDone();
 
-const importDeps: ImportDeps = { store, runner, emit: broadcast };
-runner.setImportHooks({ beforeTurn: (id) => reconcileBeforeTurn(importDeps, id), turnEnded: (id) => markSynced(importDeps, id) });
 
 runner.setBoardHooks({
   link: (agentId, cardId) => {
@@ -597,9 +594,6 @@ const handlers: Handlers = {
     return morningReview.apply(date, cardIds);
   },
   "review.markSeen": ({ date }) => morningReview.markSeen(String(date)),
-  "import.vscodeList": () => listVscodeSessions(importDeps),
-  "import.vscodeRun": ({ keys }) => importVscodeSessions(importDeps, Array.isArray(keys) ? keys.filter((k): k is string => typeof k === "string") : []),
-  "import.activity": ({ agentId }) => importActivity(importDeps, agentId),
   "daemon.restartIfIdle": () => {
     const busy = busyNow();
     if (busy > 0) return { restarted: false, busy };

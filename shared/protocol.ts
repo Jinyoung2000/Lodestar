@@ -78,7 +78,6 @@ export type Agent = {
   resumeAt?: string | null;
   queue?: QueuedMessage[];
   steering?: QueuedMessage[];
-  imported?: ImportedFrom;
   contextUsage?: ContextUsage | null;
   handoffFrom?: string | null;
   harness?: Harness;
@@ -675,59 +674,6 @@ export type FormatLanguage = {
   options: FormatChoice[];
 };
 
-export type ImportedFrom = {
-  source: "vscode";
-  vsSessionId: string;
-  chatId: string;
-  origin: "user" | "sideChat" | null;
-  importedAt: string;
-  syncedMtimeMs: number;
-  syncedUntil: string | null;
-  cwdMissing?: boolean;
-  vsRunning?: boolean;
-};
-
-export type VscodeCandidate = {
-  key: string;
-  claudeSessionId: string | null;
-  vsSessionId: string;
-  chatId: string;
-  kind: "main" | "peer";
-  parentKey: string | null;
-  origin: "user" | "sideChat" | null;
-  title: string;
-  cwd: string | null;
-  cwdExists: boolean;
-  createdAt: string | null;
-  updatedAt: string | null;
-  chats: number;
-  subagentChats: number;
-  hasJsonl: boolean;
-  archived: boolean;
-  unread: boolean;
-  running: boolean;
-  from: "cache" | "session" | "both";
-  importedAgentId: string | null;
-  problem: "noSessionId" | "noTranscript" | null;
-};
-
-export type VscodeImportList = {
-  available: boolean;
-  reason: string | null;
-  stateFile: string;
-  candidates: VscodeCandidate[];
-  stats: { cached: number; cachedExternal: number; sessionDb: number; importable: number; alreadyImported: number };
-};
-
-export type VscodeImportResult = {
-  key: string;
-  agentId: string | null;
-  outcome: "created" | "updated" | "unchanged" | "skipped" | "failed";
-  items: number;
-  added: number;
-  note: string | null;
-};
-
 export type BranchesResult = { repoRoot: string | null; current: string | null; defaultBase: string | null; branches: string[]; locals: string[]; remotes: string[]; uncommitted: number };
 
 export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods & AutomationsRpcMethods & {
@@ -983,9 +929,6 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
   "mobile.status": { params: Record<string, never>; result: MobileStatus };
   "mobile.pairingCode": { params: Record<string, never>; result: PairingOffer };
   "mobile.revokeDevice": { params: { id: string }; result: MobileStatus };
-  "import.vscodeList": { params: Record<string, never>; result: VscodeImportList };
-  "import.vscodeRun": { params: { keys: string[] }; result: VscodeImportResult[] };
-  "import.activity": { params: { agentId: string }; result: { active: boolean; lastWriteAt: string | null } };
   "search.replace": { params: { workspaceId: string; files: ReplaceFileRequest[] }; result: { results: ReplaceFileResult[] } };
 };
 

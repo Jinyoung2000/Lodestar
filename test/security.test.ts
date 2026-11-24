@@ -410,17 +410,6 @@ test("mcp.toggle rejects a flag that is not true or false, and an unknown server
   }
   return "all rejected";
 });
-test("import.vscodeRun ignores bad key lists and reports unknown keys; import.activity rejects nothing for an unknown session", async () => {
-  for (const keys of [undefined, null, "x", 5, {}]) {
-    const reply = await rpc("import.vscodeRun", { keys });
-    expect(!reply.error && Array.isArray(reply.result) && reply.result.length === 0, `${JSON.stringify(keys)}: ${JSON.stringify(reply)}`);
-  }
-  const unknown = (await rpc("import.vscodeRun", { keys: ["no-such-session-key", 7] })) as { result: { outcome: string }[] };
-  expect(unknown.result.length === 1 && unknown.result[0].outcome === "failed", JSON.stringify(unknown));
-  const activity = (await rpc("import.activity", { agentId: "no-such-agent" })) as { result: { active: boolean } };
-  expect(activity.result.active === false, JSON.stringify(activity));
-  return "ok";
-});
 test("Unknown RPC method is an error", async () => {
   const reply = await rpc("agents.destroyEverything", {});
   return expect(typeof reply.error === "string", reply.error ?? "replied");

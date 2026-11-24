@@ -5,7 +5,6 @@ import { TimelineContext, useCheckpointModes } from "./Checkpoint";
 import { ChatFind } from "./ChatFind";
 import { useChatFindOpen } from "./chatFindState";
 import { Composer } from "./Composer";
-import { ImportedNotice } from "./ImportedBadges";
 import { chatWorkspaceFor, openFileRef, type FileRef } from "./fileRefs";
 import { DockFrame } from "./ChatDock";
 import { chatPanelId, chatTabId } from "./editorChat";
@@ -338,7 +337,6 @@ export function AgentView({ paneId, agentId, closable, embedded = false }: { pan
           <TimelineMenus containerRef={scrollRef} agent={agent} paneId={paneId} />
         </div>
       </TimelineContext.Provider>
-      {agent.imported && <ImportedNotice agent={agent} />}
       <Composer
         paneId={paneId}
         agent={agent}

@@ -12,7 +12,6 @@ import { busyAgents } from "./removedFolders";
 import { revealInFileManager } from "./reveal";
 import { HOME, type Store } from "./store";
 import { T } from "./strings";
-import { detectWorktree } from "./vscodeImport";
 import type { HandlersFor, MethodsIn } from "./rpcHandlers";
 
 export type WorkspaceHandlerDeps = {
@@ -42,7 +41,7 @@ export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<Metho
   const openFolder = async (absolute: string, trust: boolean) => {
     let workspace = store.workspaces.find((w) => w.dir === absolute);
     if (!workspace) {
-      const tree = await detectWorktree(absolute);
+      const tree = await gitOps.detectWorktree(absolute);
       if (tree) {
         const parent = store.addWorkspace(worktreeParentDir(absolute, tree));
         workspace = store.addWorkspace(absolute, parent.id, `${parent.name} (${tree.branch})`);
@@ -89,7 +88,7 @@ export function workspaceHandlers(deps: WorkspaceHandlerDeps): HandlersFor<Metho
     "agents.moveToFolder": async ({ agentId, dir, create }) => {
       const agent = store.agent(agentId);
       if (agent.workspaceId !== null) throw new Error(T.errMoveHasFolder);
-      if (agent.feedbackId || agent.imported) throw new Error(T.errMoveUnsupported);
+      if (agent.feedbackId) throw new Error(T.errMoveUnsupported);
       if (typeof dir !== "string" || !dir.trim()) throw new Error(T.errFolderNotFound(String(dir)));
       const wanted = expandHome(dir.trim());
       if (isInside(realDir(HOME), realPathLoose(wanted))) throw new Error(T.errMoveDataFolder);

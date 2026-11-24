@@ -22,7 +22,6 @@ const SWITCH_MESSAGES: Record<SwitchBlock, string> = {
   waiting: "Answer the pending request before switching tools",
   notion: "Notion page chats run on Claude only",
   feedback: "Improvement sessions run on Claude only",
-  imported: "Sessions imported from VS Code run on Claude only",
 };
 
 function modelOf(provider: MobileModelProvider, model: string | null) {

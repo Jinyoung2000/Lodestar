@@ -222,7 +222,6 @@ export type Command =
   | "focusPreviousEditorGroup"
   | "newUntitled"
   | "newFilePath"
-  | "importVscode"
   | "improvements"
   | "skills"
   | "automations"
@@ -808,9 +807,6 @@ export function runCommand(command: Command | string) {
       else hint(S.browserNeedsTab);
       return;
     }
-    case "importVscode":
-      setState({ overlay: { kind: "status", section: "import" } });
-      return;
     case "improvements":
       openImprovements();
       return;
