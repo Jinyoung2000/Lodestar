@@ -1,4 +1,7 @@
 import type { MobileBrowseResult, MobileDefaults, MobileWorkspaceIcons, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
+import type { AssistantState } from "@shared/assistant";
+import type { FollowUpsState } from "@shared/followups";
+import type { SnoozeChoice } from "../logic/mateCore.generated";
 import type { Agent, BranchesResult, Harness, ImageRef, PermissionDecision, RequestQueuing, ServerEvent, TimelineItem, Workspace } from "@shared/protocol";
 import { TransportError, type ConnStatus } from "../net/rpc";
 import { mergeTail, prependOlder, remove, upsert } from "../logic/timeline";
@@ -40,6 +43,8 @@ export type State = {
   workspaces: Workspace[];
   git: Record<string, GitSummary>;
   timelines: Record<string, SessionTimeline>;
+  followUps: FollowUpsState | null;
+  assistant: AssistantState | null;
   error: string | null;
 };
 
@@ -54,7 +59,7 @@ const timelineKey = (id: string) => `cache:v1:tl:${id}`;
 const EMPTY: SessionTimeline = { items: [], hasMore: false, synced: false, cached: false, loading: false, loadingOlder: false };
 
 export class AppStore {
-  private state: State = { modelProviders: {}, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null };
+  private state: State = { modelProviders: {}, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null };
   private listeners = new Set<() => void>();
   private link: Link | null = null;
   private unsubscribers: (() => void)[] = [];
@@ -136,7 +141,7 @@ export class AppStore {
     this.opened.clear();
     const keys = [INDEX_KEY, ...this.recent.map(timelineKey), ...Object.keys(this.state.timelines).map(timelineKey)];
     this.recent = [];
-    this.set({ modelProviders: {}, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, error: null });
+    this.set({ modelProviders: {}, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null });
     await this.cache.remove([...new Set(keys)]).catch(() => {});
   }
 
@@ -166,6 +171,7 @@ export class AppStore {
       this.touchIndex();
       if (this.opened.size > 0) void link.call("agents.setOpen", { agentIds: [...this.opened] }).catch(() => {});
       void this.loadDefaults(link, generation);
+      void this.loadMate(link, generation);
       if (this.iconsGeneration !== generation || workspaces.some((w) => !(w.id in this.state.workspaceIcons))) void this.loadWorkspaceIcons(link, generation);
     } catch (error) {
       if (this.connectionGeneration !== generation) return;
@@ -186,6 +192,15 @@ export class AppStore {
     } catch {
       return;
     }
+  }
+
+  private async loadMate(link: Link, generation: number) {
+    const [followUps, assistant] = await Promise.all([
+      (link.call("followUps.get", {}) as Promise<FollowUpsState>).catch(() => null),
+      (link.call("assistant.get", {}) as Promise<AssistantState>).catch(() => null),
+    ]);
+    if (this.connectionGeneration !== generation) return;
+    this.set({ followUps, assistant });
   }
 
   private async loadDefaults(link: Link, generation: number) {
@@ -236,6 +251,12 @@ export class AppStore {
         this.setTimeline(event.agentId, { ...current, items: remove(current.items, event.itemId) });
         break;
       }
+      case "followUps":
+        this.set({ followUps: event.state });
+        break;
+      case "assistant":
+        this.set({ assistant: event.state });
+        break;
       default:
         break;
     }
@@ -516,6 +537,26 @@ export class AppStore {
 
   setPinned(agentId: string, pinned: boolean) {
     return this.call("agents.setPinned", { agentId, pinned });
+  }
+
+  async snoozeFollowUp(id: string, choice: SnoozeChoice) {
+    this.set({ followUps: (await this.call("followUps.snooze", { id, choice })) as FollowUpsState });
+  }
+
+  async dismissFollowUp(id: string) {
+    this.set({ followUps: (await this.call("followUps.dismiss", { id })) as FollowUpsState });
+  }
+
+  async keepSessionOpen(agentId: string) {
+    this.set({ followUps: (await this.call("followUps.keepOpen", { agentId })) as FollowUpsState });
+  }
+
+  async checkInMate() {
+    this.set({ assistant: (await this.call("assistant.checkIn", {})) as AssistantState });
+  }
+
+  async cancelMateReminder(id: string) {
+    this.set({ assistant: (await this.call("assistant.cancelReminder", { id })) as AssistantState });
   }
 
   setDone(agentId: string, done: boolean) {

@@ -1,3 +1,4 @@
+import { MateRow } from "./mate/MateRow";
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { Stack, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -42,7 +43,8 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
 }) {
   const router = useRouter();
   const colors = useColors();
-  const agents = useAppState((s) => s.agents);
+  const everyAgent = useAppState((s) => s.agents);
+  const agents = useMemo(() => everyAgent.filter((agent) => !agent.assistant), [everyAgent]);
   const workspaces = useAppState((s) => s.workspaces);
   const conn = useAppState((s) => s.conn);
   const loaded = useAppState((s) => s.loaded);
@@ -202,6 +204,7 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
       />}
       <View style={styles.tabContent} {...swipe.panHandlers} onTouchEnd={releaseRowSwipe} onTouchCancel={releaseRowSwipe}>
         <View style={{ paddingTop: Platform.OS === "ios" ? headerHeight : 0 }}>
+          {!scopedWorkspace && <MateRow onPress={() => router.push("/mate")} />}
           <Segmented underline options={[{ value: "sessions", label: "Sessions" }, { value: "waiting", label: "Waiting", count: waitingAgents.length, countTone: "attention" }, { value: "workspaces", label: "Workspaces" }]} value={tab} onChange={setTab} paneWidth={paneWidth} />
         </View>
         {scopedWorkspace && (

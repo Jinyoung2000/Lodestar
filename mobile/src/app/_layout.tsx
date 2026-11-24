@@ -117,6 +117,7 @@ export default function RootLayout() {
                 >
                   <Stack.Screen name="index" options={{ title: "Lodestar", headerShown: railWidth === 0 }} />
                   <Stack.Screen name="session/[id]" dangerouslySingular={singleSessionSlot} options={{ title: "", headerBackButtonDisplayMode: "minimal", animation: expanded ? "none" : "default" }} />
+                  <Stack.Screen name="mate" options={{ title: "", headerBackButtonDisplayMode: "minimal" }} />
                   <Stack.Screen name="workspace/[id]" options={{ title: "", headerBackButtonDisplayMode: "minimal" }} />
                   <Stack.Screen name="add-workspace" options={{ title: "Add workspace", presentation: "modal" }} />
                   <Stack.Screen name="new" options={{ title: "New session", animation: expanded ? "none" : "default" }} />

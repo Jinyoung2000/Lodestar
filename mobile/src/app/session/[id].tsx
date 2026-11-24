@@ -1,5 +1,5 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
-import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, type NativeStackNavigationProp } from "expo-router";
+import { Redirect, Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, type NativeStackNavigationProp } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { ActivityIndicator, BackHandler, Keyboard, Pressable, useWindowDimensions, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,6 +33,8 @@ type SessionParams = { id: string; draft?: string; focusQuestion?: string; galle
 
 export default function Session() {
   const params = useLocalSearchParams<SessionParams>();
+  const mate = useAppState((s) => s.agents.find((a) => a.id === params.id)?.assistant === true);
+  if (mate) return <Redirect href="/mate" />;
   return <SessionView key={params.id} id={params.id} draft={params.draft} focusQuestion={params.focusQuestion === "1"} galleryOpen={params.gallery === "1"} viewerOpen={params.viewer === "1"} />;
 }
 
