@@ -19,6 +19,39 @@ type ModelMenuProps = {
   onClose: () => void;
 };
 
+type EffortMenuProps = {
+  anchor: HTMLElement | null;
+  label: string;
+  levels: readonly EffortLevel[];
+  current: EffortLevel | null;
+  onChoose: (level: EffortLevel) => void;
+  onClose: () => void;
+};
+
+export function EffortMenu({ anchor, label, levels, current, onChoose, onClose }: EffortMenuProps) {
+  return (
+    <Popup anchor={anchor} placement="above" label={label} className="popup-effort" onClose={onClose}>
+      <div className="popup-list" role="listbox">
+        {levels.map((level) => (
+          <div
+            key={level}
+            className="popup-row"
+            role="option"
+            aria-selected={level === current}
+            onClick={() => {
+              onChoose(level);
+              onClose();
+            }}
+          >
+            <span className="popup-check">{level === current && <Check size={12} />}</span>
+            <span className="popup-row-title">{effortName(level)}</span>
+          </div>
+        ))}
+      </div>
+    </Popup>
+  );
+}
+
 export function ModelMenu({ anchor, current, onChoose, onClose }: ModelMenuProps) {
   const meta = useStore((s) => s.meta);
   const [query, setQuery] = useState("");

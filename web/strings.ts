@@ -1083,6 +1083,8 @@ export const S = {
     unread: "Mate said something new",
     unavailable: "Mate is starting",
     placeholder: "Message Mate",
+    model: "Mate model",
+    effort: "Mate effort",
     send: "Send",
     stop: "Stop",
     working: "Working…",

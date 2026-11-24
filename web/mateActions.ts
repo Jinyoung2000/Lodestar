@@ -1,4 +1,4 @@
-import type { PermissionDecision } from "../shared/protocol";
+import type { EffortLevel, PermissionDecision } from "../shared/protocol";
 import { rpc } from "./rpc";
 import { flash, getState, openAgent, setState } from "./store";
 import { S } from "./strings";
@@ -28,6 +28,14 @@ export function checkInMate() {
 
 export function stopMate(agentId: string) {
   void rpc.call("agents.interrupt", { agentId }).catch(fail);
+}
+
+export function setMateModel(agentId: string, model: string) {
+  void rpc.call("agents.setModel", { agentId, model }).catch(fail);
+}
+
+export function setMateEffort(agentId: string, effort: EffortLevel) {
+  void rpc.call("agents.setEffort", { agentId, effort }).catch(fail);
 }
 
 export function respondToMate(agentId: string, itemId: string, decision: PermissionDecision) {

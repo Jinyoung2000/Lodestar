@@ -1,16 +1,16 @@
-import type { EffortLevel, SideRun } from "../shared/protocol";
+import type { SideRun } from "../shared/protocol";
 import { openLinkOutside } from "./fileRefs";
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { FLOAT_EDGES, moveRect, resizeRect, type FloatEdge, type FloatRect } from "./floatLayout";
 import { sideChatEffort, sideChatModel, useDefaults } from "./defaults";
-import { ArrowUpCompact, Check, Close, Codicon, ModelIcon, Stop } from "./icons";
+import { ArrowUpCompact, Close, Codicon, ModelIcon, Stop } from "./icons";
 import { relativeTime } from "./sessionList";
 import { followsBottom } from "./timelineScroll";
 import { effortName, modelChip } from "./Composer";
 import { supportedLevels } from "./effortLevels";
 import { Popup } from "./Popup";
 import { Markdown, StreamingMarkdown } from "./Timeline";
-import { ModelMenu } from "./Pickers";
+import { EffortMenu, ModelMenu } from "./Pickers";
 import { rpc } from "./rpc";
 import { flash, openAgent, setState, useStore, type SideState } from "./store";
 import { Button } from "./ui/button";
@@ -229,6 +229,7 @@ export function SideChat({ side }: { side: SideState }) {
       {effortOpen && (
         <EffortMenu
           anchor={effortChipRef.current}
+          label={S.sideChatEffort}
           levels={levels}
           current={effort}
           onClose={() => {
@@ -239,30 +240,6 @@ export function SideChat({ side }: { side: SideState }) {
         />
       )}
     </aside>
-  );
-}
-
-function EffortMenu({ anchor, levels, current, onChoose, onClose }: { anchor: HTMLElement | null; levels: readonly EffortLevel[]; current: EffortLevel | null; onChoose: (level: EffortLevel) => void; onClose: () => void }) {
-  return (
-    <Popup anchor={anchor} placement="above" label={S.sideChatEffort} className="popup-effort" onClose={onClose}>
-      <div className="popup-list" role="listbox">
-        {levels.map((level) => (
-          <div
-            key={level}
-            className="popup-row"
-            role="option"
-            aria-selected={level === current}
-            onClick={() => {
-              onChoose(level);
-              onClose();
-            }}
-          >
-            <span className="popup-check">{level === current && <Check size={12} />}</span>
-            <span className="popup-row-title">{effortName(level)}</span>
-          </div>
-        ))}
-      </div>
-    </Popup>
   );
 }
 

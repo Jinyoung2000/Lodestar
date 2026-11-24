@@ -1,11 +1,15 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { mateFeed, type AssistantState } from "../shared/assistant";
 import type { Agent } from "../shared/protocol";
+import { effortName, modelChip } from "./Composer";
+import { useDefaults } from "./defaults";
+import { builtinEffort, supportedLevels } from "./effortLevels";
 import { agoText } from "./followUpsModel";
-import { Codicon } from "./icons";
-import { checkInMate, openMateSession, sendToMate, stopMate } from "./mateActions";
+import { Codicon, ModelIcon } from "./icons";
+import { checkInMate, openMateSession, sendToMate, setMateEffort, setMateModel, stopMate } from "./mateActions";
 import { MateFeed } from "./MateFeed";
 import { MatePanel } from "./MatePanel";
+import { EffortMenu, ModelMenu } from "./Pickers";
 import { useNow } from "./PrBits";
 import { useStore } from "./store";
 import { S } from "./strings";
@@ -72,15 +76,25 @@ function MateChat({ agent, state }: MateChatProps) {
         </div>
       </header>
       <MateFeed agentId={agent.id} entries={entries} />
-      <MateComposer agentId={agent.id} running={agent.status === "running"} />
+      <MateComposer agent={agent} />
     </section>
   );
 }
 
-type MateComposerProps = { agentId: string; running: boolean };
+type MateComposerProps = { agent: Agent };
 
-function MateComposer({ agentId, running }: MateComposerProps) {
+function MateComposer({ agent }: MateComposerProps) {
   const [draft, setDraft] = useState("");
+  const [menu, setMenu] = useState<"model" | "effort" | null>(null);
+  const modelRef = useRef<HTMLButtonElement>(null);
+  const effortRef = useRef<HTMLButtonElement>(null);
+  const models = useStore((s) => s.meta?.models) ?? NO_ITEMS;
+  const defaults = useDefaults();
+  const model = agent.model ?? defaults.model;
+  const levels = supportedLevels(model);
+  const effort = agent.effort ?? defaults.effort ?? builtinEffort(levels);
+  const running = agent.status === "running";
+  const toggle = (name: "model" | "effort") => setMenu((open) => (open === name ? null : name));
   const send = () => {
     const text = draft;
     if (!text.trim()) return;
@@ -103,8 +117,17 @@ function MateComposer({ agentId, running }: MateComposerProps) {
       }}
     >
       <textarea className="mate-input" rows={1} value={draft} placeholder={A.placeholder} aria-label={A.placeholder} onChange={(event) => setDraft(event.target.value)} onKeyDown={onKeyDown} />
+      <button ref={modelRef} type="button" className="chip" data-chip="model" aria-haspopup="dialog" aria-expanded={menu === "model"} aria-label={A.model} title={A.model} onClick={() => toggle("model")}>
+        <ModelIcon />
+        <span className="chip-label chip-main">{modelChip(model, agent.activeModel, models).name}</span>
+      </button>
+      {levels.length > 0 && (
+        <button ref={effortRef} type="button" className="chip" data-chip aria-haspopup="listbox" aria-expanded={menu === "effort"} aria-label={A.effort} title={A.effort} onClick={() => toggle("effort")}>
+          <span className="chip-label">{effortName(effort)}</span>
+        </button>
+      )}
       {running && !draft.trim() ? (
-        <Button size="icon" aria-label={A.stop} onClick={() => stopMate(agentId)}>
+        <Button size="icon" aria-label={A.stop} onClick={() => stopMate(agent.id)}>
           <Codicon name="debug-stop" />
         </Button>
       ) : (
@@ -112,6 +135,8 @@ function MateComposer({ agentId, running }: MateComposerProps) {
           <Codicon name="arrow-up" />
         </Button>
       )}
+      {menu === "model" && <ModelMenu anchor={modelRef.current} current={model ?? "default"} onClose={() => setMenu(null)} onChoose={(value) => setMateModel(agent.id, value)} />}
+      {menu === "effort" && <EffortMenu anchor={effortRef.current} label={A.effort} levels={levels} current={effort} onClose={() => setMenu(null)} onChoose={(level) => setMateEffort(agent.id, level)} />}
     </form>
   );
 }

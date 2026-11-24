@@ -223,6 +223,9 @@
   font-size: var(--text-chat);
   line-height: var(--leading-chat);
 }
+.mate-composer .chip {
+  flex: none;
+}
 .mate-input::placeholder {
   color: var(--fg-subtle);
 }
