@@ -40,7 +40,7 @@ import { CHAT_WINDOW_QUERY } from "../shared/windows";
 import { requestIdleReload } from "./idleReload";
 import { collectExtras, forLaunch, loadHotExit, parseWindowState, pruneTabState, restoreHandoffs, setPendingHot, setPendingRestore, snapshotHandoffs, WINDOW_STATE_KEY, WINDOW_STATE_VERSION, type WindowExtras } from "./windowState";
 import { revealPinned, setPinnedDrawer, setPinnedSide } from "./pinnedPanel";
-import { cacheChatDock, cacheLayoutSettings, cachePerSession, loadCachedChatDock, loadCachedDefaultLayout, loadCachedPerSession, loadCachedRemember, loadFloatRect, loadFocusedLayout, loadLastLayout, saveFloatRect, saveFocusedLayout, saveLastLayout } from "./layoutPrefs";
+import { cacheChatDock, cacheLayoutSettings, cachePerSession, loadCachedChatDock, loadCachedDefaultLayout, loadCachedPerSession, loadCachedRemember, loadFloatRect, loadLastLayout, saveFloatRect, saveLastLayout } from "./layoutPrefs";
 import { chatDockOf, parseDockWidth, type ChatDock } from "./focusLayout";
 import { dropTabFocus, isShown, pruneTabFocus, sanitizeTabFocus, settleSessionTabs, shownAgentsOf, shownTabs, type TabFocus } from "./sessionTabs";
 import { dropSessionLayout, layoutKeyOf, layoutPatch, planSwitch, pruneSessionLayouts, sameLayout, sanitizeSessionLayouts, sliceOf as layoutSliceOf, type SessionLayouts } from "./sessionLayout";
@@ -481,7 +481,7 @@ for (const pane of restored?.panes ?? []) paneSeq = Math.max(paneSeq, Number(pan
 const firstPane = newPaneId();
 
 const restoredLayout: LayoutMode | null = isLayoutMode(restored?.layoutMode) ? (restored?.layoutMode ?? null) : null;
-const openerLayout: LayoutMode | null = initialChat ? "chat" : pickFolderOnStart ? loadFocusedLayout() : null;
+const openerLayout: LayoutMode | null = initialChat || pickFolderOnStart ? "chat" : null;
 const startLayout: LayoutMode = EMBED ? "chat" : startingMode({ restored: restoredLayout ?? openerLayout,defaultLayout: loadCachedDefaultLayout(), remember: loadCachedRemember(), last: loadLastLayout() });
 
 const EDITOR_ENTRY_PANELS = { focusSideOpen: true, sideTabKey: "files", bottomOpen: true, bottomTab: "terminal" } satisfies Partial<State>;
@@ -613,19 +613,6 @@ const listeners = new Set<() => void>();
 
 let tabMru: TabMru = {};
 export const mruOf = (group: string): readonly string[] => tabMru[group] ?? [];
-
-if (!EMBED && WINDOW_ID !== null && typeof window !== "undefined") {
-  let notedLayout: LayoutMode | null = null;
-  const noteFocusedLayout = () => {
-    if (!document.hasFocus()) return;
-    notedLayout = state.layoutMode;
-    saveFocusedLayout(state.layoutMode);
-  };
-  window.addEventListener("focus", noteFocusedLayout);
-  listeners.add(() => {
-    if (state.layoutMode !== notedLayout) noteFocusedLayout();
-  });
-}
 
 function activeAfterClose(s: State, group: string, key: string, siblings: readonly string[]): string | null {
   return pickAfterClose(tabMru, group, key, siblings, group === MAIN_GROUP ? sideKeyOf(s.sideTabKey, !!s.selectedCardId) : null);

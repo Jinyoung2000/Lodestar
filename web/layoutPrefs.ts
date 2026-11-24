@@ -32,10 +32,6 @@ function readMode(key: string): LayoutMode | null {
 export const loadLastLayout = () => readMode(LAST_KEY);
 export const saveLastLayout = (mode: LayoutMode) => write(LAST_KEY, mode);
 
-const FOCUSED_KEY = "agent-nav:layout-focused";
-export const loadFocusedLayout = () => readMode(FOCUSED_KEY);
-export const saveFocusedLayout = (mode: LayoutMode) => write(FOCUSED_KEY, mode);
-
 export const loadCachedDefaultLayout = () => readMode(DEFAULT_KEY);
 export const loadCachedRemember = () => read(REMEMBER_KEY) === "1";
 export function cacheLayoutSettings(defaultLayout: LayoutMode | null, remember: boolean) {
