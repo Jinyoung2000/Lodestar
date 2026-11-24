@@ -97,14 +97,14 @@ test("create: 핸드오프 세션은 원 세션의 자식이고, 원 세션 끝�
   return "child, notice, title";
 });
 
-test("사이드바: 핸드오프 세션은 원 세션 아래 자식, 갈래가 있으면 갈래가 먼저", () => {
+test("사이드바: 핸드오프 세션은 원 세션 아래 자식, 갈래는 계층을 만들지 않음", () => {
   const workspaces = [{ id: "w1", name: "alpha", dir: "/alpha", parentId: null }];
   const src = record("p", { workspaceId: "w1", createdAt: "2026-10-15T10:00:00.000Z", updatedAt: "2026-10-15T10:00:00.000Z" });
   const kid = record("k", { workspaceId: "w1", handoffFrom: "p", createdAt: "2026-10-15T11:00:00.000Z", updatedAt: "2026-10-15T11:00:00.000Z" });
   const both = record("b", { workspaceId: "w1", forkedFrom: "p", handoffFrom: "k", createdAt: "2026-10-15T11:30:00.000Z", updatedAt: "2026-10-15T11:30:00.000Z" });
   const groups = buildGroups({ agents: [src, kid, both], workspaces, topWorkspaceId: (id) => id || null, view: { ...DEFAULT_VIEW }, defaultOrdering: "created", now: Date.parse("2026-10-15T13:00:00.000Z"), collapsedParents: new Set(), expandedGroups: new Set() });
   const rows = groups.find((g) => g.id === "ws:w1")!.rows.map((r) => `${r.agent.id}:${r.depth}`).join(",");
-  return expect(rows === "p:0,k:1,b:1", rows);
+  return expect(rows === "p:0,k:1,b:2", rows);
 });
 
 test("gitStateBlock: 원 세션 폴더의 최근 커밋과 커밋 안 된 변경이 문서 질문에 들어간다 (dogfood 2회차 10번)", async () => {

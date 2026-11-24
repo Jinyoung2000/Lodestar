@@ -122,7 +122,7 @@ export function sidebarLayout(input: SidebarInput): SidebarLayout {
   return { groups, scopes, order };
 }
 
-export const parentId = (agent: Agent) => agent.forkedFrom ?? agent.handoffFrom ?? null;
+export const parentId = (agent: Agent) => agent.handoffFrom ?? null;
 
 function pinnedFamily(list: Agent[]) {
   const byId = new Map(list.map((a) => [a.id, a]));

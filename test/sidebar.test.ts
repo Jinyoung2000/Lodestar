@@ -114,31 +114,34 @@ test("Ordering: created vs updated; pinned sessions move to a Pinned group above
   expect(ids(w1(byCreated).rows) === `${b.id},${a.id}`, `created: ${ids(w1(byCreated).rows)}`);
   const byUpdated = buildGroups(input([a, b, c], { view: { ...DEFAULT_VIEW, ordering: "updated" } }));
   expect(ids(w1(byUpdated).rows) === `${a.id},${b.id}`, `updated: ${ids(w1(byUpdated).rows)}`);
-  const kid = agent({ forkedFrom: c.id, createdAt: at(5) });
-  const pinnedKid = agent({ forkedFrom: a.id, createdAt: at(4), pinned: true });
+  const kid = agent({ handoffFrom: c.id, createdAt: at(5) });
+  const pinnedKid = agent({ handoffFrom: a.id, createdAt: at(4), pinned: true });
   const groups = buildGroups(input([a, b, c, kid, pinnedKid]));
   expect(groups[0].rows.map((r) => `${r.agent.id}:${r.depth}`).join() === `${pinnedKid.id}:0,${c.id}:0,${kid.id}:1`, `pinned family: ${groups[0].rows.map((r) => r.agent.id)}`);
   expect(ids(w1(groups).rows) === `${b.id},${a.id}`, "the unpinned parent stays in its folder without the pinned fork");
   return expect(groups.find((g) => g.id === "chats")!.rows.length === 0, "empty Chats keeps its head");
 });
 
-test("Forks nest under the parent at any depth; a fork whose parent is elsewhere becomes a top-level row", () => {
+test("Handoffs nest under the parent at any depth; forks and handoffs whose parent is elsewhere are top-level rows", () => {
   const parent = agent({ createdAt: at(50) });
-  const child = agent({ forkedFrom: parent.id, createdAt: at(40) });
-  const grand = agent({ forkedFrom: child.id, createdAt: at(30) });
-  const orphan = agent({ forkedFrom: "gone", createdAt: at(20) });
+  const child = agent({ handoffFrom: parent.id, createdAt: at(40) });
+  const grand = agent({ handoffFrom: child.id, createdAt: at(30) });
+  const orphan = agent({ handoffFrom: "gone", createdAt: at(20) });
   const rows = w1(buildGroups(input([parent, child, grand, orphan]))).rows;
   expect(rows.map((r) => `${r.agent.id}:${r.depth}`).join(",") === `${orphan.id}:0,${parent.id}:0,${child.id}:1,${grand.id}:2`, `got ${rows.map((r) => `${r.agent.id}:${r.depth}`)}`);
   expect(rows[1].hasChildren && rows[2].hasChildren && !rows[3].hasChildren, "twistie flags");
   const collapsed = w1(buildGroups(input([parent, child, grand], { collapsedParents: new Set([parent.id]) }))).rows;
   expect(ids(collapsed) === parent.id, "collapsing the parent hides the whole subtree");
   const done = buildGroups(input([parent, { ...child, done: true }]));
-  return expect(ids(w1(done).rows) === `${parent.id}` && w1(done).count === 1, "a done fork leaves its parent's group");
+  expect(ids(w1(done).rows) === `${parent.id}` && w1(done).count === 1, "a done child leaves its parent's group");
+  const fork = agent({ forkedFrom: parent.id, createdAt: at(10) });
+  const flat = w1(buildGroups(input([parent, fork]))).rows;
+  return expect(flat.map((r) => `${r.agent.id}:${r.depth}`).join(",") === `${fork.id}:0,${parent.id}:0` && !flat[1].hasChildren, `a fork is a plain top-level row: ${flat.map((r) => `${r.agent.id}:${r.depth}`)}`);
 });
 
 test("Show=Recent folds a group past 5 top-level sessions; Show more and Show=All unfold it", () => {
   const list = Array.from({ length: 7 }, (_, i) => agent({ createdAt: at(i + 1) }));
-  const fork = agent({ forkedFrom: list[0].id, createdAt: at(0) });
+  const fork = agent({ handoffFrom: list[0].id, createdAt: at(0) });
   const folded = w1(buildGroups(input([...list, fork])));
   expect(folded.foldable && folded.folded && folded.rows.length === 6, `5 top-level plus the shown parent's fork, got ${folded.rows.length}`);
   expect(folded.count === 8, "count still covers every session");
@@ -220,11 +223,11 @@ test("Server: read, pin, done, rename emit the agent and keep updatedAt", () => 
   return expect(reloaded.agent("s1").pinned === true && reloaded.agent("s1").title === "new name", "persisted to state.json");
 });
 
-test("sidebarLayout.order: Pinned, Chats, folders, forks under the parent, collapsed groups and Show more respected", () => {
+test("sidebarLayout.order: Pinned, Chats, folders, handoffs under the parent, collapsed groups and Show more respected", () => {
   const feedback = agent({ feedbackId: "f1", updatedAt: at(1) });
   const chat = agent({ workspaceId: "" });
   const parent = agent({ workspaceId: "w1", createdAt: at(50) });
-  const fork = agent({ workspaceId: "w1", forkedFrom: parent.id, createdAt: at(40) });
+  const fork = agent({ workspaceId: "w1", handoffFrom: parent.id, createdAt: at(40) });
   const pinned = agent({ workspaceId: "w1", createdAt: at(70), pinned: true });
   const zeta = agent({ workspaceId: "w2" });
   const done = agent({ workspaceId: "w1", done: true });
@@ -236,7 +239,7 @@ test("sidebarLayout.order: Pinned, Chats, folders, forks under the parent, colla
   const collapsed = sidebarLayout({ ...open, collapsedGroups: new Set(["chats", "ws:w1"]) });
   expect(collapsed.order.join() === [pinned, zeta].map((a) => a.id).join(), `collapsed: ${collapsed.order.join()}`);
   const parentsCollapsed = sidebarLayout({ ...open, collapsedParents: new Set([parent.id]) });
-  expect(!parentsCollapsed.order.includes(fork.id), "collapsed parent hides its forks");
+  expect(!parentsCollapsed.order.includes(fork.id), "collapsed parent hides its handoffs");
   const withDone = sidebarLayout({ ...open, view: { ...DEFAULT_VIEW, showDone: true } });
   expect(withDone.order.at(-1) === done.id, "Done is last");
   expect(!sidebarLayout({ ...open, view: { ...DEFAULT_VIEW, showDone: true }, collapsedGroups: new Set(["done"]) }).order.includes(done.id), "Done collapsed by default is skipped");

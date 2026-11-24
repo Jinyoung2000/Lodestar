@@ -138,11 +138,11 @@ test("buildGroups: 고정 묶음과 완료 묶음은 자기 scope 로만 정렬�
   return expect(rowIds(plain, "pinned") === "p1,p2" && rowIds(plain, "done") === "x1,x2", "default order without saved lists");
 });
 
-test("buildGroups: 갈래 세션은 같은 부모 안에서만 순서가 바뀜", () => {
+test("buildGroups: 핸드오프 세션은 같은 부모 안에서만 순서가 바뀜", () => {
   const parent = agent("parent", 1);
-  const k1 = agent("k1", 20, { forkedFrom: "parent" });
-  const k2 = agent("k2", 19, { forkedFrom: "parent" });
-  const k3 = agent("k3", 18, { forkedFrom: "parent" });
+  const k1 = agent("k1", 20, { handoffFrom: "parent" });
+  const k2 = agent("k2", 19, { handoffFrom: "parent" });
+  const k3 = agent("k3", 18, { handoffFrom: "parent" });
   const other = agent("other", 2);
   const agents = [parent, k1, k2, k3, other];
   expect(rowIds(buildGroups(input(agents)), "ws:w1") === "parent,k1,k2,k3,other", "default: children by creation time");
