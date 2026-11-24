@@ -294,6 +294,7 @@ export class RelayLink {
       if (this.channels.size >= MAX_CHANNELS) return this.closeChannel(id, 4429, "too many connections");
       this.channels.set(id, new RelayChannel(id, this, this.deps));
     } else if (message.t === "close") {
+      this.channels.get(id)?.logEnd("the phone or the relay closed it");
       this.channels.get(id)?.dispose();
       this.channels.delete(id);
     }
@@ -340,6 +341,7 @@ class RelayChannel {
   private httpSize = 0;
   private timer: NodeJS.Timeout;
   private noise: NoisePrimitives;
+  private openedAt = Date.now();
 
   constructor(private id: number, private link: RelayLink, private deps: RelayLinkDeps) {
     this.noise = deps.noise ?? nodeNoise;
@@ -530,7 +532,13 @@ class RelayChannel {
 
   close(code = 1000, reason = "") {
     if (this.mode === "done") return;
+    this.logEnd(`this Mac closed it with ${code}${reason ? ` ${reason}` : ""}`);
     this.link.closeChannel(this.id, code, reason);
+  }
+
+  logEnd(why: string) {
+    if (this.mode !== "ws") return;
+    this.deps.log?.(`[relay] phone ${this.deviceId?.slice(0, 8) ?? "?"} left after ${Math.round((Date.now() - this.openedAt) / 1000)}s (${why})`);
   }
 
   dispose() {
