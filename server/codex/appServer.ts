@@ -1,13 +1,20 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { appendFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { stripAppEnv } from "../claude";
-import { withLoginPath } from "../loginPath";
+import { findExecutable, withLoginPath } from "../loginPath";
 import { trackGroupLeader } from "../processGroups";
 
 // CODEX: Codex 앱 서버(`codex app-server`)와 stdio 로 주고받는 JSON-RPC 클라이언트. 한 줄에 JSON 하나(JSONL)이고 "jsonrpc" 필드는 없다.
 // 메시지 종류: 클라이언트 요청 {id, method, params} -> 응답 {id, result|error} / 서버 알림 {method, params} / 서버가 클라이언트에 보내는 요청 {id, method, params}(승인 등)
-export const CODEX_BIN = process.env.AGENT_NAV_CODEX ?? `${process.env.HOME}/.local/bin/codex`;
+export function codexBin(env: NodeJS.ProcessEnv = process.env): string {
+  if (env.AGENT_NAV_CODEX) return env.AGENT_NAV_CODEX;
+  const native = join(env.HOME ?? homedir(), ".local", "bin", "codex");
+  if (findExecutable(native, undefined)) return native;
+  return findExecutable("codex", withLoginPath(env.PATH)) ?? native;
+}
 const TRACE_FILE = process.env.AGENT_NAV_CODEX_TRACE;
 const STDERR_TAIL_MAX = 4000;
 const INITIALIZE_TIMEOUT_MS = 20_000;
@@ -67,7 +74,7 @@ export class AppServer {
     return this.stderr.trim();
   }
 
-  static async start(handlers: AppServerHandlers, bin: string = CODEX_BIN): Promise<AppServer> {
+  static async start(handlers: AppServerHandlers, bin: string = codexBin()): Promise<AppServer> {
     const child = spawn(bin, ["app-server"], { stdio: ["pipe", "pipe", "pipe"], env: codexEnv(), detached: true, windowsHide: true });
     await new Promise<void>((resolve, reject) => {
       child.once("spawn", () => resolve());

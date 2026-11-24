@@ -23,7 +23,7 @@ A detailed feature reference, written in Korean during development, is in [docs/
 - macOS. The daemon and app call macOS tools (`/usr/bin/security`, `/usr/bin/sqlite3`, `open`, `osascript`, `xcrun`), and `npm run dist` is set up for Apple Silicon (it signs `release/mac-arm64/Lodestar.app`). Other platforms are not supported.
 - Node.js 22.12 or newer (Vite and oxlint need it; the bundled `typescript-language-server` declares 22.22.2 or newer) and npm.
 - Claude Code CLI installed (`~/.local/bin/claude`, anywhere on your login shell `PATH`, or the path in `AGENT_NAV_CLAUDE`) and signed in (`claude auth login`). Lodestar runs that CLI unmodified and uses the account it is signed in to; it never asks for, reads or stores a key.
-- Optional: `gh` signed in, for pull requests and checks. Optional: the Codex CLI at `~/.local/bin/codex` (or `AGENT_NAV_CODEX`), for Codex sessions. Optional: the Antigravity CLI `agy` at `~/.local/bin/agy` (or `AGENT_NAV_ANTIGRAVITY`), signed in, for Antigravity sessions. Optional: the Cursor CLI at `~/.local/bin/cursor-agent` or `~/.local/bin/agent` (or `AGENT_NAV_CURSOR`), signed in with `agent login`, for Cursor sessions; Lodestar never starts the Cursor login itself. Optional: Xcode command line tools, for the simulator link actions.
+- Optional: `gh` signed in, for pull requests and checks. Optional: the Codex CLI at `~/.local/bin/codex` or anywhere on your login shell `PATH`, such as Homebrew or a global npm install (or `AGENT_NAV_CODEX`), for Codex sessions. Optional: the Antigravity CLI `agy` at `~/.local/bin/agy` (or `AGENT_NAV_ANTIGRAVITY`), signed in, for Antigravity sessions. Optional: the Cursor CLI at `~/.local/bin/cursor-agent` or `~/.local/bin/agent` (or `AGENT_NAV_CURSOR`), signed in with `agent login`, for Cursor sessions; Lodestar never starts the Cursor login itself. Optional: Xcode command line tools, for the simulator link actions.
 
 ## Install
 
@@ -80,7 +80,7 @@ Environment variables that matter:
 | `AGENT_NAV_PORT` | `7788` | Daemon port on 127.0.0.1 |
 | `AGENT_NAV_HOME` | `~/.agent-nav` | Data folder: settings, sessions index, board, logs, the access token |
 | `AGENT_NAV_CLAUDE` | `~/.local/bin/claude`, then `claude` on `PATH` | Claude Code CLI to run |
-| `AGENT_NAV_CODEX` | `~/.local/bin/codex` | Codex CLI to run |
+| `AGENT_NAV_CODEX` | `~/.local/bin/codex`, then `codex` on the login shell `PATH` | Codex CLI to run |
 | `AGENT_NAV_ANTIGRAVITY` | `~/.local/bin/agy`, then `agy` on `PATH` | Antigravity CLI to run; point it at a fake `agy` for tests and checking instances |
 | `AGENT_NAV_CURSOR` | `~/.local/bin/cursor-agent`, `~/.local/bin/agent`, then `cursor-agent` on `PATH` | Cursor CLI to run; point it at `test/fixtures/cursor/agent.mjs` for checking instances |
 | `AGENT_NAV_GH` | `gh` on `PATH` | GitHub CLI to run |

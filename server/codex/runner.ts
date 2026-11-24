@@ -8,7 +8,7 @@ import { imagePath } from "../images";
 import { chatGuidance, sessionEnv } from "../sessionEnv";
 import type { Store } from "../store";
 import { T } from "../strings";
-import { AppServer, AppServerError, CODEX_BIN } from "./appServer";
+import { AppServer, AppServerError, codexBin } from "./appServer";
 import { commandApproval, fileChangeApproval, itemToTimeline, planToTool, summarizeDiff, turnErrorOf } from "./mapping";
 import type { CodexApprovalDecision, CodexPlanStep, CodexThreadItem, CodexTokenUsage, CodexTurn } from "./types";
 
@@ -397,7 +397,7 @@ export class CodexRunner {
   private failStart(session: Session, error: unknown) {
     const raw = error instanceof Error ? error.message : String(error);
     const missing = (error as NodeJS.ErrnoException)?.code === "ENOENT";
-    const text = missing ? T.codexNotInstalled(CODEX_BIN) : raw;
+    const text = missing ? T.codexNotInstalled(codexBin()) : raw;
     const auth = /not logged in|log in|login|unauthorized|401/i.test(raw);
     this.host.upsert(session.agentId, { id: randomUUID(), kind: "error", text: auth ? T.codexNotLoggedIn : text, auth });
     this.finishTurn(session, "error");
@@ -682,7 +682,7 @@ export class CodexRunner {
       server = await this.ensureServer();
     } catch (error) {
       const missing = (error as NodeJS.ErrnoException)?.code === "ENOENT";
-      return { ...base, installed: !missing, error: missing ? T.codexNotInstalled(CODEX_BIN) : String(error instanceof Error ? error.message : error) };
+      return { ...base, installed: !missing, error: missing ? T.codexNotInstalled(codexBin()) : String(error instanceof Error ? error.message : error) };
     }
     base.version = /\/(\d+\.\d+\.\d+\S*)/.exec(server.userAgent ?? "")?.[1] ?? null;
     try {
