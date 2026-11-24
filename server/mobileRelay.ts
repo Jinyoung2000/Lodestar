@@ -68,6 +68,10 @@ export type RelayLinkDeps = {
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 const KEEPALIVE_MS = 30_000;
 const FIRST_RETRY_MS = 100;
+const KNOCK_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
+const KNOCK_IDLE_MS = 5 * 60_000;
+const KNOCK_WAIT_MS = 6_000;
+const CLOSE_MAC_OFFLINE = 4404;
 const PONG_TIMEOUT_MS = 10_000;
 const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 const MAX_CHANNELS = 32;
@@ -89,6 +93,11 @@ export class RelayLink {
   private running = false;
   private onlineSince: number | null = null;
   private lastLoggedError: string | null = null;
+  private knockTimer: NodeJS.Timeout | null = null;
+  private knocks = 0;
+  private knockFailures = 0;
+  private heardAt = 0;
+  private heard: (() => void) | null = null;
 
   constructor(private deps: RelayLinkDeps) {}
 
@@ -131,6 +140,8 @@ export class RelayLink {
       this.deps.log?.("[relay] connected");
       this.keepalive = setInterval(() => this.ping(socket), KEEPALIVE_MS);
       this.keepalive.unref();
+      this.knocks = Math.min(this.knockFailures, KNOCK_DELAYS_MS.length);
+      this.scheduleKnock(socket);
     });
     socket.on("unexpected-response", (_req, res) => {
       if (socket !== this.socket) return;
@@ -142,6 +153,7 @@ export class RelayLink {
       if (!isBinary) return this.control(data.toString());
       const buffer = data as Buffer;
       if (buffer.length < 4) return;
+      this.heardAt = Date.now();
       this.channels.get(buffer.readUInt32BE(0))?.receive(new Uint8Array(buffer.subarray(4)));
     });
     socket.on("error", (error) => {
@@ -184,9 +196,54 @@ export class RelayLink {
     this.retry.unref();
   }
 
+  private scheduleKnock(socket: WebSocket) {
+    const delay = KNOCK_DELAYS_MS[this.knocks] ?? KNOCK_IDLE_MS;
+    this.knockTimer = setTimeout(() => {
+      this.knockTimer = null;
+      if (socket !== this.socket) return;
+      this.knocks++;
+      if (this.heardAt >= Date.now() - delay) return this.scheduleKnock(socket);
+      this.knock(socket);
+    }, delay);
+    this.knockTimer.unref();
+  }
+
+  private knock(socket: WebSocket) {
+    const visitor = new WebSocket(`${this.deps.url.replace(/^http/, "ws")}/v1/client/${this.deps.identity.id}`, { handshakeTimeout: 10_000 });
+    let settled = false;
+    let wait: NodeJS.Timeout | null = null;
+    const settle = (reached: boolean | null) => {
+      if (settled) return;
+      settled = true;
+      if (wait) clearTimeout(wait);
+      if (this.heard === arrived) this.heard = null;
+      visitor.removeAllListeners();
+      visitor.on("error", () => {});
+      visitor.terminate();
+      if (socket !== this.socket) return;
+      if (reached) this.knockFailures = 0;
+      if (reached !== false) return this.scheduleKnock(socket);
+      this.knockFailures++;
+      this.logDisconnect("the relay stopped passing phones to this Mac");
+      this.dropSocket();
+      this.scheduleRetry();
+    };
+    const arrived = () => settle(true);
+    this.heard = arrived;
+    visitor.on("open", () => {
+      wait = setTimeout(() => settle(false), KNOCK_WAIT_MS);
+      wait.unref();
+    });
+    visitor.on("close", (code) => settle(code === CLOSE_MAC_OFFLINE ? false : null));
+    visitor.on("error", () => settle(null));
+  }
+
   private dropSocket() {
     if (this.keepalive) clearInterval(this.keepalive);
     this.keepalive = null;
+    if (this.knockTimer) clearTimeout(this.knockTimer);
+    this.knockTimer = null;
+    this.heard = null;
     if (this.pongTimer) clearTimeout(this.pongTimer);
     this.pongTimer = null;
     for (const channel of this.channels.values()) channel.dispose();
@@ -230,6 +287,8 @@ export class RelayLink {
       return;
     }
     if (typeof message.c !== "number") return;
+    this.heardAt = Date.now();
+    this.heard?.();
     const id = message.c;
     if (message.t === "open") {
       if (this.channels.size >= MAX_CHANNELS) return this.closeChannel(id, 4429, "too many connections");
