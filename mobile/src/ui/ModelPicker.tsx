@@ -53,13 +53,6 @@ export function modelPickerLabel(name: string, effort: EffortLevel | null) {
   return `Model ${name}${effort ? `, effort ${EFFORT_NAMES[effort]}` : ""}. Change`;
 }
 
-export function CompactEffort({ effort }: { effort: EffortLevel }) {
-  return <View style={styles.subtitle}>
-    <Text variant="caption" color="textMuted" maxFontSizeMultiplier={1.3}>{EFFORT_NAMES[effort]}</Text>
-    <View style={styles.subtitleChevron}><Icon name="chevron.down" size={10} color="textSubtle" /></View>
-  </View>;
-}
-
 export function ModelSubtitle({ name, effort }: { name: string; effort: EffortLevel | null }) {
   return <View style={styles.subtitle}>
     <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.modelLabel}>{name}</Text>
@@ -227,7 +220,7 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
                 {!narrowed && <Icon name={hidden ? "chevron.right" : "chevron.down"} size={14} color="textMuted" />}
               </Pressable>
               {!hidden && <View style={[styles.group, { backgroundColor: colors.surfaceBase }]}>
-                {!narrowed && <Choice label={entry.harness === "claude" ? "Mac default" : `${name} default`} checked={entry.harness === displayed.harness && displayed.model === null} disabled={locked} onPress={() => choose(entry, null)} />}
+                {!needle && <Choice label={defaultChoiceLabel(entry)} checked={entry.harness === displayed.harness && displayed.model === null} disabled={locked} onPress={() => choose(entry, null)} />}
                 {models.map((model) => {
                   const key = `${entry.harness}/${model.value}`;
                   const label = modelLabel(entry.harness, model.value, entry);
@@ -261,6 +254,11 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
         </View>}
       </ScrollView>
   </View>;
+}
+
+function defaultChoiceLabel(entry: MobileModelProvider) {
+  const base = entry.harness === "claude" ? "Mac default" : `${PROVIDER_NAMES[entry.harness]} default`;
+  return entry.defaultModel ? `${base} (${modelLabel(entry.harness, entry.defaultModel, entry)})` : base;
 }
 
 function Choice({ label, checked, disabled, onPress }: { label: string; checked: boolean; disabled?: boolean; onPress: () => void }) {
