@@ -124,6 +124,7 @@ export default function RootLayout() {
   }, [colors.background, scheme, themeChoice]);
 
   if (themeChoice === null) return null;
+  const pushAnimation = expanded ? "none" : Platform.OS === "android" ? "fade_from_bottom" : "default";
   return (
     <ThemeProvider value={theme}>
       <NavigationThemeProvider value={navigationTheme}>
@@ -158,10 +159,10 @@ export default function RootLayout() {
                   }}
                 >
                   <Stack.Screen name="index" options={{ title: "Lodestar", headerShown: railWidth === 0 && Platform.OS !== "android" }} />
-                  <Stack.Screen name="session/[id]" dangerouslySingular={singleSessionSlot} options={{ title: "", headerBackButtonDisplayMode: "minimal", animation: expanded ? "none" : "default" }} />
+                  <Stack.Screen name="session/[id]" dangerouslySingular={singleSessionSlot} options={{ title: "", headerBackButtonDisplayMode: "minimal", animation: pushAnimation }} />
                   <Stack.Screen name="workspace/[id]" options={{ title: "", headerBackButtonDisplayMode: "minimal" }} />
                   <Stack.Screen name="add-workspace" options={{ title: "Add workspace", presentation: "modal" }} />
-                  <Stack.Screen name="new" options={{ title: "New session", animation: expanded ? "none" : "default" }} />
+                  <Stack.Screen name="new" options={{ title: "New session", animation: pushAnimation }} />
                   <Stack.Screen name="settings" options={{ title: "Settings", presentation: "modal" }} />
                   <Stack.Screen name="connect" options={{ title: "Lodestar", headerBackVisible: false, gestureEnabled: false }} />
                   <Stack.Screen name="scan" options={{ title: "Scan QR code", presentation: "modal" }} />
