@@ -57,7 +57,7 @@ test("other screens are never hidden and a hidden screen becomes sessions", () =
 test("hidden command names follow the two flags", () => {
   const none = hiddenCommands(null);
   expect(none.has("board") && none.has("morningReview") && none.has("inbox"), [...none].join(","));
-  expect(hiddenCommands({ ...BOTH_ON, assistantEnabled: true }).size === 0, "both on");
+  expect(hiddenCommands({ ...BOTH_ON, assistantEnabled: true }, true).size === 0, "both on");
   const boardOnly = hiddenCommands({ showBoard: true });
   return expect(!boardOnly.has("board") && !boardOnly.has("morningReview") && boardOnly.has("inbox"), [...boardOnly].join(","));
 });

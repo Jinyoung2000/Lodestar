@@ -49,12 +49,13 @@ function CommandPalette({ initialQuery }: { initialQuery: string }) {
   const [query, setQuery] = useState(initialQuery);
   const [index, setIndex] = useState(0);
   const settings = useStore((s) => s.settings);
+  const operator = useStore((s) => s.operator);
   const all = useMemo(() => {
     const preset = settings?.keymapPreset ?? "vscode";
     const overrides = settings?.keymapOverrides?.[preset];
     const unbound = Object.entries(overrides ?? {}).flatMap(([command, keys]) => (keys.length ? [] : [command]));
-    return paletteCommands(bindingsFor(preset, overrides), { desktop: canRestartDaemon(), hidden: hiddenCommands(settings), unbound });
-  }, [settings]);
+    return paletteCommands(bindingsFor(preset, overrides), { desktop: canRestartDaemon(), hidden: hiddenCommands(settings, operator), unbound });
+  }, [settings, operator]);
   const results = useMemo(() => filterCommands(all, query), [all, query]);
   const active = Math.min(index, Math.max(results.length - 1, 0));
 

@@ -23,10 +23,11 @@ export function ShortcutsView() {
   const [recording, setRecording] = useState<Recording | null>(null);
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const settings = useStore((s) => s.settings);
+  const operator = useStore((s) => s.operator);
   const preset = settings?.keymapPreset ?? "vscode";
   const overrides = settings?.keymapOverrides?.[preset];
   const bindings = bindingsFor(preset, overrides);
-  const rows = useMemo(() => shortcutRows(bindings, { desktop: canRestartDaemon(), hidden: hiddenCommands(settings), changed: new Set(Object.keys(overrides ?? {})) }), [settings, bindings, overrides]);
+  const rows = useMemo(() => shortcutRows(bindings, { desktop: canRestartDaemon(), hidden: hiddenCommands(settings, operator), changed: new Set(Object.keys(overrides ?? {})) }), [settings, operator, bindings, overrides]);
   const results = useMemo(() => filterShortcuts(rows, query), [rows, query]);
   const groups = useMemo(() => groupByCategory(results), [results]);
   const active = Math.min(index, Math.max(results.length - 1, 0));

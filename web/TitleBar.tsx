@@ -47,7 +47,7 @@ export function TitleBar() {
   const agentInfo = useStore((s) => (agent ? s.gitInfo[agent.id] : undefined));
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const rightOpen = useStore((s) => s.rightOpen);
-  const centerView = useStore((s) => visibleCenterView(s.centerView, s.settings));
+  const centerView = useStore((s) => visibleCenterView(s.centerView, s.settings, s.operator));
   const showRightToggle = sessionPanelToggleable(centerView);
   const bottomOpen = useStore((s) => s.bottomOpen);
   const editorLayout = useStore((s) => s.layoutMode === "editor");

@@ -58,8 +58,8 @@ export function App() {
   }, [bottomOpen]);
   const layout = useStore((s) => s.layout);
   const panelWidth = useStore((s) => s.panelWidths[panelWidthKey(s)] ?? null);
-  const centerView = useStore((s) => visibleCenterView(s.centerView, s.settings));
-  const singleColumn = useStore((s) => visibleCenterView(s.centerView, s.settings) !== "sessions" || s.grid.rows.every((r) => r.ids.length <= 1));
+  const centerView = useStore((s) => visibleCenterView(s.centerView, s.settings, s.operator));
+  const singleColumn = useStore((s) => visibleCenterView(s.centerView, s.settings, s.operator) !== "sessions" || s.grid.rows.every((r) => r.ids.length <= 1));
   const editorLayout = useStore((s) => s.layoutMode === "editor");
   const focusSideOpen = useStore((s) => s.focusSideOpen);
   const chatDock = useStore((s) => s.chatDock);

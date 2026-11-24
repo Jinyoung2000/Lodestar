@@ -9,7 +9,7 @@ import { openPr, usePr } from "./prStore";
 import { G } from "./searchStrings";
 import { getStamps, startRecentTracking } from "./searchRecents";
 import { runCommand } from "./shortcuts";
-import { boardShown, slackShown } from "./screenVisibility";
+import { boardShown, improvementsShown, slackShown } from "./screenVisibility";
 import { ensureFiles, getState, isTopWorkspace, openAgent, openEditorChatSession, openCard, openFile, openImprovements, openInboxItem, setState, startCardSession, startDraft, useStore } from "./store";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { Button } from "./ui/button";
@@ -182,6 +182,7 @@ function useSearchData(): SearchData {
   const inbox = useStore((s) => s.inbox);
   const showBoard = useStore((s) => boardShown(s.settings));
   const showSlack = useStore((s) => slackShown(s.settings));
+  const showImprovements = useStore((s) => improvementsShown(s.operator));
   const lists = usePr((s) => s.lists);
   const [now] = useState(Date.now);
   const [stamps] = useState(getStamps);
@@ -191,8 +192,8 @@ function useSearchData(): SearchData {
   }, [fileWorkspaceId]);
 
   return useMemo(
-    () => ({ agents, workspaces, recentAgentIds, fileWorkspaceId, files, recentFiles, prs: uniquePrs(lists), cards: showBoard ? (board?.cards ?? []) : [], columns: showBoard ? (board?.columns ?? []) : [], mentions: showSlack ? mentionItems(inbox?.items) : [], hiddenActions: [...(showBoard ? [] : ["board"]), ...(showSlack ? [] : ["mentions"])], stamps, now }),
-    [agents, workspaces, recentAgentIds, fileWorkspaceId, files, recentFiles, lists, board, inbox, showBoard, showSlack, stamps, now],
+    () => ({ agents, workspaces, recentAgentIds, fileWorkspaceId, files, recentFiles, prs: uniquePrs(lists), cards: showBoard ? (board?.cards ?? []) : [], columns: showBoard ? (board?.columns ?? []) : [], mentions: showSlack ? mentionItems(inbox?.items) : [], hiddenActions: [...(showBoard ? [] : ["board"]), ...(showSlack ? [] : ["mentions"]), ...(showImprovements ? [] : ["improvements"])], stamps, now }),
+    [agents, workspaces, recentAgentIds, fileWorkspaceId, files, recentFiles, lists, board, inbox, showBoard, showSlack, showImprovements, stamps, now],
   );
 }
 

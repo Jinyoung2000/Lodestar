@@ -423,6 +423,7 @@ export type State = {
   inbox: InboxState | null;
   review: ReviewState | null;
   release: ReleaseState | null;
+  operator: boolean | null;
   automations: AutomationsState | null;
   followUps: FollowUpsState | null;
   assistant: AssistantState | null;
@@ -571,6 +572,7 @@ let state: State = {
   automationEditor: null,
   automationEditorOpen: false,
   release: null,
+  operator: null,
   selectedInboxId: null,
   selectedFeedbackId: null,
   layoutMode: startLayout,
@@ -663,9 +665,9 @@ export function setState(patch: Partial<State> | ((prev: State) => Partial<State
   const prev = state;
   let applied = typeof patch === "function" ? patch(state) : patch;
   if (Object.keys(applied).length === 0) return;
-  if ("settings" in applied || "centerView" in applied) {
+  if ("settings" in applied || "centerView" in applied || "operator" in applied) {
     const next = { ...state, ...applied };
-    if (next.settings && centerViewHidden(next.centerView, next.settings)) applied = { ...applied, centerView: "sessions" };
+    if (next.settings && centerViewHidden(next.centerView, next.settings, next.operator)) applied = { ...applied, centerView: "sessions" };
   }
   if (isTimelineOnly(applied)) {
     state = { ...state, ...applied };
@@ -2227,6 +2229,7 @@ export function initStore() {
     void rpc.call("followUps.get", {}).then((followUps) => setState({ followUps })).catch(() => setState({ followUps: null }));
     void rpc.call("assistant.get", {}).then(receiveAssistant).catch(() => receiveAssistant(null));
     void rpc.call("release.get", {}).then((release) => setState({ release })).catch(() => setState({ release: null }));
+    void rpc.call("runtime.info", {}).then((info) => setState({ operator: info.operator === true })).catch(() => undefined);
     void rpc.call("defaults.get", {}).then((defaults) => setState({ defaults })).catch(() => setState({ defaults: null }));
     void rpc.call("sessionOrder.list", {}).then((sessionOrders) => setState({ sessionOrders })).catch(() => setState({ sessionOrders: {} }));
     void Promise.all([

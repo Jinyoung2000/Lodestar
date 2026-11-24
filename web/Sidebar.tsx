@@ -27,7 +27,7 @@ import { expandGroup, resetSessionView, setCollapsedGroups, setSessionView, star
 import { beginSessionDrag } from "./sessionDrag";
 import { publishSessionLists, stepFolder, stepSession } from "./sessionReorder";
 import { runCommand } from "./shortcuts";
-import { assistantShown, boardShown, followUpsShown, slackShown } from "./screenVisibility";
+import { assistantShown, boardShown, followUpsShown, improvementsShown, slackShown } from "./screenVisibility";
 import { openPrBesideByUrl } from "./prStore";
 import { addTerminal, ensureTimeline, flash, refreshPrs, isTopWorkspace, openAgent, openCard, setState, startDraft, startQuickChat, openAutomation, toggleAutomations, toggleAssistant, toggleBoard, toggleImprovements, toggleInbox,topWorkspaceId, useStore } from "./store";
 import { S } from "./strings";
@@ -202,7 +202,7 @@ export function Sidebar({ width }: { width: number | null }) {
           </div>
         </div>
       </div>
-      <ImprovementsEntry />
+      <SidebarFoot />
     </nav>
   );
 }
@@ -225,32 +225,41 @@ function ReleaseNotice() {
   );
 }
 
+function SidebarFoot() {
+  const operator = useStore((s) => improvementsShown(s.operator));
+  const release = useStore((s) => s.settings?.notifyNewVersion === true && releaseToNotify(s.release) !== null);
+  if (!operator && !release) return null;
+  return (
+    <div className="sidebar-foot">
+      <ReleaseNotice />
+      {operator && <ImprovementsEntry />}
+    </div>
+  );
+}
+
 function ImprovementsEntry() {
   const open = useStore((s) => s.centerView === "improvements");
   const count = useStore((s) => notAppliedCount(s.feedbacks, s.agents));
   const waiting = useStore((s) => needsInputCount(s.feedbacks, s.agents));
   const busy = useStore((s) => improvementsBusy(s.feedbacks, s.agents));
   return (
-    <div className="sidebar-foot">
-      <ReleaseNotice />
-      <button type="button" className="side-item" data-active={open || undefined} data-busy={busy || undefined} aria-pressed={open} title={busy ? S.improvementsBusy : S.improvementsKey} onClick={() => toggleImprovements()}>
-        {busy ? <DotSpinner state="running" /> : <Codicon name="sparkle" />} {S.improvements}
-        {waiting > 0 && (
-          <span className="side-waiting" aria-label={S.feedbackWaitingTip(waiting)} title={S.feedbackWaitingTip(waiting)} data-needs-input-count={waiting}>
-            <span className="side-waiting-dot" />
-            <span>{waiting}</span>
-            <span className="side-waiting-word">{S.feedbackWaitingWord}</span>
-          </span>
-        )}
-        {count > 0 && (
-          <span className="side-count" aria-label={S.feedbackNotAppliedCount(count)} title={S.feedbackNotAppliedCount(count)} data-not-applied-count={count}>
-            <Codicon name="error" size={12} />
-            <span>{count}</span>
-            <span className="side-count-word">{S.feedbackNotAppliedWord}</span>
-          </span>
-        )}
-      </button>
-    </div>
+    <button type="button" className="side-item" data-active={open || undefined} data-busy={busy || undefined} aria-pressed={open} title={busy ? S.improvementsBusy : S.improvementsKey} onClick={() => toggleImprovements()}>
+      {busy ? <DotSpinner state="running" /> : <Codicon name="sparkle" />} {S.improvements}
+      {waiting > 0 && (
+        <span className="side-waiting" aria-label={S.feedbackWaitingTip(waiting)} title={S.feedbackWaitingTip(waiting)} data-needs-input-count={waiting}>
+          <span className="side-waiting-dot" />
+          <span>{waiting}</span>
+          <span className="side-waiting-word">{S.feedbackWaitingWord}</span>
+        </span>
+      )}
+      {count > 0 && (
+        <span className="side-count" aria-label={S.feedbackNotAppliedCount(count)} title={S.feedbackNotAppliedCount(count)} data-not-applied-count={count}>
+          <Codicon name="error" size={12} />
+          <span>{count}</span>
+          <span className="side-count-word">{S.feedbackNotAppliedWord}</span>
+        </span>
+      )}
+    </button>
   );
 }
 

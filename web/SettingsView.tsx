@@ -8,6 +8,7 @@ import { SETTING_DEFS, type FormatConfig, type SettingDef, type SettingsCtx } fr
 import { GROUP_ICONS, GROUP_IDS, activeGroup, filterSettings, groupCounts, isNarrow, type GroupId, type SettingMeta } from "./settingsSchema";
 import { activeAgentOf } from "./activeAgentOf";
 import { setState, useStore } from "./store";
+import { improvementsShown } from "./screenVisibility";
 import { S } from "./strings";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent } from "./ui/dialog";
@@ -23,7 +24,7 @@ export function SettingsView() {
   const [modifiedOnly, setModifiedOnly] = useState(false);
   const narrow = useNarrow(dialogEl);
 
-  const operator = useOperator();
+  const operator = useStore((s) => improvementsShown(s.operator));
   const metas = useMemo(() => (ctx ? SETTING_DEFS.filter((def) => operator || !def.operatorOnly).map((def) => metaOf(def, ctx)) : []), [ctx, operator]);
   const visible = useMemo(() => filterSettings(metas, query, modifiedOnly), [metas, query, modifiedOnly]);
   const counts = useMemo(() => groupCounts(visible), [visible]);
@@ -257,14 +258,3 @@ function useNarrow(el: HTMLElement | null) {
   return narrow;
 }
 
-function useOperator() {
-  const [operator, setOperator] = useState(false);
-  useEffect(() => {
-    let live = true;
-    void rpc.call("runtime.info", {}).then((info) => live && setOperator(info.operator === true), () => undefined);
-    return () => {
-      live = false;
-    };
-  }, []);
-  return operator;
-}
