@@ -447,10 +447,17 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
   const automationTitle = useStore((s) => (agent.automationId ? (s.automations?.automations.find((a) => a.id === agent.automationId)?.title ?? null) : null));
   const isChild = depth > 0;
   const folderCount = agent.workspaceId ? 1 + (agent.extraWorkspaceIds?.length ?? 0) : 0;
-  const oneLine = agent.workspaceId === null && agent.status === "idle" && !agent.imported;
   const sum = sumChanges(changes?.files);
   const time = relativeTime(agent.updatedAt, Date.now());
   const project = showProject && !isChild ? (workspace?.name ?? null) : null;
+  const hasDetail =
+    (!isChild && agent.workspaceId !== null && !!project) ||
+    agent.imported ||
+    agent.status !== "idle" ||
+    (!isChild && sum.add + sum.del > 0) ||
+    folderCount > 1 ||
+    !!automationTitle;
+  const oneLine = (agent.workspaceId === null && agent.status === "idle" && !agent.imported) || !hasDetail;
   const branch = agent.worktree?.branch ?? gitBranch;
   const tooltip = [
     `${agent.title} (${harnessOf(agent) === "claude" ? S.tipHarness : S.harnessNames[harnessOf(agent)]})`,
