@@ -28,7 +28,7 @@ export type SettingsCtx = {
   models: ModelInfo[];
 };
 
-export type CustomKind = "formatLanguages" | "importSessions" | "mcpServers" | "daemon" | "quickEntryShortcut" | "mobileAccess" | "linear";
+export type CustomKind = "formatLanguages" | "importSessions" | "mcpServers" | "daemon" | "quickEntryShortcut" | "mobileAccess";
 export type Option = { value: string; label: string; title?: string };
 
 type Common = {
@@ -531,7 +531,6 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   { ...text("mobileRelay"), group: "mobile", kind: "switch", ...plain("mobileRelay", false), value: (c) => c.settings.mobileRelay ?? false, set: (v) => save({ mobileRelay: v }), keywords: "relay remote anywhere cloudflare tunnel encrypted outside" },
   { ...text("mobilePairing"), group: "mobile", kind: "custom", component: "mobileAccess", wide: true, keywords: "iphone phone ios qr pairing device code", modified: () => false },
 
-  { ...text("linear"), group: "linear", kind: "custom", component: "linear", wide: true, keywords: "issues tickets api key keychain board", modified: () => false },
 
   { ...text("importSessions"), group: "import", kind: "custom", component: "importSessions", wide: true, keywords: "vscode claude session history", modified: () => false },
   { ...text("mcpServers"), group: "mcp", kind: "custom", component: "mcpServers", wide: true, keywords: "server connector reconnect", modified: () => false },

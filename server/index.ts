@@ -12,7 +12,6 @@ import { HARNESS_VALUES, harnessOf, OPERATOR_MARK, type Harness, RuntimeInfo, Rp
 import { switchBlock } from "../shared/harnessSwitch";
 import { AgentRunner } from "./agents";
 import { BoardStore } from "./board";
-import { NoteStore } from "./notes";
 import { NotionPinStore } from "./notionPins";
 import { createNotion } from "./notionHost";
 import { defaultsReader, describeDefaults } from "./defaults";
@@ -48,7 +47,6 @@ import { bridgeLsp } from "./lsp";
 import { BUNDLED_LANGUAGE_SERVERS, languageServersFor } from "./lspRegistry";
 import { ReviewCheckouts, runsFolderCode } from "./folderTrust";
 import { prHandlers } from "./pr";
-import { linearHandlers } from "./linear";
 import { simulatorHandlers } from "./simulator";
 import { skillCatalogHandlers } from "./skillCatalog";
 import { scmHandlers } from "./scmHandlers";
@@ -59,7 +57,6 @@ import { feedbackHandlers } from "./feedbackHandlers";
 import { fileHandlers } from "./fileHandlers";
 import { gitHandlers } from "./gitHandlers";
 import { inboxHandlers } from "./inboxHandlers";
-import { notesHandlers } from "./notesHandlers";
 import { notionPinHandlers } from "./notionPinHandlers";
 import { settingsHandlers, type SettingsEffect } from "./settingsHandlers";
 import { terminalHandlers } from "./terminalHandlers";
@@ -201,7 +198,6 @@ store.onRestored = (agents) => {
 const browserBridge = new BrowserBridge();
 runner.setBrowserBridge(browserBridge);
 const board = new BoardStore();
-const notes = new NoteStore(join(HOME, "notes"));
 const notionPins = new NotionPinStore();
 const REAL_DIR_TTL_MS = 30_000;
 const realDirMemo = new Map<string, { real: string; at: number }>();
@@ -224,7 +220,6 @@ const workspaceWatch = createWorkspaceWatch((root) => {
   perfNote("watch", "onChange", inside.length, performance.now() - start);
 });
 const publishBoard = () => broadcast({ type: "board", board: board.get() });
-const publishNotes = () => broadcast({ type: "notes", notes: notes.list() });
 const notion = createNotion({ store, board, runner, broadcast, publishBoard });
 runner.setNotionHooks(notion.hooks);
 const pruneBoard = () => {
@@ -483,9 +478,6 @@ const settingsEffects: SettingsEffect[] = [
 const handlers: Handlers = {
   ...simulatorHandlers(),
   ...skillCatalogHandlers(() => ({ home: process.env.AGENT_NAV_SKILLS_HOME ?? homedir(), workspaces: store.workspaces.filter((w) => !w.feedback && !w.archived && !w.parentId).map((w) => ({ id: w.id, name: w.name, dir: w.dir })) })),
-  ...linearHandlers({
-    setAgentIssue: (agentId, issue) => broadcast({ type: "agent", agent: store.patchAgent(agentId, { linearIssue: issue }) }),
-  }),
   ...notion.handlers,
   ...prHandlers({
     workspaces: () => store.workspaces,
@@ -524,7 +516,6 @@ const handlers: Handlers = {
   },
   ...feedbackHandlers({ feedback }),
   ...boardHandlers({ store, board, publishBoard, topWorkspaceOf }),
-  ...notesHandlers({ notes, publishNotes }),
   ...inboxHandlers({ inbox, inboxStore, mentions, broadcast, topWorkspaceOf }),
   ...notionPinHandlers({ notionPins, broadcast }),
   ...automationHandlers(automations),

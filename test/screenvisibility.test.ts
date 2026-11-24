@@ -48,7 +48,7 @@ test("both screens are hidden by default, unread settings included", () => {
 });
 
 test("other screens are never hidden and a hidden screen becomes sessions", () => {
-  for (const view of ["sessions", "pr", "improvements", "notion", "notes", "skills"] as const) expect(!centerViewHidden(view, null), view);
+  for (const view of ["sessions", "pr", "improvements", "notion", "skills"] as const) expect(!centerViewHidden(view, null), view);
   expect(visibleCenterView("board", null) === "sessions" && visibleCenterView("inbox", {}) === "sessions", "hidden to sessions");
   expect(visibleCenterView("board", BOTH_ON) === "board" && visibleCenterView("inbox", BOTH_ON) === "inbox", "shown stays");
   return expect(visibleCenterView("board", { showBoard: true }) === "board" && visibleCenterView("inbox", { showBoard: true }) === "sessions", "independent flags");
@@ -156,7 +156,7 @@ test("global search drops the Board and Mentions actions and tabs while hidden",
   const hidden = { ...baseData, hiddenActions: ["board", "mentions"] };
   expect(!titles(hidden, "").includes("action:board") && !titles(hidden, "").includes("action:mentions"), "default actions when hidden");
   expect(!titles(hidden, "board").includes("action:board") && !titles(hidden, "slack").includes("action:mentions"), "typed query when hidden");
-  expect(titles(hidden, "note").includes("action:notes"), "other actions stay");
+  expect(titles(hidden, "automations").includes("action:automations"), "other actions stay");
   return expect(!visibleTabs(hidden).includes("board") && !visibleTabs(hidden).includes("mentions"), "tabs");
 });
 

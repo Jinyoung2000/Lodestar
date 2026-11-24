@@ -64,7 +64,6 @@ import {
   startQuickChat,
   toggleBoard,
   toggleInbox,
-  toggleNotes,
   openSkills,
   openAutomation,
   openAutomationEditor,
@@ -77,7 +76,6 @@ import {
 } from "./store";
 import { S } from "./strings";
 import { toggleTabFocusMode } from "./tabFocus";
-import { createNoteAndOpen, flushNote } from "./notesStore";
 import { toggleBottomPanel } from "./terminalScope";
 import type { PanelAlignment } from "./layoutConfig";
 import { getLayoutConfig, setLayoutConfig } from "./layoutConfigStore";
@@ -446,10 +444,6 @@ export function runCommand(command: Command | string) {
       return;
     case "save": {
       if (savePeekPreview()) return;
-      if (s.centerView === "notes") {
-        void flushNote();
-        return;
-      }
       const tab = activeTab();
       if (tab && (tab.kind === "file" || tab.kind === "untitled") && (s.dirtyTabs[tab.key] || tab.kind === "untitled")) void saveTab(tab.key);
       return;
@@ -682,12 +676,6 @@ export function runCommand(command: Command | string) {
       return;
     case "inbox":
       toggleInbox();
-      return;
-    case "notes":
-      toggleNotes();
-      return;
-    case "newNote":
-      void createNoteAndOpen();
       return;
     case "feedback":
       toggleFeedback();

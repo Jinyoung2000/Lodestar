@@ -2,7 +2,6 @@ import type { ActivityBarPrefs } from "./activityBar";
 import type { EditorOptions, ResolvedEditorOptions } from "./editorOptions";
 import type { SearchSettings } from "./searchSettings";
 import type { PrRpcMethods } from "./prTypes";
-import type { LinearIssueRef, LinearRpcMethods } from "./linear";
 import type { SimulatorRpcMethods } from "./simulator";
 import type { SkillsRpcMethods } from "./skills";
 import type { AutomationsRpcMethods, AutomationsState } from "./automations";
@@ -10,7 +9,6 @@ import type { ScmCommit, ScmCommitFile, ScmCommitOptions, ScmCommitResult, ScmDi
 import type { SlackLinkTarget } from "./slackLink";
 import type { NotionLinkTarget } from "./notionLink";
 import type { NotionPin, NotionPinInput, NotionPinPatch } from "./notionPins";
-import type { Note, NoteDoc } from "./notes";
 import type { ReviewState } from "./morningReview";
 import type { ReleaseState } from "./release";
 import type { NotionPageData } from "./notionFetch";
@@ -83,7 +81,6 @@ export type Agent = {
   imported?: ImportedFrom;
   contextUsage?: ContextUsage | null;
   handoffFrom?: string | null;
-  linearIssue?: LinearIssueRef | null;
   harness?: Harness;
   codexThreadId?: string | null;
   antigravitySessionId?: string | null;
@@ -733,7 +730,7 @@ export type VscodeImportResult = {
 
 export type BranchesResult = { repoRoot: string | null; current: string | null; defaultBase: string | null; branches: string[]; locals: string[]; remotes: string[]; uncommitted: number };
 
-export type RpcMethods = PrRpcMethods & LinearRpcMethods & SimulatorRpcMethods & SkillsRpcMethods & AutomationsRpcMethods & {
+export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods & AutomationsRpcMethods & {
   "workspaces.list": { params: Record<string, never>; result: Workspace[] };
   "sessionOrder.list": { params: Record<string, never>; result: SessionOrders };
   "sessionOrder.set": { params: { scope: string; ids: string[] }; result: SessionOrders };
@@ -953,11 +950,6 @@ export type RpcMethods = PrRpcMethods & LinearRpcMethods & SimulatorRpcMethods &
   "inbox.addToBoard": { params: { id: string; workspaceId?: string | null }; result: { item: InboxItem; card: BoardCard } };
   "inbox.reanalyze": { params: { id: string }; result: InboxState };
   "inbox.notRequest": { params: { id: string }; result: InboxState };
-  "notes.list": { params: { query?: string }; result: Note[] };
-  "notes.get": { params: { id: string }; result: NoteDoc };
-  "notes.create": { params: { text?: string }; result: NoteDoc };
-  "notes.save": { params: { id: string; text: string }; result: Note };
-  "notes.delete": { params: { id: string }; result: null };
   "board.get": { params: Record<string, never>; result: Board };
   "board.createCard": { params: NewCard; result: BoardCard };
   "board.updateCard": { params: { id: string; patch: CardPatch }; result: BoardCard };
@@ -1025,7 +1017,6 @@ export type ServerEvent =
   | { type: "review"; review: ReviewState }
   | { type: "automations"; state: AutomationsState }
   | { type: "release"; release: ReleaseState }
-  | { type: "notes"; notes: Note[] }
   | { type: "notionPins"; pins: NotionPin[] }
   | { type: "notionChanged"; key: string }
   | { type: "notionChats"; chats: Record<string, string> }

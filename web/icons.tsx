@@ -49,7 +49,6 @@ export const FileIcon = make("file");
 export const Pick = make("inspect");
 export const FeedbackIcon = make("feedback");
 export const BoardIcon = make("project");
-export const NoteIcon = make("note");
 export const LinkIcon = make("link");
 export const Edit = make("edit");
 export const Start = make("play");

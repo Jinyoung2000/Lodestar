@@ -10296,147 +10296,12 @@ button[data-variant]:disabled .codicon {
   }
 }
 
-.notes-view,
-.notes-list-pane,
-.notes-editor {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-raised);
-}
-.notes-list-pane {
-  flex: 0 1 var(--size-notes-list);
-  min-width: var(--size-pinned-min);
-  border-right: 1px solid var(--border-subtle);
-}
-.notes-editor {
-  min-width: var(--size-pinned-min);
-}
-.notes-editor > .pane-header {
-  padding: 0 var(--space-6);
-}
-.center > :is(.notes-view, .board, .inbox, .notion-view) > .pane-header,
+.center > :is(.board, .inbox, .notion-view) > .pane-header,
 .split-view > * > .pane-header {
   height: var(--size-tabs-header);
 }
-.notes-search {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border-subtle);
-  color: var(--fg-subtle);
-  flex-shrink: 0;
-}
-.notes-search .input {
-  flex: 1;
-  min-width: 0;
-  height: var(--size-control-sm);
-}
-.notes-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}
-.notes-item {
-  flex-shrink: 0;
-}
-.notes-row {
-  all: unset;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0_5);
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border-subtle);
-  cursor: pointer;
-  color: var(--fg);
-}
-.notes-row:hover {
-  background: var(--surface-hover);
-}
-.notes-row[data-selected] {
-  background: var(--surface-selected);
-}
-.notes-row:focus-visible {
-  outline: 2px solid var(--accent); /* lint-tokens: allow 포커스 링 두께 (.inbox-row 와 같은 2px) */
-  outline-offset: -2px; /* lint-tokens: allow 포커스 링을 행 안쪽에 둔다 */
-}
-.notes-row-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  font-size: var(--text-ui-sm);
-  line-height: var(--leading-ui-sm);
-}
-.notes-row-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: var(--weight-ui-strong);
-  color: var(--fg-strong);
-}
-.notes-row-title[data-empty],
 .agent-title[data-empty] {
   color: var(--fg-subtle);
-}
-.notes-row-head > .xs {
-  flex-shrink: 0;
-}
-.notes-row-line {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--fg-muted);
-  font-size: var(--text-ui-sm);
-  line-height: var(--leading-ui-sm);
-}
-.notes-status {
-  flex-shrink: 0;
-  color: var(--fg-subtle);
-}
-.notes-status[data-state="error"] {
-  color: var(--danger);
-}
-.notes-editor-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-}
-.notes-editor-host {
-  flex: 1;
-  min-height: 0;
-  background: var(--editor-bg);
-  --editor-cursor: var(--accent-text);
-  --editor-selection: color-mix(in srgb, var(--accent) 35%, transparent);
-  --editor-selection-inactive: color-mix(in srgb, var(--accent) 20%, transparent);
-}
-.notes-editor-host .cm-editor {
-  height: 100%;
-}
-.notes-editor-error,
-.notes-save-error {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  color: var(--danger);
-  font-size: var(--text-ui-sm);
-  line-height: var(--leading-ui-sm);
-}
-.notes-save-error {
-  flex-shrink: 0;
-  border-top: 1px solid var(--border-subtle);
 }
 .notes-empty {
   display: flex;
@@ -10772,7 +10637,7 @@ button[data-variant]:disabled .codicon {
   color: var(--fg);
 }
 .skills-row:focus-visible {
-  outline: 2px solid var(--accent); /* lint-tokens: allow 포커스 링 두께 (.notes-row 와 같은 2px) */
+  outline: 2px solid var(--accent); /* lint-tokens: allow 포커스 링 두께 (.inbox-row 와 같은 2px) */
   outline-offset: -2px; /* lint-tokens: allow 포커스 링을 행 안쪽에 둔다 */
 }
 .skills-row-head {

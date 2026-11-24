@@ -531,7 +531,7 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
                   </button>
                 </span>
               ) : (
-                <span key={flashKey(a.id, flashing)} className={a.session ? "attachment mono attachment-session" : "attachment mono"} data-flash={flashing?.id === a.id || undefined} title={a.session ? attachmentLabel(a) : a.note || a.browser ? undefined : chipTitle(a)}>
+                <span key={flashKey(a.id, flashing)} className={a.session ? "attachment mono attachment-session" : "attachment mono"} data-flash={flashing?.id === a.id || undefined} title={a.session ? attachmentLabel(a) : a.browser ? undefined : chipTitle(a)}>
                   {a.session ? <span className="attachment-session-label">{attachmentLabel(a)}</span> : attachmentLabel(a)}
                   {nameTail.has(a.id) && <span className="attachment-tail">{nameTail.get(a.id)}</span>}
                   <button type="button" className="attachment-remove" aria-label={S.removeAttachmentNamed(`${attachmentLabel(a)}${nameTail.has(a.id) ? ` ${nameTail.get(a.id)}` : ""}`)} onClick={() => removeAttachment(paneId, a.id)}>
@@ -659,7 +659,6 @@ function fileMeta(file: FileAttachment) {
 function attachmentLabel(a: Attachment) {
   if (a.browser) return browserAttachmentLabel(a.browser);
   if (a.session) return S.attachSessionLabel(a.session.title);
-  if (a.note) return S.attachNoteLabel(a.note.title);
   const name = a.path.slice(a.path.lastIndexOf("/") + 1);
   if (a.startLine == null) return name;
   return a.startLine === a.endLine ? `${name}:${a.startLine}` : `${name}:${a.startLine}-${a.endLine}`;
@@ -673,7 +672,6 @@ function formatAttachment(a: Attachment) {
     const label = S.attachSessionLabel(a.session.title).replace(/[\\[\]]/g, "\\$&");
     return `[${label}](${SESSION_REF_PREFIX}${a.path})\n${a.text ?? ""}`;
   }
-  if (a.note) return `[${S.attachNoteLabel(a.note.title)}]\n${a.text ?? ""}`;
   if (a.startLine == null || a.text == null) return `@${a.path}`;
   const lang = a.path.slice(a.path.lastIndexOf(".") + 1);
   const range = a.startLine === a.endLine ? `L${a.startLine}` : `L${a.startLine}-L${a.endLine}`;

@@ -2,13 +2,12 @@ import type { Attachment } from "./store";
 
 
 type DirOf = (workspaceId: string) => string | undefined;
-type Chip = Pick<Attachment, "workspaceId" | "path" | "startLine" | "endLine" | "inlineRef" | "session" | "note" | "browser" | "handoff" | "image" | "file" | "quote">;
+type Chip = Pick<Attachment, "workspaceId" | "path" | "startLine" | "endLine" | "inlineRef" | "session" | "browser" | "handoff" | "image" | "file" | "quote">;
 
 export function chipIdentity(a: Chip, dirOf: DirOf): string | null {
   if (a.quote) return null;
   if (a.handoff) return `handoff:${a.handoff.sourceId}`;
   if (a.session) return `session:${a.path}`;
-  if (a.note) return `note:${a.path}`;
   if (a.image) return a.image.hash ? `image:${a.image.hash}` : null;
   if (a.file) return a.file.path ? `localfile:${a.file.path}` : null;
   if (a.browser?.kind === "notion") return `notion:${a.browser.pageKey}`;
@@ -25,7 +24,7 @@ export function findDuplicate<T extends Chip>(existing: readonly T[], incoming: 
 export function nameTails(attachments: readonly (Chip & { id: string })[], dirOf: DirOf): Map<string, string> {
   const groups = new Map<string, { id: string; where: Located }[]>();
   for (const a of attachments) {
-    if (a.handoff || a.session || a.note || a.image || a.browser || a.file || a.quote) continue;
+    if (a.handoff || a.session || a.image || a.browser || a.file || a.quote) continue;
     const where = locate(a, dirOf);
     const name = where.name;
     groups.set(name, [...(groups.get(name) ?? []), { id: a.id, where }]);

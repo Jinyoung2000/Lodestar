@@ -13,7 +13,7 @@ import type { HandlersFor, MethodsIn } from "./rpcHandlers";
 
 export type AgentHandlerDeps = { store: Store; runner: AgentRunner; board: BoardStore; broadcast: (event: ServerEvent) => void };
 
-export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<MethodsIn<"agents">, "agents.timelinePage" | "agents.worktreeStatus" | "agents.setLinearIssue" | "agents.respondNotionWrite" | "agents.moveToFolder"> | MethodsIn<"handoff"> | MethodsIn<"diffFeedback"> | MethodsIn<"images"> | MethodsIn<"attachments"> | "app.showAgent"> {
+export function agentHandlers(deps: AgentHandlerDeps): HandlersFor<Exclude<MethodsIn<"agents">, "agents.timelinePage" | "agents.worktreeStatus" | "agents.respondNotionWrite" | "agents.moveToFolder"> | MethodsIn<"handoff"> | MethodsIn<"diffFeedback"> | MethodsIn<"images"> | MethodsIn<"attachments"> | "app.showAgent"> {
   const { store, runner, board, broadcast } = deps;
   return {
     "agents.list": () => store.agents,

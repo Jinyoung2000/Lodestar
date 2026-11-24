@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { Note } from "../shared/notes";
 import type { Agent } from "../shared/protocol";
 import { attachFile, attachSession } from "./attachments";
 import { rankFiles } from "./fileSearch";
-import { CommentDiscussion, Codicon, DiffMultiple, Files, ImageFile, NoteIcon } from "./icons";
+import { CommentDiscussion, Codicon, DiffMultiple, Files, ImageFile } from "./icons";
 import { isNotionUrl, notionPageKey } from "../shared/notionLink";
-import { attachNote } from "./noteAttach";
 import { attachNotionPage } from "./notionAttach";
-import { useNotes } from "./notesStore";
 import { notionPins, useNotion } from "./notionStore";
 import { N } from "./notionStrings";
 import { IN_ELECTRON } from "./shortcuts";
@@ -16,7 +13,7 @@ import { Popup } from "./Popup";
 import { ensureFiles, useStore, type Tab } from "./store";
 import { S } from "./strings";
 
-type View = "root" | "files" | "changes" | "sessions" | "notion" | "notes";
+type View = "root" | "files" | "changes" | "sessions" | "notion";
 
 export function AttachMenu({ paneId, workspaceId, agent, anchor, onClose, onPickImage }: { paneId: string; workspaceId: string | null; agent: Agent | null; anchor: HTMLElement | null; onClose: () => void; onPickImage: () => void }) {
   const [pickedView, setView] = useState<View>("root");
@@ -28,7 +25,6 @@ export function AttachMenu({ paneId, workspaceId, agent, anchor, onClose, onPick
   const agents = useStore((s) => s.agents);
   const tabs = useStore((s) => s.tabs);
   const pins = useNotion((s) => s.pins);
-  const notes = useNotes((s) => s.notes);
 
   useEffect(() => {
     if (workspaceId) void ensureFiles(workspaceId);
@@ -40,19 +36,16 @@ export function AttachMenu({ paneId, workspaceId, agent, anchor, onClose, onPick
     const changedMatches = q ? rankFiles(changed.map((c) => c.rel), q).map((rel) => changed.find((c) => c.rel === rel)!) : changed;
     if (view === "root" && !q) {
       const notion: Row[] = IN_ELECTRON ? [{ key: "notion", kind: "category", title: N.attachRow, icon: <Codicon name="file" />, go: "notion" }] : [];
-      const note: Row = { key: "notes", kind: "category", title: S.attachNotes, icon: <NoteIcon />, go: "notes" };
-      if (!workspaceId) return [{ key: "sessions", kind: "category", title: S.attachSessions, icon: <CommentDiscussion />, go: "sessions" }, ...notion, note];
+      if (!workspaceId) return [{ key: "sessions", kind: "category", title: S.attachSessions, icon: <CommentDiscussion />, go: "sessions" }, ...notion];
       return [
         { key: "sessions", kind: "category", title: S.attachSessions, icon: <CommentDiscussion />, go: "sessions" },
         { key: "changes", kind: "category", title: S.attachChanges, icon: <DiffMultiple />, go: "changes" },
         { key: "files", kind: "category", title: S.attachFiles, icon: <Files />, go: "files" },
         { key: "image", kind: "image", title: S.attachImage, icon: <ImageFile /> },
         ...notion,
-        note,
       ];
     }
     if (view === "notion") return notionRows(tabs, q);
-    if (view === "notes") return noteRows(notes ?? [], q);
     const changeRows: Row[] = changedMatches.map((c) => ({ key: `c:${c.path}`, kind: "file", title: c.label, detail: c.detail, name: c.label, choose: { workspaceId: workspaceId!, path: c.path } }));
     const fileRows = (): Row[] => rankFiles(files ?? [], q, 50).map((path) => ({ key: `f:${path}`, kind: "file", title: path.slice(path.lastIndexOf("/") + 1), detail: path.slice(0, path.lastIndexOf("/") + 1), name: path, choose: { workspaceId: workspaceId!, path } }));
     if (view === "changes") return changeRows;
@@ -63,7 +56,7 @@ export function AttachMenu({ paneId, workspaceId, agent, anchor, onClose, onPick
     if (view === "files") return fileRows();
     const changedPaths = new Set(changeRows.map((r) => (r.kind === "file" ? r.detail : "")));
     return [...changeRows, ...fileRows().filter((r) => r.kind === "file" && !changedPaths.has(r.name))].slice(0, 50);
-  }, [view, query, files, changes, agents, tabs, pins, notes, agent?.id, workspaceId]);
+  }, [view, query, files, changes, agents, tabs, pins, agent?.id, workspaceId]);
 
   const choose = (row: Row | undefined) => {
     if (!row) return;
@@ -79,11 +72,10 @@ export function AttachMenu({ paneId, workspaceId, agent, anchor, onClose, onPick
       return;
     }
     if (row.kind === "file") attachFile(paneId, row.choose.workspaceId, row.choose.path);
-    else if (row.kind === "note") void attachNote(paneId, row.note);
     else if (row.kind === "notion") void attachNotionPage({ url: row.url, title: row.title, tabKey: row.tabKey, paneId });
     else void attachSession(paneId, workspaceId, row.session);
   };
-  const empty = view === "changes" ? S.attachNoChanges : view === "sessions" ? S.attachSessionNone : view === "notion" ? N.attachNone : view === "notes" ? S.attachNoteNone : S.attachNone;
+  const empty = view === "changes" ? S.attachNoChanges : view === "sessions" ? S.attachSessionNone : view === "notion" ? N.attachNone : S.attachNone;
 
   return (
     <Popup anchor={anchor} placement="above" label={S.searchAttachments} className="popup-attach" onClose={onClose}>
@@ -120,7 +112,7 @@ export function AttachMenu({ paneId, workspaceId, agent, anchor, onClose, onPick
             <RowContent row={row} />
           </button>
         ))}
-        {rows.length === 0 && <div className="popup-empty">{files || view === "sessions" || view === "changes" || view === "notion" || view === "notes" ? empty : S.loading}</div>}
+        {rows.length === 0 && <div className="popup-empty">{files || view === "sessions" || view === "changes" || view === "notion" ? empty : S.loading}</div>}
       </div>
     </Popup>
   );
@@ -131,7 +123,6 @@ type Row =
   | { key: string; kind: "image"; title: string; icon: ReactNode }
   | { key: string; kind: "file"; title: string; detail: string; name: string; choose: { workspaceId: string; path: string } }
   | { key: string; kind: "session"; title: string; session: Agent }
-  | { key: string; kind: "note"; title: string; detail: string; note: Note }
   | { key: string; kind: "notion"; title: string; url: string; detail: string; tabKey?: string };
 
 function RowContent({ row }: { row: Row }) {
@@ -147,15 +138,6 @@ function RowContent({ row }: { row: Row }) {
     return (
       <>
         <Codicon name="file" />
-        <span className="popup-row-title">{row.title}</span>
-        <span className="popup-row-detail">{row.detail}</span>
-      </>
-    );
-  }
-  if (row.kind === "note") {
-    return (
-      <>
-        <NoteIcon />
         <span className="popup-row-title">{row.title}</span>
         <span className="popup-row-detail">{row.detail}</span>
       </>
@@ -192,12 +174,4 @@ function notionRows(tabs: Tab[], query: string): Row[] {
   }
   const q = query.toLowerCase();
   return [...rows.values()].filter((r) => !q || r.title.toLowerCase().includes(q) || r.url.toLowerCase().includes(q));
-}
-
-function noteRows(notes: Note[], query: string): Row[] {
-  const q = query.toLowerCase();
-  return notes
-    .filter((n) => !q || `${n.title} ${n.preview}`.toLowerCase().includes(q))
-    .slice(0, 50)
-    .map((note) => ({ key: `note:${note.id}`, kind: "note", title: note.title || S.notesUntitled, detail: note.preview, note }));
 }

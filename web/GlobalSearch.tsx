@@ -3,14 +3,14 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import type { Agent } from "../shared/protocol";
 import { activeAgentOf } from "./activeAgentOf";
 import { altLabel, flatRows, mentionItems, parseSlash, searchGroups, slugOf, tabKeyStep, uniquePrs, visibleTabs, type SearchData, type SearchRow, type SearchScope } from "./searchModel";
-import { BoardIcon, Chat, CircleFilled, CircleSmallFilled, Close, Codicon, DotSpinner, Filter, Folder, Gear, GoToFile, ListIcon, NoteIcon, Plus, Search } from "./icons";
+import { BoardIcon, Chat, CircleFilled, CircleSmallFilled, Close, Codicon, DotSpinner, Filter, Folder, Gear, GoToFile, ListIcon, Plus, Search } from "./icons";
 import { PrStateIcon } from "./PrBits";
 import { openPr, usePr } from "./prStore";
 import { G } from "./searchStrings";
 import { getStamps, startRecentTracking } from "./searchRecents";
 import { runCommand } from "./shortcuts";
 import { boardShown, slackShown } from "./screenVisibility";
-import { ensureFiles, getState, isTopWorkspace, openAgent, openEditorChatSession, openCard, openFile, openImprovements, openInboxItem, openNotes, setState, startCardSession, startDraft, useStore } from "./store";
+import { ensureFiles, getState, isTopWorkspace, openAgent, openEditorChatSession, openCard, openFile, openImprovements, openInboxItem, setState, startCardSession, startDraft, useStore } from "./store";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent } from "./ui/dialog";
@@ -230,7 +230,6 @@ function openRow(row: SearchRow, alt: boolean) {
 function runAction(command: string) {
   if (command === "openBoard") setState({ centerView: "board" });
   else if (command === "openMentions") setState({ centerView: "inbox" });
-  else if (command === "openNotes") openNotes();
   else if (command === "openImprovements") openImprovements();
   else if (command === "settings") setState({ overlay: { kind: "status" } });
   else runCommand(command);
@@ -261,7 +260,6 @@ function RowIcon({ row }: { row: SearchRow }) {
   if (row.command === "settings") return <Gear />;
   if (row.command === "openBoard") return <BoardIcon />;
   if (row.command === "openMentions") return <Chat />;
-  if (row.command === "openNotes" || row.command === "newNote") return <NoteIcon />;
   if (row.command === "automations") return <Codicon name="watch" />;
   if (row.command === "commandPalette") return <ListIcon />;
   if (row.command === "quickOpen") return <GoToFile />;

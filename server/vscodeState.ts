@@ -184,11 +184,17 @@ async function readMetadataRows(dataDir: string): Promise<MetaRow[]> {
   for (let i = 0; i < dirs.length; i += BATCH) {
     let script = "";
     for (const dir of dirs.slice(i, i + BATCH)) {
-      script += `.open --readonly "${join(dataDir, dir, "session.db")}"\nselect '${dir}' as dir, key, value from session_metadata where key in (${keyList}) or key like 'customChatTitle:%';\n`;
+      script += `${openSessionDb(join(dataDir, dir, "session.db"))}\nselect '${dir}' as dir, key, value from session_metadata where key in (${keyList}) or key like 'customChatTitle:%';\n`;
     }
-    rows.push(...(await sqlite(["-json", "-cmd", ".timeout 1000"], script)) as MetaRow[]);
+    rows.push(...(await sqlite(["-json", "-cmd", ".timeout 1000"], script, { keepPartial: true })) as MetaRow[]);
   }
   return rows;
+}
+
+export function openSessionDb(file: string) {
+  if (existsSync(`${file}-wal`)) return `.open --readonly "${file}"`;
+  const uri = `file:${file.replace(/%/g, "%25").replace(/\?/g, "%3f").replace(/#/g, "%23")}?immutable=1`;
+  return `.open "${uri}"`;
 }
 
 function countSubagentDirs(dataDir: string) {
@@ -327,10 +333,19 @@ function parseJson(text: string | undefined): any {
 
 const str = (value: unknown) => (typeof value === "string" && value.trim() ? value : null);
 
-async function sqlite(args: string[], input: string): Promise<Record<string, unknown>[]> {
+async function sqlite(args: string[], input: string, options: { keepPartial?: boolean } = {}): Promise<Record<string, unknown>[]> {
   const call = () =>
     new Promise<string>((resolve, reject) => {
-      const child = execFile(SQLITE, args, { encoding: "utf8", maxBuffer: 1024 * 1024 * 1024, timeout: 60_000 }, (error, stdout) => (error ? reject(error) : resolve(stdout)));
+      const child = execFile(SQLITE, args, { encoding: "utf8", maxBuffer: 1024 * 1024 * 1024, timeout: 60_000 }, (error, stdout, stderr) => {
+        if (!error) return resolve(stdout);
+        const problems = stderr.split("\n").filter((line) => line.trim());
+        if (options.keepPartial && stdout.trim() && typeof error.code === "number" && !error.killed) {
+          console.error(`[vscode] ${problems.length} session database errors, first: ${problems[0] ?? "none"}`);
+          return resolve(stdout);
+        }
+        if (!problems.length) return reject(error);
+        reject(new Error(problems.length > 1 ? `sqlite3: ${problems[0]} (${problems.length - 1} more errors)` : `sqlite3: ${problems[0]}`));
+      });
       child.stdin?.end(input);
     });
   let out: string;

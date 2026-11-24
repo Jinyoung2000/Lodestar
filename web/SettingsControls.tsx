@@ -3,7 +3,6 @@ import type { FormatLanguage, FormatterId, RuntimeInfo } from "../shared/protoco
 import { missingFirstFamily } from "./editorFont";
 import { ImportSettings } from "./ImportSettings";
 import { McpSection } from "./McpPanel";
-import { LinearSettings } from "./LinearSettings";
 import { MobileAccess } from "./MobileAccess";
 import { Refresh } from "./icons";
 import { QuickEntryShortcut } from "./QuickEntryShortcut";
@@ -29,7 +28,6 @@ export function SettingControl({ def, ctx }: { def: SettingDef; ctx: SettingsCtx
   if (def.component === "mcpServers") return <McpSection />;
   if (def.component === "quickEntryShortcut") return <QuickEntryShortcut ctx={ctx} />;
   if (def.component === "mobileAccess") return <MobileAccess />;
-  if (def.component === "linear") return <LinearSettings />;
   return <DaemonStatus />;
 }
 

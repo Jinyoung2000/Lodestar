@@ -11,7 +11,7 @@ import { ImportedMark } from "./ImportedBadges";
 import { PullRequestsSection } from "./PullRequestsSection";
 import { SectionMoveItems } from "./SectionMoveItems";
 import { beginSectionDrag, useSectionDrag, useSidebarOrder, type SidebarSection } from "./sidebarOrder";
-import { BoardIcon, Chat, Check, ChevronDown, ChevronRight, Close, Codicon, CircleFilled, CircleSmallFilled, CommentDiscussion, DotSpinner, Filter, Folder, FolderCompact, More, NoteIcon, Pin, Plus, ProviderIcon, Search, TreeItemExpanded, WorktreeCompact } from "./icons";
+import { BoardIcon, Chat, Check, ChevronDown, ChevronRight, Close, Codicon, CircleFilled, CircleSmallFilled, CommentDiscussion, DotSpinner, Filter, Folder, FolderCompact, More, Pin, Plus, ProviderIcon, Search, TreeItemExpanded, WorktreeCompact } from "./icons";
 import { RenameInput } from "./RenameInput";
 import { automationsAwaitingInput } from "./automationModel";
 import { useCompactView } from "./compactView";
@@ -29,7 +29,7 @@ import { publishSessionLists, stepFolder, stepSession } from "./sessionReorder";
 import { runCommand } from "./shortcuts";
 import { boardShown, slackShown } from "./screenVisibility";
 import { openPrBesideByUrl } from "./prStore";
-import { addTerminal, ensureTimeline, flash, refreshPrs, isTopWorkspace, openAgent, openCard, setState, startDraft, startQuickChat, openAutomation, toggleAutomations, toggleBoard, toggleImprovements, toggleInbox, toggleNotes,topWorkspaceId, useStore } from "./store";
+import { addTerminal, ensureTimeline, flash, refreshPrs, isTopWorkspace, openAgent, openCard, setState, startDraft, startQuickChat, openAutomation, toggleAutomations, toggleBoard, toggleImprovements, toggleInbox,topWorkspaceId, useStore } from "./store";
 import { S } from "./strings";
 import { useEditPreview } from "./useEditPreview";
 import { Button } from "./ui/button";
@@ -105,7 +105,6 @@ export function Sidebar({ width }: { width: number | null }) {
   const allCollapsed = groups.length > 0 && groups.every((g) => collapsedGroups.includes(g.id));
   const boardKey = useCommandKey("board");
   const inboxKey = useCommandKey("inbox");
-  const notesKey = useCommandKey("notes");
 
   return (
     <nav className="sidebar" aria-label={S.sessions} style={width == null ? undefined : { width }}>
@@ -131,10 +130,6 @@ export function Sidebar({ width }: { width: number | null }) {
         <button type="button" className="side-item" data-active={centerView === "automations" || undefined} aria-pressed={centerView === "automations"} title={S.automations} onClick={() => toggleAutomations()}>
           <Codicon name="watch" /> {S.automations}
           {automationsWaiting > 0 && <span className="inbox-badge" aria-label={S.automationsNeedInput(automationsWaiting)}>{automationsWaiting}</span>}
-        </button>
-        <button type="button" className="side-item" data-active={centerView === "notes" || undefined} aria-pressed={centerView === "notes"} title={S.notesKey(notesKey)} onClick={() => toggleNotes()}>
-          <NoteIcon /> {S.notes}
-          <SideKeycaps command="notes" />
         </button>
         <button type="button" className="side-item" onClick={() => (canPickFolder() ? void openFolderInNewSession() : setAddOpen((v) => !v))}>
           <Plus /> {S.addWorkspace}

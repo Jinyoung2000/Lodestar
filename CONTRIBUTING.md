@@ -53,7 +53,7 @@ Tests are plain scripts run with `tsx`, one file per area in `test/`. Each print
 
 - **Loopback only.** The main daemon listens on `127.0.0.1` and checks `Host`, `Origin` and the token on every WebSocket. Do not add listeners on other interfaces, wildcard origins or token-less routes. The phone server is the one deliberate exception: off by default, separate from the main server, paired devices only.
 - **The CLI's own account only.** Model calls go through the user's own, unmodified Claude Code CLI (and, for Codex sessions, the Codex CLI) and whatever account that CLI is signed in to. Never read, store or ask for provider credentials. Provider environment variables reach the CLI only when the user turns on `useProviderEnv`; never add another billing path or a silent fallback to one.
-- **Explicit writes to remote services.** Anything that writes to GitHub, Slack, Notion or Linear happens only after a user action and is checked on the daemon side.
+- **Explicit writes to remote services.** Anything that writes to GitHub, Slack or Notion happens only after a user action and is checked on the daemon side.
 - **Never run provider login or logout** from code or tests, and never read, copy or edit the CLIs' auth files.
 
 ## Packaging note

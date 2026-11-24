@@ -44,8 +44,6 @@ export const G = {
     split: "New Session to the Right",
     board: "Open Board",
     mentions: "Open Mentions",
-    notes: "Open Notes",
-    newNote: "New Note",
     improvements: "Show Improvements",
     automations: "Open Automations",
     settings: "Settings",

@@ -127,7 +127,6 @@ export const BINDINGS: Binding[] = [
   { keys: ["Shift+Meta+KeyK"], command: "board", when: "notEditor" },
   { keys: ["Shift+Meta+KeyL"], command: "inbox", when: "notEditor" },
   { keys: ["Alt+Meta+KeyF"], command: "feedback", when: "notEditor" },
-  { keys: ["Alt+Meta+KeyN"], command: "notes", when: "notEditor" },
   { keys: ["Shift+Meta+KeyX"], command: "feedback" },
   { keys: ["Meta+Comma"], command: "openSettings" },
   { keys: ["Meta+KeyL"], command: "focusChatInput" },

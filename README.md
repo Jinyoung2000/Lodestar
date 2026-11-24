@@ -11,7 +11,7 @@ This is a personal project published as-is. It is developed and used on macOS wi
 - Editor: CodeMirror 6 with TypeScript language-server support (definitions, references, hover, completion), formatting through the formatter your VS Code settings pick, search and replace across the workspace.
 - Terminal (node-pty), Source Control view (stage, commit, push and pull with confirmation), worktree creation and cleanup.
 - Pull requests through the GitHub CLI: lists, an overview, file diffs, review comments and checkout into a worktree.
-- Optional integrations that reuse what your Claude Code already has: a read-only Slack inbox and Notion pages through your configured MCP servers, a Linear panel with a personal API key kept in the macOS keychain, and a local kanban board.
+- Optional integrations that reuse what your Claude Code already has: a read-only Slack inbox and Notion pages through your configured MCP servers, and a local kanban board.
 - Optional Codex and Antigravity sessions when the Codex CLI or the Antigravity CLI (`agy`) is installed and signed in, and switching a session between Claude, Codex and Antigravity.
 - Import of Claude sessions from the VS Code agent window (read-only access to VS Code's state).
 - A phone client (`mobile/`, Expo) that pairs with the daemon over the local network, a VS Code extension (`vscode-extension/`) that shows Lodestar sessions inside VS Code, and a small CLI (`bin/lodestar.mjs`) that opens folders and files in the app (`lodestar <path>[:line[:column]]`) and lists and messages sessions.

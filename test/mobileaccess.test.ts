@@ -310,7 +310,7 @@ test("pageOfTimeline: 끝에서 limit 개, beforeId 로 옛 쪽을 이어 받는
 });
 
 test("shapeMobileEvent: 데스크톱 전용 이벤트는 보내지 않고 피드백 세션은 숨긴다", () => {
-  const dropped = ["settings", "inbox", "board", "notes", "notionPins", "notionChanged", "notionChats", "feedback", "quick", "side", "termask", "meta", "changes", "reload", "browserTool", "browserOpen", "workspaceChanged", "diffFeedback", "review", "showAgent", "notionStartSession"];
+  const dropped = ["settings", "inbox", "board", "notionPins", "notionChanged", "notionChats", "feedback", "quick", "side", "termask", "meta", "changes", "reload", "browserTool", "browserOpen", "workspaceChanged", "diffFeedback", "review", "showAgent", "notionStartSession"];
   for (const type of dropped) expect(shapeMobileEvent({ type } as unknown as ServerEvent) === null, `${type} must not reach the phone`);
   const agent = { id: "a", feedbackId: null, title: "t" } as never;
   expect(shapeMobileEvent({ type: "agent", agent }) !== null, "agent passes");

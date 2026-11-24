@@ -83,7 +83,7 @@ export type HandoffSeed = { agentId: string };
 export type ClosedPane = { agentId: string };
 const CLOSED_PANES_MAX = 10;
 
-export type Attachment = { id: string; workspaceId: string | null; path: string; startLine: number | null; endLine: number | null; text: string | null; inlineRef?: string; session?: { title: string }; quote?: { comment: string }; note?: { title: string }; browser?: BrowserAttachment; handoff?: HandoffAttachment; image?: ImageAttachment; file?: FileAttachment };
+export type Attachment = { id: string; workspaceId: string | null; path: string; startLine: number | null; endLine: number | null; text: string | null; inlineRef?: string; session?: { title: string }; quote?: { comment: string }; browser?: BrowserAttachment; handoff?: HandoffAttachment; image?: ImageAttachment; file?: FileAttachment };
 
 export type ImageAttachment = { mediaType: string; data: string; thumb: string; name: string; bytes: number; hash?: string };
 
@@ -328,7 +328,7 @@ export type Overlay =
 
 export type RightTab = "changes" | "card" | string;
 
-export type CenterView = "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "notes" | "skills" | "automations";
+export type CenterView = "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "skills" | "automations";
 
 export type McpBusy = "reconnect" | "enable" | "disable";
 export type McpNote = { ok: boolean; text: string };
@@ -1515,14 +1515,6 @@ export function startDraft(workspaceId: string | null, where: "active" | "new" =
     return { panes, activePaneId: pane.id, centerView: "sessions", activeWorkspaceId: workspaceId ?? s.activeWorkspaceId, focusComposer: { paneId: pane.id, nonce: Date.now() }, composerPrefill, ...preset, ...(workspaceId === null ? { rightOpen: false } : s.activeTabKey === "changes" ? { activeTabKey: "files" as const } : {}) };
   });
   return paneId;
-}
-
-export function toggleNotes() {
-  setState((s) => ({ centerView: s.centerView === "notes" ? "sessions" : "notes" }));
-}
-
-export function openNotes() {
-  setState({ centerView: "notes" });
 }
 
 export function openSkills() {

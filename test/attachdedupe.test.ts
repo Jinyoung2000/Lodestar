@@ -16,14 +16,6 @@ const equal = (actual: unknown, wanted: unknown, detail: string) => expect(JSON.
 const cases: { name: string; run: () => void | Promise<void> }[] = [];
 const test = (name: string, run: () => void | Promise<void>) => cases.push({ name, run });
 
-test("메모 칩은 메모 id 가 같으면 중복이고, 같은 id 의 파일과는 섞이지 않는다 (NOTES)", () => {
-  const note = (id: string, path: string): Chip => ({ id, workspaceId: null, path, startLine: null, endLine: null, note: { title: "t" } });
-  equal(dup([note("a", "mvex4c2e-465100")], note("b", "mvex4c2e-465100")), "a", "같은 메모를 두 번");
-  equal(dup([note("a", "mvex4c2e-465100")], note("b", "mvex4c2f-111111")), null, "다른 메모");
-  equal(dup([note("a", "mvex4c2e-465100")], file("b", "mvex4c2e-465100")), null, "메모 id 와 같은 이름의 파일");
-  equal(tails([note("a", "x-111111"), note("b", "y-222222")]), {}, "메모 칩에는 이름 꼬리가 붙지 않는다");
-});
-
 test("같은 경로의 파일 전체는 중복", () => {
   equal(dup([file("a", "src/sdks/jobs.ts")], file("b", "src/sdks/jobs.ts")), "a", "같은 파일을 두 번");
   equal(dup([file("a", "src/sdks/jobs.ts")], file("b", "src/api/jobs.ts")), null, "이름만 같은 다른 파일");

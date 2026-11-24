@@ -38,7 +38,6 @@ const improvements = slot(() => import("./Improvements").then((m) => m.Improveme
 const pullRequest = slot(() => import("./PullRequestView").then((m) => m.PullRequestView));
 const pullRequestTab = slot(() => import("./PullRequestView").then((m) => m.PullRequestTab));
 const notion = slot(() => import("./NotionView").then((m) => m.NotionView));
-const notes = slot(() => import("./NotesView").then((m) => m.NotesView));
 const skills = slot(() => import("./SkillsView").then((m) => m.SkillsView));
 const automations = slot(() => import("./AutomationsView").then((m) => m.AutomationsView));
 const automationEditor = slot(() => import("./AutomationEditor").then((m) => m.AutomationEditorHost));
@@ -81,11 +80,6 @@ export function NotionView() {
   return Loaded ? <Loaded /> : null;
 }
 
-export function NotesView() {
-  const Loaded = useSlot(notes);
-  return Loaded ? <Loaded /> : null;
-}
-
 export function SkillsView() {
   const Loaded = useSlot(skills);
   return Loaded ? <Loaded /> : null;
@@ -118,7 +112,7 @@ export function Overlays() {
   return Loaded ? <Loaded /> : null;
 }
 
-const PREFETCH_ORDER = [overlays, terminal, settings, board, inbox, pullRequest, pullRequestTab, notion, notes, skills, improvements, sideChat];
+const PREFETCH_ORDER = [overlays, terminal, settings, board, inbox, pullRequest, pullRequestTab, notion, skills, improvements, sideChat];
 const PREFETCH_DELAY_MS = 1500;
 
 export function prefetchViews() {
