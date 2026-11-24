@@ -3,7 +3,11 @@
     "version": "0.2.3",
     "versionCode": 5,
     "commit": "5bbb31640e0523150e4b4b9e9afe41b9ac89b341",
-    "builtAt": "2026-11-24T12:09:00+09:00"
+    "builtAt": "2026-11-24T12:09:00+09:00",
+    "jsCompatExceptions": [
+      { "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionActivityService.kt", "blob": "ff4c7b8078325c779c0dca2f365e673f43f53ace", "reason": "ae9261d changes only private notification code; no function the JavaScript calls was added or changed" },
+      { "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionNotifications.kt", "blob": "744dce0b4e652f0c729a2576f5523cbf1dbf6ae8", "reason": "ae9261d changes only private notification code; no function the JavaScript calls was added or changed" }
+    ]
   },
   {
     "version": "0.2.2",
