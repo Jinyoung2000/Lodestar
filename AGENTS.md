@@ -19,6 +19,7 @@ Run typecheck, both lints and the tests that cover your change before reporting 
 - Claude sessions: `server/agents.ts`, CLI environment: `server/claude.ts`; Codex sessions: `server/codex/`
 - Persistence and settings defaults: `server/store.ts`; RPC and settings types: `shared/protocol.ts`
 - Phone pairing and its separate server: `server/mobileAccess.ts`, `shared/mobile.ts`
+- Desktop link (one Mac opening another): `server/desktopLink.ts`, `server/desktopLinkHost.ts`, `shared/desktopLink.ts`; the window side is `web/remote.ts`
 - UI strings: `web/strings.ts`; design tokens: `design-system/tokens.json`
 - Test daemon helper: `test/testDaemon.ts`; fakes: `test/fixtures/`
 
