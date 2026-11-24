@@ -120,6 +120,8 @@ export type DesktopLinkStatus = {
   remotes: LinkRemote[];
 };
 
+export type LinkHostInfo = { name: string; version: string };
+
 export type LinkOfferResult = { text: string; expiresAt: number };
 
 export type DesktopLinkRpcMethods = {
@@ -129,6 +131,7 @@ export type DesktopLinkRpcMethods = {
   "desktopLink.addRemote": { params: { offer: string }; result: DesktopLinkStatus };
   "desktopLink.removeRemote": { params: { id: string }; result: DesktopLinkStatus };
   "desktopLink.checkRemote": { params: { id: string }; result: LinkRemoteCheck };
+  "desktopLink.host": { params: Record<string, never>; result: LinkHostInfo };
 };
 
 export function remoteIdFromSearch(search: string): string | null {

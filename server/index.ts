@@ -837,13 +837,26 @@ server.on("upgrade", (req, socket, head) => {
     socket.destroy();
     return;
   }
+  const remote = splitRemotePath(url.pathname);
+  if (remote) {
+    const refuse = (status: string) => {
+      socket.write(`HTTP/1.1 ${status}\r\n\r\n`);
+      socket.destroy();
+    };
+    if (!LINK_WS_PATHS.includes(remote.path as LinkWsPath)) return refuse("404 Not Found");
+    socket.on("error", () => {});
+    desktopLink.client.openSocket(remote.id, remote.path as LinkWsPath, url.search.slice(1)).then(
+      (attach) => wss.handleUpgrade(req, socket, head, attach),
+      (error: Error) => {
+        console.log(`[link] ${remote.path} to ${remote.id} failed: ${error.message}`);
+        refuse("502 Bad Gateway");
+      },
+    );
+    return;
+  }
   wss.handleUpgrade(req, socket, head, (ws) => {
     try {
-      const remote = splitRemotePath(url.pathname);
-      if (remote) {
-        if (!LINK_WS_PATHS.includes(remote.path as LinkWsPath)) ws.close(1008, "unknown endpoint");
-        else desktopLink.client.bridgeSocket(ws, remote.id, remote.path as LinkWsPath, url.search.slice(1));
-      } else if (url.pathname === "/ws/rpc") handleRpc(ws);
+      if (url.pathname === "/ws/rpc") handleRpc(ws);
       else if (url.pathname === "/ws/lsp") {
         const dir = store.workspace(url.searchParams.get("workspaceId") ?? "").dir;
         bridgeLsp(ws, dir, folderCodeAllowed(dir) ? languageServersFor(folderCodeAllowed) : BUNDLED_LANGUAGE_SERVERS);

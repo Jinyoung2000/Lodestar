@@ -535,38 +535,27 @@ export class DesktopLinkClient {
     return { name: welcome.name, version: welcome.version };
   }
 
-  bridgeSocket(client: WebSocket, remoteId: string, path: (typeof LINK_WS_PATHS)[number], query: string) {
-    const held: { type: number; body: Uint8Array }[] = [];
-    let stream: LinkStream | null = null;
-    let closed = false;
-    client.on("message", (data, isBinary) => {
-      const frame = { type: isBinary ? LinkFrame.binary : LinkFrame.text, body: bytesOf(data) };
-      if (stream) void stream.send(frame.type, frame.body);
-      else held.push(frame);
-    });
-    client.on("error", () => {});
-    client.on("close", () => {
-      closed = true;
-      stream?.close();
-    });
-    this.open(remoteId, { v: 1, kind: "ws", path, query: localQuery(query, null).slice(1) }).then(
-      (opened) => {
-        if (closed) return opened.stream.close();
-        stream = opened.stream;
-        stream.onClose = () => client.close(1013, "The connection to the other Mac closed");
-        stream.onFrame = (type, body) => {
-          if (client.readyState !== WebSocket.OPEN) return;
-          if (type === LinkFrame.text) client.send(decodeText(body));
-          else if (type === LinkFrame.binary) client.send(body, { binary: true });
-          else if (type === LinkFrame.close) client.close(1013, "The other Mac closed this connection");
-        };
-        for (const frame of held.splice(0)) void stream.send(frame.type, frame.body);
-      },
-      (error: Error) => {
-        this.deps.log?.(`[link] ${path} to ${remoteId} failed: ${error.message}`);
-        if (!closed) client.close(1013, error.message.slice(0, 120));
-      },
-    );
+  async openSocket(remoteId: string, path: (typeof LINK_WS_PATHS)[number], query: string): Promise<(client: WebSocket) => void> {
+    const { stream } = await this.open(remoteId, { v: 1, kind: "ws", path, query: localQuery(query, null).slice(1) });
+    const early: { type: number; body: Uint8Array }[] = [];
+    let ended = false;
+    stream.onFrame = (type, body) => early.push({ type, body });
+    stream.onClose = () => (ended = true);
+    return (client) => {
+      const deliver = (type: number, body: Uint8Array) => {
+        if (client.readyState !== WebSocket.OPEN) return;
+        if (type === LinkFrame.text) client.send(decodeText(body));
+        else if (type === LinkFrame.binary) client.send(body, { binary: true });
+        else if (type === LinkFrame.close) client.close(1013, "The other Mac closed this connection");
+      };
+      client.on("message", (data, isBinary) => void stream.send(isBinary ? LinkFrame.binary : LinkFrame.text, bytesOf(data)));
+      client.on("error", () => {});
+      client.on("close", () => stream.close());
+      for (const frame of early.splice(0)) deliver(frame.type, frame.body);
+      if (ended) return client.close(1013, "The connection to the other Mac closed");
+      stream.onFrame = deliver;
+      stream.onClose = () => client.close(1013, "The connection to the other Mac closed");
+    };
   }
 
   async proxyHttp(req: IncomingMessage, res: ServerResponse, remoteId: string, path: (typeof LINK_HTTP_PATHS)[number], query: string): Promise<void> {

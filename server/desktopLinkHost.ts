@@ -52,6 +52,7 @@ export function createDesktopLink(deps: DesktopLinkDeps) {
 
   const handlers: HandlersFor<MethodsIn<"desktopLink">> = {
     "desktopLink.status": () => status(),
+    "desktopLink.host": () => ({ name, version: APP_VERSION }),
     "desktopLink.pairingOffer": () => {
       if (!server.listening) throw new Error(OFF_ERROR);
       const hosts = lanHosts().map((host) => host.address);

@@ -28,7 +28,7 @@ export type SettingsCtx = {
   models: ModelInfo[];
 };
 
-export type CustomKind = "formatLanguages" | "mcpServers" | "daemon" | "quickEntryShortcut" | "mobileAccess";
+export type CustomKind = "formatLanguages" | "mcpServers" | "daemon" | "quickEntryShortcut" | "mobileAccess" | "desktopLinkIncoming" | "desktopLinkOutgoing";
 export type Option = { value: string; label: string; title?: string };
 
 type Common = {
@@ -530,6 +530,9 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   { ...text("mobileAccess"), group: "mobile", kind: "switch", ...plain("mobileAccess", false), value: (c) => c.settings.mobileAccess ?? false, set: (v) => save({ mobileAccess: v }), keywords: "iphone phone ios lan qr pairing" },
   { ...text("mobileRelay"), group: "mobile", kind: "switch", ...plain("mobileRelay", false), value: (c) => c.settings.mobileRelay ?? false, set: (v) => save({ mobileRelay: v }), keywords: "relay remote anywhere cloudflare tunnel encrypted outside" },
   { ...text("mobilePairing"), group: "mobile", kind: "custom", component: "mobileAccess", wide: true, keywords: "iphone phone ios qr pairing device code", modified: () => false },
+  { ...text("desktopLink"), group: "desktopLink", kind: "switch", ...plain("desktopLink", false), value: (c) => c.settings.desktopLink ?? false, set: (v) => save({ desktopLink: v }), keywords: "remote mac desktop link pair encrypted another computer host" },
+  { ...text("desktopLinkIncoming"), group: "desktopLink", kind: "custom", component: "desktopLinkIncoming", wide: true, keywords: "remote mac desktop link pairing text fingerprint", modified: () => false },
+  { ...text("desktopLinkOutgoing"), group: "desktopLink", kind: "custom", component: "desktopLinkOutgoing", wide: true, keywords: "remote mac desktop link open window add host", modified: () => false },
 
 
   { ...text("mcpServers"), group: "mcp", kind: "custom", component: "mcpServers", wide: true, keywords: "server connector reconnect", modified: () => false },

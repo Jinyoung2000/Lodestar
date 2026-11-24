@@ -1,5 +1,5 @@
 
-export const GROUP_IDS = ["general", "appearance", "layout", "editor", "diff", "formatting", "browser", "board", "notifications", "mentions", "sessions", "mobile", "mcp", "status"] as const;
+export const GROUP_IDS = ["general", "appearance", "layout", "editor", "diff", "formatting", "browser", "board", "notifications", "mentions", "sessions", "mobile", "desktopLink", "mcp", "status"] as const;
 export type GroupId = (typeof GROUP_IDS)[number];
 
 export const GROUP_ICONS: Record<GroupId, string> = {
@@ -15,6 +15,7 @@ export const GROUP_ICONS: Record<GroupId, string> = {
   mentions: "mention",
   sessions: "rocket",
   mobile: "device-mobile",
+  desktopLink: "remote",
   mcp: "plug",
   status: "pulse",
 };

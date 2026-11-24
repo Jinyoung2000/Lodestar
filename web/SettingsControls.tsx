@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormatLanguage, FormatterId, RuntimeInfo } from "../shared/protocol";
 import { missingFirstFamily } from "./editorFont";
 import { McpSection } from "./McpPanel";
+import { DesktopLinkIncoming, DesktopLinkOutgoing } from "./DesktopLink";
 import { MobileAccess } from "./MobileAccess";
 import { Refresh } from "./icons";
 import { QuickEntryShortcut } from "./QuickEntryShortcut";
@@ -26,6 +27,8 @@ export function SettingControl({ def, ctx }: { def: SettingDef; ctx: SettingsCtx
   if (def.component === "mcpServers") return <McpSection />;
   if (def.component === "quickEntryShortcut") return <QuickEntryShortcut ctx={ctx} />;
   if (def.component === "mobileAccess") return <MobileAccess />;
+  if (def.component === "desktopLinkIncoming") return <DesktopLinkIncoming />;
+  if (def.component === "desktopLinkOutgoing") return <DesktopLinkOutgoing />;
   return <DaemonStatus />;
 }
 

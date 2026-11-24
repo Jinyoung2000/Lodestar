@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Refresh, Warning } from "./icons";
-import { localNative } from "./remote";
+import { localNative, REMOTE_ID } from "./remote";
+import { useRemoteHost } from "./remoteHost";
 import { useStore } from "./store";
 import { S } from "./strings";
 import { Button } from "./ui/button";
@@ -43,13 +44,14 @@ export function DaemonBanner() {
 }
 
 function ReconnectingBar({ native }: { native: NativeDaemonState | null }) {
+  const remote = useRemoteHost();
   return (
     <div className="editor-banner daemon-banner" role="status" data-testid="daemon-reconnecting">
       <span className="editor-banner-icon spin">
         <Refresh size={14} />
       </span>
       <span className="editor-banner-text">
-        {S.daemonReconnecting}
+        {REMOTE_ID ? (remote ? S.remoteReconnecting(remote.name) : S.remoteReconnectingUnknown) : S.daemonReconnecting}
         {native && native.attempt > 0 && <span className="faint"> {S.daemonRestartAttempt(native.attempt, native.maxAttempts)}</span>}
       </span>
     </div>

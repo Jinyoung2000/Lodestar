@@ -246,11 +246,35 @@ textarea {
 .titlebar > * {
   -webkit-app-region: no-drag;
 }
-.titlebar > button {
+.titlebar-lead {
   justify-self: start;
   margin-left: var(--space-2);
 }
-body[data-electron="1"] .titlebar > button {
+.remote-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--size-control-sm);
+  max-width: 220px; /* lint-tokens: allow 원격 Mac 이름 칩 최대 폭(시안 값) */
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: var(--text-ui-sm);
+  font-weight: var(--weight-ui-strong);
+}
+.remote-chip[data-connected="false"] {
+  background: var(--surface-overlay);
+  border-color: var(--border);
+  color: var(--fg-muted);
+}
+.remote-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body[data-electron="1"] .titlebar-lead {
   margin-left: 78px; /* lint-tokens: allow 신호등 버튼 자리 78px (TitleBar 스펙) */
 }
 .titlebar-center {
@@ -10619,6 +10643,48 @@ button[data-variant]:disabled .codicon {
 .layout-title-bar {
   display: flex;
   align-items: center;
+.link-offer-text {
+  word-break: break-all;
+}
+.link-status-line {
+  flex-wrap: wrap;
+}
+.link-fingerprint {
+  margin-left: auto;
+}
+.link-copy-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.link-row {
+  padding: var(--space-1_5) 0;
+}
+.link-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.link-row-name {
+  color: var(--fg);
+}
+.link-row-detail {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--fg-muted);
+}
+.link-add-line {
+  display: flex;
+  gap: var(--space-2);
+}
+.link-add-line > .input {
+  flex: 1;
+}
+.link-add-problem {
+  margin-top: var(--space-1);
+}
   gap: var(--space-1);
   padding: var(--space-1_5) var(--space-2) var(--space-1);
   font-size: var(--text-ui);
