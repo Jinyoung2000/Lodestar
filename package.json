@@ -1,7 +1,7 @@
 {
   "name": "agent-nav",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Local macOS app for running many Claude Code sessions side by side, with diffs, an editor, a terminal and git in one window.",
   "license": "MIT",
   "author": "Jinyoung Sung",
