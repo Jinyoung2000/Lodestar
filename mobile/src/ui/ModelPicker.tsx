@@ -26,7 +26,12 @@ const SWITCH_MESSAGES: Record<SwitchBlock, string> = {
 
 function modelOf(provider: MobileModelProvider, model: string | null) {
   const id = model ?? provider.defaultModel;
-  return provider.models.find((entry) => entry.value === id) ?? provider.models.find((entry) => id !== null && entry.resolved === id);
+  if (id === null) return model === null ? provider.models.find((entry) => entry.value === "default") : undefined;
+  const base = provider.harness === "claude" ? id.replace(/\[1m\]$/i, "") : id;
+  const named = (entry: MobileModelProvider["models"][number]) => entry.value === id || entry.value === base;
+  const resolvesTo = (entry: MobileModelProvider["models"][number]) => entry.value !== "default" && (entry.resolved === id || entry.resolved === base);
+  return provider.models.find(named) ?? provider.models.find(resolvesTo)
+    ?? (model === null ? provider.models.find((entry) => entry.value === "default") : undefined);
 }
 
 export function useModelPicker(agent?: Agent, draft?: MobileModelSelection) {
