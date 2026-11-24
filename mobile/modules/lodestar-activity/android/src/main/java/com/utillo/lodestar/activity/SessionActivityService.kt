@@ -65,7 +65,7 @@ class SessionActivityService : Service() {
     handler.removeCallbacks(liveTask)
     liveDueAt = 0L
     liveShownAt = SystemClock.uptimeMillis()
-    startForeground(SessionNotifications.LIVE_ID, notifications.live(sessions.values, connected, activity, questions))
+    startForeground(SessionNotifications.LIVE_ID, notifications.live(sessions.values, connected))
   }
 
   private fun queueLive(wait: Long = 0L) {
@@ -169,15 +169,12 @@ class SessionActivityService : Service() {
         if (question.isNullOrBlank()) return
         val id = event.optString("agentId")
         if (questions.put(id, question) != question && connected) sessions[id]?.takeIf { it.status == "waiting" }?.let { notifications.alert(it, question) }
-        if (connected) queueLive()
       }
       "agentRemoved" -> if (remove(event.optString("agentId"))) queueLive()
       "activity" -> {
         val id = event.optString("agentId")
         val text = event.optString("text").take(120)
-        if (text.isBlank() || activity[id] == text) return
-        activity[id] = text
-        if (sessions[id]?.status == "running") queueLive(LIVE_REFRESH_MS)
+        if (text.isNotBlank()) activity[id] = text
       }
     }
   }
@@ -245,7 +242,6 @@ class SessionActivityService : Service() {
   }
 
   companion object {
-    private const val LIVE_REFRESH_MS = 1500L
     private const val LIVE_MIN_GAP_MS = 400L
     private const val RECONNECT_GRACE_MS = 5000L
     private const val RELAY_HELLO = """{"v":1,"kind":"ws"}"""
