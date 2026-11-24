@@ -9552,10 +9552,15 @@ body[data-session-dragging] iframe {
 }
 .attachment.attachment-quote {
   max-width: var(--size-feedback-pill-max);
+  border-color: transparent;
+  background: var(--surface-inset);
   font-family: var(--font-sans);
   font-size: var(--text-ui-sm);
   line-height: var(--leading-ui-sm);
-  color: var(--accent-text);
+  color: var(--fg);
+}
+.attachment-quote > .codicon-comment {
+  color: var(--fg-muted);
 }
 .attachment-file[data-status="uploading"] .attachment-file-meta {
   color: var(--accent-text);
