@@ -105,7 +105,7 @@ export class AssistantService {
   }
 
   private get enabled() {
-    return this.deps.store.settings.assistantEnabled !== false;
+    return this.deps.store.settings.assistantEnabled === true;
   }
 
   private agent(): Agent | null {

@@ -129,7 +129,7 @@ const DEFAULT_SETTINGS: Settings = {
   followUpsEnabled: true,
   followUpsReminders: true,
   followUpsModel: FOLLOW_UP_DEFAULT_MODEL,
-  assistantEnabled: true,
+  assistantEnabled: false,
   assistantMorningBrief: true,
   notifyOnResponse: true,
   notifyOnApproval: true,

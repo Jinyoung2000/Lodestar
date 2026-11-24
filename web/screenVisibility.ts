@@ -4,8 +4,8 @@ export type VisibilitySettings = { showSlack?: boolean; showBoard?: boolean; fol
 
 export const slackShown = (settings: VisibilitySettings): boolean => settings?.showSlack === true;
 export const boardShown = (settings: VisibilitySettings): boolean => settings?.showBoard === true;
-export const followUpsShown = (settings: VisibilitySettings): boolean => settings?.followUpsEnabled !== false;
-export const assistantShown = (settings: VisibilitySettings): boolean => settings?.assistantEnabled !== false;
+export const assistantShown = (settings: VisibilitySettings): boolean => settings?.assistantEnabled === true;
+export const followUpsShown = (settings: VisibilitySettings): boolean => assistantShown(settings) && settings?.followUpsEnabled !== false;
 
 export function centerViewHidden(view: CenterViewName, settings: VisibilitySettings): boolean {
   if (view === "board") return !boardShown(settings);

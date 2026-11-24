@@ -88,7 +88,7 @@ export class FollowUpsService {
   }
 
   private get enabled() {
-    return this.deps.store.settings.followUpsEnabled !== false;
+    return this.deps.store.settings.assistantEnabled === true && this.deps.store.settings.followUpsEnabled !== false;
   }
 
   private get morning() {

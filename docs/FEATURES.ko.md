@@ -97,7 +97,7 @@ env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_SSE_PORT npm start > 
 - Mate 가 켜져 있으면 열린 결정의 리마인드는 따로 알림을 내지 않고 Mate 가 대화에서 전한다. 꺼져 있으면 Follow-ups 가 직접 알림을 낸다
 - 폰: 세션 목록 맨 위에 Mate 줄(아이콘, 상태, 열린 결정 수 또는 안 읽음 점)이 있고 누르면 Mate 화면이 열린다. 위에 아이콘과 이름과 상태, 그 아래 탭 셋: Chat(말풍선, 결정 카드, 승인 카드, 입력칸), Tracking(장부, Looks finished 는 Mark done), Reminders. 폰에서는 메모를 고치지 않는다. Mate 는 보통 세션 목록에 섞이지 않고, 세션 링크로 열어도 Mate 화면으로 간다
 - 폰 알림: 안드로이드는 기존 세션 알림 서비스(Settings 의 알림 스위치)가 Mate 의 말과 세션의 승인 대기를 알린다. 조용한 체크인은 알리지 않는다. iOS 용으로는 데몬에 Expo 푸시 발송 경로가 있다(`mobile.registerPush` 로 기기 토큰을 받은 기기에만, Mate 가 먼저 말했을 때와 세션이 승인, 질문, 계획 확인을 기다리기 시작했을 때 제목과 본문을 `exp.host` 로 보낸다). 앱 쪽 토큰 등록은 아직 없어서 지금은 아무것도 보내지 않는다
-- Settings 의 Mate: 켜고 끄기(끄면 사이드바 항목이 사라지고 스스로 깨지 않는다), 아침 브리핑, 세션 추적, 리마인드, 추적 모델
+- Settings 의 Mate: 켜고 끄기(기본 꺼짐. 꺼져 있으면 사이드바 항목이 없고 세션을 읽지 않으며 모델을 부르지 않는다. 켜면 세션 추적도 같이 돈다), 아침 브리핑, 세션 추적, 리마인드, 추적 모델
 - 테스트와 E2E 인스턴스에서는 Mate 세션을 만들지 않고 스스로 깨지 않는다. 수동 확인 때는 `AGENT_NAV_ASSISTANT_AUTO=1`. 푸시는 그런 인스턴스에서 보내지 않고, `AGENT_NAV_PUSH_URL` 을 주면 그 주소로만 보낸다
 - 저장은 `~/.agent-nav/assistant.json`(리마인드, 이미 전한 결정, 체크인 기록 40개). RPC `assistant.get`, `checkIn`, `cancelReminder`, `readNotes`, `writeNotes`, 이벤트 `assistant`. 폰에는 `followUps.get`, `snooze`, `dismiss`, `keepOpen`, `assistant.get`, `checkIn`, `cancelReminder` 와 두 이벤트를 연다
 
@@ -113,7 +113,7 @@ Follow-ups 는 데몬이 세션들을 스스로 살펴서 만든 목록이고 Ma
 - Looks finished 행의 Mark done 은 세션을 완료로 표시하고, Not finished 는 In progress 로 돌려보낸다
 - 평일 3일 동안 조용한 세션을 완료로 넘기는 자동 정리는 리마인드가 남아 있는 결정이 있는 세션을 건너뛴다. 마지막 리마인드까지 답이 없으면 그 세션도 자동 정리 대상으로 돌아간다
 - 피드백 세션, 자동화가 시작한 세션, 완료로 표시한 세션은 목록에 넣지 않는다
-- Settings 의 Follow-ups: 켜고 끄기(끄면 사이드바 항목과 명령이 사라지고 세션을 읽지 않으며 모델도 부르지 않는다), 리마인드 켜고 끄기, 모델
+- 추적은 Settings 의 Mate 가 켜져 있을 때만 돈다. 그 안에서 세션 추적만 따로 끄거나, 리마인드를 끄거나, 모델을 고른다
 - 테스트와 E2E 인스턴스(`AGENT_NAV_INACTIVE=1`, `AGENT_NAV_E2E_PORT`, `AGENT_NAV_NO_MENTIONS=1`)에서는 모델을 스스로 부르지 않는다. 수동 확인 때는 `AGENT_NAV_FOLLOWUPS_AUTO=1` 로 켠다
 - 저장은 `~/.agent-nav/followups.json`(임시 파일에 쓴 뒤 rename). RPC `followUps.get`, `check`, `snooze`, `wake`, `dismiss`, `keepOpen`, 이벤트 `followUps`
 
