@@ -5,6 +5,7 @@ import type { PrRpcMethods } from "./prTypes";
 import type { SimulatorRpcMethods } from "./simulator";
 import type { SkillsRpcMethods } from "./skills";
 import type { AutomationsRpcMethods, AutomationsState } from "./automations";
+import type { DesktopLinkRpcMethods } from "./desktopLink";
 import type { ScmCommit, ScmCommitFile, ScmCommitOptions, ScmCommitResult, ScmDiffSection, ScmDiscardResult, ScmFileDiff, ScmFileDiffSection, ScmOperationResult, ScmPullMode, ScmRepoWorktrees, ScmStatus, ScmSyncResult, ScmTarget } from "./scm";
 import type { SlackLinkTarget } from "./slackLink";
 import type { NotionLinkTarget } from "./notionLink";
@@ -325,6 +326,7 @@ export type Settings = {
   chatInEditorLayout: "docked" | "floating" | null;
   mobileAccess: boolean;
   mobileRelay: boolean;
+  desktopLink: boolean;
 };
 
 export type DefaultSource = "agent-nav" | "vscode" | "claude" | "builtin";
@@ -676,7 +678,7 @@ export type FormatLanguage = {
 
 export type BranchesResult = { repoRoot: string | null; current: string | null; defaultBase: string | null; branches: string[]; locals: string[]; remotes: string[]; uncommitted: number };
 
-export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods & AutomationsRpcMethods & {
+export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods & AutomationsRpcMethods & DesktopLinkRpcMethods & {
   "workspaces.list": { params: Record<string, never>; result: Workspace[] };
   "sessionOrder.list": { params: Record<string, never>; result: SessionOrders };
   "sessionOrder.set": { params: { scope: string; ids: string[] }; result: SessionOrders };

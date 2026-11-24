@@ -29,6 +29,8 @@ import { handleMedia } from "./mediaHttp";
 import { handleUpload, saveUploadBytes, uploadedFilePath } from "./fileAttach";
 import { lanHosts, makeOffer, MobileDevices, MobileServer, PairingCodes } from "./mobileAccess";
 import { loadRelayIdentity, normalizeRelayUrl, RelayLink, RELAY_URL_DEFAULT } from "./mobileRelay";
+import { createDesktopLink } from "./desktopLinkHost";
+import { LINK_HTTP_PATHS, LINK_WS_PATHS, splitRemotePath, type LinkHttpPath, type LinkWsPath } from "../shared/desktopLink";
 import { WorkspaceIcons } from "./workspaceIcons";
 import { mobilePreview } from "./mobilePreview";
 import { listFolder } from "./mobileFolders";
@@ -141,6 +143,7 @@ const mobileDevices = new MobileDevices(join(HOME, "mobile-devices.json"));
 const RELAY_URL = normalizeRelayUrl(process.env.AGENT_NAV_RELAY_URL ?? RELAY_URL_DEFAULT);
 const RELAY_BRIDGE_KEY = randomBytes(24).toString("hex");
 let relayLink: RelayLink | null = null;
+const desktopLink = createDesktopLink({ home: HOME, daemonPort: PORT, token: TOKEN, enabled: () => store.settings.desktopLink === true, log: (line) => console.log(line) });
 const mobile = new MobileServer({
   devices: mobileDevices,
   pairing: mobilePairing,
@@ -458,6 +461,7 @@ const sessionChanges = createSessionChanges({ store, feedback });
 
 const settingsEffects: SettingsEffect[] = [
   { keys: ["mobileAccess", "mobileRelay"], apply: () => applyMobileAccess() },
+  { keys: ["desktopLink"], apply: () => desktopLink.apply() },
   { keys: ["inboxIntervalMinutes", "showSlack"], apply: () => armInboxTimer() },
   { keys: ["showSlack"], apply: () => mentions.kick() },
   { keys: ["keepIdleSessionsWarmMinutes"], apply: () => runner.rearmIdleCloses() },
@@ -524,6 +528,7 @@ const handlers: Handlers = {
     return { ...snapshot, watch: workspaceWatch.stats() };
   },
   "agents.timelinePage": ({ agentId, limit, beforeId }) => pageOfTimeline(store.timeline(store.agent(agentId).id), limit, beforeId),
+  ...desktopLink.handlers,
   "mobile.ping": () => ({ now: Date.now() }),
   "mobile.status": () => mobileStatus(),
   "mobile.pairingCode": () => {
@@ -788,6 +793,12 @@ const server = createServer((req, res) => {
     res.writeHead(400).end("bad request");
     return;
   }
+  const remote = splitRemotePath(url.pathname);
+  if (remote) {
+    if (!LINK_HTTP_PATHS.includes(remote.path as LinkHttpPath)) return void res.writeHead(404).end("not found");
+    void desktopLink.proxyHttp(req, res, url, remote.id, remote.path as LinkHttpPath, { token: TOKEN, origins: ALLOWED_ORIGINS });
+    return;
+  }
   if (url.pathname === "/attachments") {
     void handleUpload(req, res, url, { token: TOKEN, origins: ALLOWED_ORIGINS }).catch((error) => {
       console.error("[attachments] upload failed", error);
@@ -828,7 +839,11 @@ server.on("upgrade", (req, socket, head) => {
   }
   wss.handleUpgrade(req, socket, head, (ws) => {
     try {
-      if (url.pathname === "/ws/rpc") handleRpc(ws);
+      const remote = splitRemotePath(url.pathname);
+      if (remote) {
+        if (!LINK_WS_PATHS.includes(remote.path as LinkWsPath)) ws.close(1008, "unknown endpoint");
+        else desktopLink.client.bridgeSocket(ws, remote.id, remote.path as LinkWsPath, url.search.slice(1));
+      } else if (url.pathname === "/ws/rpc") handleRpc(ws);
       else if (url.pathname === "/ws/lsp") {
         const dir = store.workspace(url.searchParams.get("workspaceId") ?? "").dir;
         bridgeLsp(ws, dir, folderCodeAllowed(dir) ? languageServersFor(folderCodeAllowed) : BUNDLED_LANGUAGE_SERVERS);
@@ -899,5 +914,6 @@ server.listen(PORT, "127.0.0.1", () => {
   );
   console.log(`agent-nav daemon: http://127.0.0.1:${PORT}`);
   void applyMobileAccess();
+  void desktopLink.apply();
   console.log(`[defaults] ${describeDefaults(defaultsReader.resolve(store.settings, true))}`);
 });

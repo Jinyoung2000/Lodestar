@@ -164,6 +164,7 @@ const DEFAULT_SETTINGS: Settings = {
   chatInEditorLayout: null,
   mobileAccess: false,
   mobileRelay: false,
+  desktopLink: false,
   ...EDITOR_FONT_DEFAULTS,
   ...UI_TYPE_DEFAULTS,
 };
@@ -250,6 +251,7 @@ function sanitizeSettings(patch: Partial<Settings>): Partial<Settings> {
   if ("pinnedPanelSide" in next && next.pinnedPanelSide !== null && next.pinnedPanelSide !== "left" && next.pinnedPanelSide !== "right") delete next.pinnedPanelSide;
   if ("mobileAccess" in next && typeof next.mobileAccess !== "boolean") delete next.mobileAccess;
   if ("mobileRelay" in next && typeof next.mobileRelay !== "boolean") delete next.mobileRelay;
+  if ("desktopLink" in next && typeof next.desktopLink !== "boolean") delete next.desktopLink;
   if ("chatInEditorLayout" in next && next.chatInEditorLayout !== null && next.chatInEditorLayout !== "docked" && next.chatInEditorLayout !== "floating") delete next.chatInEditorLayout;
   delete next.settingsVersion;
   if ("diffView" in next && !DIFF_VIEWS.includes(next.diffView as never)) delete next.diffView;
