@@ -1,8 +1,8 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, type NativeStackNavigationProp } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import { ActivityIndicator, BackHandler, Keyboard, Pressable, useWindowDimensions, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { ActivityIndicator, BackHandler, Keyboard, Platform, Pressable, useWindowDimensions, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { MobileFileRef } from "@shared/mobile";
 import type { ImageRef } from "@shared/protocol";
 import { stateOf, workspaceName } from "../../logic/agents";
@@ -34,6 +34,7 @@ import { armSplitDrag, endSplitPress } from "../../ui/SplitDrag";
 import { SplitPanes } from "../../ui/SplitPanes";
 
 const NEAR_BOTTOM = 120;
+const PAST_THE_END = 1_000_000;
 type SessionParams = { id: string; draft?: string; focusQuestion?: string; gallery?: string; viewer?: string };
 
 type PaneUi = { galleryOpen: boolean; viewerOpen: boolean; setGallery: (open: boolean) => void; setViewer: (open: boolean) => void };
@@ -100,8 +101,6 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
   const workspaces = useAppState((s) => s.workspaces);
   const timeline = useAppState((s) => s.timelines[id]);
   const listRef = useRef<FlashListRef<Row>>(null);
-  const [atBottom, setAtBottom] = useState(true);
-  const atBottomRef = useRef(true);
   const scrollOffset = useRef(0);
   const listHeight = useRef<number | null>(null);
   const contentHeight = useRef(0);
@@ -117,8 +116,10 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
 
   const [memory] = useState(() => sessionViewState(id));
   const hasNews = !!agent && (!!agent.unread || agent.status === "running" || agent.status === "waiting");
-  const restoreOffset = useRef(hasNews || focusQuestion ? null : memory.offset);
-  const followEnd = useRef(restoreOffset.current === null);
+  const restoreAnchor = useRef(hasNews || focusQuestion ? null : memory.anchor);
+  const followEnd = useRef(restoreAnchor.current === null);
+  const [atBottom, setAtBottom] = useState(followEnd.current);
+  const atBottomRef = useRef(followEnd.current);
   const showGallery = useCallback(() => {
     Keyboard.dismiss();
     setGallery(true);
@@ -175,7 +176,6 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
     return () => back.remove();
   }, [closeGallery, closeModel, closePreview, expanded, fullPreview, galleryOpen, id, modelOpen, ownsScreen, previewOpen]));
   const listGeneration = useRef(0);
-  const [listReset, setListReset] = useState(0);
   const rows = useMemo(() => {
     const previous = previousRows.current;
     const next = stabilizeRows(previous, buildRows(items ?? []));
@@ -184,10 +184,10 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
       listGeneration.current += 1;
       scrollOffset.current = 0;
       contentHeight.current = 0;
-      restoreOffset.current = null;
+      restoreAnchor.current = null;
       followEnd.current = true;
       atBottomRef.current = true;
-      memory.offset = null;
+      memory.anchor = null;
     }
     previousRows.current = next;
     return next;
@@ -195,6 +195,9 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
 
   const pending = rows.findLast((row) => row.type === "question" || row.type === "approval" || row.type === "plan");
   const messages = useMemo(() => pending ? rows.filter(r => r.type !== "question" && r.type !== "approval" && r.type !== "plan") : rows, [rows, pending]);
+
+  const restoreKey = restoreAnchor.current?.key;
+  const restoreIndex = restoreKey === undefined ? -1 : messages.findIndex((row) => row.key === restoreKey);
 
   const actions = useMemo<Actions>(
     () => ({
@@ -206,19 +209,33 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
     [id],
   );
 
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-    scrollOffset.current = contentOffset.y;
-    contentHeight.current = contentSize.height;
-    const near = contentSize.height - (contentOffset.y + layoutMeasurement.height) < NEAR_BOTTOM;
-    memory.offset = near ? null : contentOffset.y;
+  const notePosition = useCallback(() => {
+    const viewport = listHeight.current;
+    if (viewport === null || restoreAnchor.current) return;
+    const end = Math.max(0, contentHeight.current - viewport);
+    const offset = Math.min(scrollOffset.current, end);
+    const near = end - offset < NEAR_BOTTOM;
+    const list = listRef.current;
+    const index = near || !list ? -1 : list.getFirstVisibleIndex();
+    const row = index >= 0 ? list?.props.data?.[index] : undefined;
+    const top = index >= 0 ? list?.getLayout(index)?.y : undefined;
+    if (near) memory.anchor = null;
+    else if (row && list && top !== undefined) memory.anchor = { key: row.key, offset: offset - list.getFirstItemOffset() - top };
     if (near !== atBottomRef.current) {
       atBottomRef.current = near;
       setAtBottom(near);
     }
   }, [memory]);
 
-  const toEnd = useCallback((animated = true) => listRef.current?.scrollToEnd({ animated }), []);
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollOffset.current = e.nativeEvent.contentOffset.y;
+    notePosition();
+  }, [notePosition]);
+
+  const toEnd = useCallback((animated = true) => {
+    restoreAnchor.current = null;
+    return listRef.current?.scrollToEnd({ animated });
+  }, []);
   const keepBottomEdge = useCallback(({ nativeEvent }: LayoutChangeEvent) => {
     const previous = listHeight.current;
     const next = nativeEvent.layout.height;
@@ -234,10 +251,11 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
   const dockShare = pending?.type === "question" && readQuestions(pending.item.input).some((q) => q.options.some((o) => o.preview)) ? 0.7 : 0.5;
   const normalDockLimit = keyboardTop === undefined ? Math.min(availableHeight * dockShare, chatHeight - 40) : chatHeight - 40;
   const dockLimit = shortDock ? chatHeight : Math.max(120, normalDockLimit);
-  const dock = pending ? { draft: requestDraft(memory, pending.item.id), limit: dockLimit, compact: compactDock, short: shortDock, offline: conn !== "online", focusOnOpen: focusQuestion && !galleryOpen && !previewOpen, onOpen: () => { if (focusQuestion || restoreOffset.current === null) toEnd(false); } } : null;
+  const dock = pending ? { draft: requestDraft(memory, pending.item.id), limit: dockLimit, compact: compactDock, short: shortDock, offline: conn !== "online", focusOnOpen: focusQuestion && !galleryOpen && !previewOpen, onOpen: () => { if (focusQuestion || restoreAnchor.current === null) toEnd(false); } } : null;
 
   const send = useCallback(
     async (text: string, images: ImageRef[], steer: boolean, files: MobileFileRef[]) => {
+      followEnd.current = true;
       atBottomRef.current = true;
       setAtBottom(true);
       setTimeout(() => toEnd(true), 60);
@@ -262,7 +280,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
     <View style={{ flex: 1 }}>
       {ownsScreen && <Stack.Screen options={{ headerShown: false, gestureEnabled: !galleryOpen && !previewOpen && !modelOpen }} />}
       <View style={{ flex: 1, paddingRight: expanded && !pane ? insets.right : 0, paddingBottom: expanded && keyboardTop === undefined ? insets.bottom : 0 }} pointerEvents={previewOpen || modelOpen ? "none" : "auto"} accessibilityElementsHidden={previewOpen || modelOpen} importantForAccessibility={previewOpen || modelOpen ? "no-hide-descendants" : "auto"}>
-      <SafeAreaView edges={expanded ? ["top"] : ["top", "left", "right"]} style={{ backgroundColor: colors.background }}>
+      <View style={{ backgroundColor: colors.background, paddingTop: insets.top, paddingLeft: expanded ? 0 : insets.left, paddingRight: expanded ? 0 : insets.right }}>
         <View>
           {!hideChatToolbar && <View style={[styles.bar, expanded && !showSessions && styles.expandedBar]} pointerEvents={galleryOpen ? "none" : "auto"} accessibilityElementsHidden={galleryOpen} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"}>
             {pane?.active && <View pointerEvents="none" style={[styles.activeLine, { backgroundColor: colors.accentText }]} />}
@@ -291,7 +309,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
             <ToolbarButton icon="plus" label="New preview" onPress={createPreview} />
           </View>}
         </View>
-      </SafeAreaView>
+      </View>
       <View style={{ flex: 1 }}>
         <View onLayout={({ nativeEvent }) => setChatHeight(nativeEvent.layout.height)} style={[{ flex: 1 }, paneWidth > 752 && styles.readingWidth]} pointerEvents={galleryOpen ? "none" : "auto"} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={galleryOpen}>
           {!hasTimeline ? (
@@ -304,7 +322,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
           ) : (
             <View style={{ flex: 1 }} onLayout={keepBottomEdge}>
               <FlashList
-                key={`${listGeneration.current}:${listReset}`}
+                key={listGeneration.current}
                 ref={listRef}
                 data={messages}
                 keyExtractor={(row) => row.key}
@@ -313,32 +331,32 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
                 ItemSeparatorComponent={Gap}
                 contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm, paddingBottom: spacing.xs }}
                 onContentSizeChange={(_, height) => {
-                  const viewport = listHeight.current;
-                  const shrankPastEnd = viewport !== null && height < contentHeight.current && height < scrollOffset.current + viewport / 2;
                   contentHeight.current = height;
-                  if (shrankPastEnd) {
-                    scrollOffset.current = 0;
-                    contentHeight.current = 0;
-                    restoreOffset.current = null;
-                    followEnd.current = true;
-                    atBottomRef.current = true;
-                    memory.offset = null;
-                    setListReset((count) => count + 1);
-                    return;
+                  const viewport = listHeight.current;
+                  if (followEnd.current && viewport !== null) {
+                    scrollOffset.current = Math.max(0, height - viewport);
+                    void listRef.current?.scrollToOffset({ offset: scrollOffset.current, animated: false });
                   }
-                  if (followEnd.current && listHeight.current !== null) void listRef.current?.scrollToOffset({ offset: Math.max(0, height - listHeight.current), animated: false });
+                  notePosition();
                 }}
                 maintainVisibleContentPosition={{ startRenderingFromBottom: true, disabled: atBottom }}
                 drawDistance={windowHeight}
+                initialScrollIndex={restoreIndex >= 0 ? restoreIndex : undefined}
+                initialScrollIndexParams={restoreIndex >= 0 ? { viewOffset: restoreAnchor.current?.offset } : Platform.OS === "android" ? { viewOffset: PAST_THE_END } : undefined}
                 onLoad={() => {
-                  const offset = restoreOffset.current;
-                  if (offset !== null && !focusQuestion) void listRef.current?.scrollToOffset({ offset, animated: false });
-                  else toEnd(false);
+                  if (restoreIndex >= 0) {
+                    void listRef.current?.scrollToIndex({ index: restoreIndex, viewOffset: restoreAnchor.current?.offset, animated: false });
+                    return;
+                  }
+                  restoreAnchor.current = null;
+                  followEnd.current = true;
+                  toEnd(false);
                 }}
                 onStartReached={() => void store.loadOlder(id)}
                 onStartReachedThreshold={0.5}
                 onScroll={onScroll}
                 onScrollBeginDrag={() => {
+                  restoreAnchor.current = null;
                   followEnd.current = false;
                   meter.start();
                 }}
@@ -350,7 +368,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
                   followEnd.current = atBottomRef.current;
                   setTimeout(meter.stop, 500);
                 }}
-                scrollEventThrottle={64}
+                scrollEventThrottle={16}
                 keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="handled"
                 ListHeaderComponent={timeline?.hasMore ? <View style={styles.olderSlot}>{timeline.loadingOlder && <ActivityIndicator />}</View> : rows.length === 0 ? <Text color="textMuted" style={{ textAlign: "center" }}>No messages yet.</Text> : null}

@@ -12,6 +12,8 @@ const FRAME_MAX_HEIGHT = 360;
 const FRAME_MIN_HEIGHT = 48;
 const HEADER_HEIGHT = 36;
 const EXPAND_SIZE = 40;
+const MEASURED_LIMIT = 40;
+const measuredHeights = new Map<string, number>();
 const REPORT_HEIGHT = "(function(){var post=function(){window.ReactNativeWebView.postMessage(String(document.body.scrollHeight))};post();window.addEventListener('load',post);setTimeout(post,300)})();true;";
 
 export type PreviewCardRowProps = { item: ToolItem; open: (file: Preview) => void };
@@ -52,13 +54,24 @@ export function HtmlFrameView({ html, maxHeight = FRAME_MAX_HEIGHT }: { html: st
   );
 }
 
+function rememberHeight(key: string, height: number) {
+  measuredHeights.delete(key);
+  measuredHeights.set(key, height);
+  if (measuredHeights.size > MEASURED_LIMIT) measuredHeights.delete(measuredHeights.keys().next().value as string);
+}
+
 function ScaledFrame({ html, scale, maxHeight }: { html: string; scale: number; maxHeight: number }) {
   const document = useMemo(() => previewFrameDocument(html, "Canvas", scale), [html, scale]);
   const source = useMemo(() => ({ html: document, baseUrl: "about:blank" }), [document]);
-  const [height, setHeight] = useState<number | null>(null);
+  const heightKey = `${maxHeight}:${document}`;
+  const [measured, setMeasured] = useState<{ key: string; height: number }>();
+  const height = measured?.key === heightKey ? measured.height : measuredHeights.get(heightKey) ?? null;
   const onMessage = (event: WebViewMessageEvent) => {
     const next = Number(event.nativeEvent.data) * scale;
-    if (Number.isFinite(next) && next > 0) setHeight(Math.max(FRAME_MIN_HEIGHT, Math.min(maxHeight, Math.ceil(next))));
+    if (!Number.isFinite(next) || next <= 0) return;
+    const fitted = Math.max(FRAME_MIN_HEIGHT, Math.min(maxHeight, Math.ceil(next)));
+    rememberHeight(heightKey, fitted);
+    setMeasured({ key: heightKey, height: fitted });
   };
   return (
     <View style={{ height: height ?? FRAME_MIN_HEIGHT * 2 }}>
