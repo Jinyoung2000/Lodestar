@@ -751,9 +751,8 @@ export class MobileServer {
       return json(res, 401, { error: "unauthorized" });
     }
     const tooLarge = () => {
-      res.setHeader("connection", "close");
       json(res, 413, { error: T.errMobileImageTooLarge(MAX_IMAGE_BYTES / 1024 / 1024) });
-      res.on("finish", () => req.socket.destroySoon());
+      discardRest(req);
     };
     if (Number(req.headers["content-length"] ?? 0) > MAX_IMAGE_BYTES) return tooLarge();
     let bytes: Buffer;
@@ -787,6 +786,24 @@ function requestUrl(req: IncomingMessage): URL | null {
 function json(res: ServerResponse, status: number, body: unknown) {
   const text = JSON.stringify(body);
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(text), "cache-control": "no-store" }).end(text);
+}
+
+const DISCARD_MS = 5_000;
+const DISCARD_BYTES = 32 * 1024 * 1024;
+
+function discardRest(req: IncomingMessage) {
+  const socket = req.socket;
+  const timer = setTimeout(() => socket.destroy(), DISCARD_MS);
+  timer.unref();
+  let left = DISCARD_BYTES;
+  req.removeAllListeners("data");
+  req.on("data", (chunk: Buffer) => {
+    left -= chunk.length;
+    if (left < 0) socket.destroy();
+  });
+  req.on("end", () => clearTimeout(timer));
+  socket.once("close", () => clearTimeout(timer));
+  req.resume();
 }
 
 function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
