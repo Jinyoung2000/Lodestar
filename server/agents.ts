@@ -75,6 +75,7 @@ const SESSION_PROMPT_APPEND = [
   "Lodestar shows that block as a Slack preview with a button that copies it with Slack formatting. Keep explanations outside the block.",
   `When you change or propose a screen, show it in the chat with ${PREVIEW_TOOL} (As-is and To-be frames) instead of pointing to an image path or describing it in words.`,
   "When the user should choose between screen options, call AskUserQuestion and put each option's self-contained HTML in its preview field; Lodestar renders it inline at phone width.",
+  "When a structure, flow or exchange is clearer as a picture, draw it in a fenced code block with the language `mermaid`, using `flowchart` (with `subgraph` for grouped parts, `-.-x` for a broken link) or `sequenceDiagram`; Lodestar draws it as a diagram in the chat on desktop and phone. Keep node labels short and use `<br>` for a second line.",
 ].join(" ");
 const BACKGROUND_NOTICE_MAX = 120;
 const CLAUDE_SCRATCH_ROOTS = typeof process.getuid === "function" ? [`/tmp/claude-${process.getuid()}`, `/private/tmp/claude-${process.getuid()}`] : [];
