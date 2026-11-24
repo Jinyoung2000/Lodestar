@@ -245,16 +245,14 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const queue = agent?.queue ?? [];
   const steering = agent?.steering ?? [];
   const busyUpload = pasting || attachments.progress !== null;
-  const hasDraft = hasContent || busyUpload;
   const pendingCount = queue.length + steering.length;
   const showQueue = pendingCount < 3 || queueExpanded;
   const sendDisabled = !canSend || sending || (!hasContent && !busyUpload);
   const modelAvailable = !!modelControl && !modelControl.disabled && !disabled;
   const showStop = !!(running && onStop);
-  const showSend = !showStop || hasDraft || pendingSend;
   const compactStart = MIN_TOUCH + spacing.xs;
   const modelWidth = modelControl ? Math.max(MIN_TOUCH, compactModelWidth) : 0;
-  const compactEnd = modelWidth + MIN_TOUCH * (Number(showStop) + Number(showSend)) + spacing.xs;
+  const compactEnd = modelWidth + MIN_TOUCH * (Number(showStop) + 1) + spacing.xs;
   const expanded = !!text.length && (wraps || text.includes("\n"));
   const token = editing && modelAvailable && selection.start === selection.end ? text.slice(0, selection.start).match(/(?:^|\s)(\/[a-z]*)$/i)?.[1] : undefined;
   const modelCommand = token && "/model".startsWith(token.toLowerCase()) && !/\w/.test(text[selection.end] ?? "") ? token : undefined;
@@ -284,7 +282,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           ))}
         </View>
       )}
-      {running && hasDraft && (
+      {running && (
         <View style={styles.modeRow}>
           <View style={[styles.segment, { backgroundColor: colors.surfaceBase, borderColor: colors.separator }]}>
             <Pressable accessibilityRole="button" accessibilityState={{ selected: !steer }} hitSlop={{ top: 6, bottom: 2 }} onPress={() => setMode(false)} style={[styles.segmentItem, !steer && { backgroundColor: colors.selected }]}>
@@ -373,11 +371,11 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
             {showStop && <Pressable accessibilityRole="button" accessibilityLabel="Stop" disabled={!canSend} onPress={onStop} style={styles.iconButton}>
               {({ pressed }) => <View style={[styles.send, { backgroundColor: colors.textStrong, opacity: pressed ? 0.8 : 1 }]}><View style={[styles.stopMark, { backgroundColor: colors.background }]} /></View>}
             </Pressable>}
-            {showSend && <Pressable accessibilityRole="button" accessibilityLabel={running && steer ? "Steer" : running ? "Queue message" : "Send"} accessibilityState={{ disabled: sendDisabled }} onPress={press} disabled={sendDisabled} style={styles.iconButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel={running && steer ? "Steer" : running ? "Queue message" : "Send"} accessibilityState={{ disabled: sendDisabled }} onPress={press} disabled={sendDisabled} style={styles.iconButton}>
               {({ pressed }) => <View style={[styles.send, { backgroundColor: sendDisabled ? colors.overlay : colors.accent, opacity: pressed ? 0.8 : 1 }]}>
                 {sending || pendingSend ? <ActivityIndicator color={colors.onAccent} /> : <Icon name="arrow.up" size={18} color={sendDisabled ? "textSubtle" : "onAccent"} weight="bold" />}
               </View>}
-            </Pressable>}
+            </Pressable>
           </View>
         </View>
       </View>
