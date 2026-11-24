@@ -1,13 +1,15 @@
 import type { CenterViewName } from "./centerPanels";
 
-export type VisibilitySettings = { showSlack?: boolean; showBoard?: boolean } | null | undefined;
+export type VisibilitySettings = { showSlack?: boolean; showBoard?: boolean; followUpsEnabled?: boolean } | null | undefined;
 
 export const slackShown = (settings: VisibilitySettings): boolean => settings?.showSlack === true;
 export const boardShown = (settings: VisibilitySettings): boolean => settings?.showBoard === true;
+export const followUpsShown = (settings: VisibilitySettings): boolean => settings?.followUpsEnabled !== false;
 
 export function centerViewHidden(view: CenterViewName, settings: VisibilitySettings): boolean {
   if (view === "board") return !boardShown(settings);
   if (view === "inbox") return !slackShown(settings);
+  if (view === "followUps") return !followUpsShown(settings);
   return false;
 }
 
@@ -22,5 +24,6 @@ export function hiddenCommands(settings: VisibilitySettings): ReadonlySet<string
     hidden.add("morningReview");
   }
   if (!slackShown(settings)) hidden.add("inbox");
+  if (!followUpsShown(settings)) hidden.add("followUps");
   return hidden;
 }

@@ -10,6 +10,7 @@ import { SLACK_LINK_TARGETS } from "../shared/slackLink";
 import { NOTION_LINK_TARGETS } from "../shared/notionLink";
 import { parseReviewTime, REVIEW_DEFAULT_TIME } from "../shared/morningReview";
 import { AUTOMATION_DEFAULT_CONCURRENCY, AUTOMATION_LIMITS } from "../shared/automations";
+import { FOLLOW_UP_DEFAULT_MODEL, FOLLOW_UP_MODELS } from "../shared/followups";
 import { parseAccelerator, QUICK_ENTRY_DEFAULT_SHORTCUT } from "../shared/quickEntry";
 import { DEFAULT_NOTION_BYPASS_WRITES, NOTION_BYPASS_WRITES } from "../shared/notionApproval";
 import { realDir } from "./paths";
@@ -125,6 +126,9 @@ const DEFAULT_SETTINGS: Settings = {
   morningReviewEnabled: true,
   morningReviewTime: REVIEW_DEFAULT_TIME,
   automationConcurrency: AUTOMATION_DEFAULT_CONCURRENCY,
+  followUpsEnabled: true,
+  followUpsReminders: true,
+  followUpsModel: FOLLOW_UP_DEFAULT_MODEL,
   notifyOnResponse: true,
   notifyOnApproval: true,
   notifyNewVersion: false,
@@ -205,6 +209,9 @@ function sanitizeSettings(patch: Partial<Settings>): Partial<Settings> {
     else delete next.morningReviewTime;
   }
   if ("automationConcurrency" in next && !(Number.isInteger(next.automationConcurrency) && finite(next.automationConcurrency, AUTOMATION_LIMITS.concurrencyMin, AUTOMATION_LIMITS.concurrencyMax))) delete next.automationConcurrency;
+  if ("followUpsEnabled" in next && typeof next.followUpsEnabled !== "boolean") delete next.followUpsEnabled;
+  if ("followUpsReminders" in next && typeof next.followUpsReminders !== "boolean") delete next.followUpsReminders;
+  if ("followUpsModel" in next && !(typeof next.followUpsModel === "string" && (FOLLOW_UP_MODELS as readonly string[]).includes(next.followUpsModel))) delete next.followUpsModel;
   if ("notifyOnResponse" in next && typeof next.notifyOnResponse !== "boolean") delete next.notifyOnResponse;
   if ("notifyOnApproval" in next && typeof next.notifyOnApproval !== "boolean") delete next.notifyOnApproval;
   if ("notifyNewVersion" in next && typeof next.notifyNewVersion !== "boolean") delete next.notifyNewVersion;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { canHandOff, startHandoff } from "./handoffActions";
 import { createWorktreePr, mergeWorktree } from "./worktreeActions";
 import { harnessOf, type Agent, type TimelineItem, type Workspace } from "../shared/protocol";
@@ -14,6 +14,7 @@ import { beginSectionDrag, useSectionDrag, useSidebarOrder, type SidebarSection 
 import { BoardIcon, Chat, Check, ChevronDown, ChevronRight, Close, Codicon, CircleFilled, CircleSmallFilled, CommentDiscussion, DotSpinner, Filter, Folder, FolderCompact, More, Pin, Plus, ProviderIcon, Search, TreeItemExpanded, WorktreeCompact } from "./icons";
 import { RenameInput } from "./RenameInput";
 import { automationsAwaitingInput } from "./automationModel";
+import { openDecisionCount } from "../shared/followups";
 import { useCompactView } from "./compactView";
 import { useMissingFolders } from "./missingFolders";
 import { moveChatToFolder } from "./sessionFolders";
@@ -27,9 +28,9 @@ import { expandGroup, resetSessionView, setCollapsedGroups, setSessionView, star
 import { beginSessionDrag } from "./sessionDrag";
 import { publishSessionLists, stepFolder, stepSession } from "./sessionReorder";
 import { runCommand } from "./shortcuts";
-import { boardShown, slackShown } from "./screenVisibility";
+import { boardShown, followUpsShown, slackShown } from "./screenVisibility";
 import { openPrBesideByUrl } from "./prStore";
-import { addTerminal, ensureTimeline, flash, refreshPrs, isTopWorkspace, openAgent, openCard, setState, startDraft, startQuickChat, openAutomation, toggleAutomations, toggleBoard, toggleImprovements, toggleInbox,topWorkspaceId, useStore } from "./store";
+import { addTerminal, ensureTimeline, flash, refreshPrs, isTopWorkspace, openAgent, openCard, setState, startDraft, startQuickChat, openAutomation, toggleAutomations, toggleFollowUps, toggleBoard, toggleImprovements, toggleInbox,topWorkspaceId, useStore } from "./store";
 import { S } from "./strings";
 import { useEditPreview } from "./useEditPreview";
 import { Button } from "./ui/button";
@@ -53,11 +54,14 @@ type RowMenu = { id: string; at?: { x: number; y: number } };
 export function Sidebar({ width }: { width: number | null }) {
   const inboxUnread = useStore((s) => s.inbox?.unread ?? 0);
   const automationsWaiting = useStore((s) => (s.automations ? automationsAwaitingInput(s.automations.automations, s.automations.runs) : 0));
+  const followUpItems = useStore((s) => s.followUps?.items);
+  const showFollowUps = useStore((s) => followUpsShown(s.settings));
   const showBoard = useStore((s) => boardShown(s.settings));
   const showSlack = useStore((s) => slackShown(s.settings));
   const reviewUnread = useStore((s) => !!s.review?.unreadDate);
   const workspaces = useStore((s) => s.workspaces);
   const agents = useStore((s) => s.agents);
+  const followUpsWaiting = useMemo(() => (followUpItems ? openDecisionCount(agents, followUpItems, Date.now()) : 0), [agents, followUpItems]);
   const orders = useStore((s) => s.sessionOrders);
   const defaultOrdering = useStore((s) => s.defaults?.sessionSort.value ?? FALLBACK_ORDERING);
   const panes = useStore((s) => s.panes);
@@ -131,6 +135,12 @@ export function Sidebar({ width }: { width: number | null }) {
           <Codicon name="watch" /> {S.automations}
           {automationsWaiting > 0 && <span className="inbox-badge" aria-label={S.automationsNeedInput(automationsWaiting)}>{automationsWaiting}</span>}
         </button>
+        {showFollowUps && (
+          <button type="button" className="side-item" data-active={centerView === "followUps" || undefined} aria-pressed={centerView === "followUps"} title={S.followUps} onClick={() => toggleFollowUps()}>
+            <Codicon name="checklist" /> {S.followUps}
+            {followUpsWaiting > 0 && <span className="inbox-badge" aria-label={S.followUpsWaiting(followUpsWaiting)}>{followUpsWaiting}</span>}
+          </button>
+        )}
         <button type="button" className="side-item" onClick={() => (canPickFolder() ? void openFolderInNewSession() : setAddOpen((v) => !v))}>
           <Plus /> {S.addWorkspace}
           <SideKeycaps command="openFolder" />

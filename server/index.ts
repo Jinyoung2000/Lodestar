@@ -68,8 +68,10 @@ import { MentionPipeline } from "./mentions";
 import { MorningReviewService } from "./morningReview";
 import { AutomationService } from "./automations";
 import { automationHandlers } from "./automationHandlers";
+import { FollowUpsService } from "./followUps";
+import { followUpHandlers } from "./followUpHandlers";
 import { ReleaseCheck } from "./releaseCheck";
-import { automationsAutoBlocked, mentionCollectionBlocked, morningReviewAutoBlocked } from "./mentionGate";
+import { automationsAutoBlocked, followUpsAutoBlocked, mentionCollectionBlocked, morningReviewAutoBlocked } from "./mentionGate";
 import { MetaService } from "./meta";
 import { localCommands } from "./skills";
 import { liveGroupLeaders, systemKillDeps, terminateGroups } from "./processGroups";
@@ -168,9 +170,11 @@ repoMirrors.start();
 const reviewCheckouts = new ReviewCheckouts(join(HOME, "review-checkouts.json"));
 const folderCodeAllowed = (dir: string) => runsFolderCode(dir, { workspaces: store.workspaces, reviews: reviewCheckouts.list(), downloads: repoMirrors.createdDirs() });
 let automations: AutomationService | null = null;
+let followUps: FollowUpsService | null = null;
 const broadcast = (event: ServerEvent) => {
   repoMirrors.observe(event);
   automations?.observe(event);
+  followUps?.observe(event);
   coalescer.push(event);
 };
 const deliver = (event: ServerEvent) => {
@@ -274,6 +278,8 @@ automations = new AutomationService({
   autoBlocked: () => automationsAutoBlocked(process.env),
 });
 automations.start();
+followUps = new FollowUpsService({ store, emit: broadcast, autoBlocked: () => followUpsAutoBlocked(process.env) });
+followUps.start();
 const releaseCheck = new ReleaseCheck({ enabled: () => store.settings.notifyNewVersion === true, onChange: (release) => broadcast({ type: "release", release }) });
 releaseCheck.start();
 allowProviderEnv(store.settings.useProviderEnv === true);
@@ -328,7 +334,7 @@ const AUTO_DONE_EVERY_MS = 3_600_000;
 function armAutoDone(delayMs = AUTO_DONE_FIRST_MS) {
   setTimeout(() => {
     try {
-      const count = runner.autoDone();
+      const count = runner.autoDone(Date.now(), (agentId) => followUps?.holds(agentId) ?? false);
       if (count > 0) console.log(`[agents] auto done: ${count} sessions idle for 3+ weekdays`);
     } catch (error) {
       console.error("[agents] auto done failed", error);
@@ -519,6 +525,7 @@ const handlers: Handlers = {
   ...inboxHandlers({ inbox, inboxStore, mentions, broadcast, topWorkspaceOf }),
   ...notionPinHandlers({ notionPins, broadcast }),
   ...automationHandlers(automations),
+  ...followUpHandlers(followUps),
   ...terminalHandlers({ termAsk }),
   "perf.stats": ({ reset }) => {
     const snapshot = perfSnapshot();

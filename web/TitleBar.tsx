@@ -257,7 +257,7 @@ function useWorkspaceGitInfo(workspaceId: string | null) {
   return [snapshot?.workspaceId === workspaceId ? snapshot.info : undefined, refresh] as const;
 }
 
-const CENTER_VIEW_NAME = { board: S.board, inbox: S.inbox, improvements: S.improvements, pr: S.pullRequestChip, notion: N.viewName, skills: S.skills, automations: S.automations } as const;
+const CENTER_VIEW_NAME = { board: S.board, inbox: S.inbox, improvements: S.improvements, pr: S.pullRequestChip, notion: N.viewName, skills: S.skills, automations: S.automations, followUps: S.followUps } as const;
 
 function CommandCenter({ agent, folder, branch, inRepo, viewName }: { agent: Agent | null; folder: string | null; branch: string | null; inRepo: boolean; viewName: string | null }) {
   const name = folder ?? S.noWorkspace;

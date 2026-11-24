@@ -13,7 +13,7 @@ import type { PermissionItem } from "./timelineModel";
 
 export type NativeNotification = {
   agentId: string;
-  kind: "response" | "approval";
+  kind: "response" | "approval" | "reminder";
   title: string;
   body: string;
   itemId?: string;

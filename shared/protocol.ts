@@ -10,6 +10,7 @@ import type { SlackLinkTarget } from "./slackLink";
 import type { NotionLinkTarget } from "./notionLink";
 import type { NotionPin, NotionPinInput, NotionPinPatch } from "./notionPins";
 import type { ReviewState } from "./morningReview";
+import type { FollowUpsState, SnoozeChoice } from "./followups";
 import type { ReleaseState } from "./release";
 import type { NotionPageData } from "./notionFetch";
 import type { NotionWritePreview } from "./notionWrite";
@@ -285,6 +286,9 @@ export type Settings = {
   morningReviewEnabled: boolean;
   morningReviewTime: string;
   automationConcurrency: number;
+  followUpsEnabled: boolean;
+  followUpsReminders: boolean;
+  followUpsModel: string;
   notifyOnResponse: boolean;
   notifyOnApproval: boolean;
   notifyNewVersion?: boolean;
@@ -968,6 +972,12 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
   "review.run": { params: Record<string, never>; result: ReviewState };
   "review.apply": { params: { date: string; cardIds: string[] | null }; result: { review: ReviewState; applied: number; skipped: number } };
   "review.markSeen": { params: { date: string }; result: ReviewState };
+  "followUps.get": { params: Record<string, never>; result: FollowUpsState };
+  "followUps.check": { params: Record<string, never>; result: FollowUpsState };
+  "followUps.snooze": { params: { id: string; choice: SnoozeChoice }; result: FollowUpsState };
+  "followUps.wake": { params: { id: string }; result: FollowUpsState };
+  "followUps.dismiss": { params: { id: string }; result: FollowUpsState };
+  "followUps.keepOpen": { params: { agentId: string }; result: FollowUpsState };
   "notion.pins.list": { params: Record<string, never>; result: NotionPin[] };
   "notion.pins.add": { params: NotionPinInput; result: { pin: NotionPin; added: boolean } };
   "notion.pins.update": { params: { id: string; patch: NotionPinPatch }; result: NotionPin };
@@ -1016,6 +1026,7 @@ export type ServerEvent =
   | { type: "board"; board: Board }
   | { type: "review"; review: ReviewState }
   | { type: "automations"; state: AutomationsState }
+  | { type: "followUps"; state: FollowUpsState }
   | { type: "release"; release: ReleaseState }
   | { type: "notionPins"; pins: NotionPin[] }
   | { type: "notionChanged"; key: string }

@@ -1256,8 +1256,8 @@ export class AgentRunner {
     this.emit({ type: "agent", agent: this.store.patchAgent(agentId, done ? { done } : { done, reopenedAt: new Date().toISOString() }) });
   }
 
-  autoDone(now = Date.now()) {
-    const stale = this.store.agents.filter((agent) => isAutoDoneDue(agent, now));
+  autoDone(now = Date.now(), held: (agentId: string) => boolean = () => false) {
+    const stale = this.store.agents.filter((agent) => isAutoDoneDue(agent, now) && !held(agent.id));
     for (const agent of stale) this.emit({ type: "agent", agent: this.store.patchAgent(agent.id, { done: true }) });
     return stale.length;
   }

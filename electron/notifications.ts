@@ -1,6 +1,6 @@
 import { app, Notification } from "electron";
 
-export type NotifyPayload = { agentId: string; kind: "response" | "approval"; title: string; body: string; itemId?: string; actionLabel?: string };
+export type NotifyPayload = { agentId: string; kind: "response" | "approval" | "reminder"; title: string; body: string; itemId?: string; actionLabel?: string };
 export type NotifyAction = { agentId: string; action: "open" | "allow"; itemId?: string };
 export type NotifyMode = "route" | "route-and-show";
 
@@ -19,7 +19,7 @@ export function validNotify(value: unknown): value is NotifyPayload {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   const text = (x: unknown, max: number) => typeof x === "string" && x.length <= max;
-  return text(v.agentId, 100) && (v.kind === "response" || v.kind === "approval") && text(v.title, 500) && text(v.body, 1000) && (v.itemId === undefined || text(v.itemId, 100)) && (v.actionLabel === undefined || text(v.actionLabel, 50));
+  return text(v.agentId, 100) && (v.kind === "response" || v.kind === "approval" || v.kind === "reminder") && text(v.title, 500) && text(v.body, 1000) && (v.itemId === undefined || text(v.itemId, 100)) && (v.actionLabel === undefined || text(v.actionLabel, 50));
 }
 
 export class Notifier {

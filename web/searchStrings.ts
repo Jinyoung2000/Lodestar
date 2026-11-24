@@ -46,6 +46,7 @@ export const G = {
     mentions: "Open Mentions",
     improvements: "Show Improvements",
     automations: "Open Automations",
+    followUps: "Open Follow-ups",
     settings: "Settings",
     commandPalette: "Show All Commands",
     quickOpen: "Go to File...",

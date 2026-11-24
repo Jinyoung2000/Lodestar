@@ -46,9 +46,11 @@ import { dropSessionLayout, layoutKeyOf, layoutPatch, planSwitch, pruneSessionLa
 import { hint } from "./hint";
 import type { ReviewState } from "../shared/morningReview";
 import type { AutomationsState } from "../shared/automations";
+import type { FollowUpsState } from "../shared/followups";
 import type { ReleaseState } from "../shared/release";
 import type { SessionOrders } from "../shared/sessionOrder";
 import { receiveReview, refreshReview } from "./reviewActions";
+import { receiveFollowUps } from "./followUpActions";
 import { holdEditorFocus, releaseEditorFocus } from "./editorFocusHold";
 import { IDLE_RUN, sanitizeSearchView, type SearchRun, type SearchViewOptions } from "./searchViewModel";
 
@@ -328,7 +330,7 @@ export type Overlay =
 
 export type RightTab = "changes" | "card" | string;
 
-export type CenterView = "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "skills" | "automations";
+export type CenterView = "sessions" | "board" | "inbox" | "pr" | "improvements" | "notion" | "skills" | "automations" | "followUps";
 
 export type McpBusy = "reconnect" | "enable" | "disable";
 export type McpNote = { ok: boolean; text: string };
@@ -421,6 +423,7 @@ export type State = {
   review: ReviewState | null;
   release: ReleaseState | null;
   automations: AutomationsState | null;
+  followUps: FollowUpsState | null;
   selectedAutomationId: string | null;
   automationEditor: AutomationEditorTarget | null;
   automationEditorOpen: boolean;
@@ -560,6 +563,7 @@ let state: State = {
   inbox: null,
   review: null,
   automations: null,
+  followUps: null,
   selectedAutomationId: null,
   automationEditor: null,
   automationEditorOpen: false,
@@ -1521,6 +1525,14 @@ export function openSkills() {
   setState({ centerView: "skills" });
 }
 
+export function toggleFollowUps() {
+  setState((s) => ({ centerView: s.centerView === "followUps" ? "sessions" : "followUps" }));
+}
+
+export function openFollowUps() {
+  setState({ centerView: "followUps" });
+}
+
 export type AutomationEditorTarget = { mode: "create" } | { mode: "edit"; id: string };
 
 export function toggleAutomations() {
@@ -2197,6 +2209,7 @@ export function initStore() {
     void rpc.call("inbox.get", {}).then((inbox) => setState({ inbox })).catch(() => setState({ inbox: null }));
     void refreshReview();
     void rpc.call("automations.list", {}).then((automations) => setState({ automations })).catch(() => setState({ automations: null }));
+    void rpc.call("followUps.get", {}).then((followUps) => setState({ followUps })).catch(() => setState({ followUps: null }));
     void rpc.call("release.get", {}).then((release) => setState({ release })).catch(() => setState({ release: null }));
     void rpc.call("defaults.get", {}).then((defaults) => setState({ defaults })).catch(() => setState({ defaults: null }));
     void rpc.call("sessionOrder.list", {}).then((sessionOrders) => setState({ sessionOrders })).catch(() => setState({ sessionOrders: {} }));
@@ -2236,6 +2249,9 @@ export function initStore() {
         return;
       case "automations":
         setState({ automations: event.state });
+        return;
+      case "followUps":
+        receiveFollowUps(event.state);
         return;
       case "release":
         setState({ release: event.release });

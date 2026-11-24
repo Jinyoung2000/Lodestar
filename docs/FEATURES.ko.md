@@ -82,6 +82,22 @@ env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_SSE_PORT npm start > 
 - 테스트와 E2E 인스턴스(`AGENT_NAV_INACTIVE=1`, `AGENT_NAV_E2E_PORT`, `AGENT_NAV_NO_MENTIONS=1`)에서는 자동으로 돌지 않는다. 수동 확인 때는 `AGENT_NAV_AUTOMATIONS_AUTO=1` 로 켠다
 - 저장은 `~/.agent-nav/automations.json`(임시 파일에 쓴 뒤 rename). 실행 기록은 작업마다 최근 50개를 남기고, 목록과 상세는 최근 10개를 보인다. RPC `automations.list`, `create`, `update`, `delete`, `setEnabled`, `runNow`, `runs`, 이벤트 `automations`
 
+## Follow-ups (진행 중인 일과 미룬 결정)
+
+사이드바 "Follow-ups"(Automations 아래)는 데몬이 세션들을 스스로 살펴서 만든 목록이다. 사용자가 적는 것은 없다. 명령 팔레트 "Follow-ups: Open" 으로도 연다.
+
+- 세 구역이다. Needs a decision(세션이 사용자의 결정을 기다리는 일), In progress(지금 도는 세션과 최근 일주일 안에 멈춘 세션), Looks finished(끝난 것 같은 세션)
+- 결정은 두 길로 찾는다. 승인 카드, AskUserQuestion 질문, 확인을 기다리는 계획은 타임라인에서 바로 읽는다(모델을 부르지 않는다). 턴이 끝난 세션은 마지막 답이 사용자에게 고르거나 확인해 달라고 묻고 끝났는지를 모델이 읽는다(Asked in reply). 모델은 세션마다 decision, paused, finished 중 하나와 한 문장을 돌려주고, 그 문장이 행에 보인다. 사용자가 쓰는 언어로 쓴다
+- 모델은 턴이 끝나고 2분이 지난 세션만, 마지막 확인 뒤로 바뀐 세션만 읽는다. 한 번에 8개까지 묶고 1분 틱마다 두 묶음까지, 하루 60번까지 부른다. 일주일 넘게 조용한 세션은 읽지 않는다. Check now 는 기다리지 않고 지금 읽는다(한 번에 다섯 묶음까지). 모델은 Settings 의 Follow-ups 에서 고르고 기본은 haiku 다. 도구가 없는 일회성 CLI 세션(`persistSession: false`)이라 대화 기록이 남지 않는다
+- 결정 행에서 바로 답한다. Asked in reply 행은 선택지 칩을 누르면 답장 칸에 채워지고 Send 가 그 세션에 메시지로 보낸다(`agents.send`). 승인, 질문, 계획 행은 Open session 으로 그 세션의 카드에서 답한다. 사용자가 그 세션에 메시지를 보내거나 카드에 답하면 행은 스스로 사라진다
+- 리마인드: 결정이 열린 채로 1시간이 지나면 macOS 알림(창에 포커스가 있으면 앱 안 토스트)으로 다시 알리고, 그 뒤 4시간, 다음 날 아침, 2일 뒤 아침, 7일 뒤 아침에 한 번씩 더 알린 다음 멈춘다. 21시부터 아침(Board 의 Review time, 기본 09:30)까지는 보내지 않고 아침으로 미룬다. 같은 틱에 기한이 된 결정이 여럿이면 알림 한 장으로 합친다. Remind me 는 In 2 hours, Tomorrow morning, Next week 로 미루고, Not needed 는 그 결정을 목록에서 뺀다(같은 답에 대해 다시 올리지 않는다)
+- Looks finished 행의 Mark done 은 세션을 완료로 표시하고, Not finished 는 In progress 로 돌려보낸다
+- 평일 3일 동안 조용한 세션을 완료로 넘기는 자동 정리는 리마인드가 남아 있는 결정이 있는 세션을 건너뛴다. 마지막 리마인드까지 답이 없으면 그 세션도 자동 정리 대상으로 돌아간다
+- 피드백 세션, 자동화가 시작한 세션, 완료로 표시한 세션은 목록에 넣지 않는다
+- Settings 의 Follow-ups: 켜고 끄기(끄면 사이드바 항목과 명령이 사라지고 세션을 읽지 않으며 모델도 부르지 않는다), 리마인드 켜고 끄기, 모델
+- 테스트와 E2E 인스턴스(`AGENT_NAV_INACTIVE=1`, `AGENT_NAV_E2E_PORT`, `AGENT_NAV_NO_MENTIONS=1`)에서는 모델을 스스로 부르지 않는다. 수동 확인 때는 `AGENT_NAV_FOLLOWUPS_AUTO=1` 로 켠다
+- 저장은 `~/.agent-nav/followups.json`(임시 파일에 쓴 뒤 rename). RPC `followUps.get`, `check`, `snooze`, `wake`, `dismiss`, `keepOpen`, 이벤트 `followUps`
+
 ## Slack Inbox
 
 사이드바 "Inbox"(⇧⌘L)는 사용자에게 온 Slack 멘션, DM, 참여한 스레드의 새 답글을 한 목록에 보인다. 읽기 전용이고 Slack 으로는 아무것도 보내지 않는다(메시지, 리액션, 읽음 표시 모두).
