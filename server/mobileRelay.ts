@@ -391,7 +391,7 @@ class RelayChannel {
     }
     if (hello.kind === "http") {
       this.mode = "http";
-      return this.welcome({ ok: true });
+      return this.welcome({ ok: true, acks: true });
     }
     this.welcome({ ok: false, error: "Unknown request" }, true);
   }
@@ -476,6 +476,7 @@ class RelayChannel {
         if (this.httpSize > MAX_MOBILE_FILE_BYTES) return this.respond(413, { error: T.errMobileFileTooLarge(MAX_MOBILE_FILE_BYTES / 1024 / 1024) });
       } else if (this.httpSize > MAX_IMAGE_BYTES) return this.respond(413, { error: T.errMobileImageTooLarge(MAX_IMAGE_BYTES / 1024 / 1024) });
       this.httpBody.push(body.slice());
+      this.sendSealed(relayFrame(RelayFrame.ack, encodeText(String(this.httpSize))));
       return;
     }
     if (type === RelayFrame.end && this.httpHead) return this.forwardHttp(this.httpHead);

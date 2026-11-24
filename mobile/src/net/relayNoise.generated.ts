@@ -174,9 +174,11 @@ export function relayPrologue(relayId: string): Uint8Array {
 
 export type RelayStreamKind = "ws" | "http" | "pair";
 export type RelayHello = { v: 1; kind: "ws" | "http"; parts?: true } | { v: 1; kind: "pair"; code: string; deviceName: string };
-export type RelayWelcome = { ok: true; parts?: true; deviceId?: string; deviceToken?: string; host?: string; protocol?: number } | { ok: false; error: string };
+export type RelayWelcome = { ok: true; parts?: true; acks?: true; deviceId?: string; deviceToken?: string; host?: string; protocol?: number } | { ok: false; error: string };
 
-export const RelayFrame = { head: 1, body: 2, end: 3 } as const;
+export const RelayFrame = { head: 1, body: 2, end: 3, ack: 4 } as const;
+
+export const RELAY_UPLOAD_WINDOW_BYTES = 1024 * 1024;
 
 export function relayFrame(type: number, body: Uint8Array): Uint8Array {
   return concatBytes(Uint8Array.of(type), body);

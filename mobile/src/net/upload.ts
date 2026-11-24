@@ -1,5 +1,5 @@
 import { routeAddress, type ConnectionRoute } from "../logic/routes";
-import { relayHttp, type RelayEndpoint } from "./relay";
+import { relayHttp, type RelayBodySource, type RelayEndpoint } from "./relay";
 
 type DirectTarget = ConnectionRoute & { token: string };
 type RelayUploadTarget = { relay: RelayEndpoint; token: string };
@@ -42,20 +42,24 @@ type XhrLike = {
 
 export type UploadOptions = { kind?: UploadKind; onProgress?: (fraction: number) => void; signal?: AbortSignal; xhr?: () => XhrLike; timeoutMs?: number };
 
-function blobBytes(body: unknown): Promise<Uint8Array> {
-  if (body instanceof Uint8Array) return Promise.resolve(body);
+function readBlob(blob: Blob): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
     reader.onerror = () => reject(new Error("Could not read the file"));
-    reader.readAsArrayBuffer(body as Blob);
+    reader.readAsArrayBuffer(blob);
   });
 }
 
+function bodySource(body: unknown): RelayBodySource | Uint8Array {
+  if (body instanceof Uint8Array) return body;
+  const blob = body as Blob;
+  return { size: blob.size, read: (from, to) => readBlob(blob.slice(from, to)) };
+}
+
 async function uploadThroughRelay(target: RelayUploadTarget, body: unknown, name: string, mime: string, opts: UploadOptions): Promise<UploadResult> {
-  const bytes = await blobBytes(body);
   const kind = opts.kind ?? "image";
-  const response = await relayHttp(target.relay, { method: "POST", path: UPLOAD_PATHS[kind], headers: uploadHeaders(target, name, mime, kind), body: bytes }, { onProgress: opts.onProgress, signal: opts.signal, timeoutMs: opts.timeoutMs });
+  const response = await relayHttp(target.relay, { method: "POST", path: UPLOAD_PATHS[kind], headers: uploadHeaders(target, name, mime, kind), body: bodySource(body) }, { onProgress: opts.onProgress, signal: opts.signal, timeoutMs: opts.timeoutMs });
   let parsed: Record<string, unknown> = {};
   try {
     parsed = JSON.parse(new TextDecoder().decode(response.body)) as Record<string, unknown>;
