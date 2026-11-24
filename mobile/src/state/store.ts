@@ -254,6 +254,7 @@ export class AppStore {
     markStart(`open:${agentId}`);
     this.opened.add(agentId);
     this.recent = [agentId, ...this.recent.filter((id) => id !== agentId)].slice(0, CACHE_SESSIONS);
+    this.dropUnusedTimelines();
     const generation = this.connectionGeneration;
     const cached = this.readSavedTimeline(agentId, generation);
     const link = this.link;
@@ -265,6 +266,19 @@ export class AppStore {
     } else {
       await cached;
     }
+  }
+
+  private dropUnusedTimelines() {
+    const kept = new Set([...this.opened, ...this.recent]);
+    const unused = Object.keys(this.state.timelines).filter((id) => !kept.has(id));
+    if (unused.length === 0) return;
+    const timelines = { ...this.state.timelines };
+    for (const id of unused) {
+      delete timelines[id];
+      this.timelineRequests.delete(id);
+      this.clearTimelineRetry(id);
+    }
+    this.set({ timelines });
   }
 
   private async readSavedTimeline(agentId: string, generation: number) {
