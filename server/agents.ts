@@ -1749,6 +1749,7 @@ export class AgentRunner {
             const streamedId = run.draftId;
             run.draftId = null;
             this.upsert(agentId, { id: streamedId ?? id, kind: "assistant", text: block.text, streaming: false, at: new Date().toISOString(), model: message.message.model });
+            this.dropRepeatedAnswer(agentId, streamedId ?? id, block.text);
           } else if (block.type === "thinking" && block.thinking.trim()) {
             this.upsert(agentId, { id, kind: "thinking", text: block.thinking });
           } else if (block.type === "tool_use") {
@@ -1837,6 +1838,20 @@ export class AgentRunner {
       }
       default:
         return;
+    }
+  }
+
+  private dropRepeatedAnswer(agentId: string, keptId: string, text: string) {
+    const answer = text.trim();
+    if (!answer) return;
+    const items = this.store.timeline(agentId);
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.kind === "user" && item.source !== "system") return;
+      if (item.kind !== "assistant" || item.id === keptId || item.streaming || item.text.trim() !== answer) continue;
+      this.store.removeItem(agentId, item.id);
+      this.emit({ type: "timelineRemove", agentId, itemId: item.id });
+      return;
     }
   }
 
