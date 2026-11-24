@@ -54,6 +54,13 @@ export function modelPickerLabel(name: string, effort: EffortLevel | null) {
   return `Model ${name}${effort ? `, effort ${EFFORT_NAMES[effort]}` : ""}. Change`;
 }
 
+export function CompactEffort({ effort }: { effort: EffortLevel }) {
+  return <View style={styles.subtitle}>
+    <Text variant="caption" color="textMuted" maxFontSizeMultiplier={1.3}>{EFFORT_NAMES[effort]}</Text>
+    <View style={styles.subtitleChevron}><Icon name="chevron.down" size={10} color="textSubtle" /></View>
+  </View>;
+}
+
 export function ModelSubtitle({ name, effort }: { name: string; effort: EffortLevel | null }) {
   return <View style={styles.subtitle}>
     <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.modelLabel}>{name}</Text>

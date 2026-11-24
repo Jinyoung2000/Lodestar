@@ -12,7 +12,7 @@ import { MIN_TOUCH, radius, spacing, useColors, withAlpha } from "../theme/theme
 import { showActionMenu } from "./actionMenu";
 import { useWindowFontScale } from "./FoldLayout";
 import { Icon } from "./Icon";
-import { ModelSubtitle, modelPickerLabel } from "./ModelPicker";
+import { CompactEffort, ModelSubtitle, modelPickerLabel } from "./ModelPicker";
 import { ProviderMark, PROVIDER_NAMES } from "./ProviderMark";
 import { Text } from "./Text";
 
@@ -45,6 +45,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const maxInputHeight = Math.ceil(INPUT_LINE_HEIGHT * fontScale * MAX_INPUT_LINES) + INPUT_PADDING * 2;
   const editorHeight = Math.min(Math.max(MIN_HEIGHT, maxInputHeight), height);
   const [wraps, setWraps] = useState(false);
+  const [compactModelWidth, setCompactModelWidth] = useState(MIN_TOUCH);
   const [editing, setEditing] = useState(false);
   const [selection, setSelection] = useState(() => ({ start: initialText?.length ?? 0, end: initialText?.length ?? 0 }));
   const [nextSelection, setNextSelection] = useState<typeof selection>();
@@ -252,7 +253,8 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const showStop = !!(running && onStop);
   const showSend = !showStop || hasDraft || pendingSend;
   const compactStart = MIN_TOUCH + spacing.xs;
-  const modelWidth = modelControl ? MIN_TOUCH : 0;
+  const compactEffort = modelControl?.effort ?? null;
+  const modelWidth = !modelControl ? 0 : compactEffort ? Math.max(MIN_TOUCH, compactModelWidth) : MIN_TOUCH;
   const compactEnd = modelWidth + MIN_TOUCH * (Number(showStop) + Number(showSend)) + spacing.xs;
   const expanded = !!text.length && (wraps || text.includes("\n"));
   const token = editing && modelAvailable && selection.start === selection.end ? text.slice(0, selection.start).match(/(?:^|\s)(\/[a-z]*)$/i)?.[1] : undefined;
@@ -364,9 +366,10 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           <View style={styles.controls}>
             {modelControl && <Pressable accessibilityRole="button" accessibilityLabel={`${PROVIDER_NAMES[modelControl.harness]}, ${modelPickerLabel(modelControl.name, modelControl.effort)}`}
               accessibilityState={{ disabled: !modelAvailable }} disabled={!modelAvailable} onPress={modelControl.onPress}
-              style={({ pressed }) => [styles.model, expanded ? styles.modelExpanded : { width: modelWidth }, pressed && { backgroundColor: colors.pressed }]}>
+              style={({ pressed }) => [styles.model, expanded ? styles.modelExpanded : compactEffort ? styles.modelCompactEffort : { width: modelWidth }, pressed && { backgroundColor: colors.pressed }]}
+              onLayout={expanded || !compactEffort ? undefined : (e) => setCompactModelWidth(Math.ceil(e.nativeEvent.layout.width))}>
               <ProviderMark harness={modelControl.harness} size={18} selected />
-              {expanded ? <ModelSubtitle name={modelControl.name} effort={modelControl.effort} /> : <Icon name="chevron.down" size={12} color="textMuted" />}
+              {expanded ? <ModelSubtitle name={modelControl.name} effort={modelControl.effort} /> : compactEffort ? <CompactEffort effort={compactEffort} /> : <Icon name="chevron.down" size={12} color="textMuted" />}
             </Pressable>}
             {showStop && <Pressable accessibilityRole="button" accessibilityLabel="Stop" disabled={!canSend} onPress={onStop} style={styles.iconButton}>
               {({ pressed }) => <View style={[styles.send, { backgroundColor: colors.textStrong, opacity: pressed ? 0.8 : 1 }]}><View style={[styles.stopMark, { backgroundColor: colors.background }]} /></View>}
@@ -417,6 +420,7 @@ const styles = StyleSheet.create({
   iconButton: { width: MIN_TOUCH, height: MIN_TOUCH, flexShrink: 0, alignItems: "center", justifyContent: "center" },
   controls: { marginStart: "auto", flexDirection: "row", alignItems: "center", flexShrink: 1, minWidth: 0 },
   model: { minWidth: MIN_TOUCH, height: MIN_TOUCH, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, borderRadius: radius.md },
+  modelCompactEffort: { paddingHorizontal: spacing.sm },
   modelExpanded: { flexShrink: 1, maxWidth: 190, paddingHorizontal: spacing.sm },
   command: { minHeight: MIN_TOUCH, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, paddingHorizontal: spacing.md },
   send: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
