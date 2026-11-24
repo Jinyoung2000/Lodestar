@@ -30,6 +30,7 @@ export type AttachmentsApi = {
   addAssets: (assets: PickedAsset[]) => number;
   remove: (key: string) => void;
   clear: () => void;
+  restore: (items: Attachment[]) => void;
   refs: () => ImageRef[];
   progress: number | null;
   ready: boolean;
@@ -91,10 +92,14 @@ export function useAttachments(): AttachmentsApi {
 
   const clear = useCallback(() => update(() => []), [update]);
 
+  const restore = useCallback((restored: Attachment[]) => {
+    update((all) => [...restored.filter((a) => !all.some((b) => b.key === a.key)), ...all].slice(0, MAX_IMAGES));
+  }, [update]);
+
   const refs = useCallback(() => itemsRef.current.flatMap((a) => (a.status === "done" && a.id ? [{ id: a.id, label: a.name, thumb: a.thumb ?? "" }] : [])), []);
 
   useEffect(() => () => { itemsRef.current = []; }, []);
-  return { items, addAssets, remove, clear, refs, progress: uploadProgress(items), ready: items.length === 0 || allUploaded(items.filter((a) => a.status !== "error")) };
+  return { items, addAssets, remove, clear, restore, refs, progress: uploadProgress(items), ready: items.length === 0 || allUploaded(items.filter((a) => a.status !== "error")) };
 }
 
 export async function pickFromLibrary(limit: number): Promise<PickedAsset[]> {

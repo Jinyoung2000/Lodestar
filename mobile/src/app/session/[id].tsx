@@ -180,10 +180,10 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
 
   const send = useCallback(
     async (text: string, images: ImageRef[], steer: boolean) => {
-      await store.send(id, text, { steer, images });
       atBottomRef.current = true;
       setAtBottom(true);
       setTimeout(() => toEnd(true), 60);
+      await store.send(id, text, { steer, images });
     },
     [id, toEnd],
   );

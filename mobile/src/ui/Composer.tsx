@@ -151,20 +151,24 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
     if (!prompt && images.length === 0) return;
     inFlight.current = true;
     const sentText = text;
-    const sentKeys = attachments.items.map((a) => a.key);
+    const sentAttachments = attachments.items.filter((a) => a.status === "done");
+    for (const a of attachments.items) attachments.remove(a.key);
+    textRef.current = "";
+    setText("");
+    setHeight(MIN_HEIGHT);
+    if (draftKey) savePref(`draft:${draftKey}`, "");
     setSending(true);
     setError(null);
     try {
       await onSend(prompt, images, running && steer);
       setFlipMode(false);
-      const current = textRef.current;
-      const rest = current.startsWith(sentText) ? current.slice(sentText.length).replace(/^\s+/, "") : current;
-      textRef.current = rest;
-      setText(rest);
-      if (draftKey) savePref(`draft:${draftKey}`, rest);
-      if (!rest) setHeight(MIN_HEIGHT);
-      for (const key of sentKeys) attachments.remove(key);
     } catch (e) {
+      const current = textRef.current;
+      const restored = current.trim() ? `${sentText.trimEnd()}\n${current}` : sentText;
+      textRef.current = restored;
+      setText(restored);
+      if (draftKey) savePref(`draft:${draftKey}`, restored);
+      attachments.restore(sentAttachments);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       inFlight.current = false;

@@ -71,6 +71,8 @@ export class AppStore {
   private connectionGeneration = 0;
   private pinRevision = 0;
   private pinRead: Promise<void> | null = null;
+  private pendingDone = new Map<string, { done: boolean; token: number }>();
+  private doneToken = 0;
 
   constructor(private cache: Cache) {}
 
@@ -161,7 +163,7 @@ export class AppStore {
     try {
       const [agents, workspaces] = await Promise.all([link.call("agents.list", {}) as Promise<Agent[]>, link.call("workspaces.list", {}) as Promise<Workspace[]>]);
       if (this.connectionGeneration !== generation) return;
-      this.set({ agents, workspaces, loaded: true, syncedAt: Date.now(), error: null });
+      this.set({ agents: agents.map((a) => this.withPendingDone(a)), workspaces, loaded: true, syncedAt: Date.now(), error: null });
       markEnd("list-sync", `${agents.length} sessions`);
       this.touchIndex();
       if (this.opened.size > 0) void link.call("agents.setOpen", { agentIds: [...this.opened] }).catch(() => {});
@@ -208,8 +210,9 @@ export class AppStore {
         this.touchIndex();
         break;
       case "agent": {
-        const at = this.state.agents.findIndex((a) => a.id === event.agent.id);
-        const agents = at === -1 ? [...this.state.agents, event.agent] : this.state.agents.map((a, i) => (i === at ? event.agent : a));
+        const incoming = this.withPendingDone(event.agent);
+        const at = this.state.agents.findIndex((a) => a.id === incoming.id);
+        const agents = at === -1 ? [...this.state.agents, incoming] : this.state.agents.map((a, i) => (i === at ? incoming : a));
         this.set({ agents });
         this.touchIndex();
         if (event.agent.unread && this.opened.has(event.agent.id)) void this.link?.call("agents.markRead", { agentId: event.agent.id, read: true }).catch(() => {});
@@ -518,8 +521,30 @@ export class AppStore {
     return this.call("agents.setPinned", { agentId, pinned });
   }
 
-  setDone(agentId: string, done: boolean) {
-    return this.call("agents.setDone", { agentId, done });
+  async setDone(agentId: string, done: boolean) {
+    const previous = this.state.agents.find((a) => a.id === agentId)?.done;
+    const token = ++this.doneToken;
+    this.pendingDone.set(agentId, { done, token });
+    this.patchDone(agentId, done);
+    try {
+      await this.call("agents.setDone", { agentId, done });
+    } catch (error) {
+      if (this.pendingDone.get(agentId)?.token === token && previous !== undefined) this.patchDone(agentId, previous);
+      throw error;
+    } finally {
+      if (this.pendingDone.get(agentId)?.token === token) this.pendingDone.delete(agentId);
+    }
+  }
+
+  private withPendingDone(agent: Agent): Agent {
+    const pending = this.pendingDone.get(agent.id);
+    return pending && agent.done !== pending.done ? { ...agent, done: pending.done } : agent;
+  }
+
+  private patchDone(agentId: string, done: boolean) {
+    if (!this.state.agents.some((a) => a.id === agentId && a.done !== done)) return;
+    this.set({ agents: this.state.agents.map((a) => (a.id === agentId ? { ...a, done } : a)) });
+    this.touchIndex();
   }
 
   clearError() {
