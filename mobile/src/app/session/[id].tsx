@@ -265,7 +265,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
                   }
                   if (followEnd.current && listHeight.current !== null) void listRef.current?.scrollToOffset({ offset: Math.max(0, height - listHeight.current), animated: false });
                 }}
-                maintainVisibleContentPosition={{ startRenderingFromBottom: true }}
+                maintainVisibleContentPosition={{ startRenderingFromBottom: true, disabled: atBottom }}
                 drawDistance={windowHeight}
                 onLoad={() => {
                   const offset = restoreOffset.current;

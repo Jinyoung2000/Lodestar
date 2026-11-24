@@ -1,7 +1,7 @@
 import { DarkTheme, DefaultTheme, SplashScreen, Stack, ThemeProvider as NavigationThemeProvider, useGlobalSearchParams, useRouter, useSegments, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo } from "react";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { bootstrap, store, useAppState, useConnection } from "../state/app";
 import { releasePreview, useExpandedPreview } from "../state/expandedPreview";
@@ -115,7 +115,7 @@ export default function RootLayout() {
                     contentStyle: { backgroundColor: colors.background },
                   }}
                 >
-                  <Stack.Screen name="index" options={{ title: "Lodestar", headerShown: railWidth === 0 }} />
+                  <Stack.Screen name="index" options={{ title: "Lodestar", headerShown: railWidth === 0 && Platform.OS !== "android" }} />
                   <Stack.Screen name="session/[id]" dangerouslySingular={singleSessionSlot} options={{ title: "", headerBackButtonDisplayMode: "minimal", animation: expanded ? "none" : "default" }} />
                   <Stack.Screen name="workspace/[id]" options={{ title: "", headerBackButtonDisplayMode: "minimal" }} />
                   <Stack.Screen name="add-workspace" options={{ title: "Add workspace", presentation: "modal" }} />

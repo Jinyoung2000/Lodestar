@@ -3,6 +3,7 @@ import { Stack, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Keyboard, PanResponder, Platform, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
 import type { SearchBarCommands } from "react-native-screens";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Agent, TimelineItem } from "@shared/protocol";
 import { groupAgents, workspaceName } from "../logic/agents";
 import { buildProject, compareAgents, topWorkspace } from "../logic/workspaces";
@@ -65,17 +66,14 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
   const list = useRef<FlashListRef<Item>>(null);
   const lastVisibleSelection = useRef<string>(undefined);
   const listKey = scopedWorkspace ? `workspace:${scopedWorkspace.id}` : tab;
-  const [androidSearch, setAndroidSearch] = useState(false);
+  const ownHeader = docked || Platform.OS === "android";
+  const insets = useSafeAreaInsets();
   const actions = useSessionActions();
   const [refreshing, setRefreshing] = useState(false);
 
   const waitingAgents = useMemo(() => agents.filter((agent) => agent.status === "waiting"), [agents]);
   const waitingIds = JSON.stringify(waitingAgents.map((agent) => agent.id).sort());
   const timelines = useAppState((s) => s.timelines);
-
-  useEffect(() => {
-    if (androidSearch) searchBar.current?.focus();
-  }, [androidSearch]);
 
   const refreshWaiting = useCallback(async () => {
     const ids: string[] = JSON.parse(waitingIds);
@@ -159,8 +157,8 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
 
   return (
     <View style={{ flex: 1 }}>
-      {docked && scopedWorkspace ? null : docked ? (
-        <View>
+      {docked && scopedWorkspace ? null : ownHeader ? (
+        <View style={docked ? undefined : { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }}>
           <View style={styles.railHeader}>
             <ConnectionTitle title="Lodestar" style={styles.railTitle}>
               {appTitle(1.2)}
@@ -170,9 +168,9 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
               onPress={() => { if (railSearch) setQuery(""); setRailSearch(!railSearch); }} style={styles.headerButton}>
               <Icon name={railSearch ? "xmark" : "magnifyingglass"} size={20} color="textStrong" />
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="New session" onPress={() => router.push("/new")} style={styles.headerButton}>
+            {docked && <Pressable accessibilityRole="button" accessibilityLabel="New session" onPress={() => router.push("/new")} style={styles.headerButton}>
               <Icon name="pencil" size={20} color="textStrong" />
-            </Pressable>
+            </Pressable>}
             <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => router.push("/settings")} style={styles.headerButton}>
               <Icon name="gearshape" size={20} color="textStrong" />
             </Pressable>
@@ -188,10 +186,10 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
           headerTitle: () => <ConnectionTitle title="Lodestar" maxFontSizeMultiplier={1.1}>
             <Text accessibilityRole="header" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.1} style={styles.appTitle}>Lodestar</Text>
           </ConnectionTitle>,
-          headerSearchBarOptions: Platform.OS !== "android" || androidSearch ? { ref: searchBar, autoFocus: androidSearch, onClose: () => { setQuery(""); setAndroidSearch(false); }, placeholder: searchLabel, onChangeText: (e) => setQuery(e.nativeEvent.text), autoCapitalize: "none", hideWhenScrolling: false, barTintColor: colors.inputBackground, tintColor: colors.accentText, headerIconColor: colors.textStrong, textColor: colors.textStrong, hintTextColor: colors.textMuted, shouldShowHintSearchIcon: false } : undefined,
-          headerRight: () => androidSearch ? null : <View style={styles.headerActions}>
+          headerSearchBarOptions: { ref: searchBar, onClose: () => setQuery(""), placeholder: searchLabel, onChangeText: (e) => setQuery(e.nativeEvent.text), autoCapitalize: "none", hideWhenScrolling: false, barTintColor: colors.inputBackground, tintColor: colors.accentText, headerIconColor: colors.textStrong, textColor: colors.textStrong, hintTextColor: colors.textMuted, shouldShowHintSearchIcon: false },
+          headerRight: () => <View style={styles.headerActions}>
             {viewMenu}
-            <Pressable accessibilityRole="button" accessibilityLabel={tab === "workspaces" ? "Search workspaces" : "Search sessions"} onPress={() => Platform.OS === "android" ? setAndroidSearch(true) : searchBar.current?.focus()} style={styles.headerButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel={tab === "workspaces" ? "Search workspaces" : "Search sessions"} onPress={() => searchBar.current?.focus()} style={styles.headerButton}>
               <Icon name="magnifyingglass" size={20} color="textStrong" />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => router.push("/settings")} style={styles.headerButton}>
