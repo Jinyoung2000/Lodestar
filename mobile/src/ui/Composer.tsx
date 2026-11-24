@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import type { MobileFileRef } from "@shared/mobile";
 import type { Agent, EffortLevel, Harness, QueuedMessage } from "@shared/protocol";
 import { MAX_FILES, MAX_IMAGES, isFileAttachment } from "../logic/images";
-import { pickFiles, pickFromLibrary, takePhoto, useAttachments } from "../state/attach";
+import { pickFiles, pickFromLibrary, useAttachments } from "../state/attach";
 import { composerPaste, discardPastedImage, isPasteForeground, legacyPasteSupported, nextPasteBinding, readClipboardImage } from "../state/composerPaste";
 import { useAppState } from "../state/app";
 import { loadPref, savePref } from "../state/storage";
@@ -222,7 +222,6 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
     const withImageRoom = (pick: () => void) => () => (imageRoom <= 0 ? Alert.alert("Up to 5 images", "Remove one to attach another.") : pick());
     showActionMenu("Attach", [
       { label: "Photo Library", onPress: withImageRoom(() => void run(() => pickFromLibrary(imageRoom), addAssets)) },
-      { label: "Take Photo", onPress: withImageRoom(() => void run(takePhoto, addAssets)) },
       { label: "Choose File", onPress: () => (fileRoom <= 0 ? Alert.alert(`Up to ${MAX_FILES} files`, "Remove one to attach another.") : void run(pickFiles, addFiles)) },
       ...(legacyPasteSupported ? [{
         label: "Paste image",

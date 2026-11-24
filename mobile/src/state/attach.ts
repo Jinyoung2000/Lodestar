@@ -151,10 +151,3 @@ export async function pickFiles(): Promise<PickedFile[]> {
   const result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true, type: "*/*" });
   return result.canceled ? [] : result.assets.map((a) => ({ uri: a.uri, name: a.name || "file", size: typeof a.size === "number" ? a.size : null, mimeType: a.mimeType ?? null }));
 }
-
-export async function takePhoto(): Promise<PickedAsset[]> {
-  const permission = await ImagePicker.requestCameraPermissionsAsync();
-  if (!permission.granted) throw new Error("Allow camera access in Settings to take photos.");
-  const result = await ImagePicker.launchCameraAsync({ quality: 1, exif: false });
-  return result.canceled ? [] : result.assets.map((a) => ({ uri: a.uri, width: a.width, height: a.height, fileName: a.fileName }));
-}
