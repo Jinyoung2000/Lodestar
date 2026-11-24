@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible problem in Lodestar.
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please write your issue in English.
+        For security problems, follow the [security policy](https://github.com/Jinyoung2000/Lodestar/security/policy) instead of opening a public issue.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have searched existing issues for the same problem.
+          required: true
+        - label: I am writing this issue in English.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you actually observed.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest sequence of steps that reproduces the problem.
+      placeholder: |
+        1. Open Lodestar.
+        2. ...
+        3. Observe the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Describe what you expected to happen instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Lodestar version or commit
+      description: Give the release version, or the commit if you run from source.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include your macOS version and installation method. Add affected client or CLI versions when relevant, such as Android, VS Code, Claude Code, Codex or Antigravity.
+      placeholder: |
+        macOS version:
+        Installation method: release / source
+        Other client or CLI versions, if relevant:
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Logs, screenshots and additional context
+      description: Optional. Share only relevant excerpts. Remove tokens, credentials, private file paths, personal information and private conversation content before posting.
