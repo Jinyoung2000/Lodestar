@@ -6,6 +6,7 @@ import type { Connection } from "./storage";
 type SessionActivity = {
   enabled(): boolean;
   start(urls: string[], token: string): Promise<void>;
+  startRelayed?(urls: string[], token: string, relayUrl: string, relayId: string, relayKey: string, relayPrivateKey: string): Promise<void>;
   stop(): void;
 };
 
@@ -15,8 +16,10 @@ export const alertsEnabled = () => activity?.enabled() ?? false;
 
 export function startAlerts(connection: Connection) {
   if (!activity) throw new Error("Install the latest Android build to use session alerts.");
-  const routes = hasMixedRoutes(connection.routes) ? connection.routes.filter((route) => route.secure) : connection.routes;
+  const relay = activity.startRelayed ? connection.relay : undefined;
+  const routes = relay || hasMixedRoutes(connection.routes) ? connection.routes.filter((route) => route.secure) : connection.routes;
   const urls = routes.map(routeSocketUrl);
+  if (relay && activity.startRelayed) return activity.startRelayed(urls, connection.token, relay.url, relay.id, relay.key, relay.privateKey);
   return activity.start(urls, connection.token);
 }
 

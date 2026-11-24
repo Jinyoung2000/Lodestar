@@ -99,18 +99,17 @@ internal class SessionNotifications(private val context: Context) {
   private fun detail(session: Session, state: LiveState, activity: Map<String, String>, questions: Map<String, String>) = when (state) {
     LiveState.WAITING -> questions[session.id] ?: "Needs your reply"
     LiveState.ERROR -> "Stopped with an error"
-    LiveState.RUNNING -> activity[session.id] ?: "Working"
-    LiveState.FINISHED -> activity[session.id] ?: "Finished"
+    LiveState.RUNNING, LiveState.FINISHED -> activity[session.id].orEmpty()
   }
 
   private fun entry(state: LiveState, title: String, doing: String): CharSequence {
-    val name = if (title.length > TITLE_CHARS) title.take(TITLE_CHARS - 1).trimEnd() + "…" else title
+    val room = if (doing.isEmpty()) TITLE_ALONE_CHARS else TITLE_CHARS
+    val name = if (title.length > room) title.take(room - 1).trimEnd() + "…" else title
     return SpannableStringBuilder().apply {
       append(state.label)
       append(" · ")
       append(name, StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-      append("  ")
-      append(doing)
+      if (doing.isNotEmpty()) append("  $doing")
     }
   }
 
@@ -140,6 +139,7 @@ internal class SessionNotifications(private val context: Context) {
     private const val ALERT = "session-alerts"
     private const val ALERT_ID = 2
     private const val TITLE_CHARS = 18
+    private const val TITLE_ALONE_CHARS = 40
     private const val MAX_LINES = 6
     const val LIVE_ID = 1
   }

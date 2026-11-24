@@ -11,6 +11,8 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okio.ByteString
+import okio.ByteString.Companion.toByteString
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -27,9 +29,11 @@ class SessionActivityService : Service() {
   private lateinit var notifications: SessionNotifications
   private var endpoint: Endpoint? = null
   private var socket: WebSocket? = null
+  private var session: RelaySession? = null
   private var connected = false
   private var host = 0
   private var failures = 0
+  private var droppedAt = 0L
 
   override fun onBind(intent: Intent?): IBinder? = null
 
@@ -73,16 +77,47 @@ class SessionActivityService : Service() {
   }
 
   private fun connect(target: Endpoint) {
-    val request = Request.Builder().url(target.urls[host]).build()
+    val relay = target.relay?.takeIf { host >= target.urls.size }
+    val handshake = relay?.let { runCatching { RelayHandshake(it) }.getOrNull() }
+    val auth = JSONObject().put("auth", target.token).put("feed", "activity").toString()
+    val request = Request.Builder().url(relay?.clientUrl ?: target.urls[host]).build()
     socket = client.newWebSocket(request, object : WebSocketListener() {
+      private var sealed: RelaySession? = null
+
       override fun onOpen(webSocket: WebSocket, response: Response) {
-        webSocket.send(JSONObject().put("auth", target.token).put("feed", "activity").toString())
+        if (relay == null) webSocket.send(auth)
+        else if (handshake == null) fail(webSocket)
+        else webSocket.send(handshake.first(RELAY_HELLO.toByteArray()).toByteString())
       }
 
       override fun onMessage(webSocket: WebSocket, text: String) {
+        if (relay == null) read(webSocket, text)
+      }
+
+      override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+        if (handshake == null) return
+        val opened = sealed
+        if (opened != null) {
+          runCatching { String(opened.open(bytes.toByteArray())) }.onSuccess { read(webSocket, it) }.onFailure { fail(webSocket) }
+          return
+        }
+        val welcome = runCatching { handshake.second(bytes.toByteArray()) }.getOrNull() ?: return fail(webSocket)
+        val reply = runCatching { JSONObject(String(welcome.first)) }.getOrNull()
+        if (reply?.optBoolean("ok") != true) return fail(webSocket, if (reply?.optString("error") == "bad token") 4401 else 0)
+        sealed = welcome.second
+        handler.post { if (webSocket === socket) session = welcome.second }
+        webSocket.send(welcome.second.seal(auth.toByteArray()).toByteString())
+      }
+
+      private fun read(webSocket: WebSocket, text: String) {
         if (text.startsWith("{\"event\":{\"type\":\"timeline") && !text.take(768).contains("\"kind\":\"permission\"")) return
         val frame = runCatching { JSONObject(text) }.getOrNull() ?: return
         handler.post { if (webSocket === socket) receive(webSocket, frame) }
+      }
+
+      private fun fail(webSocket: WebSocket, code: Int = 0) {
+        webSocket.cancel()
+        handler.post { lost(webSocket, code) }
       }
 
       override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -96,9 +131,14 @@ class SessionActivityService : Service() {
     })
   }
 
+  private fun say(ws: WebSocket, text: String) {
+    val sealed = session
+    if (sealed == null) ws.send(text) else ws.send(sealed.seal(text.toByteArray()).toByteString())
+  }
+
   private fun receive(ws: WebSocket, frame: JSONObject) {
     if (frame.has("ready")) {
-      ws.send("""{"id":1,"method":"agents.list","params":{}}""")
+      say(ws, """{"id":1,"method":"agents.list","params":{}}""")
       return
     }
     if (frame.optInt("id") == 1) {
@@ -112,6 +152,7 @@ class SessionActivityService : Service() {
       (sessions.keys - present).forEach(::remove)
       connected = true
       failures = 0
+      droppedAt = 0L
       queueLive()
       return
     }
@@ -169,6 +210,7 @@ class SessionActivityService : Service() {
 
   private fun lost(ws: WebSocket, code: Int) {
     if (socket !== ws) return
+    val wasConnected = connected
     clearSocket()
     if (code == 4401 || code == 4001) {
       SessionActivityModule.disable(this)
@@ -176,10 +218,11 @@ class SessionActivityService : Service() {
       return
     }
     val target = endpoint ?: return
-    queueLive()
-    host = (host + 1) % target.urls.size
+    if (wasConnected) droppedAt = SystemClock.uptimeMillis()
+    queueLive(maxOf(0L, droppedAt + RECONNECT_GRACE_MS - SystemClock.uptimeMillis()))
+    if (!wasConnected) host = (host + 1) % target.routes
     failures++
-    val pause = if (failures < target.urls.size) 100L else minOf(30000L, 1000L shl minOf(failures - 1, 5))
+    val pause = if (wasConnected || failures < target.routes) 100L else minOf(30000L, 1000L shl minOf(failures - 1, 5))
     handler.postDelayed({ if (endpoint === target) connect(target) }, pause)
   }
 
@@ -188,6 +231,7 @@ class SessionActivityService : Service() {
     liveDueAt = 0L
     socket?.cancel()
     socket = null
+    session = null
     connected = false
   }
 
@@ -203,5 +247,7 @@ class SessionActivityService : Service() {
   companion object {
     private const val LIVE_REFRESH_MS = 1500L
     private const val LIVE_MIN_GAP_MS = 400L
+    private const val RECONNECT_GRACE_MS = 5000L
+    private const val RELAY_HELLO = """{"v":1,"kind":"ws"}"""
   }
 }
