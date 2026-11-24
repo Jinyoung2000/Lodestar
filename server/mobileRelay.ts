@@ -83,6 +83,8 @@ export class RelayLink {
   private pongTimer: NodeJS.Timeout | null = null;
   private attempt = 0;
   private running = false;
+  private onlineSince: number | null = null;
+  private lastLoggedError: string | null = null;
 
   constructor(private deps: RelayLinkDeps) {}
 
@@ -120,6 +122,8 @@ export class RelayLink {
       if (socket !== this.socket) return;
       this.attempt = 0;
       this.state = { state: "online", error: null };
+      this.onlineSince = Date.now();
+      this.lastLoggedError = null;
       this.deps.log?.("[relay] connected");
       this.keepalive = setInterval(() => this.ping(socket), KEEPALIVE_MS);
       this.keepalive.unref();
@@ -137,13 +141,26 @@ export class RelayLink {
       this.channels.get(buffer.readUInt32BE(0))?.receive(new Uint8Array(buffer.subarray(4)));
     });
     socket.on("error", (error) => {
-      if (socket === this.socket) this.state = { state: "connecting", error: relayErrorText(error) };
-    });
-    socket.on("close", () => {
       if (socket !== this.socket) return;
+      const text = relayErrorText(error);
+      this.state = { state: "connecting", error: text };
+      if (text === this.lastLoggedError) return;
+      this.lastLoggedError = text;
+      this.deps.log?.(`[relay] could not connect: ${text}`);
+    });
+    socket.on("close", (code, reason) => {
+      if (socket !== this.socket) return;
+      this.logDisconnect(`closed ${code}${reason.length ? ` ${reason.toString()}` : ""}`);
       this.dropSocket();
       this.scheduleRetry();
     });
+  }
+
+  private logDisconnect(why: string) {
+    const since = this.onlineSince;
+    this.onlineSince = null;
+    if (since === null) return;
+    this.deps.log?.(`[relay] disconnected after ${Math.round((Date.now() - since) / 1000)}s (${why}), reconnecting`);
   }
 
   private fail(message: string) {
@@ -188,7 +205,7 @@ export class RelayLink {
     this.pongTimer = setTimeout(() => {
       this.pongTimer = null;
       if (socket !== this.socket) return;
-      this.deps.log?.("[relay] no answer from the relay, reconnecting");
+      this.logDisconnect("no answer to ping");
       this.dropSocket();
       this.scheduleRetry();
     }, PONG_TIMEOUT_MS);
@@ -288,7 +305,10 @@ class RelayChannel {
       return this.welcome(outcome.ok ? { ok: true, ...outcome.result } : { ok: false, error: outcome.error }, true);
     }
     const device = this.deps.devices.byRelayKey(relayKey);
-    if (!device) return this.welcome({ ok: false, error: "bad token" }, true);
+    if (!device) {
+      this.deps.log?.(`[relay] refused a ${hello.kind} request from a phone this Mac does not know`);
+      return this.welcome({ ok: false, error: "bad token" }, true);
+    }
     this.deviceId = device.id;
     if (hello.kind === "ws") {
       this.mode = "ws";
