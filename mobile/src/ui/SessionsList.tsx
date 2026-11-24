@@ -17,7 +17,7 @@ import { ConnectionTitle } from "./ConnectionTitle";
 import { Icon } from "./Icon";
 import { RenameDialog } from "./RenameDialog";
 import { Segmented } from "./Segmented";
-import { SessionRow, SessionRowFrame } from "./SessionRow";
+import { rowSwipeGate, SessionRow, SessionRowFrame } from "./SessionRow";
 import { ProviderLabel } from "./ProviderMark";
 import { MenuButton, SESSION_SORT_OPTIONS, SortButton } from "./SortButton";
 import type { ListView } from "../state/sortPrefs";
@@ -53,7 +53,7 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
   const scopedWorkspace = docked && tab === "workspaces" && scopedId ? topWorkspace(workspaces, scopedId) : null;
   const swipe = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponderCapture: (_, gesture) =>
-      gesture.numberActiveTouches === 1 && Math.abs(gesture.dx) > 14 && Math.abs(gesture.dx) > 1.6 * Math.abs(gesture.dy),
+      !rowSwipeGate.claimed && gesture.numberActiveTouches === 1 && Math.abs(gesture.dx) > 14 && Math.abs(gesture.dx) > 1.6 * Math.abs(gesture.dy),
     onPanResponderRelease: (_, { dx, dy, vx }) => {
       if (Math.abs(dx) <= Math.abs(dy) * 1.4 || (Math.abs(dx) < 48 && !(Math.abs(dx) > 22 && Math.abs(vx) > 0.45))) return;
       setTab((current) => tabs[tabs.indexOf(current) + (dx < 0 ? 1 : -1)] ?? current);
@@ -200,7 +200,7 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
           </View>,
         }}
       />}
-      <View style={styles.tabContent} {...swipe.panHandlers}>
+      <View style={styles.tabContent} {...swipe.panHandlers} onTouchEnd={releaseRowSwipe} onTouchCancel={releaseRowSwipe}>
         <View style={{ paddingTop: Platform.OS === "ios" ? headerHeight : 0 }}>
           <Segmented underline options={[{ value: "sessions", label: "Sessions" }, { value: "waiting", label: "Waiting", count: waitingAgents.length, countTone: "attention" }, { value: "workspaces", label: "Workspaces" }]} value={tab} onChange={setTab} paneWidth={paneWidth} />
         </View>
@@ -286,7 +286,7 @@ const SectionHeader = memo(function SectionHeader({ title, count, first, workspa
 }) {
   const colors = useColors();
   return (
-    <View style={[styles.sectionHeader, { backgroundColor: colors.background, paddingTop: first ? spacing.xs : spacing.xl }]}>
+    <View style={[styles.sectionHeader, { backgroundColor: colors.background, paddingTop: first ? 0 : spacing.sm }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${count} ${count === 1 ? "session" : "sessions"}`} accessibilityState={{ expanded }} onPress={onToggle} style={styles.sectionToggle}>
         <WorkspaceIcon workspaceId={workspaceId} />
         <Text variant="secondary" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={18 / 14} style={styles.sectionTitle}>{title}</Text>
@@ -345,7 +345,11 @@ function Empty({ offline, searching, onNew }: { offline: boolean; searching: boo
   );
 }
 
-const SECTION_HEADER_HEIGHT = 52;
+function releaseRowSwipe() {
+  rowSwipeGate.claimed = false;
+}
+
+const SECTION_HEADER_HEIGHT = 40;
 const BRAND_SIZE = 26;
 const BRAND_HALF = BRAND_SIZE / 2;
 const RAY_BASE = 5;
@@ -354,7 +358,7 @@ const styles = StyleSheet.create({
   tabContent: { flex: 1 },
   projectTitle: { minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.sm },
   scope: { flexDirection: "row", alignItems: "center" },
-  railHeader: { minHeight: 48, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingLeft: spacing.xl },
+  railHeader: { minHeight: 48, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingLeft: spacing.lg },
   railTitle: { flex: 1, minWidth: 0 },
   searchInput: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingHorizontal: spacing.md, minHeight: 48, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm },
   headerButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
@@ -367,11 +371,11 @@ const styles = StyleSheet.create({
   rayLeft: { position: "absolute", left: 0, top: BRAND_HALF - RAY_BASE, borderTopWidth: RAY_BASE, borderBottomWidth: RAY_BASE, borderRightWidth: BRAND_HALF, borderTopColor: "transparent", borderBottomColor: "transparent" },
   rayRight: { position: "absolute", left: BRAND_HALF, top: BRAND_HALF - RAY_BASE, borderTopWidth: RAY_BASE, borderBottomWidth: RAY_BASE, borderLeftWidth: BRAND_HALF, borderTopColor: "transparent", borderBottomColor: "transparent" },
   brandSlot: { width: 26, height: 26, marginRight: 10 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", paddingLeft: spacing.xl, paddingRight: spacing.sm },
-  sectionToggle: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionTitle: { fontSize: 15, lineHeight: 20, fontWeight: "700", flexShrink: 1 },
-  sectionCount: { fontSize: 14, lineHeight: 20, fontVariant: ["tabular-nums"] },
-  sectionNew: { width: 48, height: 44, alignItems: "center", justifyContent: "center" },
+  sectionHeader: { flexDirection: "row", alignItems: "center", paddingLeft: spacing.lg, paddingRight: spacing.xs },
+  sectionToggle: { flex: 1, minWidth: 0, minHeight: 40, flexDirection: "row", alignItems: "center", gap: 6 },
+  sectionTitle: { fontSize: 14, lineHeight: 18, fontWeight: "700", flexShrink: 1 },
+  sectionCount: { fontSize: 13, lineHeight: 18, fontVariant: ["tabular-nums"] },
+  sectionNew: { width: 44, height: 40, alignItems: "center", justifyContent: "center" },
   waitingEmpty: { flex: 1, alignItems: "center", paddingTop: 72, gap: spacing.md, paddingHorizontal: 16 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
 });

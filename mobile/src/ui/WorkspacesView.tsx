@@ -205,9 +205,9 @@ function Empty({ offline, searching }: { offline: boolean; searching: boolean })
 }
 
 const styles = StyleSheet.create({
-  listActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingLeft: spacing.xl, paddingRight: spacing.sm, paddingVertical: spacing.sm },
-  add: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  listActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingLeft: spacing.lg, paddingRight: spacing.sm, paddingVertical: spacing.sm },
+  add: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 52, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 52, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   trail: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: MIN_TOUCH },
   moveButton: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: "center", justifyContent: "center", borderRadius: radius.md, marginLeft: spacing.xs },
   empty: { alignItems: "center", justifyContent: "center", gap: spacing.lg, padding: spacing.xl, paddingTop: 80 },

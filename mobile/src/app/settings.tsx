@@ -129,7 +129,6 @@ export default function Settings() {
   return <>
     <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
       <Section title="Appearance">
-        <Text variant="bodyStrong">Theme</Text>
         <Segmented flush options={themeOptions} value={theme} onChange={setThemeChoice} />
         {theme === "system" && <Text variant="caption" color="textMuted">Follows your phone's setting.</Text>}
       </Section>
@@ -149,8 +148,10 @@ export default function Settings() {
         <Button title={conn === "unauthorized" ? "Pair again" : "Reconnect"} onPress={reconnect} />
         {connection && (addressDraft === null ? (
           <>
-            <Button title="Scan a new pairing code" kind="plain" onPress={() => router.push("/scan")} />
-            <Button title="Edit addresses" kind="plain" onPress={editAddresses} />
+            <View style={styles.buttons}>
+              <Button title="Scan new code" kind="plain" onPress={() => router.push("/scan")} style={styles.actionButton} />
+              <Button title="Edit addresses" kind="plain" onPress={editAddresses} style={styles.actionButton} />
+            </View>
           </>
         ) : (
           <View style={{ gap: spacing.sm }}>
@@ -178,8 +179,10 @@ export default function Settings() {
         <Row label="Version" value={appVersionLabel()} />
         <Button title="Check for update" busy={checkingUpdate} onPress={() => void checkUpdate()} />
       </Section>
-      <Button title="Clear saved sessions" kind="plain" onPress={() => void clearSaved()} />
-      <Button title="Disconnect from this Mac" kind="danger" onPress={disconnect} style={{ marginTop: spacing.lg }} />
+      <View style={{ gap: spacing.xs }}>
+        <Button title="Clear saved sessions" kind="plain" onPress={() => void clearSaved()} />
+        <Button title="Disconnect from this Mac" kind="danger" onPress={disconnect} />
+      </View>
       <Pressable accessibilityRole="button" onPress={() => router.back()} style={{ minHeight: MIN_TOUCH, alignItems: "center", justifyContent: "center" }}>
         <Text color="accentText">Done</Text>
       </Pressable>
@@ -191,8 +194,8 @@ export default function Settings() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const colors = useColors();
   return (
-    <View style={{ gap: spacing.sm }}>
-      <Text variant="secondary" color="textMuted" style={{ fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 }}>{title}</Text>
+    <View style={{ gap: spacing.xs }}>
+      <Text variant="caption" color="textMuted" style={styles.sectionTitle}>{title}</Text>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.separator }]}>{children}</View>
     </View>
   );
@@ -201,16 +204,17 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Row({ label, value, valueColor = "textStrong", singleLine = false }: { label: string; value: string; valueColor?: "textStrong" | "success" | "danger" | "warning"; singleLine?: boolean }) {
   return (
     <View style={styles.row}>
-      <Text variant="secondary" color="textMuted" style={{ width: 96 }}>{label}</Text>
+      <Text variant="secondary" color="textMuted" style={{ width: 88 }}>{label}</Text>
       <Text variant="secondary" color={valueColor} selectable numberOfLines={singleLine ? 1 : undefined} adjustsFontSizeToFit={singleLine} minimumFontScale={0.75} style={{ flex: 1, textAlign: "right" }}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: spacing.lg, gap: spacing.xl },
-  card: { borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: spacing.lg, gap: spacing.md },
-  row: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, minHeight: 28 },
+  content: { padding: spacing.lg, gap: spacing.lg },
+  sectionTitle: { fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4, paddingHorizontal: spacing.xs },
+  card: { borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm },
+  row: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, minHeight: 20 },
   input: { minHeight: 88, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: spacing.md, fontSize: 16, textAlignVertical: "top" },
   buttons: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   actionButton: { flexGrow: 1, paddingHorizontal: spacing.sm },
