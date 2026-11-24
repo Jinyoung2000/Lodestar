@@ -40,7 +40,7 @@ export function mobileModels(store: Store, runner: AgentRunner, metaService: Met
       const defaults = defaultsReader.resolve(store.settings);
       return providerOf(harness, claudeModels(meta.models, defaults.model.value), defaults.model.value ?? "default", defaults.effort.value);
     }
-    const meta = await (harness === "codex" ? runner.codexMeta() : runner.antigravityMeta());
+    const meta = await (harness === "codex" ? runner.codexMeta() : harness === "cursor" ? runner.cursorMeta() : runner.antigravityMeta());
     if (!meta.installed || !meta.loggedIn) return null;
     return providerOf(harness, toolModels(harness, meta), meta.defaultModel ?? meta.models.find((model) => model.isDefault)?.value ?? null, meta.defaultEffort);
   };

@@ -4,12 +4,12 @@ export const CARRY_MAX_CHARS = 48_000;
 export const CARRY_MESSAGE_MAX_CHARS = 8_000;
 export const CARRY_MAX_FILES = 100;
 
-export const HARNESS_NAMES: Record<Harness, string> = { claude: "Claude", codex: "Codex", antigravity: "Antigravity" };
+export const HARNESS_NAMES: Record<Harness, string> = { claude: "Claude", codex: "Codex", antigravity: "Antigravity", cursor: "Cursor" };
 
 export type SwitchBlock = "running" | "background" | "waiting" | "notion" | "feedback" | "assistant";
 
 type SwitchDivider = Extract<TimelineItem, { kind: "notice" }> & { switched: Harness };
-type CarryAgent = Pick<Agent, "harness" | "sessionId" | "resumeFrom" | "codexThreadId" | "seenThrough" | "cwd"> & Partial<Pick<Agent, "antigravitySessionId">>;
+type CarryAgent = Pick<Agent, "harness" | "sessionId" | "resumeFrom" | "codexThreadId" | "seenThrough" | "cwd"> & Partial<Pick<Agent, "antigravitySessionId" | "cursorSessionId">>;
 
 export const otherHarness = (harness: Harness): Harness => (harness === "claude" ? "codex" : "claude");
 
@@ -37,6 +37,7 @@ export function hasOwnMemory(agent: CarryAgent): boolean {
   const harness = harnessOf(agent);
   if (harness === "codex") return !!agent.codexThreadId;
   if (harness === "antigravity") return !!agent.antigravitySessionId;
+  if (harness === "cursor") return !!agent.cursorSessionId;
   return !!(agent.sessionId ?? agent.resumeFrom);
 }
 

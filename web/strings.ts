@@ -1,7 +1,7 @@
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const keyed = (label: string, key: string | null) => (key ? `${label} (${key})` : label);
-const HARNESS_LABELS = { claude: "Claude", codex: "Codex", antigravity: "Antigravity" };
+const HARNESS_LABELS = { claude: "Claude", codex: "Codex", antigravity: "Antigravity", cursor: "Cursor" };
 
 type UnitWords = Record<"sec" | "min" | "hr" | "day" | "wk" | "mo" | "yr", readonly [string, string]>;
 const TIME_UNIT_COMPACT: Record<keyof UnitWords, string> = { sec: "s", min: "m", hr: "h", day: "d", wk: "w", mo: "mo", yr: "y" };
@@ -50,6 +50,12 @@ export const S = {
   antigravityNotSignedIn: "Antigravity is not signed in. Run `agy` in a terminal and sign in, then try again.",
   antigravityLoadFailed: (message: string) => `Could not read Antigravity: ${message}`,
   antigravityModelsLoading: "Loading Antigravity models...",
+  composerPlaceholderCursor: "Chat with Cursor",
+  composerPlaceholderNewCursor: "Describe a task for Cursor",
+  cursorNotInstalled: "Cursor CLI was not found. Install the Cursor CLI to start sessions with it.",
+  cursorNotSignedIn: "Cursor is not signed in. Run `agent login` in a terminal, then try again.",
+  cursorLoadFailed: (message: string) => `Could not read Cursor: ${message}`,
+  cursorModelsLoading: "Loading Cursor models...",
   modelGroupToggle: (name: string, open: boolean) => `${open ? "Hide" : "Show"} ${name} models`,
   switchUnavailable: { notion: "Notion page chats run on Claude only", feedback: "Improvement sessions run on Claude only", assistant: "Mate runs on Claude only" },
 
@@ -787,7 +793,7 @@ export const S = {
     keepIdleSessionsWarmMinutes: ["Keep idle sessions warm", "Close a session's Claude process after this long without input to free memory. Sessions in an open pane stay running, and sending a message resumes the same session (the first reply starts a little slower)."],
     maxWarmSessions: ["Keep recent sessions warm", "How many idle sessions keep their Claude process running. When more are idle, the one used longest ago is closed, even in an open pane, and its next message resumes the same session (the first reply starts a few seconds slower). Each process uses roughly 150 to 600 MB."],
     feedbackAutoTidy: ["Clean up finished improvements", "Removes the worktree and the revert backup of improvements that were applied, resolved or dismissed more than 3 days ago (the 5 most recent keep theirs, and the 3 latest applied keep their backup). Improvements that are running, waiting for a restart or can be run again are never touched. Reverting an improvement whose backup was removed is no longer possible."],
-    requestQueuing: ["While an agent is replying", "Choose what Enter does during a Claude, Codex, or Antigravity reply. Option+Enter uses the other action."],
+    requestQueuing: ["While an agent is replying", "Choose what Enter does during a Claude, Codex, Antigravity, or Cursor reply. Option+Enter uses the other action."],
     formatLanguages: ["Languages", "Pick the formatter each language uses. Empty follows your VS Code settings."],
     mcpServers: ["Servers", "Reconnect, enable, or disable MCP servers. Enable and Disable apply to this screen only, not to sessions."],
     daemon: ["Daemon", "Connection, account and where Lodestar is running from."],
@@ -1910,6 +1916,13 @@ export const S = {
     plan: "Antigravity plans carefully before executing a task.",
     auto: "Antigravity runs edits and safe commands, and asks before irreversible actions.",
     bypassPermissions: "Lodestar approves every Antigravity request without asking.",
+  },
+  permissionDescriptionsCursor: {
+    default: "Cursor asks before edits and commands.",
+    acceptEdits: "Lodestar approves Cursor's file edits; commands still ask.",
+    plan: "Cursor plans in read-only mode without edits or commands.",
+    auto: "Lodestar approves Cursor's edits, reads and searches; commands still ask.",
+    bypassPermissions: "Lodestar approves every Cursor request without asking.",
   },
   permissionMenuAria: "Permission mode",
   learnMorePermissions: "Learn more about permissions",

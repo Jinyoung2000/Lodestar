@@ -28,7 +28,7 @@ export type AcpPermissionOption = { optionId: string; name?: string; kind?: "all
 
 export type AcpPlanEntry = { content?: string; priority?: string; status?: "pending" | "in_progress" | "completed" };
 
-export type AcpConfigOption = { id?: string; category?: string; currentValue?: string; options?: { value?: string; name?: string }[] };
+export type AcpConfigOption = { id?: string; name?: string; category?: string; currentValue?: string; options?: { value?: string; name?: string }[] };
 
 export type MapContext = { cwd: string; interrupted?: boolean };
 
@@ -49,7 +49,7 @@ function argsOf(call: AcpToolCall): Record<string, unknown> {
 }
 
 function pathOf(call: AcpToolCall, args: Record<string, unknown>, cwd: string): string | null {
-  const raw = str(call.locations?.[0]?.path) ?? str(args.Path) ?? str(args.TargetFile) ?? str(args.AbsolutePath) ?? str(args.FilePath) ?? str(args.File);
+  const raw = str(call.locations?.[0]?.path) ?? str(args.Path) ?? str(args.TargetFile) ?? str(args.AbsolutePath) ?? str(args.FilePath) ?? str(args.File) ?? str(args.path);
   return raw ? absolutePath(cwd, raw) : null;
 }
 
@@ -80,14 +80,37 @@ function editTool(call: AcpToolCall, args: Record<string, unknown>, cwd: string)
   return { name: "Edit", input: { file_path, old_string: str(args.TargetContent) ?? "", new_string: str(args.ReplacementContent) ?? "" } };
 }
 
+const unquote = (text: string) => (/^`[^`]*`$/.test(text) ? text.slice(1, -1) : text);
+
+export function isHiddenTool(call: AcpToolCall) {
+  const name = argsOf(call)._toolName;
+  return name === "updateTodos" || name === "createPlan";
+}
+
+function cursorTool(call: AcpToolCall, args: Record<string, unknown>, title: string | null, cwd: string): { name: string; input: Record<string, unknown> } | null {
+  if (args._toolName === "task") return { name: "Task", input: { description: str(args.description) ?? title ?? "", prompt: str(args.prompt) ?? "", ...(str(args.subagentType) ? { subagent_type: str(args.subagentType) } : {}) } };
+  if (str(args.providerIdentifier) && str(args.toolName)) {
+    const inner = args.args && typeof args.args === "object" && !Array.isArray(args.args) ? (args.args as Record<string, unknown>) : {};
+    return { name: `mcp__${str(args.providerIdentifier)}__${str(args.toolName)}`, input: inner };
+  }
+  if (str(args.searchTerm)) return { name: "WebSearch", input: { query: str(args.searchTerm) } };
+  if (str(args.url) && call.kind === "fetch") return { name: "WebFetch", input: { url: str(args.url) } };
+  if (str(args.pattern) && title?.startsWith("grep")) return { name: "Grep", input: { pattern: str(args.pattern), ...(str(args.path) ? { path: absolutePath(cwd, str(args.path)!) } : {}) } };
+  if (str(args.pattern) && call.kind === "search") return { name: "Glob", input: { pattern: str(args.pattern) } };
+  if (str(args.path) && title?.startsWith("List the")) return { name: "LS", input: { path: absolutePath(cwd, str(args.path)!) } };
+  return null;
+}
+
 export function toolOf(call: AcpToolCall, cwd: string): { name: string; input: Record<string, unknown> } {
   const args = argsOf(call);
   const title = str(call.title);
   if (isExecute(call)) {
     const description = str(args.toolSummary);
     const dir = str(args.Cwd);
-    return { name: "Bash", input: { command: str(args.CommandLine) ?? str(args.command) ?? title ?? "", ...(description ? { description } : {}), ...(dir ? { cwd: dir } : {}) } };
+    return { name: "Bash", input: { command: str(args.CommandLine) ?? str(args.command) ?? (title ? unquote(title) : ""), ...(description ? { description } : {}), ...(dir ? { cwd: dir } : {}) } };
   }
+  const cursor = cursorTool(call, args, title, cwd);
+  if (cursor) return cursor;
   if (isEdit(call)) return editTool(call, args, cwd);
   if (call.name === "view_file" || (call.kind === "read" && pathOf(call, args, cwd))) return { name: "Read", input: { file_path: pathOf(call, args, cwd) ?? title ?? "" } };
   if (call.name === "list_dir") return { name: "LS", input: { path: str(args.DirectoryPath) ?? pathOf(call, args, cwd) ?? cwd } };
@@ -114,6 +137,11 @@ function rawOutputText(raw: unknown): string | null {
   if (!raw || typeof raw !== "object") return null;
   const output = (raw as { output?: unknown }).output;
   if (typeof output === "string") return output;
+  const { stdout, stderr, content, totalMatches, totalFiles } = raw as { stdout?: unknown; stderr?: unknown; content?: unknown; totalMatches?: unknown; totalFiles?: unknown };
+  if (typeof totalMatches === "number") return `${totalMatches} ${totalMatches === 1 ? "match" : "matches"}`;
+  if (typeof totalFiles === "number") return `${totalFiles} ${totalFiles === 1 ? "file" : "files"}`;
+  if (typeof stdout === "string" || typeof stderr === "string") return [stdout, stderr].filter((part): part is string => typeof part === "string" && part.length > 0).join("\n");
+  if (typeof content === "string") return content;
   const keys = Object.keys(raw);
   return keys.length ? JSON.stringify(raw) : null;
 }
@@ -145,9 +173,9 @@ export function toolToTimeline(call: AcpToolCall, ctx: MapContext): ToolItem {
   return { id: call.toolCallId, kind: "tool", name, input, ...base, output: truncate(output) };
 }
 
-export function permissionCard(requestId: string | number, call: AcpToolCall, cwd: string): PermissionTimelineItem {
+export function permissionCard(cardId: string, call: AcpToolCall, cwd: string): PermissionTimelineItem {
   const { name, input } = toolOf(call, cwd);
-  return { id: `agy-approval:${requestId}`, kind: "permission", toolUseId: call.toolCallId, toolName: name, input, status: "pending" };
+  return { id: cardId, kind: "permission", toolUseId: call.toolCallId, toolName: name, input, status: "pending" };
 }
 
 export function chooseOption(options: AcpPermissionOption[], decision: PermissionDecision): string | null {
@@ -190,9 +218,35 @@ export function parseAgyModels(text: string): CodexModelInfo[] {
   });
 }
 
+export function effortOf(value: string | null | undefined): EffortLevel | null {
+  if (!value) return null;
+  const flat = value.toLowerCase().replace(/[^a-z]/g, "");
+  if (flat === "extrahigh") return "xhigh";
+  return (EFFORT_LEVELS as string[]).includes(flat) ? (flat as EffortLevel) : null;
+}
+
+function levelOption(options: AcpConfigOption[]) {
+  return options.find((o) => o.id === "thought_level") ?? options.find((o) => o.category === "thought_level");
+}
+
+export function currentEffort(options: AcpConfigOption[]): EffortLevel | null {
+  return effortOf(levelOption(options)?.currentValue);
+}
+
+export function effortLevels(options: AcpConfigOption[] | undefined): EffortLevel[] {
+  const values = (levelOption(options ?? [])?.options ?? []).map((o) => effortOf(o.value)).filter((level): level is EffortLevel => level !== null);
+  return EFFORT_LEVELS.filter((level) => values.includes(level));
+}
+
+export function effortOption(options: AcpConfigOption[], effort: EffortLevel): { configId: string; value: string } | null {
+  const option = levelOption(options);
+  const value = option?.options?.find((o) => effortOf(o.value) === effort)?.value;
+  return option?.id && value ? { configId: option.id, value } : null;
+}
+
 export function modelChoice(model: string | null, effort: EffortLevel | null, options: AcpConfigOption[]): { model: string | null; effort: EffortLevel | null } {
   const modelValues = optionValues(options, "model");
-  const levels = optionValues(options, "thought_level");
+  const levels = effortLevels(options);
   if (model && !modelValues.includes(model)) {
     const match = LEVEL_SUFFIX.exec(model);
     if (match && modelValues.includes(match[1])) return { model: match[1], effort: (effort ?? match[2]) as EffortLevel };

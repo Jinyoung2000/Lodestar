@@ -46,8 +46,8 @@ export const claudeEffort = (value: unknown): ClaudeEffortLevel | null => (typeo
 
 export type Worktree = { root: string; branch: string; base: string };
 
-export type Harness = "claude" | "codex" | "antigravity";
-export const HARNESS_VALUES: readonly Harness[] = ["claude", "codex", "antigravity"];
+export type Harness = "claude" | "codex" | "antigravity" | "cursor";
+export const HARNESS_VALUES: readonly Harness[] = ["claude", "codex", "antigravity", "cursor"];
 export const harnessOf = (agent: { harness?: Harness }): Harness => agent.harness ?? "claude";
 export type HarnessSeen = Partial<Record<Harness, string>>;
 
@@ -86,6 +86,7 @@ export type Agent = {
   harness?: Harness;
   codexThreadId?: string | null;
   antigravitySessionId?: string | null;
+  cursorSessionId?: string | null;
   seenThrough?: HarnessSeen;
   carryPending?: boolean;
   automationId?: string;
@@ -211,6 +212,7 @@ export type CodexMeta = {
 };
 
 export type AntigravityMeta = CodexMeta;
+export type CursorMeta = CodexMeta;
 
 export type McpStatus = { name: string; status: string; source: string | null; error: string | null; toolCount: number | null; tools?: { name: string; description: string | null }[] };
 
@@ -742,6 +744,7 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
   "meta.get": { params: Record<string, never>; result: Meta };
   "codex.meta": { params: { refresh?: boolean }; result: CodexMeta };
   "antigravity.meta": { params: { refresh?: boolean }; result: AntigravityMeta };
+  "cursor.meta": { params: { refresh?: boolean }; result: CursorMeta };
   "meta.refresh": { params: Record<string, never>; result: Meta };
   "mcp.reconnect": { params: { name: string }; result: McpActionResult };
   "mcp.toggle": { params: { name: string; enabled: boolean }; result: McpActionResult };

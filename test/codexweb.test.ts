@@ -117,7 +117,7 @@ test("model popover rows: provider tab, search across providers with headers, pi
   const rows = choiceRows(pickerRows(providers, "claude", "", [], "claude"));
   expect(landingKey(rows, [["claude", "claude-opus-5-5"]]) === rowKey(rows[0]), "resolved id lands on its row");
   expect(carryLevel("high", ["low", "medium", "high"], "medium") === "high" && carryLevel("max", ["low"], "low") === "low" && carryLevel("high", [], "high") === null, "level carry");
-  return expect(stepTab("pinned", -1) === "antigravity" && stepTab("antigravity", 1) === "pinned" && stepTab("claude", 1) === "codex", "tab cycle");
+  return expect(stepTab("pinned", -1) === "cursor" && stepTab("cursor", 1) === "pinned" && stepTab("antigravity", 1) === "cursor" && stepTab("claude", 1) === "codex", "tab cycle");
 });
 
 let failed = 0;

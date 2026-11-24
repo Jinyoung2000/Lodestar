@@ -28,7 +28,7 @@ export type SessionTimeline = { items: TimelineItem[]; hasMore: boolean; synced:
 
 type ModelProviders = Partial<Record<Harness, MobileModelProvider | null>>;
 
-export const MODEL_HARNESSES: Harness[] = ["claude", "codex", "antigravity"];
+export const MODEL_HARNESSES: Harness[] = ["claude", "codex", "antigravity", "cursor"];
 
 export type State = {
   modelProviders: ModelProviders;

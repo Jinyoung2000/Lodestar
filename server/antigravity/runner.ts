@@ -1,18 +1,20 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import type { Agent, AntigravityMeta, EffortLevel, PermissionDecision, TimelineItem, UserAttachment } from "../../shared/protocol";
-import { isEffortLevel } from "../../shared/protocol";
+import type { Agent, AntigravityMeta, CodexMeta, EffortLevel, Harness, PermissionDecision, PermissionMode, TimelineItem, UserAttachment } from "../../shared/protocol";
 import { antigravityApprovesAll, antigravityMode } from "../../shared/antigravityPermission";
 import type { CodexHost } from "../codex/runner";
 import { isDirectory } from "../cwdWatch";
 import { imageBlock } from "../images";
 import { chatGuidance } from "../sessionEnv";
 import { T } from "../strings";
-import { AcpConnection, AcpError, antigravityBin, antigravityEnv } from "./acp";
+import { AcpConnection, AcpError, ANTIGRAVITY_LAUNCH, antigravityBin, antigravityEnv, type AcpLaunch } from "./acp";
 import {
   chooseOption,
+  currentEffort,
   currentValue,
+  effortOption,
   isAuthText,
+  isHiddenTool,
   mergeToolCall,
   modelChoice,
   parseAgyModels,
@@ -27,12 +29,38 @@ import {
 
 export type AntigravityHost = CodexHost;
 
+export type AcpProviderText = {
+  cutOff: string;
+  notInstalled: (bin: string) => string;
+  notLoggedIn: string;
+  ended: string;
+  resumeFailed: string;
+  refused: string;
+  stopped: (reason: string) => string;
+};
+
+export type AcpProvider = {
+  harness: Exclude<Harness, "claude" | "codex">;
+  tag: string;
+  idPrefix: string;
+  processPerSession: boolean;
+  bin: () => string;
+  launch: (extraDirs: string[]) => AcpLaunch;
+  sessionIdOf: (agent: Agent) => string | null;
+  sessionPatch: (sessionId: string) => Partial<Agent>;
+  mode: (mode: PermissionMode) => string;
+  approves: (mode: PermissionMode, call: AcpToolCall | undefined) => boolean;
+  readMeta: (live: AcpConnection | null) => Promise<CodexMeta>;
+  text: AcpProviderText;
+};
+
 type ToolItem = Extract<TimelineItem, { kind: "tool" }>;
 type PendingApproval = { requestId: string | number; decide: (decision: PermissionDecision | "cancel") => void };
 type Applied = { model: string | null; effort: string | null; mode: string | null };
 
 type Session = {
   agentId: string;
+  todos: Map<string, AcpPlanEntry & { id: string }>;
   sessionId: string | null;
   loaded: boolean;
   replaying: boolean;
@@ -74,18 +102,40 @@ const META_TTL_MS = 5 * 60_000;
 const MODELS_TIMEOUT_MS = 30_000;
 const IDLE_CLOSE_ENV_MS = Number(process.env.AGENT_NAV_IDLE_CLOSE_MS) || 0;
 const EMPTY_APPLIED: Applied = { model: null, effort: null, mode: null };
+const SHARED_SCOPE = "";
 
-export class AntigravityRunner {
-  private connection: AcpConnection | null = null;
-  private starting: Promise<AcpConnection> | null = null;
+export class AcpRunner {
+  private connections = new Map<string, AcpConnection>();
+  private starting = new Map<string, Promise<AcpConnection>>();
+  private launchedFolders = new Map<string, string>();
   private sessions = new Map<string, Session>();
   private bySession = new Map<string, string>();
   private idleTimer: NodeJS.Timeout | null = null;
-  private metaCache: { at: number; meta: AntigravityMeta } | null = null;
-  private metaReading: Promise<AntigravityMeta> | null = null;
+  private metaCache: { at: number; meta: CodexMeta } | null = null;
+  private metaReading: Promise<CodexMeta> | null = null;
   private learnedDefaults: { model: string | null; effort: EffortLevel | null } = { model: null, effort: null };
 
-  constructor(private host: AntigravityHost) {}
+  constructor(
+    private host: AntigravityHost,
+    private provider: AcpProvider,
+  ) {}
+
+  private get tag() {
+    return `[${this.provider.tag}]`;
+  }
+
+  private scopeOf(session: Session) {
+    return this.provider.processPerSession ? session.agentId : SHARED_SCOPE;
+  }
+
+  private connectionOf(session: Session): AcpConnection | null {
+    const connection = this.connections.get(this.scopeOf(session));
+    return connection && !connection.closed ? connection : null;
+  }
+
+  private sessionsIn(scope: string) {
+    return [...this.sessions.values()].filter((session) => this.scopeOf(session) === scope);
+  }
 
   isActive(agentId: string) {
     return this.sessions.get(agentId)?.active === true;
@@ -132,11 +182,11 @@ export class AntigravityRunner {
       this.finishTurn(session, "error");
       return;
     }
-    console.log(`[antigravity] turn ${agentId.slice(0, 8)} model=${agent.model ?? "(default)"} effort=${agent.effort ?? "(default)"} permission=${agent.permissionMode}`);
+    console.log(`${this.tag} turn ${agentId.slice(0, 8)} model=${agent.model ?? "(default)"} effort=${agent.effort ?? "(default)"} permission=${agent.permissionMode}`);
     let sessionId: string;
     let connection: AcpConnection;
     try {
-      connection = await this.ensureConnection();
+      connection = await this.ensureConnection(session, agent);
       sessionId = await this.ensureSession(connection, session, agent);
       await this.applyConfig(connection, session, this.host.store.agent(agentId));
     } catch (error) {
@@ -163,9 +213,9 @@ export class AntigravityRunner {
 
   steer(agentId: string, prompt: string, shown: PromptDisplay): boolean {
     const session = this.sessions.get(agentId);
-    const connection = this.connection;
+    const connection = session ? this.connectionOf(session) : null;
     const turn = session?.promptTurn;
-    if (!session?.active || session.interrupted || !turn || !session.sessionId || !connection || connection.closed) return false;
+    if (!session?.active || session.interrupted || !turn || !session.sessionId || !connection) return false;
     turn.pending += 1;
     this.closeSegment(session);
     this.recordPrompt(agentId, prompt, shown);
@@ -176,7 +226,7 @@ export class AntigravityRunner {
         if (!session.interrupted) {
           const message = error instanceof Error ? error.message : String(error);
           this.host.upsert(agentId, { id: randomUUID(), kind: "error", text: T.steerFailed(message), auth: false });
-          console.error("[antigravity] steering prompt failed", error);
+          console.error(`${this.tag} steering prompt failed`, error);
         }
         this.promptSettled(session, turn);
       },
@@ -203,7 +253,7 @@ export class AntigravityRunner {
     session.promptTurn = null;
     if (turn.initial.status === "fulfilled" || session.interrupted) {
       const response = turn.initial.status === "fulfilled" ? turn.initial.value : undefined;
-      void this.onPromptEnd(session, response ?? {}).catch((error) => console.error("[antigravity] turn end failed", error));
+      void this.onPromptEnd(session, response ?? {}).catch((error) => console.error(`${this.tag} turn end failed`, error));
       return;
     }
     this.settleTools(session, false);
@@ -222,7 +272,8 @@ export class AntigravityRunner {
       this.finishTurn(session, "interrupted");
     }, INTERRUPT_GRACE_MS);
     session.interruptTimer.unref();
-    if (session.sessionId && this.connection && !this.connection.closed) this.connection.notify("session/cancel", { sessionId: session.sessionId });
+    const connection = this.connectionOf(session);
+    if (session.sessionId && connection) connection.notify("session/cancel", { sessionId: session.sessionId });
   }
 
   respond(agentId: string, itemId: string, decision: PermissionDecision) {
@@ -241,16 +292,16 @@ export class AntigravityRunner {
   closeAll() {
     this.cancelIdle();
     for (const session of this.sessions.values()) if (session.interruptTimer) clearTimeout(session.interruptTimer);
-    this.connection?.close();
-    this.connection = null;
-    this.starting = null;
+    for (const connection of this.connections.values()) connection.close();
+    this.connections.clear();
+    this.starting.clear();
   }
 
   cutOffText() {
-    return T.daemonStoppedMidReplyAntigravity;
+    return this.provider.text.cutOff;
   }
 
-  async meta(refresh = false): Promise<AntigravityMeta> {
+  async meta(refresh = false): Promise<CodexMeta> {
     const cached = this.metaCache;
     if (!refresh && cached && Date.now() - cached.at < META_TTL_MS) return this.withDefaults(cached.meta);
     if (!refresh && cached?.meta.models.length) {
@@ -260,49 +311,82 @@ export class AntigravityRunner {
     return this.withDefaults(await this.readFreshMeta());
   }
 
-  private readFreshMeta(): Promise<AntigravityMeta> {
-    this.metaReading ??= this.readMeta().then((meta) => {
+  private readFreshMeta(): Promise<CodexMeta> {
+    const live = [...this.connections.values()].find((connection) => !connection.closed) ?? null;
+    this.metaReading ??= this.provider.readMeta(live).then((meta) => {
       this.metaCache = { at: Date.now(), meta };
       return meta;
     }).finally(() => { this.metaReading = null; });
     return this.metaReading;
   }
 
-  private withDefaults(meta: AntigravityMeta): AntigravityMeta {
+  private withDefaults(meta: CodexMeta): CodexMeta {
     return { ...meta, defaultModel: this.learnedDefaults.model ?? meta.defaultModel, defaultEffort: this.learnedDefaults.effort ?? meta.defaultEffort };
   }
 
-  private ensureConnection(): Promise<AcpConnection> {
-    if (this.connection && !this.connection.closed) return Promise.resolve(this.connection);
-    this.starting ??= AcpConnection.start({
-      onNotification: (method, params) => this.onNotification(method, params),
-      onRequest: (id, method, params) => this.onRequest(id, method, params),
-      onExit: (info) => this.onExit(info),
-    }).then(
+  private ensureConnection(session: Session, agent: Agent): Promise<AcpConnection> {
+    const scope = this.scopeOf(session);
+    const extraDirs = this.provider.processPerSession ? this.host.store.extraDirs(agent) : [];
+    const folders = extraDirs.join("\n");
+    const existing = this.connections.get(scope);
+    if (existing && !existing.closed && (!this.provider.processPerSession || this.launchedFolders.get(scope) === folders)) return Promise.resolve(existing);
+    if (existing && !existing.closed) this.closeScope(scope);
+    const pending = this.starting.get(scope);
+    if (pending) return pending;
+    let started: AcpConnection | null = null;
+    const launch = AcpConnection.start(
+      {
+        onNotification: (method, params) => this.onNotification(method, params),
+        onRequest: (id, method, params) => this.onRequest(id, method, params),
+        onExit: (info) => {
+          if (started && this.connections.get(scope) === started) this.onExit(scope, info);
+        },
+      },
+      this.provider.bin(),
+      this.provider.launch(extraDirs),
+    ).then(
       (connection) => {
-        this.connection = connection;
-        this.starting = null;
-        console.log(`[antigravity] acp started pid=${connection.pid} version=${connection.version ?? "?"}`);
+        started = connection;
+        this.connections.set(scope, connection);
+        this.launchedFolders.set(scope, folders);
+        this.starting.delete(scope);
+        console.log(`${this.tag} acp started pid=${connection.pid} version=${connection.version ?? "?"}`);
         return connection;
       },
       (error) => {
-        this.starting = null;
+        this.starting.delete(scope);
         throw error;
       },
     );
-    return this.starting;
+    this.starting.set(scope, launch);
+    return launch;
   }
 
-  private onExit(info: { code: number | null; signal: NodeJS.Signals | null; stderrTail: string }) {
-    console.error(`[antigravity] acp exited code=${info.code} signal=${info.signal}${info.stderrTail ? ` stderr=${info.stderrTail.slice(-300)}` : ""}`);
-    this.connection = null;
-    for (const session of this.sessions.values()) {
+  private resetScope(scope: string) {
+    for (const session of this.sessionsIn(scope)) {
+      session.loaded = false;
+      session.applied = { ...EMPTY_APPLIED };
+    }
+  }
+
+  private closeScope(scope: string) {
+    this.connections.get(scope)?.close();
+    this.connections.delete(scope);
+    this.launchedFolders.delete(scope);
+    this.resetScope(scope);
+  }
+
+  private onExit(scope: string, info: { code: number | null; signal: NodeJS.Signals | null; stderrTail: string }) {
+    console.error(`${this.tag} acp exited code=${info.code} signal=${info.signal}${info.stderrTail ? ` stderr=${info.stderrTail.slice(-300)}` : ""}`);
+    this.connections.delete(scope);
+    this.launchedFolders.delete(scope);
+    for (const session of this.sessionsIn(scope)) {
       session.loaded = false;
       session.applied = { ...EMPTY_APPLIED };
       for (const pending of [...session.approvals.values()]) pending.decide("cancel");
       if (!session.active) continue;
       this.settleTools(session, false);
-      this.host.upsert(session.agentId, { id: randomUUID(), kind: "error", text: T.antigravityEnded, auth: false });
+      this.host.upsert(session.agentId, { id: randomUUID(), kind: "error", text: this.provider.text.ended, auth: false });
       this.finishTurn(session, "error");
     }
   }
@@ -310,16 +394,18 @@ export class AntigravityRunner {
   private armIdle() {
     this.cancelIdle();
     const limit = IDLE_CLOSE_ENV_MS || this.host.idleLimitMs();
-    if (limit === 0 || !this.connection) return;
+    if (limit === 0 || this.connections.size === 0) return;
     this.idleTimer = setTimeout(() => {
-      if ([...this.sessions.values()].some((s) => s.active)) return this.armIdle();
-      console.log("[antigravity] acp idle close");
-      this.connection?.close();
-      this.connection = null;
-      for (const session of this.sessions.values()) {
-        session.loaded = false;
-        session.applied = { ...EMPTY_APPLIED };
+      let busy = false;
+      for (const scope of [...this.connections.keys()]) {
+        if (this.sessionsIn(scope).some((s) => s.active)) {
+          busy = true;
+          continue;
+        }
+        console.log(`${this.tag} acp idle close`);
+        this.closeScope(scope);
       }
+      if (busy) this.armIdle();
     }, limit);
     this.idleTimer.unref();
   }
@@ -331,7 +417,7 @@ export class AntigravityRunner {
 
   private sessionOf(agent: Agent): Session {
     let session = this.sessions.get(agent.id);
-    if (session && !session.active && session.sessionId !== (agent.antigravitySessionId ?? null)) {
+    if (session && !session.active && session.sessionId !== this.provider.sessionIdOf(agent)) {
       this.dropSession(session);
       session = undefined;
     }
@@ -339,7 +425,8 @@ export class AntigravityRunner {
     if (!session) {
       session = {
         agentId: agent.id,
-        sessionId: agent.antigravitySessionId ?? null,
+        todos: new Map(),
+        sessionId: this.provider.sessionIdOf(agent),
         loaded: false,
         replaying: false,
         active: false,
@@ -368,17 +455,18 @@ export class AntigravityRunner {
   private dropSession(session: Session) {
     session.promptTurn = null;
     if (session.interruptTimer) clearTimeout(session.interruptTimer);
+    const connection = this.connectionOf(session);
     if (session.sessionId) {
       this.bySession.delete(session.sessionId);
-      const connection = this.connection;
-      if (session.loaded && connection && !connection.closed && connection.canClose()) void connection.request("session/close", { sessionId: session.sessionId }, 5000).catch(() => undefined);
+      if (session.loaded && connection && connection.canClose()) void connection.request("session/close", { sessionId: session.sessionId }, 5000).catch(() => undefined);
     }
     this.sessions.delete(session.agentId);
+    if (this.provider.processPerSession) this.closeScope(session.agentId);
   }
 
   private async ensureSession(connection: AcpConnection, session: Session, agent: Agent): Promise<string> {
     if (session.loaded && session.sessionId) return session.sessionId;
-    const extraDirs = this.host.store.extraDirs(agent);
+    const extraDirs = this.provider.processPerSession ? [] : this.host.store.extraDirs(agent);
     const guidance = connection.canAppendSystemPrompt() ? chatGuidance(agent, this.host.store.workspaces, { explicitId: true }) : null;
     const common = {
       cwd: agent.cwd,
@@ -402,28 +490,28 @@ export class AntigravityRunner {
         }
         if (response) response = { ...response, sessionId };
       } catch (error) {
-        console.error("[antigravity] resume failed, starting a new session", error);
+        console.error(`${this.tag} resume failed, starting a new session`, error);
         response = null;
       }
       if (!response) {
-        this.host.upsert(agent.id, { id: randomUUID(), kind: "notice", text: T.antigravityResumeFailed });
+        this.host.upsert(agent.id, { id: randomUUID(), kind: "notice", text: this.provider.text.resumeFailed });
         this.bySession.delete(sessionId);
         session.sessionId = null;
       }
     }
     if (!response) response = await connection.request<SessionResponse>("session/new", common);
     const sessionId = response?.sessionId;
-    if (!sessionId) throw new AcpError("Antigravity did not return a session id");
+    if (!sessionId) throw new AcpError(`${connection.label} did not return a session id`);
     session.sessionId = sessionId;
     session.loaded = true;
-    session.folders = [agent.cwd, ...extraDirs].join("\n");
+    session.folders = this.host.store.agentRoots(agent).join("\n");
     session.options = response.configOptions ?? [];
     this.bySession.set(sessionId, agent.id);
     const model = currentValue(session.options, "model");
-    const effort = currentValue(session.options, "thought_level");
-    this.learnedDefaults = { model: model ?? this.learnedDefaults.model, effort: isEffortLevel(effort) ? effort : this.learnedDefaults.effort };
+    const effort = currentEffort(session.options);
+    this.learnedDefaults = { model: model ?? this.learnedDefaults.model, effort: effort ?? this.learnedDefaults.effort };
     session.applied = { model: null, effort: null, mode: currentValue(session.options, "mode") };
-    this.host.store.patchAgent(agent.id, { antigravitySessionId: sessionId });
+    this.host.store.patchAgent(agent.id, this.provider.sessionPatch(sessionId));
     this.publishActive(session);
     return sessionId;
   }
@@ -441,11 +529,12 @@ export class AntigravityRunner {
       session.applied.effort = null;
     }
     const effort = modelChoice(null, agent.effort ?? choice.effort, session.options).effort;
-    if (effort && session.applied.effort !== effort) {
-      await set("thought_level", effort);
+    const level = effort ? effortOption(session.options, effort) : null;
+    if (effort && level && session.applied.effort !== effort) {
+      await set(level.configId, level.value);
       session.applied.effort = effort;
     }
-    const mode = antigravityMode(agent.permissionMode);
+    const mode = this.provider.mode(agent.permissionMode);
     if (session.applied.mode !== mode) {
       await set("mode", mode);
       session.applied.mode = mode;
@@ -455,8 +544,7 @@ export class AntigravityRunner {
 
   private publishActive(session: Session) {
     const model = currentValue(session.options, "model");
-    const effort = currentValue(session.options, "thought_level");
-    this.host.store.patchAgent(session.agentId, { activeModel: model, activeEffort: isEffortLevel(effort) ? effort : null });
+    this.host.store.patchAgent(session.agentId, { activeModel: model, activeEffort: currentEffort(session.options) });
     this.host.emit({ type: "agent", agent: this.host.store.agent(session.agentId) });
   }
 
@@ -464,7 +552,7 @@ export class AntigravityRunner {
     const raw = error instanceof Error ? error.message : String(error);
     const missing = (error as NodeJS.ErrnoException)?.code === "ENOENT";
     const auth = !missing && isAuthText(raw);
-    const text = missing ? T.antigravityNotInstalled(antigravityBin()) : auth ? T.antigravityNotLoggedIn : raw;
+    const text = missing ? this.provider.text.notInstalled(this.provider.bin()) : auth ? this.provider.text.notLoggedIn : raw;
     this.host.upsert(session.agentId, { id: randomUUID(), kind: "error", text, auth });
     this.finishTurn(session, "error");
   }
@@ -489,7 +577,7 @@ export class AntigravityRunner {
         return this.onToolCall(session, update as unknown as Partial<AcpToolCall> & { toolCallId: string });
       case "plan": {
         const entries = (update.entries as AcpPlanEntry[] | undefined) ?? [];
-        if (session.active && entries.length) this.host.upsert(session.agentId, planToTool(`agy-plan:${session.agentId}:${session.turn}`, entries));
+        if (session.active && entries.length) this.host.upsert(session.agentId, planToTool(this.planId(session), entries));
         return;
       }
       case "usage_update": {
@@ -538,10 +626,11 @@ export class AntigravityRunner {
 
   private onToolCall(session: Session, update: Partial<AcpToolCall> & { toolCallId: string }) {
     if (!session.active || !update.toolCallId) return;
-    this.closeSegment(session);
     const previous = session.tools.get(update.toolCallId);
     const call = mergeToolCall(previous, update);
     session.tools.set(call.toolCallId, call);
+    if (isHiddenTool(call)) return;
+    this.closeSegment(session);
     const item = toolToTimeline(call, { cwd: session.cwd, interrupted: session.interrupted });
     const editing = item.name === "Write" || item.name === "Edit" || item.name === "MultiEdit";
     if (editing && typeof item.input.file_path === "string" && item.input.file_path) {
@@ -566,15 +655,15 @@ export class AntigravityRunner {
     this.closeSegment(session);
     if (interrupted) return this.finishTurn(session, "interrupted");
     const failed = stop === "refusal";
-    if (failed) this.host.upsert(agentId, { id: randomUUID(), kind: "error", text: T.antigravityRefused, auth: false });
-    if (stop === "max_tokens" || stop === "max_turn_requests") this.host.upsert(agentId, { id: randomUUID(), kind: "notice", text: T.antigravityStopped(stop) });
+    if (failed) this.host.upsert(agentId, { id: randomUUID(), kind: "error", text: this.provider.text.refused, auth: false });
+    if (stop === "max_tokens" || stop === "max_turn_requests") this.host.upsert(agentId, { id: randomUUID(), kind: "notice", text: this.provider.text.stopped(stop) });
     const waited = session.approvalWaitMs;
     session.approvalWaitMs = 0;
     const changes = await this.host.turnChanges(agentId);
     if (this.sessions.get(agentId) !== session || !session.active || session.turn !== turn) return;
     const tokens = response.usage?.totalTokens ?? 0;
     this.host.upsert(agentId, {
-      id: `agy-result:${randomUUID()}`,
+      id: `${this.provider.idPrefix}-result:${randomUUID()}`,
       kind: "result",
       isError: failed,
       durationMs: Math.max(0, Date.now() - session.startedAt - waited),
@@ -607,7 +696,7 @@ export class AntigravityRunner {
     session.approvals.clear();
     session.approvalSince = null;
     this.closeSegment(session);
-    void this.host.finishTouch(agentId).catch((error) => console.error("[antigravity] change ledger not closed", error));
+    void this.host.finishTouch(agentId).catch((error) => console.error(`${this.tag} change ledger not closed`, error));
     if (outcome === "interrupted") this.host.upsert(agentId, { id: randomUUID(), kind: "notice", text: T.stopped });
     this.host.setStatus(agentId, outcome === "error" ? "error" : "idle");
     this.host.store.updateAgent(agentId, { unread: true });
@@ -618,13 +707,58 @@ export class AntigravityRunner {
     if (next) this.host.sendQueued(agentId, next);
   }
 
+  private planId(session: Session) {
+    return `${this.provider.idPrefix}-plan:${session.agentId}:${session.turn}`;
+  }
+
+  private activeSession(params: Record<string, unknown>): Session | null {
+    const byId = this.sessionById(params.sessionId);
+    if (byId) return byId.active ? byId : null;
+    const active = [...this.sessions.values()].filter((session) => session.active);
+    return active.length === 1 ? active[0] : null;
+  }
+
+  private onTodos(params: Record<string, unknown>) {
+    const session = this.activeSession(params);
+    const todos = Array.isArray(params.todos) ? (params.todos as { id?: unknown; content?: unknown; status?: unknown }[]) : [];
+    if (!session) return;
+    if (params.merge !== true) session.todos.clear();
+    for (const todo of todos) {
+      const id = typeof todo.id === "string" ? todo.id : String(session.todos.size);
+      const status = todo.status === "in_progress" || todo.status === "completed" || todo.status === "pending" ? todo.status : todo.status === "cancelled" ? null : "pending";
+      if (status === null) session.todos.delete(id);
+      else session.todos.set(id, { id, content: typeof todo.content === "string" ? todo.content : (session.todos.get(id)?.content ?? ""), status });
+    }
+    if (session.todos.size) this.host.upsert(session.agentId, planToTool(this.planId(session), [...session.todos.values()]));
+  }
+
+  private onPlan(params: Record<string, unknown>) {
+    const session = this.activeSession(params);
+    if (!session) return { outcome: { outcome: "cancelled" } };
+    const parts = [typeof params.name === "string" ? `## ${params.name}` : "", typeof params.overview === "string" ? params.overview : "", typeof params.plan === "string" ? params.plan : ""].filter((part) => part.trim());
+    this.closeSegment(session);
+    if (parts.length) {
+      const model = this.host.store.agent(session.agentId).activeModel;
+      this.host.upsert(session.agentId, { id: randomUUID(), kind: "assistant", text: parts.join("\n\n"), streaming: false, at: new Date().toISOString(), ...(model ? { model } : {}) });
+    }
+    this.onTodos({ ...params, merge: false });
+    return { outcome: { outcome: "accepted" } };
+  }
+
   private onRequest(id: number | string, method: string, params: Record<string, unknown>): Promise<unknown> {
+    if (method === "cursor/update_todos") {
+      this.onTodos(params);
+      return Promise.resolve({});
+    }
+    if (method === "cursor/create_plan") return Promise.resolve(this.onPlan(params));
+    if (method === "cursor/ask_question") return Promise.resolve({ outcome: { outcome: "skipped", reason: "Lodestar cannot show questions from this agent yet. Ask in your reply instead." } });
+    if (method.startsWith("cursor/")) return Promise.resolve({});
     if (method !== "session/request_permission") return Promise.reject(new AcpError(`Method not supported: ${method}`, -32601));
     const session = this.sessionById(params.sessionId);
     const options = (params.options as AcpPermissionOption[] | undefined) ?? [];
     if (!session?.active) return Promise.resolve({ outcome: { outcome: "cancelled" } });
     const agent = this.host.store.agent(session.agentId);
-    if (antigravityApprovesAll(agent.permissionMode)) {
+    if (this.provider.approves(agent.permissionMode, params.toolCall as AcpToolCall | undefined)) {
       const optionId = chooseOption(options, "allow");
       return Promise.resolve(optionId ? { outcome: { outcome: "selected", optionId } } : { outcome: { outcome: "cancelled" } });
     }
@@ -638,7 +772,7 @@ export class AntigravityRunner {
       session.tools.set(call.toolCallId, call);
       this.host.upsert(agentId, toolToTimeline({ ...call, status: "pending" }, { cwd: session.cwd }));
     }
-    const card = permissionCard(requestId, call, session.cwd);
+    const card = permissionCard(`${this.provider.idPrefix}-approval:${randomUUID()}`, call, session.cwd);
     this.host.upsert(agentId, card);
     session.approvalSince ??= Date.now();
     this.host.setStatus(agentId, "waiting");
@@ -658,24 +792,53 @@ export class AntigravityRunner {
       session.approvals.set(card.id, { requestId, decide });
     });
   }
+}
 
-  private async readMeta(): Promise<AntigravityMeta> {
-    const base: AntigravityMeta = { installed: true, version: null, loggedIn: false, account: null, models: [], defaultModel: null, defaultEffort: null, error: null, fetchedAt: new Date().toISOString() };
-    const bin = antigravityBin();
-    const listed = await new Promise<{ stdout: string; error: (Error & { code?: string | number }) | null; stderr: string }>((resolve) => {
-      execFile(bin, ["models"], { env: antigravityEnv(), timeout: MODELS_TIMEOUT_MS, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => resolve({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), error }));
-    });
-    if (listed.error?.code === "ENOENT") return { ...base, installed: false, error: T.antigravityNotInstalled(bin) };
-    base.models = parseAgyModels(listed.stdout);
-    base.loggedIn = base.models.length > 0;
-    if (!base.models.length) {
-      const reason = (listed.stderr.trim() || listed.error?.message || "").split("\n").filter((line) => line.trim() && !/^Fetching available models/i.test(line)).join("\n").trim();
-      base.error = reason ? (isAuthText(reason) ? T.antigravityNotLoggedIn : reason) : null;
-      if (reason && !isAuthText(reason)) base.loggedIn = true;
-    }
-    const first = base.models.find((m) => m.isDefault);
-    base.defaultModel = first?.value ?? null;
-    if (this.connection && !this.connection.closed) base.version = this.connection.version;
-    return base;
+async function readAntigravityMeta(live: AcpConnection | null): Promise<AntigravityMeta> {
+  const base: AntigravityMeta = { installed: true, version: null, loggedIn: false, account: null, models: [], defaultModel: null, defaultEffort: null, error: null, fetchedAt: new Date().toISOString() };
+  const bin = antigravityBin();
+  const listed = await new Promise<{ stdout: string; error: (Error & { code?: string | number }) | null; stderr: string }>((resolve) => {
+    execFile(bin, ["models"], { env: antigravityEnv(), timeout: MODELS_TIMEOUT_MS, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => resolve({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), error }));
+  });
+  if (listed.error?.code === "ENOENT") return { ...base, installed: false, error: T.antigravityNotInstalled(bin) };
+  base.models = parseAgyModels(listed.stdout);
+  base.loggedIn = base.models.length > 0;
+  if (!base.models.length) {
+    const reason = (listed.stderr.trim() || listed.error?.message || "").split("\n").filter((line) => line.trim() && !/^Fetching available models/i.test(line)).join("\n").trim();
+    base.error = reason ? (isAuthText(reason) ? T.antigravityNotLoggedIn : reason) : null;
+    if (reason && !isAuthText(reason)) base.loggedIn = true;
+  }
+  const first = base.models.find((m) => m.isDefault);
+  base.defaultModel = first?.value ?? null;
+  if (live) base.version = live.version;
+  return base;
+}
+
+export const ANTIGRAVITY_PROVIDER: AcpProvider = {
+  harness: "antigravity",
+  tag: "antigravity",
+  idPrefix: "agy",
+  processPerSession: false,
+  bin: () => antigravityBin(),
+  launch: () => ANTIGRAVITY_LAUNCH,
+  sessionIdOf: (agent) => agent.antigravitySessionId ?? null,
+  sessionPatch: (sessionId) => ({ antigravitySessionId: sessionId }),
+  mode: antigravityMode,
+  approves: (mode) => antigravityApprovesAll(mode),
+  readMeta: readAntigravityMeta,
+  text: {
+    cutOff: T.daemonStoppedMidReplyAntigravity,
+    notInstalled: T.antigravityNotInstalled,
+    notLoggedIn: T.antigravityNotLoggedIn,
+    ended: T.antigravityEnded,
+    resumeFailed: T.antigravityResumeFailed,
+    refused: T.antigravityRefused,
+    stopped: T.antigravityStopped,
+  },
+};
+
+export class AntigravityRunner extends AcpRunner {
+  constructor(host: AntigravityHost) {
+    super(host, ANTIGRAVITY_PROVIDER);
   }
 }

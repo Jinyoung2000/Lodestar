@@ -10918,6 +10918,9 @@ button[data-variant]:disabled .codicon {
 .provider-antigravity {
   color: var(--provider-antigravity);
 }
+.provider-cursor {
+  color: var(--provider-cursor);
+}
 .provider-mark[data-small] {
   width: var(--size-provider-mark-sm);
   height: var(--size-provider-mark-sm);

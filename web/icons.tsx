@@ -60,11 +60,13 @@ export const PermissionBypass = make("warning");
 export const PermissionAuto = make("sparkle");
 export const ModelIcon = make("claude");
 
-export function ProviderIcon({ harness, size = 16 }: { harness: "claude" | "codex" | "antigravity"; size?: number }) {
-  if (harness === "antigravity") {
+const PROVIDER_LETTERS = { antigravity: "A", cursor: "C" } as const;
+
+export function ProviderIcon({ harness, size = 16 }: { harness: "claude" | "codex" | "antigravity" | "cursor"; size?: number }) {
+  if (harness === "antigravity" || harness === "cursor") {
     return (
-      <span className="provider-mark provider-antigravity" data-small={size < 16 || undefined} aria-hidden="true">
-        A
+      <span className={`provider-mark provider-${harness}`} data-small={size < 16 || undefined} aria-hidden="true">
+        {PROVIDER_LETTERS[harness]}
       </span>
     );
   }

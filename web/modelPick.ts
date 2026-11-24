@@ -13,11 +13,13 @@ export function pickKeys(harness: Harness, model: string | null | undefined, eff
   if (model !== undefined) {
     if (harness === "codex") picked.codexModel = model;
     else if (harness === "antigravity") picked.antigravityModel = model;
+    else if (harness === "cursor") picked.cursorModel = model;
     else picked.model = model;
   }
   if (effort !== undefined) {
     if (harness === "codex") picked.codexEffort = effort;
     else if (harness === "antigravity") picked.antigravityEffort = effort;
+    else if (harness === "cursor") picked.cursorEffort = effort;
     else picked.effort = effort;
   }
   return picked;
@@ -25,7 +27,7 @@ export function pickKeys(harness: Harness, model: string | null | undefined, eff
 
 export function lastPickedModel(harness: Harness): string | null {
   const last = getState().lastPicked;
-  return (harness === "codex" ? last.codexModel : harness === "antigravity" ? last.antigravityModel : last.model) ?? null;
+  return (harness === "codex" ? last.codexModel : harness === "antigravity" ? last.antigravityModel : harness === "cursor" ? last.cursorModel : last.model) ?? null;
 }
 
 export function applyModel(model: string | null, harness: Harness = activeHarness()) {
@@ -65,7 +67,7 @@ export function currentModelAndEffort() {
   }
   const harness = activeHarness();
   if (harness !== "claude") {
-    const lastEffort = harness === "codex" ? s.lastPicked.codexEffort : s.lastPicked.antigravityEffort;
+    const lastEffort = harness === "codex" ? s.lastPicked.codexEffort : harness === "cursor" ? s.lastPicked.cursorEffort : s.lastPicked.antigravityEffort;
     return {
       model: pane.id in s.draftModel ? s.draftModel[pane.id] : lastPickedModel(harness),
       effort: pane.id in s.draftEffort ? s.draftEffort[pane.id] : (lastEffort ?? null),

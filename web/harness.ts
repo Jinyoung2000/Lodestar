@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { harnessOf, type Agent, type CodexMeta, type EffortLevel, type Harness, type ModelInfo } from "../shared/protocol";
-import { activePane, getState, loadAntigravityMeta, loadCodexMeta, useStore, type Pane, type State } from "./store";
+import { activePane, getState, loadAntigravityMeta, loadCodexMeta, loadCursorMeta, useStore, type Pane, type State } from "./store";
 import { S } from "./strings";
 
 type StateLike = { agents: Agent[]; draftHarness: Record<string, Harness>; lastPicked: { harness?: Harness } };
@@ -26,24 +26,31 @@ export function usePaneHarness(paneId: string, agent: Agent | null): Harness {
   });
 }
 
-export function toolMetaOf(s: Pick<State, "codexMeta" | "antigravityMeta">, harness: Harness): CodexMeta | null {
-  return harness === "antigravity" ? s.antigravityMeta : harness === "codex" ? s.codexMeta : null;
+export function toolMetaOf(s: Pick<State, "codexMeta" | "antigravityMeta" | "cursorMeta">, harness: Harness): CodexMeta | null {
+  return harness === "antigravity" ? s.antigravityMeta : harness === "cursor" ? s.cursorMeta : harness === "codex" ? s.codexMeta : null;
 }
 
 export function useToolMeta(harness: Harness): CodexMeta | null {
   useEffect(() => {
     if (harness === "codex") void loadCodexMeta();
     if (harness === "antigravity") void loadAntigravityMeta();
+    if (harness === "cursor") void loadCursorMeta();
   }, [harness]);
   return useStore((s) => toolMetaOf(s, harness));
 }
 
+const TOOL_TEXT = {
+  codex: { loading: S.codexModelsLoading, notInstalled: S.codexNotInstalled, notSignedIn: S.codexNotSignedIn, loadFailed: S.codexLoadFailed },
+  antigravity: { loading: S.antigravityModelsLoading, notInstalled: S.antigravityNotInstalled, notSignedIn: S.antigravityNotSignedIn, loadFailed: S.antigravityLoadFailed },
+  cursor: { loading: S.cursorModelsLoading, notInstalled: S.cursorNotInstalled, notSignedIn: S.cursorNotSignedIn, loadFailed: S.cursorLoadFailed },
+};
+
 export function toolStatus(harness: Harness, meta: CodexMeta | null): string | null {
-  const antigravity = harness === "antigravity";
-  if (!meta) return antigravity ? S.antigravityModelsLoading : S.codexModelsLoading;
-  if (!meta.installed) return antigravity ? S.antigravityNotInstalled : S.codexNotInstalled;
-  if (!meta.loggedIn) return antigravity ? S.antigravityNotSignedIn : S.codexNotSignedIn;
-  if (!meta.models.length) return meta.error ? (antigravity ? S.antigravityLoadFailed(meta.error) : S.codexLoadFailed(meta.error)) : S.modelsUnavailable;
+  const text = TOOL_TEXT[harness === "claude" ? "codex" : harness];
+  if (!meta) return text.loading;
+  if (!meta.installed) return text.notInstalled;
+  if (!meta.loggedIn) return text.notSignedIn;
+  if (!meta.models.length) return meta.error ? text.loadFailed(meta.error) : S.modelsUnavailable;
   return null;
 }
 

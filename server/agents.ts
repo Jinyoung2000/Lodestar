@@ -24,6 +24,7 @@ import { carryAfterCut, carryTranscript, checkpointLocked, HARNESS_NAMES, lastSw
 import { CODEX_FALLBACK_MODE, codexSupportsMode } from "../shared/codexPermission";
 import { CodexRunner, type CodexHost } from "./codex/runner";
 import { AntigravityRunner } from "./antigravity/runner";
+import { CursorRunner } from "./cursor/runner";
 import { checkpointMode, checkpointSession, commitRedo, dropRedo, keptEntryBefore, loadRedo, probeCheckpointModes, readRaw, resolveMessageId, saveRedo, sessionChain, splitTimeline, stageRedo, withRewindQuery } from "./checkpoints";
 import { applyRestore, hashesOf, redoFiles } from "./restoreGuard";
 import type { BrowserBridge } from "./browserBridge";
@@ -205,6 +206,7 @@ export class AgentRunner {
 
   private codex: CodexRunner;
   private antigravity: AntigravityRunner;
+  private cursor: CursorRunner;
 
   constructor(
     private store: Store,
@@ -236,15 +238,16 @@ export class AgentRunner {
     };
     this.codex = new CodexRunner(host);
     this.antigravity = new AntigravityRunner(host);
+    this.cursor = new CursorRunner(host);
   }
 
   private otherRunners() {
-    return [this.codex, this.antigravity];
+    return [this.codex, this.antigravity, this.cursor];
   }
 
-  private runnerOf(agentId: string): CodexRunner | AntigravityRunner | null {
+  private runnerOf(agentId: string): CodexRunner | AntigravityRunner | CursorRunner | null {
     const harness = harnessOf(this.store.agent(agentId));
-    return harness === "codex" ? this.codex : harness === "antigravity" ? this.antigravity : null;
+    return harness === "codex" ? this.codex : harness === "antigravity" ? this.antigravity : harness === "cursor" ? this.cursor : null;
   }
 
   private notClaude(agentId: string) {
@@ -253,6 +256,10 @@ export class AgentRunner {
 
   antigravityMeta(refresh = false) {
     return this.antigravity.meta(refresh);
+  }
+
+  cursorMeta(refresh = false) {
+    return this.cursor.meta(refresh);
   }
 
   codexMeta(refresh = false) {
@@ -311,6 +318,7 @@ export class AgentRunner {
       ...(handoff ? { handoffFrom: handoff.id } : {}),
       ...(params.harness === "codex" ? { harness: "codex" as const, codexThreadId: null } : {}),
       ...(params.harness === "antigravity" ? { harness: "antigravity" as const, antigravitySessionId: null } : {}),
+      ...(params.harness === "cursor" ? { harness: "cursor" as const, cursorSessionId: null } : {}),
     };
     this.store.addAgent(agent);
     if (agent.startCommit) await captureForkBase(agent, this.store, agent.id).catch(() => false);
@@ -395,6 +403,7 @@ export class AgentRunner {
       resumeAt: null,
       codexThreadId: harness === "codex" ? null : current.codexThreadId,
       antigravitySessionId: harness === "antigravity" ? null : current.antigravitySessionId,
+      cursorSessionId: harness === "cursor" ? null : current.cursorSessionId,
       activeModel: null,
       activeEffort: null,
       contextUsage: null,
@@ -429,7 +438,7 @@ export class AgentRunner {
   }
 
   activeCount() {
-    return [...this.runs.entries()].filter(([agentId, run]) => run.active || this.backgroundTaskCount(agentId) > 0).length + this.pending.size + this.codex.activeCount() + this.antigravity.activeCount();
+    return [...this.runs.entries()].filter(([agentId, run]) => run.active || this.backgroundTaskCount(agentId) > 0).length + this.pending.size + this.codex.activeCount() + this.antigravity.activeCount() + this.cursor.activeCount();
   }
 
   private backgroundTaskCount(agentId: string) {
@@ -448,6 +457,7 @@ export class AgentRunner {
     for (const agentId of [...this.runs.keys()]) this.closeRun(agentId);
     this.codex.closeAll();
     this.antigravity.closeAll();
+    this.cursor.closeAll();
   }
 
   notice(agentId: string, text: string, detail?: string, fold?: { label: string; text: string }, id: string = randomUUID()) {
@@ -626,6 +636,7 @@ export class AgentRunner {
         ...switchedState(current, divider.id),
         ...(target === "codex" ? { codexThreadId: null } : {}),
         ...(target === "antigravity" ? { antigravitySessionId: null } : {}),
+        ...(target === "cursor" ? { cursorSessionId: null } : {}),
       }),
     });
   }
@@ -1020,7 +1031,7 @@ export class AgentRunner {
     for (const item of this.store.timeline(agentId)) {
       if (item.kind === "permission" && item.status === "pending") this.upsert(agentId, { ...item, status: "denied" });
     }
-    this.upsert(agentId, { id: randomUUID(), kind: "error", text: harnessOf(agent) === "codex" ? this.codex.cutOffText() : harnessOf(agent) === "antigravity" ? this.antigravity.cutOffText() : T.daemonStoppedMidReply, auth: false });
+    this.upsert(agentId, { id: randomUUID(), kind: "error", text: harnessOf(agent) === "codex" ? this.codex.cutOffText() : harnessOf(agent) === "antigravity" ? this.antigravity.cutOffText() : harnessOf(agent) === "cursor" ? this.cursor.cutOffText() : T.daemonStoppedMidReply, auth: false });
     this.store.updateAgent(agentId, { status: "error", unread: true });
   }
 
@@ -1186,7 +1197,8 @@ export class AgentRunner {
   }
 
   async setPermissionMode(agentId: string, mode: PermissionMode) {
-    if (harnessOf(this.store.agent(agentId)) === "antigravity") {
+    const harness = harnessOf(this.store.agent(agentId));
+    if (harness === "antigravity" || harness === "cursor") {
       this.emit({ type: "agent", agent: this.store.updateAgent(agentId, { permissionMode: mode }) });
       return;
     }
@@ -1257,6 +1269,7 @@ export class AgentRunner {
   respondPermission(agentId: string, itemId: string, decision: PermissionDecision) {
     if (this.codex.hasApproval(agentId, itemId)) return this.codex.respond(agentId, itemId, decision);
     if (this.antigravity.hasApproval(agentId, itemId)) return this.antigravity.respond(agentId, itemId, decision);
+    if (this.cursor.hasApproval(agentId, itemId)) return this.cursor.respond(agentId, itemId, decision);
     const pending = this.pending.get(`${agentId}:${itemId}`);
     if (!pending) throw new Error(T.errPermissionHandled);
     if ((isInteractiveTool(pending.toolName) || isNotionProposeTool(pending.toolName)) && decision !== "deny") throw new Error(T.errNeedsAnswer);
@@ -1396,6 +1409,7 @@ export class AgentRunner {
     this.closeRun(agentId);
     await this.codex.remove(agentId);
     await this.antigravity.remove(agentId);
+    await this.cursor.remove(agentId);
     try {
       if (agent.worktree && removeWorktree) {
         const others = this.store.agents.filter((a) => a.id !== agentId && a.worktree?.root === agent.worktree?.root);

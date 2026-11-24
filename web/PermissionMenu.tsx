@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type HTMLAttributes } from "react";
 import type { Harness, PermissionMode } from "../shared/protocol";
 import { CODEX_MODE_NOTES, codexSupportsMode } from "../shared/codexPermission";
 import { ANTIGRAVITY_MODE_NOTES } from "../shared/antigravityPermission";
+import { CURSOR_MODE_NOTES } from "../shared/cursorPermission";
 import { PermissionAsk, PermissionAuto, PermissionBypass, PermissionEdits, PermissionPlan } from "./icons";
 import { Popup } from "./Popup";
 import { S } from "./strings";
@@ -58,7 +59,7 @@ export function PermissionRow({ mode, onChange, tip, harness = "claude" }: { mod
                 data-active={index === active || undefined}
                 data-tone={m.value === "bypassPermissions" ? "warn" : undefined}
                 disabled={harness === "codex" && !codexSupportsMode(m.value)}
-                title={harness === "codex" ? CODEX_MODE_NOTES[m.value] : harness === "antigravity" ? ANTIGRAVITY_MODE_NOTES[m.value] : undefined}
+                title={harness === "codex" ? CODEX_MODE_NOTES[m.value] : harness === "antigravity" ? ANTIGRAVITY_MODE_NOTES[m.value] : harness === "cursor" ? CURSOR_MODE_NOTES[m.value] : undefined}
                 onMouseEnter={() => setActive(index)}
                 onClick={() => {
                   setOpen(false);
@@ -67,7 +68,7 @@ export function PermissionRow({ mode, onChange, tip, harness = "claude" }: { mod
               >
                 <PermissionModeIcon mode={m.value} size={12} />
                 <span className="permission-option-name">{m.label}</span>
-                <span className="permission-option-description">{harness === "codex" ? S.permissionDescriptionsCodex[m.value] : harness === "antigravity" ? S.permissionDescriptionsAntigravity[m.value] : m.description}</span>
+                <span className="permission-option-description">{harness === "codex" ? S.permissionDescriptionsCodex[m.value] : harness === "antigravity" ? S.permissionDescriptionsAntigravity[m.value] : harness === "cursor" ? S.permissionDescriptionsCursor[m.value] : m.description}</span>
               </button>
             ))}
           </div>

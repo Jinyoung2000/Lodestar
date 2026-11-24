@@ -41,6 +41,8 @@ export function NewAgentView({ paneId, workspaceId, extraWorkspaceIds, seed, han
   const lastCodexEffort = useStore((s) => s.lastPicked.codexEffort);
   const lastAntigravityModel = useStore((s) => s.lastPicked.antigravityModel);
   const lastAntigravityEffort = useStore((s) => s.lastPicked.antigravityEffort);
+  const lastCursorModel = useStore((s) => s.lastPicked.cursorModel);
+  const lastCursorEffort = useStore((s) => s.lastPicked.cursorEffort);
   const [place, setPlace] = useState<"here" | "worktree">(seed?.worktreeBranch != null ? "worktree" : "here");
   const worktreeParent = workspace?.parentId ?? workspaceId;
   const [branch, setBranch] = useState(seed?.worktreeBranch ?? "");
@@ -79,8 +81,8 @@ export function NewAgentView({ paneId, workspaceId, extraWorkspaceIds, seed, han
   if (!chat && !workspace) return <EmptyStart />;
   const rawMode = mode ?? draft.permissionMode;
   const permissionMode = harness === "codex" && !codexSupportsMode(rawMode) ? CODEX_FALLBACK_MODE : rawMode;
-  const chosenModel = model === undefined ? (harness === "codex" ? (lastCodexModel ?? null) : harness === "antigravity" ? (lastAntigravityModel ?? null) : draft.model) : model;
-  const chosenEffort = effort === undefined ? (harness === "codex" ? (lastCodexEffort ?? null) : harness === "antigravity" ? (lastAntigravityEffort ?? null) : draft.effort) : effort;
+  const chosenModel = model === undefined ? (harness === "codex" ? (lastCodexModel ?? null) : harness === "antigravity" ? (lastAntigravityModel ?? null) : harness === "cursor" ? (lastCursorModel ?? null) : draft.model) : model;
+  const chosenEffort = effort === undefined ? (harness === "codex" ? (lastCodexEffort ?? null) : harness === "antigravity" ? (lastAntigravityEffort ?? null) : harness === "cursor" ? (lastCursorEffort ?? null) : draft.effort) : effort;
   const missingDefault = harness === "codex" && !!codexMeta && chosenModel === null && !!codexMeta.defaultModel && codexMeta.models.length > 0 && !codexMeta.models.some((m) => m.value === codexMeta.defaultModel);
   const canWorktree = !!git?.repoRoot && git.branches.length > 0;
   const worktreeDisabledReason = !git ? null : !git.repoRoot ? S.notGitRepo : git.branches.length === 0 ? S.repoNoCommits : null;
@@ -128,7 +130,7 @@ export function NewAgentView({ paneId, workspaceId, extraWorkspaceIds, seed, han
               {!codexMeta.installed ? S.codexNotInstalled : !codexMeta.loggedIn ? S.codexNotSignedIn : codexMeta.error ? S.codexLoadFailed(codexMeta.error) : S.codexDefaultModelMissing(codexMeta.defaultModel ?? "")}
             </div>
           )}
-          {harness === "antigravity" && codexMeta && toolStatus(harness, codexMeta) && (
+          {(harness === "antigravity" || harness === "cursor") && codexMeta && toolStatus(harness, codexMeta) && (
             <div className="new-session-codex-note" role="status">
               {toolStatus(harness, codexMeta)}
             </div>

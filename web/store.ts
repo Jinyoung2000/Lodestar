@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { defaultChangeScope, harnessOf, HARNESS_VALUES, PERMISSION_MODE_VALUES } from "../shared/protocol";
-import type { Agent, AntigravityMeta, Board, BoardCard, ChangeScope, CodexMeta, Harness, InboxItem, InboxState, ChangedFile, CommandInfo, EffortLevel, ElementInfo, Feedback, FileChange, GitInfo, McpActionResult, Meta, PermissionMode, PullRequest, QuickRun, ResolvedDefaults, ScreenContext, Settings, ShellNote, SideRun, TimelineItem, Workspace } from "../shared/protocol";
+import type { Agent, AntigravityMeta, CursorMeta, Board, BoardCard, ChangeScope, CodexMeta, Harness, InboxItem, InboxState, ChangedFile, CommandInfo, EffortLevel, ElementInfo, Feedback, FileChange, GitInfo, McpActionResult, Meta, PermissionMode, PullRequest, QuickRun, ResolvedDefaults, ScreenContext, Settings, ShellNote, SideRun, TimelineItem, Workspace } from "../shared/protocol";
 import { announceWorkspaceChanged } from "./workspaceEvents";
 import { cleanSlackText } from "../shared/inbox";
 import type { ScmFileDiffSection } from "../shared/scm";
@@ -222,7 +222,7 @@ function loadLayout(): Layout {
   }
 }
 
-export type LastPicked = { model?: string | null; effort?: EffortLevel | null; permissionMode?: PermissionMode; harness?: Harness; codexModel?: string | null; codexEffort?: EffortLevel | null; antigravityModel?: string | null; antigravityEffort?: EffortLevel | null };
+export type LastPicked = { model?: string | null; effort?: EffortLevel | null; permissionMode?: PermissionMode; harness?: Harness; codexModel?: string | null; codexEffort?: EffortLevel | null; antigravityModel?: string | null; antigravityEffort?: EffortLevel | null; cursorModel?: string | null; cursorEffort?: EffortLevel | null };
 const LAST_PICKED_KEY = "agent-nav:lastPicked";
 function loadLastPicked(): LastPicked {
   try {
@@ -236,6 +236,8 @@ function loadLastPicked(): LastPicked {
     if (typeof saved.codexEffort === "string" || saved.codexEffort === null) last.codexEffort = saved.codexEffort as EffortLevel | null;
     if (typeof saved.antigravityModel === "string" || saved.antigravityModel === null) last.antigravityModel = saved.antigravityModel;
     if (typeof saved.antigravityEffort === "string" || saved.antigravityEffort === null) last.antigravityEffort = saved.antigravityEffort as EffortLevel | null;
+    if (typeof saved.cursorModel === "string" || saved.cursorModel === null) last.cursorModel = saved.cursorModel;
+    if (typeof saved.cursorEffort === "string" || saved.cursorEffort === null) last.cursorEffort = saved.cursorEffort as EffortLevel | null;
     return last;
   } catch {
     return {};
@@ -376,6 +378,7 @@ export type State = {
   draftHarness: Record<string, Harness>;
   codexMeta: CodexMeta | null;
   antigravityMeta: AntigravityMeta | null;
+  cursorMeta: CursorMeta | null;
   draftEffort: Record<string, Settings["defaultEffort"]>;
   draftPermission: Record<string, PermissionMode>;
   tabs: Tab[];
@@ -519,6 +522,7 @@ let state: State = {
   draftHarness: {},
   codexMeta: null,
   antigravityMeta: null,
+  cursorMeta: null,
   draftEffort: {},
   draftPermission: {},
   tabs: restored?.tabs ?? [],
@@ -2129,6 +2133,19 @@ export function loadAntigravityMeta(refresh = false): Promise<void> {
       antigravityMetaLoading = null;
     });
   return antigravityMetaLoading;
+}
+
+let cursorMetaLoading: Promise<void> | null = null;
+export function loadCursorMeta(refresh = false): Promise<void> {
+  if (!refresh && state.cursorMeta) return Promise.resolve();
+  cursorMetaLoading ??= rpc
+    .call("cursor.meta", { refresh })
+    .then((cursorMeta) => setState({ cursorMeta }))
+    .catch((error: Error) => setState({ cursorMeta: { installed: true, version: null, loggedIn: false, account: null, models: [], defaultModel: null, defaultEffort: null, error: error.message, fetchedAt: new Date().toISOString() } }))
+    .finally(() => {
+      cursorMetaLoading = null;
+    });
+  return cursorMetaLoading;
 }
 
 export function openSide(agentId: string, draft?: string) {

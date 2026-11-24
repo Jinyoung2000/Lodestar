@@ -219,7 +219,7 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
           {switchBlock && <Text variant="caption" color="textMuted" style={styles.note}>{SWITCH_MESSAGES[switchBlock]}</Text>}
           {groups.map(({ entry, models }) => {
             const name = PROVIDER_NAMES[entry.harness];
-            const hidden = !narrowed && (collapsed[entry.harness] ?? (entry.harness === "antigravity" && displayed.harness !== "antigravity"));
+            const hidden = !narrowed && (collapsed[entry.harness] ?? ((entry.harness === "antigravity" || entry.harness === "cursor") && displayed.harness !== entry.harness));
             const locked = !online || saving || (switchBlock !== null && entry.harness !== selection.harness);
             return <View key={entry.harness}>
               <Pressable accessibilityRole="button" accessibilityLabel={name} accessibilityState={{ expanded: !hidden }} disabled={narrowed} style={styles.groupHead} onPress={() => setCollapsed((old) => ({ ...old, [entry.harness]: !hidden }))}>

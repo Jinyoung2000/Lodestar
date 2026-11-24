@@ -77,6 +77,13 @@ export const T = {
   steerFailed: (message: string) => `Could not steer the current reply. ${message}`,
   antigravityRefused: "Antigravity declined to continue this turn.",
   antigravityStopped: (reason: string) => (reason === "max_tokens" ? "Antigravity stopped because the reply reached its token limit." : "Antigravity stopped because the turn reached its request limit."),
+  daemonStoppedMidReplyCursor: "The daemon stopped while Cursor was replying, so this reply was cut off. Send a message to resume.",
+  cursorNotInstalled: (bin: string) => `Cursor CLI was not found (${bin}). Install the Cursor CLI and send again.`,
+  cursorNotLoggedIn: "Cursor is not signed in. Run `agent login` in a terminal, then send again.",
+  cursorEnded: "The Cursor agent process ended unexpectedly. Send again to resume.",
+  cursorResumeFailed: "Cursor could not resume the earlier conversation, so this session continues in a new conversation without the earlier context.",
+  cursorRefused: "Cursor declined to continue this turn.",
+  cursorStopped: (reason: string) => (reason === "max_tokens" ? "Cursor stopped because the reply reached its token limit." : "Cursor stopped because the turn reached its request limit."),
   codexPlanUnavailable: "Codex sessions cannot use Plan mode",
   switchedTo: (tool: string, model: string | null) => (model && model !== "default" ? `Switched to ${tool} · ${model}` : `Switched to ${tool}`),
   switchBlocked: {

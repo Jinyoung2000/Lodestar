@@ -26,6 +26,7 @@ const MAP = {
   providerClaude: "provider-claude",
   providerCodex: "provider-codex",
   providerAntigravity: "provider-antigravity",
+  providerCursor: "provider-cursor",
   success: "success",
   warning: "warning",
   danger: "danger",

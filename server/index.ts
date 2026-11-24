@@ -600,6 +600,7 @@ const handlers: Handlers = {
   "meta.get": () => metaService.meta,
   "codex.meta": ({ refresh }) => runner.codexMeta(refresh === true),
   "antigravity.meta": ({ refresh }) => runner.antigravityMeta(refresh === true),
+  "cursor.meta": ({ refresh }) => runner.cursorMeta(refresh === true),
   "meta.refresh": () => metaService.refresh(),
   "mcp.reconnect": ({ name }) => metaService.reconnect(name),
   "mcp.toggle": ({ name, enabled }) => metaService.toggle(name, enabled),

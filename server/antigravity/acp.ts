@@ -9,7 +9,7 @@ import { trackGroupLeader } from "../processGroups";
 import { daemonEnv } from "../sessionEnv";
 import { HOME } from "../store";
 
-const TRACE_FILE = process.env.AGENT_NAV_ANTIGRAVITY_TRACE;
+const TRACE_FILE = process.env.AGENT_NAV_ANTIGRAVITY_TRACE ?? process.env.AGENT_NAV_ACP_TRACE;
 const STDERR_TAIL_MAX = 4000;
 const INITIALIZE_TIMEOUT_MS = 20_000;
 const PROVIDER_ENV_KEYS = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_GENAI_USE_GCA", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"];
@@ -21,18 +21,26 @@ export function antigravityBin(env: NodeJS.ProcessEnv = process.env): string {
   return findExecutable("agy", withLoginPath(env.PATH)) ?? native;
 }
 
-export function acpProcessDir() {
-  const dir = join(HOME, "antigravity", "process");
+export function acpProcessDir(name = "antigravity") {
+  const dir = join(HOME, name, "process");
   mkdirSync(dir, { recursive: true });
   return dir;
 }
 
-export function antigravityEnv(): NodeJS.ProcessEnv {
+export function acpEnv(providerKeys: readonly string[]): NodeJS.ProcessEnv {
   const env: Record<string, string | undefined> = { ...stripAppEnv(process.env), ...daemonEnv() };
   env.PATH = withLoginPath(env.PATH);
-  if (!isProviderEnvAllowed()) for (const key of PROVIDER_ENV_KEYS) delete env[key];
+  if (!isProviderEnvAllowed()) for (const key of providerKeys) delete env[key];
   return env as NodeJS.ProcessEnv;
 }
+
+export function antigravityEnv(): NodeJS.ProcessEnv {
+  return acpEnv(PROVIDER_ENV_KEYS);
+}
+
+export type AcpLaunch = { label: string; args: string[]; env: () => NodeJS.ProcessEnv; cwd: () => string; clientMeta?: Record<string, unknown> };
+
+export const ANTIGRAVITY_LAUNCH: AcpLaunch = { label: "Antigravity", args: ["acp"], env: antigravityEnv, cwd: () => acpProcessDir() };
 
 export type AcpHandlers = {
   onNotification: (method: string, params: Record<string, unknown>) => void;
@@ -69,6 +77,7 @@ export class AcpConnection {
   private constructor(
     child: ChildProcess,
     private handlers: AcpHandlers,
+    readonly label: string,
   ) {
     this.child = child;
     createInterface({ input: child.stdout! }).on("line", (line) => this.onLine(line));
@@ -112,19 +121,19 @@ export class AcpConnection {
     return this.info.agentCapabilities?.sessionCapabilities?.close !== undefined;
   }
 
-  static async start(handlers: AcpHandlers, bin: string = antigravityBin()): Promise<AcpConnection> {
-    const child = spawn(bin, ["acp"], { stdio: ["pipe", "pipe", "pipe"], env: antigravityEnv(), cwd: acpProcessDir(), detached: true, windowsHide: true });
+  static async start(handlers: AcpHandlers, bin: string = antigravityBin(), launch: AcpLaunch = ANTIGRAVITY_LAUNCH): Promise<AcpConnection> {
+    const child = spawn(bin, launch.args, { stdio: ["pipe", "pipe", "pipe"], env: launch.env(), cwd: launch.cwd(), detached: true, windowsHide: true });
     await new Promise<void>((resolve, reject) => {
       child.once("spawn", () => resolve());
       child.once("error", (error) => reject(error));
     });
     trackGroupLeader(child);
-    const connection = new AcpConnection(child, handlers);
+    const connection = new AcpConnection(child, handlers, launch.label);
     try {
       connection.info =
         (await connection.request<AcpInitialize>(
           "initialize",
-          { protocolVersion: 1, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false }, clientInfo: { name: "lodestar", title: "Lodestar", version: "0.3.2" } },
+          { protocolVersion: 1, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false, ...(launch.clientMeta ? { _meta: launch.clientMeta } : {}) }, clientInfo: { name: "lodestar", title: "Lodestar", version: "0.3.2" } },
           INITIALIZE_TIMEOUT_MS,
         )) ?? {};
     } catch (error) {
@@ -135,7 +144,7 @@ export class AcpConnection {
   }
 
   request<T = unknown>(method: string, params?: unknown, timeoutMs = 0): Promise<T> {
-    if (this.closed) return Promise.reject(new AcpError("Antigravity is not running"));
+    if (this.closed) return Promise.reject(new AcpError(`${this.label} is not running`));
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
       const timer = timeoutMs > 0 ? setTimeout(() => this.settle(id, new AcpError(`${method} timed out`)), timeoutMs) : null;
@@ -152,7 +161,7 @@ export class AcpConnection {
   close() {
     if (this.closed) return;
     this.closed = true;
-    this.rejectAll(new AcpError("Antigravity closed"));
+    this.rejectAll(new AcpError(`${this.label} closed`));
     const pid = this.child.pid;
     if (pid === undefined) return;
     try {
@@ -200,7 +209,7 @@ export class AcpConnection {
         try {
           this.handlers.onNotification(message.method, params);
         } catch (error) {
-          console.error("[antigravity] notification handler failed", message.method, error);
+          console.error(`[${this.label.toLowerCase()}] notification handler failed`, message.method, error);
         }
         return;
       }
@@ -218,14 +227,14 @@ export class AcpConnection {
     }
     const id = typeof message.id === "string" ? Number(message.id) : message.id;
     if (typeof id !== "number" || Number.isNaN(id)) return;
-    if (message.error) this.settle(id, new AcpError(acpErrorMessage(message.error), message.error.code, message.error.data));
+    if (message.error) this.settle(id, new AcpError(acpErrorMessage(message.error, this.label), message.error.code, message.error.data));
     else this.settle(id, null, message.result);
   }
 
   private onExit(code: number | null, signal: NodeJS.Signals | null) {
     const wasClosed = this.closed;
     this.closed = true;
-    this.rejectAll(new AcpError(`Antigravity exited (${signal ?? code})`));
+    this.rejectAll(new AcpError(`${this.label} exited (${signal ?? code})`));
     if (!wasClosed) this.handlers.onExit({ code, signal, stderrTail: this.stderrTail });
   }
 
@@ -241,8 +250,8 @@ export class AcpConnection {
   }
 }
 
-function acpErrorMessage(error: { message?: string; data?: unknown }) {
-  const base = error.message?.trim() || "Antigravity error";
+function acpErrorMessage(error: { message?: string; data?: unknown }, label: string) {
+  const base = error.message?.trim() || `${label} error`;
   const data = error.data;
   const detail = typeof data === "string" ? data : data && typeof data === "object" && typeof (data as { message?: unknown }).message === "string" ? (data as { message: string }).message : null;
   return detail && !base.includes(detail) ? `${base}: ${detail}` : base;

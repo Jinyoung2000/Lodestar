@@ -72,9 +72,11 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
   const defaults = useDefaults();
   useToolMeta("codex");
   useToolMeta("antigravity");
+  useToolMeta("cursor");
   const claudeMeta = useStore((s) => s.meta);
   const codexMeta = useStore((s) => s.codexMeta);
   const antigravityMeta = useStore((s) => s.antigravityMeta);
+  const cursorMeta = useStore((s) => s.cursorMeta);
   const modelPins = useStore((s) => s.modelPins);
   const pinned = modelPins ?? [];
   const [tab, setTab] = useState<ProviderTab>(() => (firstArea === "list" && pinned.length > 0 ? "pinned" : harness));
@@ -87,7 +89,7 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
   const levelsRef = useRef<HTMLDivElement>(null);
   const levelsFocused = useRef(false);
 
-  const metas = { codexMeta, antigravityMeta };
+  const metas = { codexMeta, antigravityMeta, cursorMeta };
   const statusOf = (tool: Harness): string | null => {
     if (tool !== harness && handoff) return S.handoffClaudeOnly;
     if (tool !== harness && blocked) return S.switchUnavailable[blocked];

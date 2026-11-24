@@ -40,6 +40,7 @@ import { S } from "./strings";
 import { hint } from "./hint";
 import { CODEX_MODE_NOTES } from "../shared/codexPermission";
 import { ANTIGRAVITY_MODE_NOTES } from "../shared/antigravityPermission";
+import { CURSOR_MODE_NOTES } from "../shared/cursorPermission";
 import { codexModelChip, compactModelName, usePaneHarness, useToolMeta } from "./harness";
 import { continueMarkdown as continueMarkdownEdit, indentMarkdown, type MarkdownEdit } from "./composerMarkdown";
 import { useCommandKey } from "./commandKeys";
@@ -561,7 +562,7 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
             aria-label={S.message}
             spellCheck={refs.length > 0 ? false : undefined}
             value={text}
-            placeholder={agent?.assistant ? S.assistant.placeholder : agent ? (harness === "codex" ? S.composerPlaceholderCodex : harness === "antigravity" ? S.composerPlaceholderAntigravity : S.composerPlaceholder) : harness === "codex" ? S.composerPlaceholderNewCodex : harness === "antigravity" ? S.composerPlaceholderNewAntigravity : S.composerPlaceholderNew}
+            placeholder={agent?.assistant ? S.assistant.placeholder : agent ? (harness === "codex" ? S.composerPlaceholderCodex : harness === "antigravity" ? S.composerPlaceholderAntigravity : harness === "cursor" ? S.composerPlaceholderCursor : S.composerPlaceholder) : harness === "codex" ? S.composerPlaceholderNewCodex : harness === "antigravity" ? S.composerPlaceholderNewAntigravity : harness === "cursor" ? S.composerPlaceholderNewCursor : S.composerPlaceholderNew}
             rows={1}
             onChange={(e) => {
               setText(e.target.value);
@@ -581,7 +582,7 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
           <button ref={plusRef} type="button" className="chip chip-icon" data-chip {...tipFor(S.attach(attachKey))} onClick={() => setAttachOpen((v) => !v)}>
             <AddCompact />
           </button>
-          <PermissionRow mode={permissionMode} onChange={onPermissionMode} harness={harness} tip={tipFor(harness !== "claude" ? `${S.permissionChipTip(permissionLabel)} (${(harness === "codex" ? CODEX_MODE_NOTES : ANTIGRAVITY_MODE_NOTES)[permissionMode].split(". ")[0]})` : permissionMode === "bypassPermissions" ? S.permissionBypassNote : S.permissionChipTip(permissionLabel))} />
+          <PermissionRow mode={permissionMode} onChange={onPermissionMode} harness={harness} tip={tipFor(harness !== "claude" ? `${S.permissionChipTip(permissionLabel)} (${(harness === "codex" ? CODEX_MODE_NOTES : harness === "cursor" ? CURSOR_MODE_NOTES : ANTIGRAVITY_MODE_NOTES)[permissionMode].split(". ")[0]})` : permissionMode === "bypassPermissions" ? S.permissionBypassNote : S.permissionChipTip(permissionLabel))} />
           <button type="button" className="chip" data-chip="model" data-model-chip aria-haspopup="dialog" aria-expanded={pickerOpen} {...tipFor(S.modelEffortChipTip(shown.name, shown.id, effortLabel, modelsKey))} onClick={() => setState({ overlay: { kind: "models" } })}>
             <ProviderIcon harness={harness} size={14} />
             <span className="chip-label model-label chip-main">{harness === "claude" ? shown.name : compactModelName(shown.name)}</span>

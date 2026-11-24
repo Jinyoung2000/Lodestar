@@ -25,6 +25,7 @@
   --provider-claude: #d97757;
   --provider-codex: #e7e7e7;
   --provider-antigravity: #a78bfa;
+  --provider-cursor: #2dd4bf;
   --running: #3794ff;
   --success: #3fb950;
   --warning: #cca700;
@@ -532,6 +533,7 @@
   --provider-claude: #c15f3c;
   --provider-codex: #1f1f1f;
   --provider-antigravity: #7c3aed;
+  --provider-cursor: #0f766e;
   --running: #005fb8;
   --success: #1a7f37;
   --warning: #9a6700;

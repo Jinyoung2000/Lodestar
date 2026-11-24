@@ -11,7 +11,7 @@ const MARKS = {
   codex: require("../../assets/project-marks/codex.png"),
 };
 
-export const PROVIDER_NAMES: Record<Harness, string> = { claude: "Claude", codex: "Codex", antigravity: "Antigravity" };
+export const PROVIDER_NAMES: Record<Harness, string> = { claude: "Claude", codex: "Codex", antigravity: "Antigravity", cursor: "Cursor" };
 const STATES: Record<SessionState, string> = { waiting: "Needs your reply", error: "Stopped with an error", running: "Working", unread: "Unread", idle: "Idle" };
 export const STATE_LABEL: Record<SessionState, string | null> = { waiting: "Needs your reply", error: "Stopped with an error", running: "Working", unread: null, idle: null };
 export const STATE_COLOR: Record<SessionState, PaletteName> = { waiting: "warning", error: "danger", running: "accentText", unread: "textMuted", idle: "textMuted" };
@@ -20,18 +20,19 @@ export function sessionIdentity(harness: Harness | undefined, state: SessionStat
   return `${PROVIDER_NAMES[harness ?? "claude"]}, ${STATES[state]}`;
 }
 
-const MARK_COLOR: Record<Harness, PaletteName> = { claude: "providerClaude", codex: "providerCodex", antigravity: "providerAntigravity" };
+const MARK_COLOR: Record<Harness, PaletteName> = { claude: "providerClaude", codex: "providerCodex", antigravity: "providerAntigravity", cursor: "providerCursor" };
+const LETTERS: Partial<Record<Harness, string>> = { antigravity: "A", cursor: "C" };
 
 export function ProviderMark({ harness = "claude", size = 16 }: { harness?: Harness; state?: SessionState; selected?: boolean; size?: number }) {
   const colors = useColors();
   const color = colors[MARK_COLOR[harness]];
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.mark, { width: size, height: size }]}>
-      {harness === "antigravity"
+      {harness === "antigravity" || harness === "cursor"
         ? <View style={[styles.letterBox, { borderColor: color, width: size, height: size, borderRadius: Math.max(2, size / 5) }]}>
-          <Text allowFontScaling={false} style={[styles.letter, { color, fontSize: Math.round(size * 0.68), lineHeight: Math.round(size * 0.82) }]}>A</Text>
+          <Text allowFontScaling={false} style={[styles.letter, { color, fontSize: Math.round(size * 0.68), lineHeight: Math.round(size * 0.82) }]}>{LETTERS[harness]}</Text>
         </View>
-        : <Image accessible={false} importantForAccessibility="no" source={MARKS[harness]} resizeMode="contain" style={{ width: size, height: size, tintColor: color }} />}
+        : <Image accessible={false} importantForAccessibility="no" source={MARKS[harness as keyof typeof MARKS]} resizeMode="contain" style={{ width: size, height: size, tintColor: color }} />}
     </View>
   );
 }
