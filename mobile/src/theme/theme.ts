@@ -24,14 +24,14 @@ export const MIN_TOUCH = Platform.OS === "android" ? 48 : 44;
 
 const themes = {
   light: { scheme: "light", colors: palette.light },
-  dark: { scheme: "dark", colors: palette.dark },
+  dark: { scheme: "dark", colors: { ...palette.dark, textStrong: "#f5f5f5", text: "#e2e2e2" } },
   midnight: {
     scheme: "dark",
     colors: {
       ...palette.dark,
       background: "#08090b",
       textStrong: "#ffffff",
-      text: "#f2f2f2",
+      text: "#ffffff",
       textMuted: "#c4c4c4",
       textSubtle: "#a3a3a3",
       surfaceBase: "#0c0d10",

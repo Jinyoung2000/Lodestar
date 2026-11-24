@@ -48,6 +48,7 @@ export function SessionRowFrame({ agent, selected, state, stamp, emphasized, sho
         style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.pressed : selected ? colors.selected : colors.background }]}>
         {({ pressed }) => <>
           {state === "waiting" && !selected && !pressed && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(colors.warning, 0.14) }]} />}
+          {unread && <View pointerEvents="none" style={[styles.unreadDot, { backgroundColor: colors.unread }]} />}
           <View style={styles.line}>
             <View style={styles.mark}><ProviderMark harness={agent.harness} size={16} /></View>
             <Text color={showPin && agent.done ? "textMuted" : emphasized ? "textStrong" : "text"} numberOfLines={1} style={[styles.title, emphasized && styles.strong]}>{agent.title}</Text>
@@ -99,6 +100,7 @@ const styles = StyleSheet.create({
   strong: { fontWeight: "600" },
   pin: { width: 14, height: 14 },
   mark: { marginRight: -4 },
+  unreadDot: { position: "absolute", left: 5, top: spacing.sm + 6, width: 8, height: 8, borderRadius: 4 },
   details: { paddingLeft: 22, gap: 1 },
   time: { flexShrink: 1, maxWidth: "28%", fontSize: 13, lineHeight: 18, fontVariant: ["tabular-nums"] },
 });

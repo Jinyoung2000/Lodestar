@@ -62,6 +62,6 @@ const styles = StyleSheet.create({
   letterBox: { borderWidth: 1, alignItems: "center", justifyContent: "center" },
   letter: { fontWeight: "700" },
   label: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
-  labelText: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
+  labelText: { flexShrink: 1, fontSize: 14, lineHeight: 19 },
   state: { fontWeight: "600" },
 });
