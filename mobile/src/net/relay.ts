@@ -1,5 +1,5 @@
 import type { PairResult } from "@shared/mobile";
-import { decodeText, encodeText, fromBase64Url, relayFrame, RelayFrame, RELAY_CHUNK_BYTES, relayPrologue, startInitiator, toHex, type RelayHello, type RelayHttpResponse, type RelaySession, type RelayWelcome } from "./relayNoise.generated";
+import { decodeText, encodeText, fromBase64Url, RelayAssembler, relayFrame, RelayFrame, relayParts, RELAY_CHUNK_BYTES, relayPrologue, startInitiator, toHex, type RelayHello, type RelayHttpResponse, type RelaySession, type RelayWelcome } from "./relayNoise.generated";
 import { phoneNoise, secureRandomBytes } from "./relayCrypto";
 
 export type RelayTarget = { url: string; id: string; key: string };
@@ -122,15 +122,20 @@ export class RelaySocket {
   onclose: ((event: { code?: number; reason?: string }) => void) | null = null;
   onerror: ((event: unknown) => void) | null = null;
   private channel: RelayChannel;
+  private parts: RelayAssembler | null = null;
 
   constructor(target: RelayEndpoint, factory?: RelaySocketFactory) {
-    this.channel = new RelayChannel(target, { v: 1, kind: "ws" }, {
+    this.channel = new RelayChannel(target, { v: 1, kind: "ws", parts: true }, {
       welcome: (welcome) => {
         if (!welcome.ok) return this.channel.finish(welcome.error === "bad token" ? 4401 : 4403, welcome.error);
+        if (welcome.parts === true) this.parts = new RelayAssembler();
         this.readyState = 1;
         this.onopen?.({});
       },
-      message: (plaintext) => this.onmessage?.({ data: decodeText(plaintext) }),
+      message: (plaintext) => {
+        const message = this.parts ? this.parts.push(plaintext) : plaintext;
+        if (message) this.onmessage?.({ data: decodeText(message) });
+      },
       closed: (code, reason) => {
         this.readyState = 3;
         this.onclose?.({ code, reason });
@@ -139,7 +144,9 @@ export class RelaySocket {
   }
 
   send(data: string) {
-    this.channel.send(encodeText(data));
+    const message = encodeText(data);
+    if (!this.parts) return this.channel.send(message);
+    for (const part of relayParts(message)) this.channel.send(part);
   }
 
   close() {

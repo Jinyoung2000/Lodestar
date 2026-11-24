@@ -9,7 +9,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { WebSocket } from "ws";
 import { MAX_IMAGE_BYTES } from "../shared/images";
 import type { MobileRelayLinkState, MobileRelayPairing } from "../shared/mobile";
-import { decodeText, encodeText, relayFrame, RelayFrame, RELAY_CHUNK_BYTES, RELAY_ID_RE, relayPrologue, startResponder, toBase64Url, toHex, type NoisePrimitives, type RelayHello, type RelayHttpRequest, type RelaySession, type RelayWelcome } from "../shared/relayNoise";
+import { decodeText, encodeText, RelayAssembler, relayFrame, RelayFrame, relayParts, RELAY_CHUNK_BYTES, RELAY_ID_RE, RELAY_MESSAGE_BYTES, relayPrologue, startResponder, toBase64Url, toHex, type NoisePrimitives, type RelayHello, type RelayHttpRequest, type RelaySession, type RelayWelcome } from "../shared/relayNoise";
 import type { MobileDevices, PairOutcome } from "./mobileAccess";
 import { T } from "./strings";
 
@@ -71,6 +71,9 @@ const FIRST_RETRY_MS = 100;
 const PONG_TIMEOUT_MS = 10_000;
 const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 const MAX_CHANNELS = 32;
+const WHOLE_FRAME_BYTES = 1024 * 1024 - 64;
+const DRAIN_POLL_MS = 25;
+const REPLY_ID_RE = /^\{"id":(\d+),/;
 const HTTP_PATHS: Record<string, RelayHttpRequest["method"]> = { "/mobile/images": "POST", "/mobile/media": "GET" };
 const PASS_REQUEST_HEADERS = ["authorization", "content-type", "x-image-name", "range"];
 const PASS_RESPONSE_HEADERS = ["content-type", "content-length", "content-range", "accept-ranges"];
@@ -270,6 +273,9 @@ class RelayChannel {
   private mode: "handshake" | "ws" | "http" | "done" = "handshake";
   private local: WebSocket | null = null;
   private queued: string[] = [];
+  private parts: RelayAssembler | null = null;
+  private outbox: Uint8Array[] = [];
+  private draining: NodeJS.Timeout | null = null;
   private httpHead: RelayHttpRequest | null = null;
   private httpBody: Uint8Array[] = [];
   private httpSize = 0;
@@ -288,7 +294,11 @@ class RelayChannel {
       if (this.mode === "handshake") return this.handshake(frame);
       if (!this.session || this.mode === "done") return;
       const plaintext = this.session.open(frame);
-      if (this.mode === "ws") return this.toLocalSocket(decodeText(plaintext));
+      if (this.mode === "ws") {
+        const message = this.parts ? this.parts.push(plaintext) : plaintext;
+        if (message) this.toLocalSocket(decodeText(message));
+        return;
+      }
       if (this.mode === "http") return this.httpFrame(plaintext);
     } catch (error) {
       this.deps.log?.(`[relay] channel rejected: ${error instanceof Error ? error.message : String(error)}`);
@@ -314,7 +324,8 @@ class RelayChannel {
     this.deviceId = device.id;
     if (hello.kind === "ws") {
       this.mode = "ws";
-      this.welcome({ ok: true });
+      if (hello.parts === true) this.parts = new RelayAssembler();
+      this.welcome({ ok: true, ...(this.parts ? { parts: true as const } : {}) });
       return this.openLocalSocket();
     }
     if (hello.kind === "http") {
@@ -336,18 +347,42 @@ class RelayChannel {
     return this.link.send(this.id, this.session.seal(plaintext));
   }
 
+  private toPhone(text: string) {
+    const message = encodeText(text);
+    if (this.parts) {
+      this.outbox.push(...relayParts(message));
+      return this.drain();
+    }
+    if (message.length <= WHOLE_FRAME_BYTES) return void this.sendSealed(message);
+    const reply = REPLY_ID_RE.exec(text.slice(0, 32));
+    this.deps.log?.(`[relay] dropped a ${Math.round(message.length / 1024)} KB message for a phone that cannot take it in parts`);
+    if (reply) this.sendSealed(encodeText(JSON.stringify({ id: Number(reply[1]), error: "This is too large to load through the relay. Update Lodestar on your phone." })));
+  }
+
+  private drain() {
+    if (this.draining || this.mode === "done") return;
+    while (this.outbox.length > 0) {
+      if (this.link.buffered() > MAX_BUFFERED_BYTES / 2) {
+        this.draining = setTimeout(() => {
+          this.draining = null;
+          this.drain();
+        }, DRAIN_POLL_MS);
+        return;
+      }
+      if (!this.sendSealed(this.outbox.shift() as Uint8Array)) return;
+    }
+  }
+
   private openLocalSocket() {
     const target = this.deps.local();
     if (!target) return this.close(4404, "mac offline");
-    const socket = new WebSocket(`ws://${target.host}:${target.port}/mobile/ws`, { maxPayload: 2 * 1024 * 1024, headers: { "x-lodestar-relay-bridge": this.deps.bridgeKey } });
+    const socket = new WebSocket(`ws://${target.host}:${target.port}/mobile/ws`, { maxPayload: RELAY_MESSAGE_BYTES, headers: { "x-lodestar-relay-bridge": this.deps.bridgeKey } });
     this.local = socket;
     socket.on("open", () => {
       for (const text of this.queued) socket.send(text);
       this.queued = [];
     });
-    socket.on("message", (data) => {
-      this.sendSealed(encodeText(data.toString()));
-    });
+    socket.on("message", (data) => this.toPhone(data.toString()));
     socket.on("error", () => {});
     socket.on("close", (code, reason) => {
       if (this.local !== socket) return;
@@ -443,6 +478,9 @@ class RelayChannel {
     const local = this.local;
     this.local = null;
     this.queued = [];
+    this.outbox = [];
+    if (this.draining) clearTimeout(this.draining);
+    this.draining = null;
     this.httpBody = [];
     if (local) {
       local.removeAllListeners("close");
