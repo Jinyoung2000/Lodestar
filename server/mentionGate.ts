@@ -15,3 +15,7 @@ export function automationsAutoBlocked(env: NodeJS.ProcessEnv = process.env): bo
 export function followUpsAutoBlocked(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.AGENT_NAV_INACTIVE === "1" || !!env.AGENT_NAV_E2E_PORT || env.AGENT_NAV_NO_MENTIONS === "1") && env.AGENT_NAV_FOLLOWUPS_AUTO !== "1";
 }
+
+export function assistantAutoBlocked(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.AGENT_NAV_INACTIVE === "1" || !!env.AGENT_NAV_E2E_PORT || env.AGENT_NAV_NO_MENTIONS === "1") && env.AGENT_NAV_ASSISTANT_AUTO !== "1";
+}

@@ -561,7 +561,7 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
             aria-label={S.message}
             spellCheck={refs.length > 0 ? false : undefined}
             value={text}
-            placeholder={agent ? (harness === "codex" ? S.composerPlaceholderCodex : harness === "antigravity" ? S.composerPlaceholderAntigravity : S.composerPlaceholder) : harness === "codex" ? S.composerPlaceholderNewCodex : harness === "antigravity" ? S.composerPlaceholderNewAntigravity : S.composerPlaceholderNew}
+            placeholder={agent?.assistant ? S.assistant.placeholder : agent ? (harness === "codex" ? S.composerPlaceholderCodex : harness === "antigravity" ? S.composerPlaceholderAntigravity : S.composerPlaceholder) : harness === "codex" ? S.composerPlaceholderNewCodex : harness === "antigravity" ? S.composerPlaceholderNewAntigravity : S.composerPlaceholderNew}
             rows={1}
             onChange={(e) => {
               setText(e.target.value);

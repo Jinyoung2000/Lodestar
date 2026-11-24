@@ -232,6 +232,7 @@ export const SEARCH_ACTIONS: readonly SearchAction[] = [
   { id: "board", title: G.actions.board, command: "openBoard", keyCommand: "board", keywords: "kanban cards" },
   { id: "mentions", title: G.actions.mentions, command: "openMentions", keyCommand: "inbox", keywords: "slack inbox" },
   { id: "automations", title: G.actions.automations, command: "automations", keyCommand: null, keywords: "schedule scheduled tasks cron timer" },
+  { id: "assistant", title: G.actions.assistant, command: "assistant", keyCommand: null, keywords: "mate assistant agent check in what is in progress remind" },
   { id: "followUps", title: G.actions.followUps, command: "followUps", keyCommand: null, keywords: "follow up decisions waiting reminders in progress undecided" },
   { id: "improvements", title: G.actions.improvements, command: "openImprovements", keyCommand: null, keywords: "feedback lodestar changes" },
   { id: "settings", title: G.actions.settings, command: "settings", keyCommand: null, keywords: "preferences status" },

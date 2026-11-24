@@ -324,6 +324,8 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     set: (v) => save({ morningReviewTime: v.trim() }),
     validate: (v) => (parseReviewTime(v) ? null : S.reviewTimeInvalid),
   },
+  { ...text("assistantEnabled"), group: "followUps", kind: "switch", ...plain("assistantEnabled", true), value: (c) => c.settings.assistantEnabled ?? true, set: (v) => save({ assistantEnabled: v }), keywords: "mate assistant agent proactive check in dot duet muse" },
+  { ...text("assistantMorningBrief"), group: "followUps", kind: "switch", ...plain("assistantMorningBrief", true), value: (c) => c.settings.assistantMorningBrief ?? true, set: (v) => save({ assistantMorningBrief: v }), keywords: "mate morning brief daily summary" },
   { ...text("followUpsEnabled"), group: "followUps", kind: "switch", ...plain("followUpsEnabled", true), value: (c) => c.settings.followUpsEnabled ?? true, set: (v) => save({ followUpsEnabled: v }), keywords: "follow up decisions waiting in progress tracking" },
   { ...text("followUpsReminders"), group: "followUps", kind: "switch", ...plain("followUpsReminders", true), value: (c) => c.settings.followUpsReminders ?? true, set: (v) => save({ followUpsReminders: v }), keywords: "remind notification nudge snooze" },
   {

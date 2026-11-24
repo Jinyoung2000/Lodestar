@@ -11,6 +11,7 @@ import type { NotionLinkTarget } from "./notionLink";
 import type { NotionPin, NotionPinInput, NotionPinPatch } from "./notionPins";
 import type { ReviewState } from "./morningReview";
 import type { FollowUpsState, SnoozeChoice } from "./followups";
+import type { AssistantState } from "./assistant";
 import type { ReleaseState } from "./release";
 import type { NotionPageData } from "./notionFetch";
 import type { NotionWritePreview } from "./notionWrite";
@@ -88,6 +89,7 @@ export type Agent = {
   seenThrough?: HarnessSeen;
   carryPending?: boolean;
   automationId?: string;
+  assistant?: boolean;
 };
 
 export type ContextUsage = { used: number; limit: number; source: "api" | "estimate"; at: string };
@@ -289,6 +291,8 @@ export type Settings = {
   followUpsEnabled: boolean;
   followUpsReminders: boolean;
   followUpsModel: string;
+  assistantEnabled: boolean;
+  assistantMorningBrief: boolean;
   notifyOnResponse: boolean;
   notifyOnApproval: boolean;
   notifyNewVersion?: boolean;
@@ -978,6 +982,9 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
   "followUps.wake": { params: { id: string }; result: FollowUpsState };
   "followUps.dismiss": { params: { id: string }; result: FollowUpsState };
   "followUps.keepOpen": { params: { agentId: string }; result: FollowUpsState };
+  "assistant.get": { params: Record<string, never>; result: AssistantState };
+  "assistant.checkIn": { params: Record<string, never>; result: AssistantState };
+  "assistant.openNotes": { params: Record<string, never>; result: null };
   "notion.pins.list": { params: Record<string, never>; result: NotionPin[] };
   "notion.pins.add": { params: NotionPinInput; result: { pin: NotionPin; added: boolean } };
   "notion.pins.update": { params: { id: string; patch: NotionPinPatch }; result: NotionPin };
@@ -1027,6 +1034,7 @@ export type ServerEvent =
   | { type: "review"; review: ReviewState }
   | { type: "automations"; state: AutomationsState }
   | { type: "followUps"; state: FollowUpsState }
+  | { type: "assistant"; state: AssistantState }
   | { type: "release"; release: ReleaseState }
   | { type: "notionPins"; pins: NotionPin[] }
   | { type: "notionChanged"; key: string }

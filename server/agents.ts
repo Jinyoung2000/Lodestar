@@ -147,6 +147,12 @@ export type FeedbackHooks = {
   removeWorktree: (agent: Agent) => Promise<void>;
 };
 
+export type AssistantAsk = (toolName: string, input: Record<string, unknown>, signal: AbortSignal, toolUseId?: string) => Promise<PermissionResult>;
+
+export type AssistantHooks = {
+  options: (agent: Agent, ask: AssistantAsk) => Partial<Options> | null;
+};
+
 export type BoardHooks = {
   link: (agentId: string, cardId: string) => void;
   turnStarted: (agentId: string) => void;
@@ -186,6 +192,7 @@ export class AgentRunner {
   private runs = new Map<string, Run>();
   private pending = new Map<string, PendingPermission>();
   private feedbackHooks: FeedbackHooks | null = null;
+  private assistantHooks: AssistantHooks | null = null;
   private boardHooks: BoardHooks | null = null;
   private importHooks: ImportHooks | null = null;
   private preparing = new Set<string>();
@@ -405,6 +412,10 @@ export class AgentRunner {
     this.feedbackHooks = hooks;
   }
 
+  setAssistantHooks(hooks: AssistantHooks) {
+    this.assistantHooks = hooks;
+  }
+
   setNotionHooks(hooks: NotionHooks) {
     this.notionHooks = hooks;
   }
@@ -546,7 +557,7 @@ export class AgentRunner {
     return agent;
   }
 
-  async send(agentId: string, prompt: string, options: { steer?: boolean; display?: string; attachments?: UserAttachment[]; feedback?: DiffFeedback[] } = {}): Promise<{ queued: boolean }> {
+  async send(agentId: string, prompt: string, options: { steer?: boolean; display?: string; system?: boolean; attachments?: UserAttachment[]; feedback?: DiffFeedback[] } = {}): Promise<{ queued: boolean }> {
     this.store.agent(agentId);
     if (this.restoring.has(agentId)) throw new Error(T.errAgentRunning);
     const other = this.runnerOf(agentId);
@@ -761,7 +772,7 @@ export class AgentRunner {
     return { cancelled: true, text: current.shown ?? current.text };
   }
 
-  private async startTurn(agentId: string, prompt: string, shown: { display?: string; attachments?: UserAttachment[] } = {}) {
+  private async startTurn(agentId: string, prompt: string, shown: { display?: string; system?: boolean; attachments?: UserAttachment[] } = {}) {
     const shownFields = { ...(shown.display !== undefined ? { shown: shown.display } : {}), ...(shown.attachments?.length ? { attachments: shown.attachments } : {}) };
     const agent = this.store.agent(agentId);
     const defaults = defaultsReader.resolve(this.store.settings);
@@ -818,7 +829,7 @@ export class AgentRunner {
     }
     run.turnMessageId = messageId;
     void this.clearRedo(agentId).catch((error) => console.error("[agent] redo record not cleared", error));
-    this.upsert(agentId, { id: randomUUID(), kind: "user", text: prompt, source: "user", at: new Date().toISOString(), messageId, ...shownFields });
+    this.upsert(agentId, shown.system ? { id: randomUUID(), kind: "user", text: prompt, source: "system", at: new Date().toISOString(), messageId } : { id: randomUUID(), kind: "user", text: prompt, source: "user", at: new Date().toISOString(), messageId, ...shownFields });
     if (agent.unread || agent.done) this.store.patchAgent(agentId, { unread: false, done: false });
     this.setStatus(agentId, "running");
     this.boardHooks?.turnStarted(agentId);
@@ -854,6 +865,7 @@ export class AgentRunner {
   private openRun(agent: Agent, turnModel: string | null, turnEffort: ClaudeEffortLevel | null): Run {
     const agentId = agent.id;
     const feedbackOptions = agent.feedbackId ? this.feedbackHooks?.options(agent) : null;
+    const assistantOptions = agent.assistant ? this.assistantHooks?.options(agent, (toolName, toolInput, signal, toolUseId) => this.askPermission(agentId, toolName, toolInput, signal, toolUseId)) : null;
     const input = new PushQueue();
     const spawner = groupedSpawner();
     const notionServer = this.notionHooks && !agent.feedbackId && notionServerConfig() ? notionToolServer(this.notionHooks.host(agentId, (toolName, toolInput, preview, signal) => this.askNotionWrite(agentId, toolName, toolInput, preview, signal))) : null;
@@ -967,6 +979,7 @@ export class AgentRunner {
           ],
         },
         ...feedbackOptions,
+        ...assistantOptions,
       },
     });
     const run: Run = { query: q, input, draftId: null, active: true, interrupted: false, turnMessageId: null, steers: new Set(), model: turnModel, effort: turnEffort, permissionMode: agent.permissionMode, permissionSetAt: 0, idleTimer: null, idleSince: Date.now(), lastUsed: Date.now(), closed: false, apiError: false, approvalWaitMs: 0, stopWatch: null, ctxSeq: 0, stderrTail: spawner.stderrTail, cwd: agent.cwd, folders: this.foldersKey(agent) };
@@ -1981,7 +1994,7 @@ export class AgentRunner {
 
 export const AUTO_DONE_MS = 3 * 24 * 3_600_000;
 export function isAutoDoneDue(agent: Agent, now: number) {
-  if (agent.pinned || agent.done || agent.feedbackId || agent.unread) return false;
+  if (agent.pinned || agent.done || agent.feedbackId || agent.assistant || agent.unread) return false;
   if (agent.status === "running" || agent.status === "waiting") return false;
   if (agent.queue?.length || agent.steering?.length || agent.backgroundTasks > 0) return false;
   const last = Math.max(Date.parse(agent.updatedAt) || 0, agent.reopenedAt ? Date.parse(agent.reopenedAt) || 0 : 0);

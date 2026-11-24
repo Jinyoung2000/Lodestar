@@ -129,6 +129,8 @@ const DEFAULT_SETTINGS: Settings = {
   followUpsEnabled: true,
   followUpsReminders: true,
   followUpsModel: FOLLOW_UP_DEFAULT_MODEL,
+  assistantEnabled: true,
+  assistantMorningBrief: true,
   notifyOnResponse: true,
   notifyOnApproval: true,
   notifyNewVersion: false,
@@ -210,6 +212,8 @@ function sanitizeSettings(patch: Partial<Settings>): Partial<Settings> {
   }
   if ("automationConcurrency" in next && !(Number.isInteger(next.automationConcurrency) && finite(next.automationConcurrency, AUTOMATION_LIMITS.concurrencyMin, AUTOMATION_LIMITS.concurrencyMax))) delete next.automationConcurrency;
   if ("followUpsEnabled" in next && typeof next.followUpsEnabled !== "boolean") delete next.followUpsEnabled;
+  if ("assistantEnabled" in next && typeof next.assistantEnabled !== "boolean") delete next.assistantEnabled;
+  if ("assistantMorningBrief" in next && typeof next.assistantMorningBrief !== "boolean") delete next.assistantMorningBrief;
   if ("followUpsReminders" in next && typeof next.followUpsReminders !== "boolean") delete next.followUpsReminders;
   if ("followUpsModel" in next && !(typeof next.followUpsModel === "string" && (FOLLOW_UP_MODELS as readonly string[]).includes(next.followUpsModel))) delete next.followUpsModel;
   if ("notifyOnResponse" in next && typeof next.notifyOnResponse !== "boolean") delete next.notifyOnResponse;

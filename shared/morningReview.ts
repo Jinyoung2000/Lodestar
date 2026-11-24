@@ -303,7 +303,7 @@ export function buildReviewInput(source: ReviewSource): ReviewInput {
 
   const recent = now.getTime() - REVIEW_LIMITS.unboardedDays * DAY_MS;
   const unboardedAgents = agents
-    .filter((a) => !onBoard.has(a.id) && !a.feedbackId && !a.done && atOf(a.updatedAt) >= recent)
+    .filter((a) => !onBoard.has(a.id) && !a.feedbackId && !a.assistant && !a.done && atOf(a.updatedAt) >= recent)
     .sort((a, b) => atOf(b.updatedAt) - atOf(a.updatedAt))
     .slice(0, REVIEW_LIMITS.unboarded);
   const workspaceName = (id: string | null) => source.workspaces.find((w) => w.id === id)?.name ?? "";

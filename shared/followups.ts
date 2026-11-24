@@ -105,8 +105,8 @@ export function snoozeUntil(choice: SnoozeChoice, now: Date, morning: Morning): 
 
 export const isSnoozed = (item: Pick<FollowUpItem, "snoozedUntil">, now: number) => item.snoozedUntil !== null && Date.parse(item.snoozedUntil) > now;
 
-type TrackedRef = Pick<Agent, "done" | "feedbackId" | "automationId">;
-export const isTracked = (agent: TrackedRef) => !agent.done && !agent.feedbackId && !agent.automationId;
+type TrackedRef = Pick<Agent, "done" | "feedbackId" | "automationId" | "assistant">;
+export const isTracked = (agent: TrackedRef) => !agent.done && !agent.feedbackId && !agent.automationId && !agent.assistant;
 
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 const clip = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);

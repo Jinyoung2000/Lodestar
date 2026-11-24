@@ -66,6 +66,7 @@ import {
   toggleInbox,
   openSkills,
   openFollowUps,
+  openAssistant,
   openAutomation,
   openAutomationEditor,
   toggleLayoutMode,
@@ -228,6 +229,7 @@ export type Command =
   | "skills"
   | "automations"
   | "followUps"
+  | "assistant"
   | "newAutomation"
   | "reloadWindow"
   | "newWindow"
@@ -824,6 +826,9 @@ export function runCommand(command: Command | string) {
       return;
     case "followUps":
       openFollowUps();
+      return;
+    case "assistant":
+      openAssistant();
       return;
     case "newAutomation":
       openAutomation(getState().selectedAutomationId);

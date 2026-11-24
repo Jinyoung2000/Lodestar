@@ -70,8 +70,10 @@ import { AutomationService } from "./automations";
 import { automationHandlers } from "./automationHandlers";
 import { FollowUpsService } from "./followUps";
 import { followUpHandlers } from "./followUpHandlers";
+import { AssistantService } from "./assistant";
+import { openWithDefaultApp } from "./reveal";
 import { ReleaseCheck } from "./releaseCheck";
-import { automationsAutoBlocked, followUpsAutoBlocked, mentionCollectionBlocked, morningReviewAutoBlocked } from "./mentionGate";
+import { assistantAutoBlocked, automationsAutoBlocked, followUpsAutoBlocked, mentionCollectionBlocked, morningReviewAutoBlocked } from "./mentionGate";
 import { MetaService } from "./meta";
 import { localCommands } from "./skills";
 import { liveGroupLeaders, systemKillDeps, terminateGroups } from "./processGroups";
@@ -171,10 +173,12 @@ const reviewCheckouts = new ReviewCheckouts(join(HOME, "review-checkouts.json"))
 const folderCodeAllowed = (dir: string) => runsFolderCode(dir, { workspaces: store.workspaces, reviews: reviewCheckouts.list(), downloads: repoMirrors.createdDirs() });
 let automations: AutomationService | null = null;
 let followUps: FollowUpsService | null = null;
+let assistant: AssistantService | null = null;
 const broadcast = (event: ServerEvent) => {
   repoMirrors.observe(event);
   automations?.observe(event);
   followUps?.observe(event);
+  assistant?.observe(event);
   coalescer.push(event);
 };
 const deliver = (event: ServerEvent) => {
@@ -280,6 +284,16 @@ automations = new AutomationService({
 automations.start();
 followUps = new FollowUpsService({ store, emit: broadcast, autoBlocked: () => followUpsAutoBlocked(process.env) });
 followUps.start();
+assistant = new AssistantService({
+  store,
+  runner: { send: (agentId, prompt, options) => runner.send(agentId, prompt, options), create: (params) => runner.create(params), setDone: (agentId, done) => runner.setDone(agentId, done) },
+  followUps,
+  emit: broadcast,
+  autoBlocked: () => assistantAutoBlocked(process.env),
+});
+const assistantService = assistant;
+runner.setAssistantHooks({ options: (agent, ask) => assistantService.options(agent, ask) });
+assistant.start();
 const releaseCheck = new ReleaseCheck({ enabled: () => store.settings.notifyNewVersion === true, onChange: (release) => broadcast({ type: "release", release }) });
 releaseCheck.start();
 allowProviderEnv(store.settings.useProviderEnv === true);
@@ -526,6 +540,13 @@ const handlers: Handlers = {
   ...notionPinHandlers({ notionPins, broadcast }),
   ...automationHandlers(automations),
   ...followUpHandlers(followUps),
+  "assistant.get": () => assistantService.state(),
+  "assistant.checkIn": () => assistantService.checkIn(),
+  "assistant.openNotes": async () => {
+    const path = assistantService.state().notesPath;
+    if (path) await openWithDefaultApp(path);
+    return null;
+  },
   ...terminalHandlers({ termAsk }),
   "perf.stats": ({ reset }) => {
     const snapshot = perfSnapshot();

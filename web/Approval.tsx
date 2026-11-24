@@ -1,3 +1,4 @@
+import { assistantApproval } from "../shared/assistant";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { PLAN_TOOL, QUESTION_TOOL } from "../shared/interactive";
 import { NotionWriteCard } from "./NotionWriteCard";
@@ -34,12 +35,13 @@ function ToolApprovalCard({ agentId, item }: { agentId: string; item: Permission
   const respond = (decision: "allow" | "allowAlways" | "deny") => {
     void rpc.call("agents.respondPermission", { agentId, itemId: item.id, decision }).catch((error: Error) => flash(error.message));
   };
-  const browser = browserApproval(item.toolName, item.input);
+  const mate = assistantApproval(item.toolName, item.input);
+  const browser = browserApproval(item.toolName, item.input) ?? mate;
   const preview = useEditPreview(agentId, item);
   const title = browser?.title ?? (preview?.isNew ? S.approvalCreateTitle : S.approvalTitle(item.toolName));
   const filePath = typeof item.input.file_path === "string" ? item.input.file_path : typeof item.input.notebook_path === "string" ? item.input.notebook_path : null;
   const { target, rest } = approvalInputView(item.toolName, item.input);
-  const hasInput = Object.keys(rest).length > 0;
+  const hasInput = !mate && Object.keys(rest).length > 0;
   return (
     <div className="approval-card" role="group" aria-label={title}>
       <div className="approval-head">
@@ -48,16 +50,18 @@ function ToolApprovalCard({ agentId, item }: { agentId: string; item: Permission
           <Close />
         </button>
       </div>
-      <div className="approval-target">
-        <span>{preview?.isNew ? S.approvalCreateVerb : (S.verbsBase[item.toolName as keyof typeof S.verbsBase] ?? item.toolName)}</span>
-        {filePath && (
-          <span className="file-chip" data-file={JSON.stringify({ raw: filePath })}>
-            <FileTypeIcon name={filePath.slice(filePath.lastIndexOf("/") + 1)} />
-            {filePath.slice(filePath.lastIndexOf("/") + 1)}
-          </span>
-        )}
-        {!filePath && target && <code className="code-chip" data-target={target.kind} title={target.text}>{target.text}</code>}
-      </div>
+      {!mate && (
+        <div className="approval-target">
+          <span>{preview?.isNew ? S.approvalCreateVerb : (S.verbsBase[item.toolName as keyof typeof S.verbsBase] ?? item.toolName)}</span>
+          {filePath && (
+            <span className="file-chip" data-file={JSON.stringify({ raw: filePath })}>
+              <FileTypeIcon name={filePath.slice(filePath.lastIndexOf("/") + 1)} />
+              {filePath.slice(filePath.lastIndexOf("/") + 1)}
+            </span>
+          )}
+          {!filePath && target && <code className="code-chip" data-target={target.kind} title={target.text}>{target.text}</code>}
+        </div>
+      )}
       {browser?.message && <div className="approval-message">{browser.message}</div>}
       {browser?.code && (
         <>

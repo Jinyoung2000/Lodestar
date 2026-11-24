@@ -712,6 +712,26 @@ body[data-electron="1"] .titlebar > button {
 .agent > .pane-header {
   height: var(--size-tabs-header);
 }
+.agent > .pane-header[data-assistant] {
+  container-type: inline-size;
+}
+.pane-header[data-assistant] .agent-title {
+  flex: none;
+  min-width: 0;
+}
+.pane-header .assistant-checkin {
+  font-size: var(--text-ui-sm);
+}
+@container (max-width: 550px) { /* lint-tokens: allow 컨테이너 쿼리는 var() 를 못 쓴다. 머리줄에 상태 글까지 들어가는 최소 폭 */
+  .assistant-status {
+    display: none;
+  }
+}
+@container (max-width: 420px) { /* lint-tokens: allow 컨테이너 쿼리는 var() 를 못 쓴다. 칩과 단추의 글자가 들어가는 최소 폭 */
+  .pane-header .assistant-label {
+    display: none;
+  }
+}
 .agent-title {
   flex: 0 1 auto;
   min-width: 6ch; /* lint-tokens: allow 칸이 좁아도 제목 앞 몇 글자는 보이게 */
@@ -4410,6 +4430,10 @@ button.review-link:focus-visible {
   border-radius: var(--radius-full);
   background: var(--accent);
 }
+.side-item .review-dot[data-end] {
+  margin-left: auto;
+  margin-right: var(--space-2);
+}
 
 .card-detail {
   flex: 1;
@@ -6943,8 +6967,11 @@ pre.approval-json {
 }
 
 .approval-message {
+  margin-inline: var(--space-3);
   padding: var(--space-1) 0;
   line-height: var(--leading-ui);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .approval-code {
   max-height: calc(var(--size-step-shot) * 2);

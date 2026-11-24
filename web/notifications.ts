@@ -1,3 +1,4 @@
+import { isSilentReply } from "../shared/assistant";
 import { isSessionShown } from "../shared/attention";
 import { needsReview, PLAN_TOOL, QUESTION_TOOL } from "../shared/interactive";
 import { isNotionProposeTool } from "../shared/notionMcp";
@@ -46,14 +47,16 @@ async function notifyResponse(agentId: string) {
   if (!agent || agent.status !== "idle" || getState().settings?.notifyOnResponse === false) return;
   const items = getState().timelines[agentId] ?? (await rpc.call("agents.timeline", { agentId }).catch(() => []));
   const last = items.findLast((i) => i.kind === "assistant");
+  if (agent.assistant && (last?.kind !== "assistant" || isSilentReply(last.text))) return;
   const body = (last?.kind === "assistant" ? notificationPreview(last.text) : null) ?? "";
-  const shown = await window.agentNavNative?.notify?.({ agentId, kind: "response", title: S.notificationFinishedTitle(clampTitle(agent.title, NOTIFICATION_TITLE_MAX)), body }).catch(() => false);
+  const title = agent.assistant ? agent.title : S.notificationFinishedTitle(clampTitle(agent.title, NOTIFICATION_TITLE_MAX));
+  const shown = await window.agentNavNative?.notify?.({ agentId, kind: "response", title, body }).catch(() => false);
   if (shown === true || agent.feedbackId) return;
   const { panes, centerView } = getState();
   if (isSessionShown(agentId, panes, centerView)) return;
   notify({
     key: `finished:${agentId}`,
-    message: S.finishedToast(clampTitle(agent.title, NOTIFICATION_TITLE_MAX)),
+    message: agent.assistant ? S.assistant.toast(agent.title, body) : S.finishedToast(clampTitle(agent.title, NOTIFICATION_TITLE_MAX)),
     actions: [{ label: S.notificationOpenSession, run: () => openFromToast(agentId), primary: true }],
   });
 }

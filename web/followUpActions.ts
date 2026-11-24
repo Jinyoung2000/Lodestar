@@ -2,7 +2,7 @@ import { FOLLOW_UP_LIMITS, isTracked, type FollowUpItem, type FollowUpsState, ty
 import { clampTitle } from "../shared/sessionTitle";
 import { notify } from "./notices";
 import { rpc } from "./rpc";
-import { followUpsShown } from "./screenVisibility";
+import { assistantShown, followUpsShown } from "./screenVisibility";
 import { flash, getState, openAgent, openFollowUps, setState } from "./store";
 import { S } from "./strings";
 
@@ -19,6 +19,7 @@ export function receiveFollowUps(next: FollowUpsState) {
   if (!previous || !nudge || nudge.id === previous.nudge?.id) return;
   if (Date.now() - Date.parse(nudge.at) > FOLLOW_UP_LIMITS.nudgeFreshMs) return;
   if (!followUpsShown(getState().settings)) return;
+  if (assistantShown(getState().settings) && getState().assistant?.agentId) return;
   void remindOf(next, nudge.itemIds);
 }
 

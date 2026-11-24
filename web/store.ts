@@ -47,6 +47,7 @@ import { hint } from "./hint";
 import type { ReviewState } from "../shared/morningReview";
 import type { AutomationsState } from "../shared/automations";
 import type { FollowUpsState } from "../shared/followups";
+import type { AssistantState } from "../shared/assistant";
 import type { ReleaseState } from "../shared/release";
 import type { SessionOrders } from "../shared/sessionOrder";
 import { receiveReview, refreshReview } from "./reviewActions";
@@ -424,6 +425,7 @@ export type State = {
   release: ReleaseState | null;
   automations: AutomationsState | null;
   followUps: FollowUpsState | null;
+  assistant: AssistantState | null;
   selectedAutomationId: string | null;
   automationEditor: AutomationEditorTarget | null;
   automationEditorOpen: boolean;
@@ -564,6 +566,7 @@ let state: State = {
   review: null,
   automations: null,
   followUps: null,
+  assistant: null,
   selectedAutomationId: null,
   automationEditor: null,
   automationEditorOpen: false,
@@ -1529,6 +1532,11 @@ export function toggleFollowUps() {
   setState((s) => ({ centerView: s.centerView === "followUps" ? "sessions" : "followUps" }));
 }
 
+export function openAssistant() {
+  const agentId = getState().assistant?.agentId;
+  if (agentId && getState().agents.some((a) => a.id === agentId)) openAgent(agentId);
+}
+
 export function openFollowUps() {
   setState({ centerView: "followUps" });
 }
@@ -2210,6 +2218,7 @@ export function initStore() {
     void refreshReview();
     void rpc.call("automations.list", {}).then((automations) => setState({ automations })).catch(() => setState({ automations: null }));
     void rpc.call("followUps.get", {}).then((followUps) => setState({ followUps })).catch(() => setState({ followUps: null }));
+    void rpc.call("assistant.get", {}).then((assistant) => setState({ assistant })).catch(() => setState({ assistant: null }));
     void rpc.call("release.get", {}).then((release) => setState({ release })).catch(() => setState({ release: null }));
     void rpc.call("defaults.get", {}).then((defaults) => setState({ defaults })).catch(() => setState({ defaults: null }));
     void rpc.call("sessionOrder.list", {}).then((sessionOrders) => setState({ sessionOrders })).catch(() => setState({ sessionOrders: {} }));
@@ -2252,6 +2261,9 @@ export function initStore() {
         return;
       case "followUps":
         receiveFollowUps(event.state);
+        return;
+      case "assistant":
+        setState({ assistant: event.state });
         return;
       case "release":
         setState({ release: event.release });

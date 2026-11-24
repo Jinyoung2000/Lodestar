@@ -11,7 +11,7 @@ export const GROUP_ICONS: Record<GroupId, string> = {
   formatting: "whitespace",
   browser: "globe",
   board: "project",
-  followUps: "checklist",
+  followUps: "compass",
   notifications: "bell",
   mentions: "mention",
   sessions: "rocket",
