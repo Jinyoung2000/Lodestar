@@ -1,10 +1,13 @@
 import * as Clipboard from "expo-clipboard";
-import { memo, useCallback, useState, type ReactNode } from "react";
+import { createContext, memo, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { mediaPathPreview, tokenPreview } from "../logic/previews";
 import type { Tokens } from "marked";
+import { isDiagramSource } from "../logic/diagram";
 import { isOpenableLink, parseMarkdown, shortLinkLabel, type Token } from "../logic/markdown";
+import type { Preview } from "../logic/previews";
 import { showActionMenu } from "./actionMenu";
+import { DiagramBlock } from "./DiagramBlock";
 import { radius, spacing, useColors } from "../theme/theme";
 import { Icon } from "./Icon";
 import { Text } from "./Text";
@@ -12,16 +15,24 @@ import { Text } from "./Text";
 type Tokens = Token[] | undefined;
 type Any = Token & Record<string, unknown>;
 
-export const MarkdownView = memo(function MarkdownView({ text, selectable = true, previewCards = false }: { text: string; selectable?: boolean; previewCards?: boolean }) {
+type Diagrams = { itemId: string; onOpen?: (file: Preview) => void } | null;
+const DiagramContext = createContext<Diagrams>(null);
+
+export type MarkdownViewProps = { text: string; selectable?: boolean; previewCards?: boolean; diagramsFor?: string; onOpenPreview?: (file: Preview) => void };
+
+export const MarkdownView = memo(function MarkdownView({ text, selectable = true, previewCards = false, diagramsFor, onOpenPreview }: MarkdownViewProps) {
   const source = parseMarkdown(text);
   const tokens = previewCards ? source.flatMap(visibleBlock).map(withMediaFileNames) : source;
+  const diagrams = useMemo<Diagrams>(() => (diagramsFor ? { itemId: diagramsFor, onOpen: onOpenPreview } : null), [diagramsFor, onOpenPreview]);
   if (tokens.length === 0) return null;
   return (
-    <View>
-      {tokens.map((token, index) => (
-        <Block key={index} token={token as Any} selectable={selectable} last={index === tokens.length - 1} />
-      ))}
-    </View>
+    <DiagramContext.Provider value={diagrams}>
+      <View>
+        {tokens.map((token, index) => (
+          <Block key={index} token={token as Any} selectable={selectable} last={index === tokens.length - 1} />
+        ))}
+      </View>
+    </DiagramContext.Provider>
   );
 });
 
@@ -61,7 +72,7 @@ function Block({ token, selectable, last }: { token: Any; selectable: boolean; l
       );
     }
     case "code":
-      return <CodeBlock code={String(token.text ?? "")} lang={typeof token.lang === "string" ? token.lang : ""} marginBottom={gap} />;
+      return <Code code={String(token.text ?? "")} lang={typeof token.lang === "string" ? token.lang : ""} marginBottom={gap} />;
     case "list":
       return <List token={token} selectable={selectable} marginBottom={gap} />;
     case "blockquote":
@@ -184,6 +195,13 @@ function List({ token, selectable, marginBottom }: { token: Any; selectable: boo
       })}
     </View>
   );
+}
+
+function Code({ code, lang, marginBottom }: { code: string; lang: string; marginBottom: number }) {
+  const diagrams = useContext(DiagramContext);
+  const renderCode = (bottom: number) => <CodeBlock code={code} lang={lang} marginBottom={bottom} />;
+  if (!diagrams || !isDiagramSource(lang, code)) return renderCode(marginBottom);
+  return <DiagramBlock code={code} marginBottom={marginBottom} itemId={diagrams.itemId} onOpen={diagrams.onOpen} renderCode={renderCode} />;
 }
 
 const CODE_PREVIEW_LINES = 40;

@@ -1002,6 +1002,17 @@ body[data-electron="1"] .titlebar-lead {
   fill: var(--code-block-bg);
 }
 .markdown pre .code-copy {
+.mermaid-preview .mm-head-cross {
+  fill: none;
+  stroke: var(--danger);
+  stroke-width: 2;
+}
+.mermaid-preview .mm-group {
+  fill: none;
+  stroke: var(--fg-subtle);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
   position: absolute;
   top: var(--space-1);
   right: var(--space-1);
