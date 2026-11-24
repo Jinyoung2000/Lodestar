@@ -722,16 +722,16 @@ async function dispatchNotificationAction(action: NotifyAction, mode: NotifyMode
 let sessionOpen = Promise.resolve();
 
 function routeOpenSession(agentId: string) {
-  sessionOpen = sessionOpen.then(() => openSessionInChat(agentId)).catch((error: unknown) => {
+  sessionOpen = sessionOpen.then(() => openNotifiedSession(agentId)).catch((error: unknown) => {
     logLine(`[electron] could not open notified session ${agentId}: ${String(error)}`);
   });
   return sessionOpen;
 }
 
-async function openSessionInChat(agentId: string) {
+async function openNotifiedSession(agentId: string) {
   const tried = new Set<string>();
   while (!quitFlow.quitting) {
-    const target = windowForNotification(agentId, liveWindows().filter((w) => w.layoutMode === "chat" && !w.hung && !tried.has(w.id)));
+    const target = windowForNotification(agentId, liveWindows().filter((w) => !w.hung && !tried.has(w.id)));
     const entry = target ?? openNewWindow(true);
     if (!target && (!(await whenAppReady(entry, () => entry.layoutMode !== null)) || entry.win.isDestroyed())) {
       throw new Error(`Chat window ${entry.id} did not load`);

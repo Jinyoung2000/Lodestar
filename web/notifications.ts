@@ -68,9 +68,7 @@ function openFromToast(agentId: string) {
 }
 
 export function openNotificationSession(agentId: string): boolean {
-  if (getState().layoutMode !== "chat") return false;
   handleNotificationAction({ agentId, action: "open" });
-  if (getState().layoutMode !== "chat") setState({ layoutMode: "chat", layoutTouched: true });
   return true;
 }
 
