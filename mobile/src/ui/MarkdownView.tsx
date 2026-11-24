@@ -3,7 +3,8 @@ import { memo, useCallback, useState, type ReactNode } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { mediaPathPreview, tokenPreview } from "../logic/previews";
 import type { Tokens } from "marked";
-import { isOpenableLink, parseMarkdown, type Token } from "../logic/markdown";
+import { isOpenableLink, parseMarkdown, shortLinkLabel, type Token } from "../logic/markdown";
+import { showActionMenu } from "./actionMenu";
 import { radius, spacing, useColors } from "../theme/theme";
 import { Icon } from "./Icon";
 import { Text } from "./Text";
@@ -124,9 +125,17 @@ function Inline({ tokens, fallback }: { tokens: Tokens; fallback: string }): Rea
           case "link": {
             const href = t.href;
             if (!isOpenableLink(href)) return <Inline key={i} tokens={t.tokens as Tokens} fallback={String(t.text ?? "")} />;
+            const open = () => void Linking.openURL(href).catch(() => {});
+            const bare = String(t.text ?? "") === href || String(t.text ?? "") === href.replace(/^mailto:/i, "");
             return (
-              <Text key={i} color="accentText" style={{ textDecorationLine: "underline", fontSize: undefined, lineHeight: undefined }} onPress={() => void Linking.openURL(href).catch(() => {})}>
-                <Inline tokens={t.tokens as Tokens} fallback={String(t.text ?? t.href ?? "")} />
+              <Text
+                key={i}
+                color="accentText"
+                style={{ textDecorationLine: "underline", fontSize: undefined, lineHeight: undefined }}
+                onPress={open}
+                onLongPress={() => showActionMenu(href, [{ label: "Open link", onPress: open }, { label: "Copy link", onPress: () => void Clipboard.setStringAsync(href) }])}
+              >
+                {bare ? shortLinkLabel(href) : <Inline tokens={t.tokens as Tokens} fallback={String(t.text ?? t.href ?? "")} />}
               </Text>
             );
           }
