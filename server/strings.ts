@@ -14,6 +14,7 @@ export const T = {
   errMobilePairLocked: "Too many wrong codes. Create a new pairing code in Settings",
   errMobilePairLimited: "Too many attempts. Wait a minute and try again",
   errMobileImageTooLarge: (mb: number) => `Images can be at most ${mb} MB`,
+  errMobileFileTooLarge: (mb: number) => `Files can be at most ${mb} MB`,
   errMobileDevice: "Unknown device",
   errMobileFolderMissing: "That folder does not exist",
   errMobileFolderDenied: "The phone app can only open visible folders inside your home folder",

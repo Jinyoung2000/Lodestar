@@ -1,9 +1,10 @@
 import { useIsFocused } from "expo-router";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentRef } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View, findNodeHandle } from "react-native";
+import type { MobileFileRef } from "@shared/mobile";
 import type { Agent, EffortLevel, Harness, QueuedMessage } from "@shared/protocol";
-import { MAX_IMAGES } from "../logic/images";
-import { pickFromLibrary, takePhoto, useAttachments, type PickedAsset } from "../state/attach";
+import { MAX_FILES, MAX_IMAGES, isFileAttachment } from "../logic/images";
+import { pickFiles, pickFromLibrary, takePhoto, useAttachments } from "../state/attach";
 import { composerPaste, discardPastedImage, isPasteForeground, legacyPasteSupported, nextPasteBinding, readClipboardImage } from "../state/composerPaste";
 import { useAppState } from "../state/app";
 import { loadPref, savePref } from "../state/storage";
@@ -19,7 +20,7 @@ type Props = {
   agent: Agent | undefined;
   disabled?: boolean;
   placeholder?: string;
-  onSend: (text: string, images: { id: string; label: string; thumb: string }[], steer: boolean) => Promise<void>;
+  onSend: (text: string, images: { id: string; label: string; thumb: string }[], steer: boolean, files: MobileFileRef[]) => Promise<void>;
   onStop?: () => void;
   onDequeue?: (queueId: string) => Promise<string | null>;
   onSendQueuedNow?: (queueId: string) => void;
@@ -61,7 +62,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const pasteBatches = useRef(0);
   const [pasting, setPasting] = useState(false);
   const canSend = focused && !disabled;
-  const { addAssets } = attachments;
+  const { addAssets, addFiles } = attachments;
   const bindPaste = useCallback(() => {
     const token = pasteScope.current;
     const tag = findNodeHandle(input.current);
@@ -147,8 +148,9 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const submit = useCallback(async () => {
     if (inFlight.current || !canSend || pasteBatches.current > 0) return;
     const images = attachments.refs();
+    const files = attachments.fileRefs();
     const prompt = text.trim();
-    if (!prompt && images.length === 0) return;
+    if (!prompt && images.length === 0 && files.length === 0) return;
     inFlight.current = true;
     const sentText = text;
     const sentAttachments = attachments.items.filter((a) => a.status === "done");
@@ -160,7 +162,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
     setSending(true);
     setError(null);
     try {
-      await onSend(prompt, images, running && steer);
+      await onSend(prompt, images, running && steer, files);
       setFlipMode(false);
     } catch (e) {
       const current = textRef.current;
@@ -203,34 +205,37 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
 
   const attach = () => {
     const scope = pasteScope.current;
-    const room = MAX_IMAGES - attachments.items.filter((a) => a.status !== "error").length;
-    if (room <= 0) return Alert.alert("Up to 5 images", "Remove one to attach another.");
-    const choose = async (pick: () => Promise<PickedAsset[]>) => {
+    const live = attachments.items.filter((a) => a.status !== "error");
+    const imageRoom = MAX_IMAGES - live.filter((a) => !isFileAttachment(a)).length;
+    const fileRoom = MAX_FILES - live.filter(isFileAttachment).length;
+    const run = async <T,>(pick: () => Promise<T[]>, add: (picked: T[]) => number, fromClipboard = false) => {
       if (!scope || pasteScope.current !== scope) return;
       try {
-        const assets = await pick();
-        if (pasteScope.current === scope && (pick !== readClipboardImage || isPasteForeground())) addAssets(assets);
+        const picked = await pick();
+        if (pasteScope.current === scope && (!fromClipboard || isPasteForeground())) add(picked);
       } catch (e) {
         if (pasteScope.current !== scope) return;
-        if (pick === readClipboardImage) setPendingSend(false);
+        if (fromClipboard) setPendingSend(false);
         Alert.alert("Could not attach", e instanceof Error ? e.message : String(e));
       }
     };
-    showActionMenu("Attach an image", [
-      { label: "Photo Library", onPress: () => void choose(() => pickFromLibrary(room)) },
-      { label: "Take Photo", onPress: () => void choose(takePhoto) },
+    const withImageRoom = (pick: () => void) => () => (imageRoom <= 0 ? Alert.alert("Up to 5 images", "Remove one to attach another.") : pick());
+    showActionMenu("Attach", [
+      { label: "Photo Library", onPress: withImageRoom(() => void run(() => pickFromLibrary(imageRoom), addAssets)) },
+      { label: "Take Photo", onPress: withImageRoom(() => void run(takePhoto, addAssets)) },
+      { label: "Choose File", onPress: () => (fileRoom <= 0 ? Alert.alert(`Up to ${MAX_FILES} files`, "Remove one to attach another.") : void run(pickFiles, addFiles)) },
       ...(legacyPasteSupported ? [{
         label: "Paste image",
-        onPress: () => {
+        onPress: withImageRoom(() => {
           if (!scope || pasteScope.current !== scope || !isPasteForeground()) return;
           pasteBatches.current++;
           setPasting(true);
-          void choose(readClipboardImage).finally(() => {
+          void run(readClipboardImage, addAssets, true).finally(() => {
             if (pasteScope.current !== scope) return;
             pasteBatches.current--;
             setPasting(pasteBatches.current > 0);
           });
-        },
+        }),
       }] : []),
     ]);
   };
@@ -295,7 +300,14 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbRow} keyboardShouldPersistTaps="handled">
           {attachments.items.map((a) => (
             <View key={a.key} style={styles.thumbWrap}>
-              <Image source={{ uri: a.uri }} style={[styles.thumb, { backgroundColor: colors.surfaceBase, opacity: a.status === "done" ? 1 : 0.55 }]} accessibilityLabel={a.name} />
+              {isFileAttachment(a) ? (
+                <View accessibilityLabel={a.name} style={[styles.thumb, styles.fileTile, { backgroundColor: colors.surfaceBase, borderColor: colors.border, opacity: a.status === "done" ? 1 : 0.55 }]}>
+                  <Icon name="doc" size={20} color="textMuted" />
+                  <Text variant="caption" color="textStrong" numberOfLines={1} ellipsizeMode="middle" style={styles.fileName}>{a.name}</Text>
+                </View>
+              ) : (
+                <Image source={{ uri: a.uri }} style={[styles.thumb, { backgroundColor: colors.surfaceBase, opacity: a.status === "done" ? 1 : 0.55 }]} accessibilityLabel={a.name} />
+              )}
               {(a.status === "processing" || a.status === "uploading") && (
                 <View style={styles.thumbOverlay} pointerEvents="none">
                   <ActivityIndicator color={colors.textStrong} />
@@ -324,7 +336,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           <Text variant="body" maxFontSizeMultiplier={INPUT_FONT_LIMIT} style={styles.inputType} onTextLayout={(event) => setWraps(event.nativeEvent.lines.length > 1)}>{text}</Text>
         </View>
         <View style={[styles.row, expanded && { paddingTop: editorHeight }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Attach image" onPress={attach} disabled={disabled} style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Attach" onPress={attach} disabled={disabled} style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
             <Icon name="plus" size={22} color="textMuted" />
           </Pressable>
           <TextInput
@@ -421,6 +433,8 @@ const styles = StyleSheet.create({
   thumbRow: { gap: spacing.sm, paddingTop: spacing.xs, paddingRight: spacing.sm },
   thumbWrap: { width: 64, height: 64 },
   thumb: { width: 64, height: 64, borderRadius: radius.sm },
+  fileTile: { borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center", gap: 2, paddingHorizontal: spacing.xs },
+  fileName: { textAlign: "center", alignSelf: "stretch" },
   thumbOverlay: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", borderRadius: radius.sm },
   thumbRemove: { position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
   note: { paddingHorizontal: spacing.sm },

@@ -1,4 +1,4 @@
-import type { MobileBrowseResult, MobileDefaults, MobileWorkspaceIcons, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
+import type { MobileBrowseResult, MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
 import type { Agent, BranchesResult, Harness, ImageRef, PermissionDecision, RequestQueuing, ServerEvent, TimelineItem, Workspace } from "@shared/protocol";
 import { TransportError, type ConnStatus } from "../net/rpc";
 import { mergeTail, prependOlder, remove, upsert } from "../logic/timeline";
@@ -359,12 +359,12 @@ export class AppStore {
     return this.link.call(method, params, timeoutMs);
   }
 
-  send(agentId: string, prompt: string, opts: { steer?: boolean; images?: ImageRef[] } = {}) {
-    return this.call("agents.send", { agentId, prompt, steer: opts.steer === true, ...(opts.images?.length ? { images: opts.images } : {}) }) as Promise<{ queued: boolean }>;
+  send(agentId: string, prompt: string, opts: { steer?: boolean; images?: ImageRef[]; files?: MobileFileRef[] } = {}) {
+    return this.call("agents.send", { agentId, prompt, steer: opts.steer === true, ...(opts.images?.length ? { images: opts.images } : {}), ...(opts.files?.length ? { files: opts.files } : {}) }) as Promise<{ queued: boolean }>;
   }
 
-  createSession(workspaceId: string | null, prompt: string, images?: ImageRef[], worktree?: MobileWorktreeRequest, selection?: MobileModelSelection) {
-    const params: MobileSessionRequest = { workspaceId, prompt, ...(images?.length ? { images } : {}), ...(worktree ? { worktree } : {}) };
+  createSession(workspaceId: string | null, prompt: string, images?: ImageRef[], worktree?: MobileWorktreeRequest, selection?: MobileModelSelection, files?: MobileFileRef[]) {
+    const params: MobileSessionRequest = { workspaceId, prompt, ...(images?.length ? { images } : {}), ...(files?.length ? { files } : {}), ...(worktree ? { worktree } : {}) };
     if (!selection) return this.call("agents.create", params, worktree ? 90_000 : undefined) as Promise<Agent>;
     return this.modelCall<Agent>("mobile.createSession", { ...params, selection }, MODEL_TIMEOUT_MS + (worktree ? 90_000 : 0));
   }

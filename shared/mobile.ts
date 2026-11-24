@@ -6,7 +6,7 @@ import type { EffortLevel, Harness, ImageRef, RequestQueuing, TimelineItem } fro
 export const MOBILE_PROTOCOL = 1;
 
 // 모바일 연결에 허용하는 RPC 의 전부. 여기 없는 메서드(파일 쓰기, 설정 변경, 터미널, 셸 실행, 페어링 관리 등)는 데몬이 실행하기 전에 거절한다.
-// 이미지 올리기는 RPC 가 아니라 HTTP(POST /mobile/images)로 한다.
+// 이미지와 파일 올리기는 RPC 가 아니라 HTTP(POST /mobile/images, /mobile/files)로 한다.
 export const MOBILE_METHODS = [
   "mobile.ping",
   "mobile.defaults",
@@ -118,7 +118,9 @@ export type MobileModelSelection = { harness: Harness; model: string | null; eff
 export type MobileModel = Pick<PickerModel, "value" | "resolved" | "displayName" | "levels" | "defaultLevel"> & { pinKey?: string };
 export type MobileModelProvider = { harness: Harness; models: MobileModel[]; defaultModel: string | null; defaultModelKnown: boolean };
 export type MobileModelCatalog = { providers: MobileModelProvider[]; switchBlock: SwitchBlock | null };
-export type MobileSessionRequest = { workspaceId: string | null; prompt: string; images?: ImageRef[]; worktree?: MobileWorktreeRequest };
+export const MAX_MOBILE_FILE_BYTES = 50 * 1024 * 1024;
+export type MobileFileRef = { id: string; name: string; mediaType: string };
+export type MobileSessionRequest = { workspaceId: string | null; prompt: string; images?: ImageRef[]; files?: MobileFileRef[]; worktree?: MobileWorktreeRequest };
 
 export function mobileModelId(value: unknown): value is string {
   return typeof value === "string" && /^[\w.[\]:/-]{1,200}$/.test(value) && !value.startsWith("-");

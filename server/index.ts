@@ -7,8 +7,8 @@ import { homedir, hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { extname, join, resolve } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { MobileDefaults, MobileWorkspaceIcons, MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileStatus } from "../shared/mobile";
-import { HARNESS_VALUES, harnessOf, OPERATOR_MARK, type Harness, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
+import type { MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileStatus } from "../shared/mobile";
+import { HARNESS_VALUES, harnessOf, OPERATOR_MARK, type FileRef, type Harness, type ImageRef, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
 import { switchBlock } from "../shared/harnessSwitch";
 import { AgentRunner } from "./agents";
 import { BoardStore } from "./board";
@@ -26,7 +26,7 @@ import { realDir } from "./paths";
 import { saveImageBytes } from "./images";
 import { mediaKey, mentionedMedia, resolveMediaBatch, type MediaContext } from "./media";
 import { handleMedia } from "./mediaHttp";
-import { handleUpload } from "./fileAttach";
+import { handleUpload, saveUploadBytes, uploadedFilePath } from "./fileAttach";
 import { lanHosts, makeOffer, MobileDevices, MobileServer, PairingCodes } from "./mobileAccess";
 import { loadRelayIdentity, normalizeRelayUrl, RelayLink, RELAY_URL_DEFAULT } from "./mobileRelay";
 import { WorkspaceIcons } from "./workspaceIcons";
@@ -150,6 +150,7 @@ const mobile = new MobileServer({
     return handler(params, client);
   },
   saveImage: saveImageBytes,
+  saveFile: saveUploadBytes,
   serveMedia: (req, res, url) => handleMedia(req, res, url, { key: MOBILE_MEDIA_KEY, origins: "any" }),
   hostName: hostname().replace(/\.local$/, ""),
   allowedOrigins: new Set((process.env.AGENT_NAV_MOBILE_ALLOW_ORIGIN ?? "").split(",").filter(Boolean)),
@@ -623,7 +624,15 @@ const phoneModels = mobileModels(store, runner, metaService);
 const workspaceIcons = new WorkspaceIcons();
 const phoneModelChanges = new Set<string>();
 
-async function createPhoneSession({ workspaceId, prompt, images, worktree }: MobileSessionRequest, selection?: MobileModelSelection) {
+function phoneFiles(files: MobileFileRef[] | undefined): FileRef[] | undefined {
+  return files?.map((file) => {
+    const path = uploadedFilePath(file.id, file.name);
+    if (!path) throw new Error(T.errMobileParam("files"));
+    return { path, name: file.name, bytes: 0, mediaType: file.mediaType };
+  });
+}
+
+async function createPhoneSession({ workspaceId, prompt, images, files, worktree }: MobileSessionRequest, selection?: MobileModelSelection) {
   const workspace = workspaceId === null ? null : phoneWorkspace(workspaceId);
   const resolved = defaultsReader.resolve(store.settings);
   const choice = selection ? await phoneModels.select(selection) : { model: resolved.model.value, effort: resolved.effort.value };
@@ -635,7 +644,7 @@ async function createPhoneSession({ workspaceId, prompt, images, worktree }: Mob
     if (!info.branches.includes(worktree.base)) throw new Error(T.errMobileParam("base"));
     target = top.id;
   }
-  return runner.create({ ...choice, workspaceId: target, prompt, permissionMode: resolved.permissionMode.value, worktree: worktree ?? null, ...(images?.length ? { images } : {}) });
+  return runner.create({ ...choice, workspaceId: target, prompt, permissionMode: resolved.permissionMode.value, worktree: worktree ?? null, ...(images?.length ? { images } : {}), ...(files?.length ? { files: phoneFiles(files) } : {}) });
 }
 
 const mobileHandlers: Record<string, (params: never, client: WebSocket) => unknown> = {
@@ -674,6 +683,8 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
     runner.rename(phoneAgent(agentId).id, title);
     return null;
   },
+  "agents.send": ({ files, ...params }: { agentId: string; prompt: string; steer: boolean; images?: ImageRef[]; files?: MobileFileRef[] }, client: WebSocket) =>
+    handlers["agents.send"]({ ...params, ...(files?.length ? { files: phoneFiles(files) } : {}) }, client),
   "agents.create": (params: MobileSessionRequest) => createPhoneSession(params),
   "mobile.createSession": ({ selection, ...params }: MobileSessionRequest & { selection: MobileModelSelection }) => createPhoneSession(params, selection),
   "mobile.models": async ({ agentId, harness, switchOnly }: { agentId?: string; harness?: Harness; switchOnly?: boolean }): Promise<MobileModelCatalog> => {

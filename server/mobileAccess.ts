@@ -1,11 +1,12 @@
-// 모바일 포트는 JSON 몇 개와 WebSocket 하나, 이미지 업로드 하나만 받는다. 메인 토큰은 이 서버에서 통하지 않고, 장치마다 다른 장치 토큰만 통한다.
+// 모바일 포트는 JSON 몇 개와 WebSocket 하나, 이미지와 파일 업로드만 받는다. 메인 토큰은 이 서버에서 통하지 않고, 장치마다 다른 장치 토큰만 통한다.
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 import { dirname } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import { buildManualPairing, buildPairingUri, MOBILE_EVENT_TYPES, MOBILE_MEDIA_PATH, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, mobileModelId, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileModelSelection, type MobileReady, type MobileRelayPairing, type MobileRoute, type PairingOffer, type PairResult } from "../shared/mobile";
+import { buildManualPairing, buildPairingUri, MAX_MOBILE_FILE_BYTES, MOBILE_EVENT_TYPES, MOBILE_MEDIA_PATH, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, mobileModelId, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileModelSelection, type MobileReady, type MobileRelayPairing, type MobileRoute, type PairingOffer, type PairResult } from "../shared/mobile";
+import { MAX_FILES } from "../shared/files";
 import { MAX_IMAGE_BYTES, MAX_IMAGES } from "../shared/images";
 import { HARNESS_VALUES, isEffortLevel, type Agent, type Harness, type ServerEvent } from "../shared/protocol";
 import { resolveAddable, resolveFolder } from "./mobileFolders";
@@ -221,6 +222,17 @@ function imagesOf(value: unknown) {
   });
 }
 
+function filesOf(value: unknown) {
+  if (!Array.isArray(value) || value.length > MAX_FILES) return fail(T.errMobileParam("files"));
+  return value.map((raw) => {
+    const file = asObject(raw);
+    const id = typeof file.id === "string" && UUID_RE.test(file.id) ? file.id : fail(T.errMobileParam("files"));
+    const name = typeof file.name === "string" && file.name.length > 0 && file.name.length <= 255 ? file.name : fail(T.errMobileParam("files"));
+    const mediaType = typeof file.mediaType === "string" ? file.mediaType.slice(0, 100) : "";
+    return { id, name, mediaType };
+  });
+}
+
 function refOf(value: unknown, name: string): string {
   const text = typeof value === "string" ? value : "";
   return text.length > 0 && text.length <= REF_LIMIT && !text.startsWith("-") && !/[\s\u0000-\u001f\u007f]/.test(text) ? text : fail(T.errMobileParam(name));
@@ -272,10 +284,10 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
       const workspaceId = p.workspaceId === null ? null : idOf(p.workspaceId, "workspaceId");
       const worktree = worktreeOf(p.worktree);
       if (worktree && workspaceId === null) fail(T.errMobileParam("worktree"));
-      return { workspaceId, prompt: textOf(p.prompt, "prompt"), ...(p.images === undefined ? {} : { images: imagesOf(p.images) }), ...(worktree ? { worktree } : {}), ...(method === "mobile.createSession" ? { selection: modelSelectionOf(p.selection) } : {}) };
+      return { workspaceId, prompt: textOf(p.prompt, "prompt"), ...(p.images === undefined ? {} : { images: imagesOf(p.images) }), ...(p.files === undefined ? {} : { files: filesOf(p.files) }), ...(worktree ? { worktree } : {}), ...(method === "mobile.createSession" ? { selection: modelSelectionOf(p.selection) } : {}) };
     }
     case "agents.send":
-      return { agentId: idOf(p.agentId, "agentId"), prompt: textOf(p.prompt, "prompt"), steer: p.steer === true, ...(p.images === undefined ? {} : { images: imagesOf(p.images) }) };
+      return { agentId: idOf(p.agentId, "agentId"), prompt: textOf(p.prompt, "prompt"), steer: p.steer === true, ...(p.images === undefined ? {} : { images: imagesOf(p.images) }), ...(p.files === undefined ? {} : { files: filesOf(p.files) }) };
     case "agents.interrupt":
       return { agentId: idOf(p.agentId, "agentId") };
     case "agents.dequeue":
@@ -348,6 +360,7 @@ export type MobileServerDeps = {
   pairing: PairingCodes;
   call: (method: string, params: Record<string, unknown>, client: WebSocket) => Promise<unknown> | unknown;
   saveImage: (bytes: Buffer, mediaType: string, name: string) => { id: string };
+  saveFile?: (bytes: Buffer, name: string) => { id: string; name: string; bytes: number };
   serveMedia?: (req: IncomingMessage, res: ServerResponse, url: URL) => Promise<void>;
   hostName: string;
   allowedOrigins?: ReadonlySet<string>;
@@ -700,6 +713,7 @@ export class MobileServer {
     if (req.method === "GET" && url.pathname === "/mobile/health") return json(res, 200, { ok: true, protocol: MOBILE_PROTOCOL });
     if (req.method === "POST" && url.pathname === "/mobile/pair") return void this.pair(req, res);
     if (req.method === "POST" && url.pathname === "/mobile/images") return void this.uploadImage(req, res, url);
+    if (req.method === "POST" && url.pathname === "/mobile/files" && this.deps.saveFile) return void this.uploadFile(this.deps.saveFile, req, res);
     if (url.pathname === MOBILE_MEDIA_PATH && this.deps.serveMedia) return void this.serveMedia(this.deps.serveMedia, req, res, url);
     json(res, 404, { error: "not found" });
   }
@@ -742,36 +756,55 @@ export class MobileServer {
     }
   }
 
-  private async uploadImage(req: IncomingMessage, res: ServerResponse, url: URL) {
+  private async receiveUpload(req: IncomingMessage, res: ServerResponse, limit: number, tooLargeMessage: string): Promise<Buffer | null> {
     const auth = /^Bearer ([0-9a-f]{64})$/.exec(req.headers.authorization ?? "");
     const device = auth ? this.deps.devices.verify(auth[1]) : null;
     if (!device) {
       req.resume();
-      return json(res, 401, { error: "unauthorized" });
+      json(res, 401, { error: "unauthorized" });
+      return null;
     }
     const tooLarge = () => {
       res.setHeader("connection", "close");
-      json(res, 413, { error: T.errMobileImageTooLarge(MAX_IMAGE_BYTES / 1024 / 1024) });
+      json(res, 413, { error: tooLargeMessage });
       res.on("finish", () => req.socket.destroySoon());
+      return null;
     };
-    if (Number(req.headers["content-length"] ?? 0) > MAX_IMAGE_BYTES) return tooLarge();
-    let bytes: Buffer;
+    if (Number(req.headers["content-length"] ?? 0) > limit) return tooLarge();
     try {
-      bytes = await readBody(req, MAX_IMAGE_BYTES);
+      return await readBody(req, limit);
     } catch {
       return tooLarge();
     }
-    const rawName = req.headers["x-image-name"];
-    let name = "image";
-    try {
-      name = decodeURIComponent(typeof rawName === "string" ? rawName : url.searchParams.get("name") ?? "image");
-    } catch {
-    }
+  }
+
+  private async uploadImage(req: IncomingMessage, res: ServerResponse, url: URL) {
+    const bytes = await this.receiveUpload(req, res, MAX_IMAGE_BYTES, T.errMobileImageTooLarge(MAX_IMAGE_BYTES / 1024 / 1024));
+    if (!bytes) return;
+    const name = headerName(req.headers["x-image-name"], url.searchParams.get("name"), "image");
     try {
       json(res, 200, this.deps.saveImage(bytes, String(req.headers["content-type"] ?? ""), name));
     } catch (error) {
       json(res, 400, { error: error instanceof Error ? error.message : String(error) });
     }
+  }
+
+  private async uploadFile(saveFile: NonNullable<MobileServerDeps["saveFile"]>, req: IncomingMessage, res: ServerResponse) {
+    const bytes = await this.receiveUpload(req, res, MAX_MOBILE_FILE_BYTES, T.errMobileFileTooLarge(MAX_MOBILE_FILE_BYTES / 1024 / 1024));
+    if (!bytes) return;
+    try {
+      json(res, 200, saveFile(bytes, headerName(req.headers["x-file-name"], null, "file")));
+    } catch (error) {
+      json(res, 400, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+}
+
+function headerName(header: string | string[] | undefined, fallback: string | null, otherwise: string): string {
+  try {
+    return decodeURIComponent(typeof header === "string" ? header : fallback ?? otherwise);
+  } catch {
+    return otherwise;
   }
 }
 

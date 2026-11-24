@@ -4,6 +4,8 @@ export const THUMB_EDGE = 96;
 export const THUMB_QUALITY = 0.5;
 export const MAX_IMAGES = 5;
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+export const MAX_FILES = 10;
+export const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
 export function resizeTarget(width: number, height: number, maxEdge = MAX_EDGE): { width: number; height: number } | null {
   const longest = Math.max(width, height);
@@ -16,6 +18,8 @@ export type AttachmentStatus = "processing" | "uploading" | "done" | "error";
 
 export type Attachment = {
   key: string;
+  kind?: "file";
+  mediaType?: string;
   name: string;
   uri: string;
   status: AttachmentStatus;
@@ -33,3 +37,5 @@ export function uploadProgress(items: readonly Attachment[]): number | null {
 }
 
 export const allUploaded = (items: readonly Attachment[]) => items.every((a) => a.status === "done");
+
+export const isFileAttachment = (a: Attachment) => a.kind === "file";

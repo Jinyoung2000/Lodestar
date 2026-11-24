@@ -3,6 +3,7 @@ import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, 
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { ActivityIndicator, BackHandler, Keyboard, Pressable, useWindowDimensions, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import type { MobileFileRef } from "@shared/mobile";
 import type { ImageRef } from "@shared/protocol";
 import { stateOf, workspaceName } from "../../logic/agents";
 import { buildRows, stabilizeRows, type Row } from "../../logic/timeline";
@@ -179,11 +180,11 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   const dock = pending ? { draft: requestDraft(memory, pending.item.id), limit: dockLimit, compact: compactDock, short: shortDock, offline: conn !== "online", focusOnOpen: focusQuestion && !galleryOpen && !previewOpen, onOpen: () => { if (focusQuestion || restoreOffset.current === null) toEnd(false); } } : null;
 
   const send = useCallback(
-    async (text: string, images: ImageRef[], steer: boolean) => {
+    async (text: string, images: ImageRef[], steer: boolean, files: MobileFileRef[]) => {
       atBottomRef.current = true;
       setAtBottom(true);
       setTimeout(() => toEnd(true), 60);
-      await store.send(id, text, { steer, images });
+      await store.send(id, text, { steer, images, files });
     },
     [id, toEnd],
   );

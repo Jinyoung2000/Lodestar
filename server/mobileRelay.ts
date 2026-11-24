@@ -8,7 +8,7 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { WebSocket } from "ws";
 import { MAX_IMAGE_BYTES } from "../shared/images";
-import type { MobileRelayLinkState, MobileRelayPairing } from "../shared/mobile";
+import { MAX_MOBILE_FILE_BYTES, type MobileRelayLinkState, type MobileRelayPairing } from "../shared/mobile";
 import { decodeText, encodeText, RelayAssembler, relayFrame, RelayFrame, relayParts, RELAY_CHUNK_BYTES, RELAY_ID_RE, RELAY_MESSAGE_BYTES, relayPrologue, startResponder, toBase64Url, toHex, type NoisePrimitives, type RelayHello, type RelayHttpRequest, type RelaySession, type RelayWelcome } from "../shared/relayNoise";
 import type { MobileDevices, PairOutcome } from "./mobileAccess";
 import { T } from "./strings";
@@ -78,8 +78,8 @@ const MAX_CHANNELS = 32;
 const WHOLE_FRAME_BYTES = 1024 * 1024 - 64;
 const DRAIN_POLL_MS = 25;
 const REPLY_ID_RE = /^\{"id":(\d+),/;
-const HTTP_PATHS: Record<string, RelayHttpRequest["method"]> = { "/mobile/images": "POST", "/mobile/media": "GET" };
-const PASS_REQUEST_HEADERS = ["authorization", "content-type", "x-image-name", "range"];
+const HTTP_PATHS: Record<string, RelayHttpRequest["method"]> = { "/mobile/images": "POST", "/mobile/files": "POST", "/mobile/media": "GET" };
+const PASS_REQUEST_HEADERS = ["authorization", "content-type", "x-image-name", "x-file-name", "range"];
 const PASS_RESPONSE_HEADERS = ["content-type", "content-length", "content-range", "accept-ranges"];
 
 export class RelayLink {
@@ -470,7 +470,9 @@ class RelayChannel {
     }
     if (type === RelayFrame.body && this.httpHead) {
       this.httpSize += body.length;
-      if (this.httpSize > MAX_IMAGE_BYTES) return this.respond(413, { error: T.errMobileImageTooLarge(MAX_IMAGE_BYTES / 1024 / 1024) });
+      if (this.httpHead.path.split("?")[0] === "/mobile/files") {
+        if (this.httpSize > MAX_MOBILE_FILE_BYTES) return this.respond(413, { error: T.errMobileFileTooLarge(MAX_MOBILE_FILE_BYTES / 1024 / 1024) });
+      } else if (this.httpSize > MAX_IMAGE_BYTES) return this.respond(413, { error: T.errMobileImageTooLarge(MAX_IMAGE_BYTES / 1024 / 1024) });
       this.httpBody.push(body.slice());
       return;
     }
