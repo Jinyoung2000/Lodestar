@@ -1,9 +1,10 @@
 import { useIsFocused } from "expo-router";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentRef } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View, findNodeHandle } from "react-native";
+import type { MobileFileRef } from "@shared/mobile";
 import type { Agent, EffortLevel, Harness, QueuedMessage } from "@shared/protocol";
-import { MAX_IMAGES } from "../logic/images";
-import { pickFromLibrary, takePhoto, useAttachments, type PickedAsset } from "../state/attach";
+import { MAX_FILES, MAX_IMAGES, isFileAttachment } from "../logic/images";
+import { pickFiles, pickFromLibrary, useAttachments } from "../state/attach";
 import { composerPaste, discardPastedImage, isPasteForeground, legacyPasteSupported, nextPasteBinding, readClipboardImage } from "../state/composerPaste";
 import { useAppState } from "../state/app";
 import { loadPref, savePref } from "../state/storage";
@@ -19,7 +20,7 @@ type Props = {
   agent: Agent | undefined;
   disabled?: boolean;
   placeholder?: string;
-  onSend: (text: string, images: { id: string; label: string; thumb: string }[], steer: boolean) => Promise<void>;
+  onSend: (text: string, images: { id: string; label: string; thumb: string }[], steer: boolean, files: MobileFileRef[]) => Promise<void>;
   onStop?: () => void;
   onDequeue?: (queueId: string) => Promise<string | null>;
   onSendQueuedNow?: (queueId: string) => void;
@@ -44,6 +45,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const maxInputHeight = Math.ceil(INPUT_LINE_HEIGHT * fontScale * MAX_INPUT_LINES) + INPUT_PADDING * 2;
   const editorHeight = Math.min(Math.max(MIN_HEIGHT, maxInputHeight), height);
   const [wraps, setWraps] = useState(false);
+  const [compactModelWidth, setCompactModelWidth] = useState(MIN_TOUCH);
   const [editing, setEditing] = useState(false);
   const [selection, setSelection] = useState(() => ({ start: initialText?.length ?? 0, end: initialText?.length ?? 0 }));
   const [nextSelection, setNextSelection] = useState<typeof selection>();
@@ -61,7 +63,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const pasteBatches = useRef(0);
   const [pasting, setPasting] = useState(false);
   const canSend = focused && !disabled;
-  const { addAssets } = attachments;
+  const { addAssets, addFiles } = attachments;
   const bindPaste = useCallback(() => {
     const token = pasteScope.current;
     const tag = findNodeHandle(input.current);
@@ -147,24 +149,29 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const submit = useCallback(async () => {
     if (inFlight.current || !canSend || pasteBatches.current > 0) return;
     const images = attachments.refs();
+    const files = attachments.fileRefs();
     const prompt = text.trim();
-    if (!prompt && images.length === 0) return;
+    if (!prompt && images.length === 0 && files.length === 0) return;
     inFlight.current = true;
     const sentText = text;
-    const sentKeys = attachments.items.map((a) => a.key);
+    const sentAttachments = attachments.items.filter((a) => a.status === "done");
+    for (const a of attachments.items) attachments.remove(a.key);
+    textRef.current = "";
+    setText("");
+    setHeight(MIN_HEIGHT);
+    if (draftKey) savePref(`draft:${draftKey}`, "");
     setSending(true);
     setError(null);
     try {
-      await onSend(prompt, images, running && steer);
+      await onSend(prompt, images, running && steer, files);
       setFlipMode(false);
-      const current = textRef.current;
-      const rest = current.startsWith(sentText) ? current.slice(sentText.length).replace(/^\s+/, "") : current;
-      textRef.current = rest;
-      setText(rest);
-      if (draftKey) savePref(`draft:${draftKey}`, rest);
-      if (!rest) setHeight(MIN_HEIGHT);
-      for (const key of sentKeys) attachments.remove(key);
     } catch (e) {
+      const current = textRef.current;
+      const restored = current.trim() ? `${sentText.trimEnd()}\n${current}` : sentText;
+      textRef.current = restored;
+      setText(restored);
+      if (draftKey) savePref(`draft:${draftKey}`, restored);
+      attachments.restore(sentAttachments);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       inFlight.current = false;
@@ -199,34 +206,36 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
 
   const attach = () => {
     const scope = pasteScope.current;
-    const room = MAX_IMAGES - attachments.items.filter((a) => a.status !== "error").length;
-    if (room <= 0) return Alert.alert("Up to 5 images", "Remove one to attach another.");
-    const choose = async (pick: () => Promise<PickedAsset[]>) => {
+    const live = attachments.items.filter((a) => a.status !== "error");
+    const imageRoom = MAX_IMAGES - live.filter((a) => !isFileAttachment(a)).length;
+    const fileRoom = MAX_FILES - live.filter(isFileAttachment).length;
+    const run = async <T,>(pick: () => Promise<T[]>, add: (picked: T[]) => number, fromClipboard = false) => {
       if (!scope || pasteScope.current !== scope) return;
       try {
-        const assets = await pick();
-        if (pasteScope.current === scope && (pick !== readClipboardImage || isPasteForeground())) addAssets(assets);
+        const picked = await pick();
+        if (pasteScope.current === scope && (!fromClipboard || isPasteForeground())) add(picked);
       } catch (e) {
         if (pasteScope.current !== scope) return;
-        if (pick === readClipboardImage) setPendingSend(false);
+        if (fromClipboard) setPendingSend(false);
         Alert.alert("Could not attach", e instanceof Error ? e.message : String(e));
       }
     };
-    showActionMenu("Attach an image", [
-      { label: "Photo Library", onPress: () => void choose(() => pickFromLibrary(room)) },
-      { label: "Take Photo", onPress: () => void choose(takePhoto) },
+    const withImageRoom = (pick: () => void) => () => (imageRoom <= 0 ? Alert.alert("Up to 5 images", "Remove one to attach another.") : pick());
+    showActionMenu("Attach", [
+      { label: "Photo Library", onPress: withImageRoom(() => void run(() => pickFromLibrary(imageRoom), addAssets)) },
+      { label: "Choose File", onPress: () => (fileRoom <= 0 ? Alert.alert(`Up to ${MAX_FILES} files`, "Remove one to attach another.") : void run(pickFiles, addFiles)) },
       ...(legacyPasteSupported ? [{
         label: "Paste image",
-        onPress: () => {
+        onPress: withImageRoom(() => {
           if (!scope || pasteScope.current !== scope || !isPasteForeground()) return;
           pasteBatches.current++;
           setPasting(true);
-          void choose(readClipboardImage).finally(() => {
+          void run(readClipboardImage, addAssets, true).finally(() => {
             if (pasteScope.current !== scope) return;
             pasteBatches.current--;
             setPasting(pasteBatches.current > 0);
           });
-        },
+        }),
       }] : []),
     ]);
   };
@@ -236,16 +245,14 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const queue = agent?.queue ?? [];
   const steering = agent?.steering ?? [];
   const busyUpload = pasting || attachments.progress !== null;
-  const hasDraft = hasContent || busyUpload;
   const pendingCount = queue.length + steering.length;
   const showQueue = pendingCount < 3 || queueExpanded;
   const sendDisabled = !canSend || sending || (!hasContent && !busyUpload);
   const modelAvailable = !!modelControl && !modelControl.disabled && !disabled;
   const showStop = !!(running && onStop);
-  const showSend = !showStop || hasDraft || pendingSend;
   const compactStart = MIN_TOUCH + spacing.xs;
-  const modelWidth = modelControl ? MIN_TOUCH : 0;
-  const compactEnd = modelWidth + MIN_TOUCH * (Number(showStop) + Number(showSend)) + spacing.xs;
+  const modelWidth = modelControl ? Math.max(MIN_TOUCH, compactModelWidth) : 0;
+  const compactEnd = modelWidth + MIN_TOUCH * (Number(showStop) + 1) + spacing.xs;
   const expanded = !!text.length && (wraps || text.includes("\n"));
   const token = editing && modelAvailable && selection.start === selection.end ? text.slice(0, selection.start).match(/(?:^|\s)(\/[a-z]*)$/i)?.[1] : undefined;
   const modelCommand = token && "/model".startsWith(token.toLowerCase()) && !/\w/.test(text[selection.end] ?? "") ? token : undefined;
@@ -275,7 +282,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           ))}
         </View>
       )}
-      {running && hasDraft && (
+      {running && (
         <View style={styles.modeRow}>
           <View style={[styles.segment, { backgroundColor: colors.surfaceBase, borderColor: colors.separator }]}>
             <Pressable accessibilityRole="button" accessibilityState={{ selected: !steer }} hitSlop={{ top: 6, bottom: 2 }} onPress={() => setMode(false)} style={[styles.segmentItem, !steer && { backgroundColor: colors.selected }]}>
@@ -291,7 +298,14 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbRow} keyboardShouldPersistTaps="handled">
           {attachments.items.map((a) => (
             <View key={a.key} style={styles.thumbWrap}>
-              <Image source={{ uri: a.uri }} style={[styles.thumb, { backgroundColor: colors.surfaceBase, opacity: a.status === "done" ? 1 : 0.55 }]} accessibilityLabel={a.name} />
+              {isFileAttachment(a) ? (
+                <View accessibilityLabel={a.name} style={[styles.thumb, styles.fileTile, { backgroundColor: colors.surfaceBase, borderColor: colors.border, opacity: a.status === "done" ? 1 : 0.55 }]}>
+                  <Icon name="doc" size={20} color="textMuted" />
+                  <Text variant="caption" color="textStrong" numberOfLines={1} ellipsizeMode="middle" style={styles.fileName}>{a.name}</Text>
+                </View>
+              ) : (
+                <Image source={{ uri: a.uri }} style={[styles.thumb, { backgroundColor: colors.surfaceBase, opacity: a.status === "done" ? 1 : 0.55 }]} accessibilityLabel={a.name} />
+              )}
               {(a.status === "processing" || a.status === "uploading") && (
                 <View style={styles.thumbOverlay} pointerEvents="none">
                   <ActivityIndicator color={colors.textStrong} />
@@ -320,7 +334,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           <Text variant="body" maxFontSizeMultiplier={INPUT_FONT_LIMIT} style={styles.inputType} onTextLayout={(event) => setWraps(event.nativeEvent.lines.length > 1)}>{text}</Text>
         </View>
         <View style={[styles.row, expanded && { paddingTop: editorHeight }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Attach image" onPress={attach} disabled={disabled} style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Attach" onPress={attach} disabled={disabled} style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
             <Icon name="plus" size={22} color="textMuted" />
           </Pressable>
           <TextInput
@@ -349,18 +363,19 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           <View style={styles.controls}>
             {modelControl && <Pressable accessibilityRole="button" accessibilityLabel={`${PROVIDER_NAMES[modelControl.harness]}, ${modelPickerLabel(modelControl.name, modelControl.effort)}`}
               accessibilityState={{ disabled: !modelAvailable }} disabled={!modelAvailable} onPress={modelControl.onPress}
-              style={({ pressed }) => [styles.model, expanded ? styles.modelExpanded : { width: modelWidth }, pressed && { backgroundColor: colors.pressed }]}>
+              style={({ pressed }) => [styles.model, styles.modelLabelled, pressed && { backgroundColor: colors.pressed }]}
+              onLayout={expanded ? undefined : (e) => setCompactModelWidth(Math.ceil(e.nativeEvent.layout.width))}>
               <ProviderMark harness={modelControl.harness} size={18} selected />
-              {expanded ? <ModelSubtitle name={modelControl.name} effort={modelControl.effort} /> : <Icon name="chevron.down" size={12} color="textMuted" />}
+              <ModelSubtitle name={modelControl.name} effort={modelControl.effort} />
             </Pressable>}
             {showStop && <Pressable accessibilityRole="button" accessibilityLabel="Stop" disabled={!canSend} onPress={onStop} style={styles.iconButton}>
               {({ pressed }) => <View style={[styles.send, { backgroundColor: colors.textStrong, opacity: pressed ? 0.8 : 1 }]}><View style={[styles.stopMark, { backgroundColor: colors.background }]} /></View>}
             </Pressable>}
-            {showSend && <Pressable accessibilityRole="button" accessibilityLabel={running && steer ? "Steer" : running ? "Queue message" : "Send"} accessibilityState={{ disabled: sendDisabled }} onPress={press} disabled={sendDisabled} style={styles.iconButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel={running && steer ? "Steer" : running ? "Queue message" : "Send"} accessibilityState={{ disabled: sendDisabled }} onPress={press} disabled={sendDisabled} style={styles.iconButton}>
               {({ pressed }) => <View style={[styles.send, { backgroundColor: sendDisabled ? colors.overlay : colors.accent, opacity: pressed ? 0.8 : 1 }]}>
                 {sending || pendingSend ? <ActivityIndicator color={colors.onAccent} /> : <Icon name="arrow.up" size={18} color={sendDisabled ? "textSubtle" : "onAccent"} weight="bold" />}
               </View>}
-            </Pressable>}
+            </Pressable>
           </View>
         </View>
       </View>
@@ -402,7 +417,7 @@ const styles = StyleSheet.create({
   iconButton: { width: MIN_TOUCH, height: MIN_TOUCH, flexShrink: 0, alignItems: "center", justifyContent: "center" },
   controls: { marginStart: "auto", flexDirection: "row", alignItems: "center", flexShrink: 1, minWidth: 0 },
   model: { minWidth: MIN_TOUCH, height: MIN_TOUCH, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, borderRadius: radius.md },
-  modelExpanded: { flexShrink: 1, maxWidth: 190, paddingHorizontal: spacing.sm },
+  modelLabelled: { flexShrink: 1, maxWidth: 170, paddingHorizontal: spacing.sm },
   command: { minHeight: MIN_TOUCH, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, paddingHorizontal: spacing.md },
   send: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   stopMark: { width: 11, height: 11, borderRadius: 2 },
@@ -417,6 +432,8 @@ const styles = StyleSheet.create({
   thumbRow: { gap: spacing.sm, paddingTop: spacing.xs, paddingRight: spacing.sm },
   thumbWrap: { width: 64, height: 64 },
   thumb: { width: 64, height: 64, borderRadius: radius.sm },
+  fileTile: { borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center", gap: 2, paddingHorizontal: spacing.xs },
+  fileName: { textAlign: "center", alignSelf: "stretch" },
   thumbOverlay: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", borderRadius: radius.sm },
   thumbRemove: { position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
   note: { paddingHorizontal: spacing.sm },

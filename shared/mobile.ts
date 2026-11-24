@@ -1,12 +1,13 @@
 // MOBILE: iOS 클라이언트(mobile/)가 데몬의 모바일 포트와 주고받는 값. 데몬(server/mobileAccess.ts), 웹 Settings, 모바일 앱이 같은 모양을 쓴다.
 import type { SwitchBlock } from "./harnessSwitch";
+import { PREVIEW_HTML_MAX_CHARS } from "./previewCard";
 import type { PickerModel } from "./modelChoices";
 import type { EffortLevel, Harness, ImageRef, RequestQueuing, TimelineItem } from "./protocol";
 
 export const MOBILE_PROTOCOL = 1;
 
 // 모바일 연결에 허용하는 RPC 의 전부. 여기 없는 메서드(파일 쓰기, 설정 변경, 터미널, 셸 실행, 페어링 관리 등)는 데몬이 실행하기 전에 거절한다.
-// 이미지 올리기는 RPC 가 아니라 HTTP(POST /mobile/images)로 한다.
+// 이미지와 파일 올리기는 RPC 가 아니라 HTTP(POST /mobile/images, /mobile/files)로 한다.
 export const MOBILE_METHODS = [
   "mobile.ping",
   "mobile.defaults",
@@ -127,7 +128,9 @@ export type MobileModelSelection = { harness: Harness; model: string | null; eff
 export type MobileModel = Pick<PickerModel, "value" | "resolved" | "displayName" | "levels" | "defaultLevel"> & { pinKey?: string };
 export type MobileModelProvider = { harness: Harness; models: MobileModel[]; defaultModel: string | null; defaultModelKnown: boolean };
 export type MobileModelCatalog = { providers: MobileModelProvider[]; switchBlock: SwitchBlock | null };
-export type MobileSessionRequest = { workspaceId: string | null; prompt: string; images?: ImageRef[]; worktree?: MobileWorktreeRequest };
+export const MAX_MOBILE_FILE_BYTES = 50 * 1024 * 1024;
+export type MobileFileRef = { id: string; name: string; mediaType: string };
+export type MobileSessionRequest = { workspaceId: string | null; prompt: string; images?: ImageRef[]; files?: MobileFileRef[]; worktree?: MobileWorktreeRequest };
 
 export function mobileModelId(value: unknown): value is string {
   return typeof value === "string" && /^[\w.[\]:/-]{1,200}$/.test(value) && !value.startsWith("-");
@@ -144,11 +147,13 @@ function clip(text: string, max: number): string {
   return `${text.slice(0, max)}\n… (${text.length - max} more characters)`;
 }
 
+const RENDERED_KEYS = new Set(["html", "preview"]);
+
 function clipValue(value: unknown, max: number, depth = 0): unknown {
   if (typeof value === "string") return clip(value, max);
   if (depth >= 3 || value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.slice(0, 50).map((v) => clipValue(v, max, depth + 1));
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, clipValue(v, max, depth + 1)]));
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, clipValue(v, RENDERED_KEYS.has(k) ? Math.max(max, PREVIEW_HTML_MAX_CHARS) : max, depth + 1)]));
 }
 
 export function compactTimelineItem(item: TimelineItem): TimelineItem {

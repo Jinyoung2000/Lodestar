@@ -390,6 +390,9 @@
   --size-feedback-input-max: 400px;
   --size-feedback-pill-min: 180px;
   --size-feedback-pill-max: 280px;
+  --size-preview-frame: 390px;
+  --size-preview-frame-max: 420px;
+  --size-preview-column-min: 280px;
   --size-peek-row: 23px;
   --size-peek-badge: 18px;
   --size-menu-row: 24px;

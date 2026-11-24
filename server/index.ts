@@ -7,8 +7,8 @@ import { homedir, hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { extname, join, resolve } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { MobileDefaults, MobileWorkspaceIcons, MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileStatus } from "../shared/mobile";
-import { HARNESS_VALUES, harnessOf, OPERATOR_MARK, type Harness, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
+import type { MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileStatus } from "../shared/mobile";
+import { HARNESS_VALUES, harnessOf, OPERATOR_MARK, type FileRef, type Harness, type ImageRef, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
 import { switchBlock } from "../shared/harnessSwitch";
 import { AgentRunner } from "./agents";
 import { BoardStore } from "./board";
@@ -26,9 +26,11 @@ import { realDir } from "./paths";
 import { saveImageBytes } from "./images";
 import { mediaKey, mentionedMedia, resolveMediaBatch, type MediaContext } from "./media";
 import { handleMedia } from "./mediaHttp";
-import { handleUpload } from "./fileAttach";
+import { handleUpload, saveUploadBytes, uploadedFilePath } from "./fileAttach";
 import { lanHosts, makeOffer, MobileDevices, MobileServer, PairingCodes } from "./mobileAccess";
 import { loadRelayIdentity, normalizeRelayUrl, RelayLink, RELAY_URL_DEFAULT } from "./mobileRelay";
+import { createDesktopLink } from "./desktopLinkHost";
+import { LINK_HTTP_PATHS, LINK_WS_PATHS, splitRemotePath, type LinkHttpPath, type LinkWsPath } from "../shared/desktopLink";
 import { WorkspaceIcons } from "./workspaceIcons";
 import { mobilePreview } from "./mobilePreview";
 import { listFolder } from "./mobileFolders";
@@ -80,7 +82,6 @@ import { liveGroupLeaders, systemKillDeps, terminateGroups } from "./processGrou
 import { createDaemonShutdown } from "./shutdown";
 import { lockDaemonFile } from "./daemonLock";
 import { RestartScheduler, restartWaitMs } from "../shared/restartGate";
-import { importActivity, importVscodeSessions, listVscodeSessions, markSynced, reconcileBeforeTurn, type ImportDeps } from "./vscodeImport";
 import { bridgePty } from "./pty";
 import { TermAskRunner } from "./termask";
 import { QuickRunner } from "./quick";
@@ -148,6 +149,7 @@ const mobilePush = new MobilePush({ devices: mobileDevices, url: PUSH_URL, block
 const RELAY_URL = normalizeRelayUrl(process.env.AGENT_NAV_RELAY_URL ?? RELAY_URL_DEFAULT);
 const RELAY_BRIDGE_KEY = randomBytes(24).toString("hex");
 let relayLink: RelayLink | null = null;
+const desktopLink = createDesktopLink({ home: HOME, daemonPort: PORT, token: TOKEN, enabled: () => store.settings.desktopLink === true, log: (line) => console.log(line) });
 const mobile = new MobileServer({
   devices: mobileDevices,
   pairing: mobilePairing,
@@ -156,6 +158,7 @@ const mobile = new MobileServer({
     return handler(params, client);
   },
   saveImage: saveImageBytes,
+  saveFile: saveUploadBytes,
   serveMedia: (req, res, url) => handleMedia(req, res, url, { key: MOBILE_MEDIA_KEY, origins: "any" }),
   hostName: hostname().replace(/\.local$/, ""),
   allowedOrigins: new Set((process.env.AGENT_NAV_MOBILE_ALLOW_ORIGIN ?? "").split(",").filter(Boolean)),
@@ -370,8 +373,6 @@ function armAutoDone(delayMs = AUTO_DONE_FIRST_MS) {
 }
 armAutoDone();
 
-const importDeps: ImportDeps = { store, runner, emit: broadcast };
-runner.setImportHooks({ beforeTurn: (id) => reconcileBeforeTurn(importDeps, id), turnEnded: (id) => markSynced(importDeps, id) });
 
 runner.setBoardHooks({
   link: (agentId, cardId) => {
@@ -492,6 +493,7 @@ const sessionChanges = createSessionChanges({ store, feedback });
 
 const settingsEffects: SettingsEffect[] = [
   { keys: ["mobileAccess", "mobileRelay"], apply: () => applyMobileAccess() },
+  { keys: ["desktopLink"], apply: () => desktopLink.apply() },
   { keys: ["inboxIntervalMinutes", "showSlack"], apply: () => armInboxTimer() },
   { keys: ["showSlack"], apply: () => mentions.kick() },
   { keys: ["keepIdleSessionsWarmMinutes"], apply: () => runner.rearmIdleCloses() },
@@ -564,6 +566,7 @@ const handlers: Handlers = {
     return { ...snapshot, watch: workspaceWatch.stats() };
   },
   "agents.timelinePage": ({ agentId, limit, beforeId }) => pageOfTimeline(store.timeline(store.agent(agentId).id), limit, beforeId),
+  ...desktopLink.handlers,
   "mobile.ping": () => ({ now: Date.now() }),
   "mobile.status": () => mobileStatus(),
   "mobile.pairingCode": () => {
@@ -634,9 +637,6 @@ const handlers: Handlers = {
     return morningReview.apply(date, cardIds);
   },
   "review.markSeen": ({ date }) => morningReview.markSeen(String(date)),
-  "import.vscodeList": () => listVscodeSessions(importDeps),
-  "import.vscodeRun": ({ keys }) => importVscodeSessions(importDeps, Array.isArray(keys) ? keys.filter((k): k is string => typeof k === "string") : []),
-  "import.activity": ({ agentId }) => importActivity(importDeps, agentId),
   "daemon.restartIfIdle": () => {
     const busy = busyNow();
     if (busy > 0) return { restarted: false, busy };
@@ -661,7 +661,15 @@ const phoneModels = mobileModels(store, runner, metaService);
 const workspaceIcons = new WorkspaceIcons();
 const phoneModelChanges = new Set<string>();
 
-async function createPhoneSession({ workspaceId, prompt, images, worktree }: MobileSessionRequest, selection?: MobileModelSelection) {
+function phoneFiles(files: MobileFileRef[] | undefined): FileRef[] | undefined {
+  return files?.map((file) => {
+    const path = uploadedFilePath(file.id, file.name);
+    if (!path) throw new Error(T.errMobileParam("files"));
+    return { path, name: file.name, bytes: 0, mediaType: file.mediaType };
+  });
+}
+
+async function createPhoneSession({ workspaceId, prompt, images, files, worktree }: MobileSessionRequest, selection?: MobileModelSelection) {
   const workspace = workspaceId === null ? null : phoneWorkspace(workspaceId);
   const resolved = defaultsReader.resolve(store.settings);
   const choice = selection ? await phoneModels.select(selection) : { model: resolved.model.value, effort: resolved.effort.value };
@@ -673,7 +681,7 @@ async function createPhoneSession({ workspaceId, prompt, images, worktree }: Mob
     if (!info.branches.includes(worktree.base)) throw new Error(T.errMobileParam("base"));
     target = top.id;
   }
-  return runner.create({ ...choice, workspaceId: target, prompt, permissionMode: resolved.permissionMode.value, worktree: worktree ?? null, ...(images?.length ? { images } : {}) });
+  return runner.create({ ...choice, workspaceId: target, prompt, permissionMode: resolved.permissionMode.value, worktree: worktree ?? null, ...(images?.length ? { images } : {}), ...(files?.length ? { files: phoneFiles(files) } : {}) });
 }
 
 const mobileHandlers: Record<string, (params: never, client: WebSocket) => unknown> = {
@@ -721,6 +729,8 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
     runner.rename(phoneAgent(agentId).id, title);
     return null;
   },
+  "agents.send": ({ files, ...params }: { agentId: string; prompt: string; steer: boolean; images?: ImageRef[]; files?: MobileFileRef[] }, client: WebSocket) =>
+    handlers["agents.send"]({ ...params, ...(files?.length ? { files: phoneFiles(files) } : {}) }, client),
   "agents.create": (params: MobileSessionRequest) => createPhoneSession(params),
   "mobile.createSession": ({ selection, ...params }: MobileSessionRequest & { selection: MobileModelSelection }) => createPhoneSession(params, selection),
   "mobile.models": async ({ agentId, harness, switchOnly }: { agentId?: string; harness?: Harness; switchOnly?: boolean }): Promise<MobileModelCatalog> => {
@@ -830,6 +840,12 @@ const server = createServer((req, res) => {
     res.writeHead(400).end("bad request");
     return;
   }
+  const remote = splitRemotePath(url.pathname);
+  if (remote) {
+    if (!LINK_HTTP_PATHS.includes(remote.path as LinkHttpPath)) return void res.writeHead(404).end("not found");
+    void desktopLink.proxyHttp(req, res, url, remote.id, remote.path as LinkHttpPath, { token: TOKEN, origins: ALLOWED_ORIGINS });
+    return;
+  }
   if (url.pathname === "/attachments") {
     void handleUpload(req, res, url, { token: TOKEN, origins: ALLOWED_ORIGINS }).catch((error) => {
       console.error("[attachments] upload failed", error);
@@ -866,6 +882,23 @@ server.on("upgrade", (req, socket, head) => {
   if (!url || !isTrusted(req, url)) {
     socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
     socket.destroy();
+    return;
+  }
+  const remote = splitRemotePath(url.pathname);
+  if (remote) {
+    const refuse = (status: string) => {
+      socket.write(`HTTP/1.1 ${status}\r\n\r\n`);
+      socket.destroy();
+    };
+    if (!LINK_WS_PATHS.includes(remote.path as LinkWsPath)) return refuse("404 Not Found");
+    socket.on("error", () => {});
+    desktopLink.client.openSocket(remote.id, remote.path as LinkWsPath, url.search.slice(1)).then(
+      (attach) => wss.handleUpgrade(req, socket, head, attach),
+      (error: Error) => {
+        console.log(`[link] ${remote.path} to ${remote.id} failed: ${error.message}`);
+        refuse("502 Bad Gateway");
+      },
+    );
     return;
   }
   wss.handleUpgrade(req, socket, head, (ws) => {
@@ -941,5 +974,6 @@ server.listen(PORT, "127.0.0.1", () => {
   );
   console.log(`agent-nav daemon: http://127.0.0.1:${PORT}`);
   void applyMobileAccess();
+  void desktopLink.apply();
   console.log(`[defaults] ${describeDefaults(defaultsReader.resolve(store.settings, true))}`);
 });

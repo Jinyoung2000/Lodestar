@@ -1,5 +1,29 @@
 [
   {
+    "version": "0.2.5",
+    "versionCode": 7,
+    "commit": "39b7ed1d7637a699887bb2bdb4eb547998d35670",
+    "builtAt": "2026-11-24T16:53:00+09:00",
+    "jsCompatExceptions": []
+  },
+  {
+    "version": "0.2.4",
+    "versionCode": 6,
+    "commit": "6e3e1c646b8eb89fbc8b2ded2425c0ad73b3ed86",
+    "builtAt": "2026-11-24T15:04:00+09:00",
+    "jsCompatExceptions": []
+  },
+  {
+    "version": "0.2.3",
+    "versionCode": 5,
+    "commit": "5bbb31640e0523150e4b4b9e9afe41b9ac89b341",
+    "builtAt": "2026-11-24T12:09:00+09:00",
+    "jsCompatExceptions": [
+      { "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionActivityService.kt", "blob": "ff4c7b8078325c779c0dca2f365e673f43f53ace", "reason": "ae9261d changes only private notification code; no function the JavaScript calls was added or changed" },
+      { "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionNotifications.kt", "blob": "744dce0b4e652f0c729a2576f5523cbf1dbf6ae8", "reason": "ae9261d changes only private notification code; no function the JavaScript calls was added or changed" }
+    ]
+  },
+  {
     "version": "0.2.2",
     "versionCode": 4,
     "commit": "f38d84bc0e6a26cbc557c1a440f664370edde87f",

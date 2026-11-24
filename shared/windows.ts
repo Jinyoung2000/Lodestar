@@ -11,7 +11,11 @@ export function windowIdFromSearch(search: string): string | null {
   return isWindowId(value) ? value : null;
 }
 
-export const windowUrl = (base: string, id: string, initialChat = false) => `${base}/?${WINDOW_QUERY}=${id}${initialChat ? `&${CHAT_WINDOW_QUERY}=1` : ""}`;
+export const REMOTE_WINDOW_QUERY = "remote";
+const REMOTE_PATTERN = /^[0-9a-f]{16}$/;
+export const isRemoteId = (value: unknown): value is string => typeof value === "string" && REMOTE_PATTERN.test(value);
+
+export const windowUrl = (base: string, id: string, initialChat = false, remote?: string) => `${base}/?${WINDOW_QUERY}=${id}${initialChat ? `&${CHAT_WINDOW_QUERY}=1` : ""}${remote ? `&${REMOTE_WINDOW_QUERY}=${remote}` : ""}`;
 
 export type KeyValueStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">;
 
@@ -88,7 +92,7 @@ export function migrateLegacyStorage(base: KeyValueStorage, id: string): number 
 }
 
 export type Rect = { x: number; y: number; width: number; height: number };
-export type WindowRecord = { id: string; bounds: Rect | null; maximized: boolean; fullScreen: boolean };
+export type WindowRecord = { id: string; bounds: Rect | null; maximized: boolean; fullScreen: boolean; remote?: string };
 export type Registry = { version: 1; seq: number; windows: WindowRecord[] };
 
 export const EMPTY_REGISTRY: Registry = { version: 1, seq: 0, windows: [] };
@@ -113,7 +117,7 @@ export function parseRegistry(raw: string | null): Registry {
     for (const entry of value.windows as Partial<WindowRecord>[]) {
       if (!entry || !isWindowId(entry.id) || seen.has(entry.id)) continue;
       seen.add(entry.id);
-      windows.push({ id: entry.id, bounds: cleanBounds(entry.bounds), maximized: entry.maximized === true, fullScreen: entry.fullScreen === true });
+      windows.push({ id: entry.id, bounds: cleanBounds(entry.bounds), maximized: entry.maximized === true, fullScreen: entry.fullScreen === true, ...(isRemoteId(entry.remote) ? { remote: entry.remote } : {}) });
     }
     const seq = Math.max(num(value.seq) ? Math.floor(value.seq) : 0, ...windows.map((w) => idNumber(w.id)), 0);
     return { version: 1, seq, windows };
@@ -124,9 +128,9 @@ export function parseRegistry(raw: string | null): Registry {
 
 export const serializeRegistry = (registry: Registry) => JSON.stringify(registry, null, 2);
 
-export function addNewWindow(registry: Registry, bounds: Rect | null = null): { registry: Registry; record: WindowRecord } {
+export function addNewWindow(registry: Registry, bounds: Rect | null = null, remote?: string): { registry: Registry; record: WindowRecord } {
   const seq = registry.seq + 1;
-  const record: WindowRecord = { id: `w${seq}`, bounds, maximized: false, fullScreen: false };
+  const record: WindowRecord = { id: `w${seq}`, bounds, maximized: false, fullScreen: false, ...(remote ? { remote } : {}) };
   return { registry: { ...registry, seq, windows: [...registry.windows, record] }, record };
 }
 
@@ -139,7 +143,7 @@ export function launchPlan(registry: Registry): { registry: Registry; open: Wind
 export function newWindowPlan(registry: Registry, aliveIds: ReadonlySet<string>, from: Rect | null): { registry: Registry; record: WindowRecord; reused: boolean } {
   if (aliveIds.size === 0) {
     const kept = registry.windows[registry.windows.length - 1];
-    if (kept) return { registry, record: kept, reused: true };
+    if (kept && !kept.remote) return { registry, record: kept, reused: true };
   }
   const added = addNewWindow(registry, from);
   return { registry: added.registry, record: added.record, reused: false };

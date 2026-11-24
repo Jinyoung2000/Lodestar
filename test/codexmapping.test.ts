@@ -196,7 +196,7 @@ test("본 범위 기록: 바꿀 때 떠나는 도구의 표지를 나눔 줄로 
 });
 
 test("도구 바꾸기를 막는 경우", () => {
-  const base = { status: "idle" as const, backgroundTasks: 0, feedbackId: null, imported: undefined };
+  const base = { status: "idle" as const, backgroundTasks: 0, feedbackId: null };
   expect(switchBlock(base, switched) === null, "쉬는 세션");
   expect(switchBlock({ ...base, status: "running" }, []) === "running", "응답 중");
   expect(switchBlock({ ...base, backgroundTasks: 1 }, []) === "background", "백그라운드 작업");

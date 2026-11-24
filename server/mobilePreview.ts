@@ -3,20 +3,22 @@ import { open, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { MAX_IMAGE_BYTES, sniffImageType } from "../shared/images";
+import { findMediaPaths } from "../shared/media";
 import { MOBILE_MEDIA_PATH, type MobilePreview } from "../shared/mobile";
 import type { TimelineItem } from "../shared/protocol";
 import { HOME } from "./store";
 import { imagePath } from "./images";
-import { inspectMediaFile, mediaUrl } from "./media";
+import { inspectMediaFile, isAgentScratch, mediaUrl } from "./media";
 
-function hasWorkspaceFile(item: TimelineItem | undefined, target: string): boolean {
+function mentionedFile(item: TimelineItem | undefined, target: string): string | null {
   if (item?.kind === "tool") {
-    if (item.status === "done" && /(?:^|__)html_render$/.test(item.name)) return item.input.path === target && /\.html?$/i.test(target);
-    return item.status === "done" && ["Write", "Edit", "MultiEdit"].includes(item.name) && (item.input.moved_to ?? item.input.file_path) === target;
+    if (item.status === "done" && /(?:^|__)html_render$/.test(item.name)) return item.input.path === target && /\.html?$/i.test(target) ? target : null;
+    return item.status === "done" && ["Write", "Edit", "MultiEdit"].includes(item.name) && (item.input.moved_to ?? item.input.file_path) === target ? target : null;
   }
-  if (item?.kind !== "assistant") return false;
+  if (item?.kind !== "assistant") return null;
   const links = item.text.matchAll(/\]\(\s*(?:<([^>\n]+)>|([^)\s]+))(?:\s+"[^"\n]*")?\s*\)/g);
-  return Array.from(links).some((m) => (m[1] ?? m[2]) === target);
+  if (Array.from(links).some((m) => (m[1] ?? m[2]) === target)) return decodeURIComponent(target);
+  return findMediaPaths(item.text).includes(target) ? target : null;
 }
 
 function insideVisible(base: string | null, real: string): boolean {
@@ -45,13 +47,13 @@ export async function mobilePreview(root: string | null, item: TimelineItem | un
     const shot = item.shots?.[Number(shotTarget[1])];
     if (shot && dirname(shot) === join(HOME, "tool-shots")) path = shot;
   }
-  if (hasWorkspaceFile(item, target)) {
-    const raw = item?.kind === "assistant" ? decodeURIComponent(target) : target;
+  const raw = mentionedFile(item, target);
+  if (raw) {
     const expanded = raw.startsWith("~/") ? join(homedir(), raw.slice(2)) : raw;
     if (root || isAbsolute(expanded)) {
       const base = root ? await realpath(root) : null;
       const real = await realpath(base ? resolve(base, expanded) : expanded).catch(() => null);
-      if (real && extname(real).toLowerCase() === extname(raw).toLowerCase() && (insideVisible(base, real) || await insideHome(real))) path = real;
+      if (real && extname(real).toLowerCase() === extname(raw).toLowerCase() && (insideVisible(base, real) || isAgentScratch(real) || await insideHome(real))) path = real;
     }
   }
   if (path && videoKey && /\.(mp4|mov|webm)$/i.test(path)) {

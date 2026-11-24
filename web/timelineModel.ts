@@ -3,7 +3,8 @@ import { countLineChanges } from "../shared/lineDiff";
 import { modelNameFromId, versionedDisplayName } from "../shared/modelName";
 import { isInternalStep } from "../shared/internalSteps";
 import { planText, QUESTION_TOOL, readQuestions } from "../shared/interactive";
-import { mainFlow, type ToolItem } from "../shared/subagents";
+import { isPreviewTool } from "../shared/previewCard";
+import { isAgentTool, mainFlow, type ToolItem } from "../shared/subagents";
 import { isTaskTool } from "../shared/tasks";
 
 export type PermissionItem = Extract<TimelineItem, { kind: "permission" }>;
@@ -15,7 +16,8 @@ export type StepEntry = { item: TimelineItem; permission: PermissionItem | null 
 
 export type Block =
   | { kind: "item"; item: TimelineItem }
-  | { kind: "steps"; key: string; items: StepEntry[]; finished: boolean; durationMs: number | null };
+  | { kind: "steps"; key: string; items: StepEntry[]; finished: boolean; durationMs: number | null }
+  | { kind: "agents"; key: string; items: StepEntry[] };
 
 export type Turn = { key: string; user: UserItem | null; blocks: Block[] };
 
@@ -74,7 +76,14 @@ export function groupTurns(all: TimelineItem[]): Block[] {
   const blocks: Block[] = [];
   let current: StepEntry[] = [];
   let currentTurn = 0;
+  let agents: StepEntry[] = [];
+  const flushAgents = () => {
+    if (!agents.length) return;
+    blocks.push({ kind: "agents", key: agents[0].item.id, items: agents });
+    agents = [];
+  };
   const flush = () => {
+    flushAgents();
     if (!current.length) return;
     const finished = !current.some(({ item: i, permission }) => (i.kind === "tool" && i.status === "running" && permission?.status !== "denied") || (i.kind === "permission" && i.status === "pending") || permission?.status === "pending");
     blocks.push({ kind: "steps", key: current[0].item.id, items: current, finished, durationMs: finished ? (durationOf.get(currentTurn) ?? null) : null });
@@ -87,8 +96,14 @@ export function groupTurns(all: TimelineItem[]): Block[] {
       flush();
       turnStart = i;
     }
-    if (STEP_KINDS.has(item.kind)) {
+    if (STEP_KINDS.has(item.kind) && !(item.kind === "tool" && isPreviewTool(item.name))) {
       if (item.kind === "permission" && item.toolUseId && permissionByTool.get(item.toolUseId) === item) continue;
+      if (item.kind === "tool" && isAgentTool(item.name) && item.task) {
+        if (current.length) flush();
+        agents.push({ item, permission: permissionByTool.get(item.id) ?? null });
+        continue;
+      }
+      flushAgents();
       if (!current.length) currentTurn = turnStart;
       current.push({ item, permission: item.kind === "tool" ? (permissionByTool.get(item.id) ?? null) : null });
       continue;
@@ -132,11 +147,16 @@ function reuseTurn(old: Turn, next: Turn): Turn {
   return old.user === next.user && blocks.length === old.blocks.length && blocks.every((block, i) => block === old.blocks[i]) ? old : { key: next.key, user: next.user, blocks };
 }
 
-const blockKey = (block: Block) => (block.kind === "item" ? block.item.id : `steps:${block.key}`);
+const blockKey = (block: Block) => (block.kind === "item" ? block.item.id : `${block.kind}:${block.key}`);
 
 function sameBlock(a: Block, b: Block): boolean {
   if (a.kind === "item") return b.kind === "item" && a.item === b.item;
-  return b.kind === "steps" && a.finished === b.finished && a.durationMs === b.durationMs && a.items.length === b.items.length && a.items.every((entry, i) => entry.item === b.items[i].item && entry.permission === b.items[i].permission);
+  if (a.kind === "agents") return b.kind === "agents" && sameEntries(a.items, b.items);
+  return b.kind === "steps" && a.finished === b.finished && a.durationMs === b.durationMs && sameEntries(a.items, b.items);
+}
+
+function sameEntries(a: StepEntry[], b: StepEntry[]) {
+  return a.length === b.length && a.every((entry, i) => entry.item === b[i].item && entry.permission === b[i].permission);
 }
 
 export function turnFooter(turn: Turn) {

@@ -107,7 +107,9 @@
   background-color: var(--find-match-current-bg);
 }
 ::highlight(quote-comment) {
-  background-color: var(--editor-selection);
+  background-color: var(--surface-hover);
+  text-decoration-line: underline;
+  text-decoration-color: var(--accent);
 }
 
 .changes-view:not([data-wide]) .changes-head[data-custom-scope] {

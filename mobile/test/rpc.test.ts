@@ -6,7 +6,7 @@ import { MobileDevices, MobileServer, PairingCodes } from "../../server/mobileAc
 import { RpcClient, type ConnStatus } from "../src/net/rpc";
 import { pairWithHost } from "../src/net/pair";
 import { parsePairing } from "../src/logic/pairing";
-import { uploadImage } from "../src/net/upload";
+import { uploadToMac } from "../src/net/upload";
 import { expect, run, sleep, test, waitFor } from "./harness";
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
@@ -246,9 +246,9 @@ test("이미지 업로드: 바이너리로 올리고 진행률이 1 로 끝나�
   try {
     const target = { host: "127.0.0.1", port: s.server.port, token: s.token };
     const progress: number[] = [];
-    const result = await uploadImage(target, PNG, "a.png", "image/png", { onProgress: (f) => progress.push(f) });
+    const result = await uploadToMac(target, PNG, "a.png", "image/png", { onProgress: (f) => progress.push(f) });
     expect(result.id.length === 36 && progress.at(-1) === 1 && s.saved.length === 1 && s.saved[0].size === PNG.length, JSON.stringify(s.saved));
-    const bad = await uploadImage({ ...target, token: "0".repeat(64) }, PNG, "a.png", "image/png").catch((e: Error) => e.message);
+    const bad = await uploadToMac({ ...target, token: "0".repeat(64) }, PNG, "a.png", "image/png").catch((e: Error) => e.message);
     expect(/Upload failed \(401\)|unauthorized/.test(String(bad)), `bad token: ${bad}`);
     return "ok";
   } finally {

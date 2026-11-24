@@ -1,11 +1,12 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { memo, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties } from "react";
 import { findMediaPaths, MAX_MEDIA_CANDIDATES, MAX_MEDIA_PER_MESSAGE } from "../shared/media";
 import type { MediaInfo } from "../shared/protocol";
 import { Codicon } from "./icons";
 import { LightboxCopy } from "./LightboxCopy";
 import { knownMedia, resolveMediaPaths } from "./mediaResolve";
 import { MD } from "./mediaStrings";
+import { daemonPath } from "./remote";
 import { rpc } from "./rpc";
 import "./mediaPreview.css";
 
@@ -39,11 +40,13 @@ export function InlineMedia({ agentId, text, streaming }: { agentId: string; tex
 
 export const MediaPreview = memo(function MediaPreview({ info }: { info: MediaInfo }) {
   const [failed, setFailed] = useState(false);
+  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
   if (failed) return null;
-  const src = new URL(info.url, location.href).href;
+  const src = new URL(daemonPath(info.url), location.href).href;
+  const naturalStyle = natural ? ({ "--media-nat-w": natural.width, "--media-ratio": natural.width / natural.height } as CSSProperties) : undefined;
   return (
-    <figure className="media-item" data-kind={info.kind}>
-      {info.kind === "image" ? <ImageThumb src={src} name={info.name} onFailed={() => setFailed(true)} /> : <LazyVideo src={src} name={info.name} onFailed={() => setFailed(true)} />}
+    <figure className="media-item" data-kind={info.kind} style={naturalStyle}>
+      {info.kind === "image" ? <ImageThumb src={src} name={info.name} onSize={setNatural} onFailed={() => setFailed(true)} /> : <LazyVideo src={src} name={info.name} onFailed={() => setFailed(true)} />}
       {info.kind !== "image" && (
         <figcaption className="media-name mono" title={info.raw}>
           {info.name}
@@ -53,12 +56,22 @@ export const MediaPreview = memo(function MediaPreview({ info }: { info: MediaIn
   );
 });
 
-function ImageThumb({ src, name, onFailed }: { src: string; name: string; onFailed: () => void }) {
+function ImageThumb({ src, name, onSize, onFailed }: { src: string; name: string; onSize: (size: { width: number; height: number }) => void; onFailed: () => void }) {
   const [large, setLarge] = useState(false);
   return (
     <>
       <button type="button" className="media-thumb" title={MD.open} onClick={() => setLarge(true)}>
-        <img src={src} alt={name} loading="lazy" decoding="async" onError={onFailed} />
+        <img
+          src={src}
+          alt={name}
+          loading="lazy"
+          decoding="async"
+          onLoad={(event) => {
+            const { naturalWidth, naturalHeight } = event.currentTarget;
+            if (naturalWidth && naturalHeight) onSize({ width: naturalWidth, height: naturalHeight });
+          }}
+          onError={onFailed}
+        />
       </button>
       <DialogPrimitive.Root open={large} onOpenChange={setLarge}>
         <DialogPrimitive.Portal>

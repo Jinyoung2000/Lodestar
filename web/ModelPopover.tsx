@@ -44,11 +44,11 @@ export function EffortPicker() {
   return <ModelPopover area="levels" />;
 }
 
-function blockOf(s: State, agentId: string | null): "notion" | "feedback" | "imported" | null {
+function blockOf(s: State, agentId: string | null): "notion" | "feedback" | null {
   const agent = agentId ? s.agents.find((a) => a.id === agentId) : undefined;
   if (!agent) return null;
   const block = switchBlock(agent, s.timelines[agent.id] ?? []);
-  return block === "notion" || block === "feedback" || block === "imported" ? block : null;
+  return block === "notion" || block === "feedback" ? block : null;
 }
 
 function levelsOf(row: ChoiceRow | undefined): EffortLevel[] {

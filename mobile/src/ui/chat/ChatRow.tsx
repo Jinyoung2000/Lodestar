@@ -10,6 +10,7 @@ import { MarkdownView } from "../MarkdownView";
 import { Text } from "../Text";
 import { AnsweredRow } from "./Cards";
 import { StepsRow } from "./StepsRow";
+import { PreviewCardRow } from "./PreviewCard";
 
 export const ChatRow = memo(function ChatRow({ row, showGallery, openPreview, agentId }: { row: Row; agentId: string; showGallery: () => void; openPreview: (file: Preview) => void }) {
   const colors = useColors();
@@ -52,6 +53,8 @@ export const ChatRow = memo(function ChatRow({ row, showGallery, openPreview, ag
         <AttachmentGroup files={files} agentId={agentId} open={openPreview} showGallery={showGallery} />
       </View>;
     }
+    case "preview":
+      return <PreviewCardRow item={row.item} open={openPreview} />;
     case "approval":
     case "question":
     case "plan":
@@ -117,7 +120,7 @@ function FileRows({ files, agentId, open, showGallery }: { files: Preview[]; age
   </View>;
 }
 
-export const rowType = (row: Row) => (row.type === "user" ? "user" : row.type === "assistant" ? "assistant" : row.type === "steps" ? "steps" : row.type === "approval" || row.type === "question" || row.type === "plan" ? "card" : "small");
+export const rowType = (row: Row) => (row.type === "user" ? "user" : row.type === "assistant" ? "assistant" : row.type === "steps" ? "steps" : row.type === "preview" ? "preview" : row.type === "approval" || row.type === "question" || row.type === "plan" ? "card" : "small");
 
 const styles = StyleSheet.create({
   imageToggle: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: spacing.xs, minHeight: 40 },

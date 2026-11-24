@@ -2,7 +2,7 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-rou
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { MobileModelSelection } from "@shared/mobile";
+import type { MobileFileRef, MobileModelSelection } from "@shared/mobile";
 import type { BranchesResult, ImageRef } from "@shared/protocol";
 import { pickableWorkspaces } from "../logic/agents";
 import { baseChoices, branchLabel, canStartWorktree, defaultBaseBranch, shortPath, topWorkspace, worktreeDisabledReason, worktreePreview } from "../logic/workspaces";
@@ -102,7 +102,7 @@ export default function NewSession() {
   const locationLabel = existingWorktree ? branchLabel(existingWorktree, agents) : wantsWorktree ? branch.trim() || "New worktree" : info?.current;
   const contextLabel = project ? [project.name, locationLabel].filter(Boolean).join(" · ") : "Chat";
 
-  const start = async (text: string, images: ImageRef[]) => {
+  const start = async (text: string, images: ImageRef[], files: MobileFileRef[]) => {
     let workspaceId = selected;
     let worktree: { branch: string; base: string } | undefined;
     if (selected && effectivePlace === "worktree") {
@@ -115,8 +115,8 @@ export default function NewSession() {
     }
     setStarting(true);
     try {
-      const agent = await store.createSession(workspaceId, text, images, worktree, modelChoice);
-      router.replace({ pathname: "/session/[id]", params: { id: agent.id } });
+      const agent = await store.createSession(workspaceId, text, images, worktree, modelChoice, files);
+      router.replace({ pathname: "/session/[id]", params: { id: agent.id, started: "1" } });
     } finally {
       setStarting(false);
     }
@@ -212,7 +212,7 @@ export default function NewSession() {
           disabled={conn !== "online" || modelOpen}
           placeholder="Describe the task"
           autoFocus={!contextOpen}
-          onSend={(text, images) => start(text, images)}
+          onSend={(text, images, _steer, files) => start(text, images, files)}
           modelControl={{ harness: model.selection.harness, name: model.name, effort: model.effort, onPress: model.show, disabled: starting }}
         />
         {!expanded && <KeyboardSpacer />}

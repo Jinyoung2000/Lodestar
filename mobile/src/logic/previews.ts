@@ -33,8 +33,24 @@ export function fencePreview(lang: string, body: string, itemId: string): Previe
   return { kind, title, itemId, content: fromText(kind, body) };
 }
 
+const MEDIA_EXT = "(?:png|jpe?g|gif|webp|svg|mp4|mov|webm)";
+const BARE_MEDIA_PATH = new RegExp(`(?<![\\p{L}\\p{N}_/.~\\-])(~?\\/(?!\\/)[^\\s\`"'<>()\\[\\]{}|*?,;]+?\\.${MEDIA_EXT})(?![\\p{L}\\p{N}_/\\-]|\\.[\\p{L}\\p{N}])`, "giu");
+
+export function mediaPathPreview(text: string, itemId: string): Preview | undefined {
+  const path = text.trim();
+  if (!/^~?\/(?!\/)/.test(path) || path.length > 1024 || /[\n\\`]/.test(path) || path.split("/").includes("..")) return;
+  const kind = fileKind(path);
+  if (kind !== "image" && kind !== "video" && kind !== "svg") return;
+  return { itemId, title: path.split("/").pop() || path, kind, target: path, path };
+}
+
+export function bareMediaPaths(text: string): string[] {
+  return Array.from(text.matchAll(BARE_MEDIA_PATH), (match) => match[1]);
+}
+
 export function tokenPreview(token: Token, itemId: string): Preview | undefined {
   if (token.type === "code") return fencePreview(token.lang ?? "", token.text, itemId);
+  if (token.type === "codespan") return mediaPathPreview(token.text, itemId);
   if (token.type !== "image" && token.type !== "link") return;
   const target = String(token.href);
   const title = token.text || target.split("/").pop() || "Image";
@@ -102,13 +118,17 @@ function previewsOf(item: TimelineItem): Preview[] {
     return files;
   }
   if (item.kind !== "assistant" || item.streaming) return files;
+  const add = (preview: Preview | undefined) => {
+    if (preview && !(preview.path && files.some((file) => file.path === preview.path))) files.push(preview);
+  };
   function visit(tokens: Token[]) {
     for (const t of tokens) {
       const preview = tokenPreview(t, itemId);
-      if (preview) files.push(preview);
+      if (preview) add(preview);
       else if (t.type === "list") {
         for (const child of t.items) visit(child.tokens);
       } else if ("tokens" in t && Array.isArray(t.tokens)) visit(t.tokens);
+      else if (t.type === "text") for (const path of bareMediaPaths(t.text)) add(mediaPathPreview(path, itemId));
     }
   }
   visit(parseMarkdown(item.text));

@@ -7,7 +7,6 @@ import { displayPath } from "./displayPath";
 import { improvementsBusy, needsInputCount, notAppliedCount } from "./improvementRows";
 import { releaseToNotify } from "../shared/release";
 import { GroupMenu, GroupOrderMenu } from "./GroupMenu";
-import { ImportedMark } from "./ImportedBadges";
 import { PullRequestsSection } from "./PullRequestsSection";
 import { SectionMoveItems } from "./SectionMoveItems";
 import { beginSectionDrag, useSectionDrag, useSidebarOrder, type SidebarSection } from "./sidebarOrder";
@@ -470,12 +469,11 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
   const project = showProject && !isChild ? (workspace?.name ?? null) : null;
   const hasDetail =
     (!isChild && agent.workspaceId !== null && !!project) ||
-    agent.imported ||
     agent.status !== "idle" ||
     (!isChild && sum.add + sum.del > 0) ||
     folderCount > 1 ||
     !!automationTitle;
-  const oneLine = (agent.workspaceId === null && agent.status === "idle" && !agent.imported) || !hasDetail;
+  const oneLine = (agent.workspaceId === null && agent.status === "idle") || !hasDetail;
   const branch = agent.worktree?.branch ?? gitBranch;
   const tooltip = [
     `${agent.title} (${harnessOf(agent) === "claude" ? S.tipHarness : S.harnessNames[harnessOf(agent)]})`,
@@ -559,12 +557,6 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
                 <>
                   {agent.worktree || inRepo ? <WorktreeCompact size={12} /> : <FolderCompact size={12} />}
                   {project && <span className="session-project-detail">{project}</span>}
-                  <SessionSeparator />
-                </>
-              )}
-              {agent.imported && (
-                <>
-                  <ImportedMark />
                   <SessionSeparator />
                 </>
               )}
@@ -800,7 +792,7 @@ function SessionMenu({ agent }: { agent: Agent }) {
       <DropdownMenuItem disabled={!canHandOff(agent)} onSelect={() => startHandoff(agent.id)}>
         {S.handoffMenu}
       </DropdownMenuItem>
-      {agent.workspaceId === null && !agent.feedbackId && !agent.imported && <DropdownMenuItem onSelect={() => void moveChatToFolder(agent.id)}>{S.moveToFolderMenu}</DropdownMenuItem>}
+      {agent.workspaceId === null && !agent.feedbackId && <DropdownMenuItem onSelect={() => void moveChatToFolder(agent.id)}>{S.moveToFolderMenu}</DropdownMenuItem>}
       {agent.worktree && (
         <>
           <DropdownMenuSeparator />

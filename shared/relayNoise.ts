@@ -173,10 +173,12 @@ export function relayPrologue(relayId: string): Uint8Array {
 }
 
 export type RelayStreamKind = "ws" | "http" | "pair";
-export type RelayHello = { v: 1; kind: "ws" | "http" } | { v: 1; kind: "pair"; code: string; deviceName: string };
-export type RelayWelcome = { ok: true; deviceId?: string; deviceToken?: string; host?: string; protocol?: number } | { ok: false; error: string };
+export type RelayHello = { v: 1; kind: "ws" | "http"; parts?: true } | { v: 1; kind: "pair"; code: string; deviceName: string };
+export type RelayWelcome = { ok: true; parts?: true; acks?: true; deviceId?: string; deviceToken?: string; host?: string; protocol?: number } | { ok: false; error: string };
 
-export const RelayFrame = { head: 1, body: 2, end: 3 } as const;
+export const RelayFrame = { head: 1, body: 2, end: 3, ack: 4 } as const;
+
+export const RELAY_UPLOAD_WINDOW_BYTES = 1024 * 1024;
 
 export function relayFrame(type: number, body: Uint8Array): Uint8Array {
   return concatBytes(Uint8Array.of(type), body);
@@ -186,6 +188,36 @@ export type RelayHttpRequest = { method: "GET" | "POST"; path: string; headers: 
 export type RelayHttpResponse = { status: number; headers: Record<string, string> };
 
 export const RELAY_CHUNK_BYTES = 192 * 1024;
+export const RELAY_MESSAGE_BYTES = 64 * 1024 * 1024;
+
+export const RelayPart = { more: 1, last: 2 } as const;
+
+export function relayParts(message: Uint8Array): Uint8Array[] {
+  const parts: Uint8Array[] = [];
+  for (let at = 0; at === 0 || at < message.length; at += RELAY_CHUNK_BYTES) {
+    const end = at + RELAY_CHUNK_BYTES;
+    parts.push(relayFrame(end < message.length ? RelayPart.more : RelayPart.last, message.subarray(at, end)));
+  }
+  return parts;
+}
+
+export class RelayAssembler {
+  private held: Uint8Array[] = [];
+  private size = 0;
+
+  push(frame: Uint8Array): Uint8Array | null {
+    const type = frame[0];
+    if (type !== RelayPart.more && type !== RelayPart.last) throw new Error("bad part");
+    this.size += frame.length - 1;
+    if (this.size > RELAY_MESSAGE_BYTES) throw new Error("message too large");
+    this.held.push(frame.subarray(1));
+    if (type === RelayPart.more) return null;
+    const whole = this.held.length === 1 ? this.held[0] : concatBytes(...this.held);
+    this.held = [];
+    this.size = 0;
+    return whole;
+  }
+}
 
 const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 

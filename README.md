@@ -34,6 +34,10 @@ A detailed feature reference, written in Korean during development, is in [docs/
 
 The downloaded app needs no Node.js. Node is required only to build from source.
 
+### Android phone app
+
+Download `Lodestar-<version>-android-arm64.apk` from the same release and open it on the phone to install it (allow installs from your browser or file manager when Android asks). Later versions install over it, and smaller changes arrive as over-the-air updates. Pair it with the Mac as described under [Android companion](#android-companion).
+
 ### VS Code extension
 
 If you work in VS Code, install `lodestar-vscode-<version>.vsix` from the same release (`code --install-extension lodestar-vscode-<version>.vsix`). It lists the sessions of the folder open in VS Code and shows the conversation in a side bar view, backed by the running Lodestar app. This is the recommended way to use Lodestar next to VS Code; the app's own editor-centered layout is optional (Settings, "Default layout").
@@ -81,6 +85,17 @@ Environment variables that matter:
 | `AGENT_NAV_GH` | `gh` on `PATH` | GitHub CLI to run |
 | `AGENT_NAV_SRC` | `~/Repository/agent-nav` when the app is installed | Source folder that the self-improvement and idle-update features build from |
 | `AGENT_NAV_MOBILE_PORT` | daemon port + 1 | Port for the phone client, only opened when phone access is turned on |
+| `AGENT_NAV_LINK_PORT` | daemon port + 2 | Port for Desktop link, only opened when Desktop link is turned on |
+
+## Open another Mac (Desktop link)
+
+Desktop link opens the Lodestar on another Mac in a window on this Mac. The sessions, terminal, files and language servers in that window all run on the other Mac.
+
+1. On the Mac you want to reach, turn on **Settings → Desktop link** and choose **Create pairing text**.
+2. On the Mac you are sitting at, paste the text under **Settings → Desktop link → Add a Mac** and choose **Pair**. The text works once and expires in 5 minutes.
+3. Choose **Open** next to that Mac. The window shows the other Mac's name in the title bar.
+
+Both Macs must be on the same network or the same Tailscale network. Pairing works in one direction: to open the first Mac from the second as well, pair again the other way. Remove a Mac from either list to end the pairing. Run the same Lodestar version on both Macs; the list says when the versions differ. Browser tabs in that window load pages from the Mac you are sitting at, so a dev server on the other Mac is reached by that Mac's address, not `localhost`.
 
 ## Build and package
 
@@ -88,6 +103,7 @@ Environment variables that matter:
 npm run build   # also regenerates design tokens and runs the hooks lint first
 npm run dist    # release/mac-arm64/Lodestar.app, ad-hoc signed, not notarized
 npm run release:mac  # Developer ID signed and notarized zip; needs the identity in the keychain and LODESTAR_NOTARY_KEY_ID, LODESTAR_NOTARY_ISSUER, LODESTAR_NOTARY_KEY
+npm run release:android  # signed APK for the release; needs mobile/.signing from the checkout that built the installed APKs and a build registered in mobile/native-builds.json
 ```
 
 `npm run tokens` regenerates `web/tokens.css` from `design-system/tokens.json`. `npm run icon` rebuilds the app icon from `build/icon.svg`.
@@ -102,7 +118,7 @@ In Lodestar on the Mac, enable **Settings → Mobile access** and create a pairi
 
 The phone also accepts an explicit HTTPS address such as `https://mac.example-tailnet.ts.net`. To use an existing Tailscale reverse proxy, forward it to the mobile listener on `127.0.0.1:7789`. Start the daemon with `AGENT_NAV_MOBILE_BIND=127.0.0.1` and `AGENT_NAV_MOBILE_ALLOW_ORIGIN=https://mac.example-tailnet.ts.net`, substituting the actual HTTPS origin (including a non-default port). Pair using that HTTPS address and the one-time code. Tailscale Serve requires tailnet access on the phone. Tailscale Funnel makes the mobile pairing and device-authenticated endpoints reachable from the public internet. Forward only the mobile port.
 
-To reach the Mac from any network without Tailscale, also turn on **Settings → Mobile → Connect from anywhere** and pair by scanning the QR code. The Mac then keeps an outgoing connection to a relay (a Cloudflare Worker in `relay/`), and the phone reaches the Mac through it. Each connection uses the Noise IK handshake (X25519, ChaCha20-Poly1305) between keys that only the Mac and the phone hold: the Mac's public key travels in the QR code, never through the relay, so the relay forwards ciphertext it cannot read or alter. Typed pairing codes work only on the same network or over Tailscale. Videos play only on those direct routes. To run your own relay, deploy it with `npx wrangler deploy` in `relay/` and start the daemon with `AGENT_NAV_RELAY_URL` set to its address.
+To reach the Mac from any network without Tailscale, also turn on **Settings → Mobile → Connect from anywhere** and pair by scanning the QR code. The Mac then keeps an outgoing connection to a relay (a Cloudflare Worker in `relay/`), and the phone reaches the Mac through it. Each connection uses the Noise IK handshake (X25519, ChaCha20-Poly1305) between keys that only the Mac and the phone hold: the Mac's public key travels in the QR code, never through the relay, so the relay forwards ciphertext it cannot read or alter. Typed pairing codes work only on the same network or over Tailscale. Videos play through the relay too; the phone downloads the whole file before it starts. To run your own relay, deploy it with `npx wrangler deploy` in `relay/` and start the daemon with `AGENT_NAV_RELAY_URL` set to its address.
 
 **Waiting** shows sessions that need a reply. To follow running sessions while using another Android app, turn on **Settings → Connection → Keep connected in background**. The phone connects directly to the paired Mac, shows ongoing activity, and posts a notification for questions, errors and finished turns. Tap a notification to return to the session. Reopen Lodestar after force-stopping it or restarting the phone to resume alerts.
 
@@ -127,6 +143,7 @@ Tests are plain `tsx` scripts in `test/` that print `ok` or `FAIL` per check and
 - Anyone who can reach that port with the token can do what you can do: the daemon runs Claude Code sessions with your permissions, opens shells in your folders, reads and writes files in the workspaces you add, runs git and `gh`, and starts sessions in whatever permission mode you choose, including modes that skip prompts. Treat the token like a password. Note that any local program (under any account on the Mac) can read it by requesting the daemon's page, so Lodestar trusts every local process.
 - Model calls go through the Claude Code CLI and its own login. Lodestar does not read or store an Anthropic API key. By default it removes `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL` and the Bedrock, Vertex and Foundry switches from the environment it gives the CLI, so sessions use the CLI's own sign-in. Turn on Settings, "Use API credentials from the environment" to pass them through; usage is then billed to that key or provider. Sessions use your `~/.claude` settings, hooks, MCP servers and allow lists.
 - Phone access ("Mobile access" in Settings) is off by default. When you turn it on, a second, separate server listens on all interfaces (port + 1). It accepts only devices paired with a one-time code (8 characters, valid for 5 minutes, locked after 5 wrong tries), each device gets its own token, and only a fixed list of RPC methods is allowed. The connection is plain HTTP and WebSocket, so use it only on a network you trust or over a VPN such as Tailscale. Connections through the relay ("Connect from anywhere", off by default) are end-to-end encrypted to keys exchanged by QR code, and the daemon still listens only locally for them: it dials out to the relay.
+- Desktop link is off by default. When you turn it on, a third, separate server listens on all interfaces (port + 2) and accepts only Macs paired with a one-time pairing text (valid for 5 minutes, locked after 5 wrong tries). Every connection runs the Noise IK handshake (X25519, ChaCha20-Poly1305) between static keys that only the two Macs hold, so traffic is end-to-end encrypted on any network and a Mac whose key is not in the paired list is refused. A connected Mac can use sessions, the terminal and files, which is the same reach as sitting at the Mac, so pair only Macs you own. It cannot pair other devices, change Desktop link, Mobile access, provider or update settings, or run actions that only make sense on the Mac itself, such as Reveal in Finder. The main daemon stays on `127.0.0.1`, and its token never leaves the Mac.
 - Writes to GitHub (comments, reviews, merges, pushes) happen only when you press the button; the daemon rejects PR write requests that are not marked as confirmed.
 - Adding a workspace is the trust decision for code inside it. The editor runs a folder's own TypeScript, Relay compiler and formatters (and executable paths from its `.vscode/settings.json`) only in workspaces you added and their worktrees. In a repository Lodestar cloned on its own or in a pull request checkout made from the PR view, it uses only the bundled TypeScript server, starts no Relay server, runs no formatter except TypeScript and ignores that folder's `.vscode/settings.json`, until you add or open that folder yourself.
 - Behavior to be aware of: when a session reads a file from a GitHub repository (with `gh api` or a `github.com/.../blob/...` link), the daemon clones that repository into `~/Repository/<name>` with `gh` and fast-forwards it every 30 minutes; there is no setting for this yet. The installed app also has an idle self-update ("Update when idle" in Settings, off by default) that rebuilds from `AGENT_NAV_SRC` when that folder exists and can replace `/Applications/Lodestar.app`; when that folder already has a build (`dist/` and `dist-electron/daemon.mjs`), the installed app runs its daemon and UI from there, and the in-app feedback feature lets a session edit Lodestar's own source in a separate worktree.

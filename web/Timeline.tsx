@@ -4,7 +4,7 @@ import { memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode 
 import { endsInsideFence, streamingChunks } from "./streamingChunks";
 import { FeedbackAttachmentChip, FeedbackBodies } from "./DiffFeedbackChips";
 import { HandoffBubbleChip } from "./HandoffChip";
-import { AgentStepRow } from "./Subagents";
+import { AgentGroup, AgentStepRow } from "./Subagents";
 import { AddToBoardButton } from "./AddToBoardButton";
 import { TaskRunRow, TaskStepRow } from "./Tasks";
 import { isTaskTool } from "../shared/tasks";
@@ -41,6 +41,8 @@ import { getState, openAgent, openChanges, openDiff, openFile, setChangesScope, 
 import { S } from "./strings";
 import { createdNewFile, currentStep, foldTaskSteps, formatClock, interactiveStep, modelLabel, queuedStepIds, stepsChanges, systemMessageView, toolChanges, turnFooter, type PermissionItem, type StepEntry, type Turn, type UserItem } from "./timelineModel";
 import { isInteractiveTool } from "../shared/interactive";
+import { isPreviewTool } from "../shared/previewCard";
+import { PreviewCard } from "./PreviewCard";
 
 export { ApprovalCard } from "./Approval";
 export { groupTurns, reuseTurns, splitTurns } from "./timelineModel";
@@ -56,6 +58,7 @@ export const TurnView = memo(function TurnView({ turn, first, last, live }: { tu
       {turn.user && <UserHead user={turn.user} first={first} />}
       {turn.blocks.map((block) => {
         if (block.kind === "item") return block.item.kind === "restored" ? null : <TimelineRow key={block.item.id} item={block.item} />;
+        if (block.kind === "agents") return <AgentGroup key={block.key} entries={block.items} renderStep={renderAgentStep} renderText={renderAgentText} renderActivity={agentActivity} />;
         const folded = foldTaskSteps(block.items);
         if (folded.length === 1) {
           const [only] = folded;
@@ -357,6 +360,8 @@ export const TimelineRow = memo(function TimelineRow({ item }: { item: TimelineI
           {mayContainMedia(item.text) && <InlineMedia agentId={agentId} text={improvement ? withoutQuestionMarker(item.text) : item.text} streaming={item.streaming} />}
         </>
       );
+    case "tool":
+      return isPreviewTool(item.name) ? <PreviewCard input={item.input} /> : null;
     case "restored":
       return <RestoredMarker redoable={item.redoable} chatOnly={item.chatOnly} />;
     case "notice":
@@ -511,6 +516,17 @@ function AgentResultText({ text }: { text: string }) {
   );
 }
 
+const renderAgentStep = (step: TimelineItem) => <StepRow key={step.id} item={step} permission={null} />;
+const renderAgentText = (text: string) => <AgentResultText text={text} />;
+
+function agentActivity(step: TimelineItem) {
+  if (step.kind !== "tool") return null;
+  const filePath = typeof step.input.file_path === "string" ? step.input.file_path : null;
+  const target = filePath ? (filePath.split("/").pop() ?? filePath) : (describeTool(step.name, step.input).detail ?? "");
+  const verb = S.verbsBase[step.name as keyof typeof S.verbsBase] ?? describeTool(step.name, step.input).verb;
+  return target ? `${verb} ${target}` : verb;
+}
+
 const StepRow = memo(function StepRow({ item, permission, queued = false }: { item: TimelineItem; permission: PermissionItem | null; queued?: boolean }) {
   if (item.kind === "thinking") {
     return (
@@ -529,7 +545,7 @@ const StepRow = memo(function StepRow({ item, permission, queued = false }: { it
   if (isInteractiveTool(item.name)) return <InteractiveStepRow item={item} permission={permission} />;
   if (permission?.notion && permission.status !== "pending") return <NotionWriteRow tool={item} permission={permission} />;
   if (isTaskTool(item.name) && !permission) return <TaskStepRow item={item} />;
-  if (isAgentTool(item.name) && item.task) return <AgentStepRow item={item} permission={permission} renderStep={(step) => <StepRow key={step.id} item={step} permission={null} />} renderText={(text) => <AgentResultText text={text} />} />;
+  if (isAgentTool(item.name) && item.task) return <AgentStepRow item={item} permission={permission} renderStep={renderAgentStep} renderText={renderAgentText} renderActivity={agentActivity} />;
   const verb = item.status === "done" && createdNewFile(item.name, item.output) ? S.verbCreated : describeTool(item.name).verb;
   const gate = permission?.status === "pending" ? "pending" : permission?.status === "denied" ? "denied" : null;
   const isBash = item.name === "Bash";

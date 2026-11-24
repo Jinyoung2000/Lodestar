@@ -111,7 +111,7 @@ test("mainFlow, groupTurns: 서브에이전트가 부른 도구는 대화의 단
     { id: "a", kind: "assistant", text: "done", streaming: false },
   ];
   const blocks = groupTurns(items);
-  const steps = blocks.flatMap((b) => (b.kind === "steps" ? b.items : []));
+  const steps = blocks.flatMap((b) => (b.kind === "steps" || b.kind === "agents" ? b.items : []));
   expect(steps.length === 1 && steps[0].item.id === "T1", `steps ${steps.map((s) => s.item.id)}`);
   return expect(shared.mainFlow(items).length === 3 && shared.runningBackground(items).length === 1, "mainFlow keeps user, Agent row, assistant; the Agent row is still a running background task");
 });

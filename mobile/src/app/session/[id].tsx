@@ -1,14 +1,17 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { Redirect, Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, type NativeStackNavigationProp } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import { ActivityIndicator, BackHandler, Keyboard, Pressable, useWindowDimensions, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { ActivityIndicator, BackHandler, Keyboard, Platform, Pressable, useWindowDimensions, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { MobileFileRef } from "@shared/mobile";
 import type { ImageRef } from "@shared/protocol";
 import { stateOf, workspaceName } from "../../logic/agents";
 import { buildRows, stabilizeRows, type Row } from "../../logic/timeline";
+import { readQuestions } from "../../logic/questions";
 import { requestDraft, sessionViewState } from "../../state/sessionView";
 import { releasePreview, useExpandedPreview } from "../../state/expandedPreview";
 import { store, useAppState } from "../../state/app";
+import { closePane, commitPanes, isDrawerOpen, setDrawerOpen } from "../../state/split";
 import { sessionPreviews, type Preview } from "../../logic/previews";
 import { PreviewGallery, PreviewModal, usePreview } from "../../ui/Preview";
 import { CreatePreview } from "../../ui/CreatePreview";
@@ -27,21 +30,71 @@ import { Text } from "../../ui/Text";
 import { ChatRow, rowType } from "../../ui/chat/ChatRow";
 import { ApprovalCard, QuestionCard, PlanCard, type Actions } from "../../ui/chat/Cards";
 import { useSessionActions } from "../../ui/sessionActions";
+import { armSplitDrag, endSplitPress } from "../../ui/SplitDrag";
+import { SplitPanes } from "../../ui/SplitPanes";
 
 const NEAR_BOTTOM = 120;
+const PAST_THE_END = 1_000_000;
 type SessionParams = { id: string; draft?: string; focusQuestion?: string; gallery?: string; viewer?: string };
+
+type PaneUi = { galleryOpen: boolean; viewerOpen: boolean; setGallery: (open: boolean) => void; setViewer: (open: boolean) => void };
+type PaneRole = { active: boolean; first: boolean; onClose: () => void };
+type SessionViewProps = { id: string; draft?: string; focusQuestion: boolean; ui: PaneUi; pane?: PaneRole };
 
 export default function Session() {
   const params = useLocalSearchParams<SessionParams>();
   const mate = useAppState((s) => s.agents.find((a) => a.id === params.id)?.assistant === true);
+  const { panes } = useFoldLayout();
   if (mate) return <Redirect href="/mate" />;
-  return <SessionView key={params.id} id={params.id} draft={params.draft} focusQuestion={params.focusQuestion === "1"} galleryOpen={params.gallery === "1"} viewerOpen={params.viewer === "1"} />;
+  if (panes.length > 1) return <SplitSessions panes={panes} params={params} />;
+  return <RoutedSession key={params.id} params={params} />;
 }
 
-function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id: string; draft?: string; focusQuestion: boolean; galleryOpen: boolean; viewerOpen: boolean }) {
-  const router = useRouter();
+function RoutedSession({ params }: { params: SessionParams }) {
   const navigation = useNavigation<NativeStackNavigationProp<{ "session/[id]": SessionParams }, "session/[id]">>();
-  const { expanded, paneWidth, connectionInRail } = useFoldLayout();
+  const ui = useMemo<PaneUi>(() => ({
+    galleryOpen: params.gallery === "1",
+    viewerOpen: params.viewer === "1",
+    setGallery: (open) => navigation.setParams({ gallery: open ? "1" : undefined }),
+    setViewer: (open) => navigation.setParams({ viewer: open ? "1" : undefined }),
+  }), [navigation, params.gallery, params.viewer]);
+  return <SessionView id={params.id} draft={params.draft} focusQuestion={params.focusQuestion === "1"} ui={ui} />;
+}
+
+function SplitSessions({ panes, params }: { panes: readonly string[]; params: SessionParams }) {
+  const router = useRouter();
+  const activeId = params.id;
+  const focus = useCallback((paneId: string) => {
+    commitPanes(panes, paneId);
+    router.setParams({ id: paneId, focusQuestion: undefined, gallery: undefined, viewer: undefined });
+  }, [panes, router]);
+  const close = (paneId: string) => {
+    const next = closePane(panes, paneId, activeId);
+    if (!next.active) {
+      router.dismissTo("/");
+      return;
+    }
+    commitPanes(next.panes, next.active);
+    router.setParams({ id: next.active, focusQuestion: undefined });
+  };
+  return <SplitPanes panes={panes} activeId={activeId} onFocus={focus} renderPane={(paneId, index) => (
+    <PaneSession id={paneId} draft={paneId === activeId ? params.draft : undefined} focusQuestion={paneId === activeId && params.focusQuestion === "1"}
+      pane={{ active: paneId === activeId, first: index === 0, onClose: () => close(paneId) }} />
+  )} />;
+}
+
+function PaneSession({ id, draft, focusQuestion, pane }: { id: string; draft?: string; focusQuestion: boolean; pane: PaneRole }) {
+  const [galleryOpen, setGallery] = useState(false);
+  const [viewerOpen, setViewer] = useState(false);
+  const ui = useMemo<PaneUi>(() => ({ galleryOpen, viewerOpen, setGallery, setViewer }), [galleryOpen, viewerOpen]);
+  return <SessionView id={id} draft={draft} focusQuestion={focusQuestion} ui={ui} pane={pane} />;
+}
+
+function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
+  const { galleryOpen, viewerOpen, setGallery, setViewer } = ui;
+  const router = useRouter();
+  const { expanded, paneWidth, connectionInRail, railCollapsed, waiting } = useFoldLayout();
+  const ownsScreen = !pane || pane.active;
   const colors = useColors();
   const agent = useAppState((s) => s.agents.find((a) => a.id === id));
   const conn = useAppState((s) => s.conn);
@@ -50,8 +103,6 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   const workspaces = useAppState((s) => s.workspaces);
   const timeline = useAppState((s) => s.timelines[id]);
   const listRef = useRef<FlashListRef<Row>>(null);
-  const [atBottom, setAtBottom] = useState(true);
-  const atBottomRef = useRef(true);
   const scrollOffset = useRef(0);
   const listHeight = useRef<number | null>(null);
   const contentHeight = useRef(0);
@@ -67,13 +118,15 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
 
   const [memory] = useState(() => sessionViewState(id));
   const hasNews = !!agent && (!!agent.unread || agent.status === "running" || agent.status === "waiting");
-  const restoreOffset = useRef(hasNews || focusQuestion ? null : memory.offset);
-  const followEnd = useRef(restoreOffset.current === null);
+  const restoreAnchor = useRef(hasNews || focusQuestion ? null : memory.anchor);
+  const followEnd = useRef(restoreAnchor.current === null);
+  const [atBottom, setAtBottom] = useState(followEnd.current);
+  const atBottomRef = useRef(followEnd.current);
   const showGallery = useCallback(() => {
     Keyboard.dismiss();
-    navigation.setParams({ gallery: "1" });
-  }, [navigation]);
-  const closeGallery = useCallback(() => navigation.setParams({ gallery: undefined }), [navigation]);
+    setGallery(true);
+  }, [setGallery]);
+  const closeGallery = useCallback(() => setGallery(false), [setGallery]);
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const chatPadding = (paneWidth || windowWidth) < 360 ? spacing.lg : spacing.xl;
   const keyboardTop = useKeyboardTop();
@@ -91,15 +144,20 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   const previewOpen = viewerOpen && !!preview.selected;
   const fullPreview = useExpandedPreview() === id;
   const openPreview = useCallback((file: Preview) => {
-    navigation.setParams({ viewer: "1" });
+    setViewer(true);
     void open(file);
-  }, [navigation, open]);
+  }, [open, setViewer]);
   const closePreview = useCallback(() => {
-    navigation.setParams({ viewer: undefined });
+    setViewer(false);
     close();
-  }, [close, navigation]);
+  }, [close, setViewer]);
   useFocusEffect(useCallback(() => {
+    if (!ownsScreen) return;
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (isDrawerOpen()) {
+        setDrawerOpen(false);
+        return true;
+      }
       if (modelOpen) {
         closeModel();
         return true;
@@ -118,9 +176,8 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
       return true;
     });
     return () => back.remove();
-  }, [closeGallery, closeModel, closePreview, expanded, fullPreview, galleryOpen, id, modelOpen, previewOpen]));
+  }, [closeGallery, closeModel, closePreview, expanded, fullPreview, galleryOpen, id, modelOpen, ownsScreen, previewOpen]));
   const listGeneration = useRef(0);
-  const [listReset, setListReset] = useState(0);
   const rows = useMemo(() => {
     const previous = previousRows.current;
     const next = stabilizeRows(previous, buildRows(items ?? []));
@@ -129,10 +186,10 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
       listGeneration.current += 1;
       scrollOffset.current = 0;
       contentHeight.current = 0;
-      restoreOffset.current = null;
+      restoreAnchor.current = null;
       followEnd.current = true;
       atBottomRef.current = true;
-      memory.offset = null;
+      memory.anchor = null;
     }
     previousRows.current = next;
     return next;
@@ -140,6 +197,9 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
 
   const pending = rows.findLast((row) => row.type === "question" || row.type === "approval" || row.type === "plan");
   const messages = useMemo(() => pending ? rows.filter(r => r.type !== "question" && r.type !== "approval" && r.type !== "plan") : rows, [rows, pending]);
+
+  const restoreKey = restoreAnchor.current?.key;
+  const restoreIndex = restoreKey === undefined ? -1 : messages.findIndex((row) => row.key === restoreKey);
 
   const actions = useMemo<Actions>(
     () => ({
@@ -151,19 +211,33 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
     [id],
   );
 
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-    scrollOffset.current = contentOffset.y;
-    contentHeight.current = contentSize.height;
-    const near = contentSize.height - (contentOffset.y + layoutMeasurement.height) < NEAR_BOTTOM;
-    memory.offset = near ? null : contentOffset.y;
+  const notePosition = useCallback(() => {
+    const viewport = listHeight.current;
+    if (viewport === null || restoreAnchor.current) return;
+    const end = Math.max(0, contentHeight.current - viewport);
+    const offset = Math.min(scrollOffset.current, end);
+    const near = end - offset < NEAR_BOTTOM;
+    const list = listRef.current;
+    const index = near || !list ? -1 : list.getFirstVisibleIndex();
+    const row = index >= 0 ? list?.props.data?.[index] : undefined;
+    const top = index >= 0 ? list?.getLayout(index)?.y : undefined;
+    if (near) memory.anchor = null;
+    else if (row && list && top !== undefined) memory.anchor = { key: row.key, offset: offset - list.getFirstItemOffset() - top };
     if (near !== atBottomRef.current) {
       atBottomRef.current = near;
       setAtBottom(near);
     }
   }, [memory]);
 
-  const toEnd = useCallback((animated = true) => listRef.current?.scrollToEnd({ animated }), []);
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollOffset.current = e.nativeEvent.contentOffset.y;
+    notePosition();
+  }, [notePosition]);
+
+  const toEnd = useCallback((animated = true) => {
+    restoreAnchor.current = null;
+    return listRef.current?.scrollToEnd({ animated });
+  }, []);
   const keepBottomEdge = useCallback(({ nativeEvent }: LayoutChangeEvent) => {
     const previous = listHeight.current;
     const next = nativeEvent.layout.height;
@@ -176,16 +250,18 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
     void listRef.current?.scrollToOffset({ offset, animated: false });
   }, []);
 
-  const normalDockLimit = keyboardTop === undefined ? Math.min(availableHeight * 0.5, chatHeight - 40) : chatHeight - 40;
+  const dockShare = pending?.type === "question" && readQuestions(pending.item.input).some((q) => q.options.some((o) => o.preview)) ? 0.7 : 0.5;
+  const normalDockLimit = keyboardTop === undefined ? Math.min(availableHeight * dockShare, chatHeight - 40) : chatHeight - 40;
   const dockLimit = shortDock ? chatHeight : Math.max(120, normalDockLimit);
-  const dock = pending ? { draft: requestDraft(memory, pending.item.id), limit: dockLimit, compact: compactDock, short: shortDock, offline: conn !== "online", focusOnOpen: focusQuestion && !galleryOpen && !previewOpen, onOpen: () => { if (focusQuestion || restoreOffset.current === null) toEnd(false); } } : null;
+  const dock = pending ? { draft: requestDraft(memory, pending.item.id), limit: dockLimit, compact: compactDock, short: shortDock, offline: conn !== "online", focusOnOpen: focusQuestion && !galleryOpen && !previewOpen, onOpen: () => { if (focusQuestion || restoreAnchor.current === null) toEnd(false); } } : null;
 
   const send = useCallback(
-    async (text: string, images: ImageRef[], steer: boolean) => {
-      await store.send(id, text, { steer, images });
+    async (text: string, images: ImageRef[], steer: boolean, files: MobileFileRef[]) => {
+      followEnd.current = true;
       atBottomRef.current = true;
       setAtBottom(true);
       setTimeout(() => toEnd(true), 60);
+      await store.send(id, text, { steer, images, files });
     },
     [id, toEnd],
   );
@@ -200,23 +276,29 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   const state = agent ? stateOf(agent) : "idle";
   const workspace = agent ? workspaceName(agent, workspaces) : "";
   const hideChatToolbar = !!pending && availableHeight < 200 && !galleryOpen;
+  const showSessions = !!pane?.first && railCollapsed;
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: !galleryOpen && !previewOpen && !modelOpen }} />
-      <View style={{ flex: 1, paddingRight: expanded ? insets.right : 0, paddingBottom: expanded && keyboardTop === undefined ? insets.bottom : 0 }} pointerEvents={previewOpen || modelOpen ? "none" : "auto"} accessibilityElementsHidden={previewOpen || modelOpen} importantForAccessibility={previewOpen || modelOpen ? "no-hide-descendants" : "auto"}>
-      <SafeAreaView edges={expanded ? ["top"] : ["top", "left", "right"]} style={{ backgroundColor: colors.background }}>
+      {ownsScreen && <Stack.Screen options={{ headerShown: false, gestureEnabled: !galleryOpen && !previewOpen && !modelOpen }} />}
+      <View style={{ flex: 1, paddingRight: expanded && !pane ? insets.right : 0, paddingBottom: expanded && keyboardTop === undefined ? insets.bottom : 0 }} pointerEvents={previewOpen || modelOpen ? "none" : "auto"} accessibilityElementsHidden={previewOpen || modelOpen} importantForAccessibility={previewOpen || modelOpen ? "no-hide-descendants" : "auto"}>
+      <View style={{ backgroundColor: colors.background, paddingTop: insets.top, paddingLeft: expanded ? 0 : insets.left, paddingRight: expanded ? 0 : insets.right }}>
         <View>
-          {!hideChatToolbar && <View style={[styles.bar, expanded && styles.expandedBar]} pointerEvents={galleryOpen ? "none" : "auto"} accessibilityElementsHidden={galleryOpen} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"}>
+          {!hideChatToolbar && <View style={[styles.bar, expanded && !showSessions && styles.expandedBar]} pointerEvents={galleryOpen ? "none" : "auto"} accessibilityElementsHidden={galleryOpen} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"}>
+            {pane?.active && <View pointerEvents="none" style={[styles.activeLine, { backgroundColor: colors.accentText }]} />}
             {!expanded && <ToolbarButton icon="chevron.left" label="Back" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />}
-            <ConnectionTitle title={title} subtitle={workspace} hidden={connectionInRail || galleryOpen || previewOpen || modelOpen} style={styles.title}
-              detail={agent ? <ProviderLabel harness={agent.harness} workspaceId={agent.workspaceId} parts={[workspace]} state={state} maxFontSizeMultiplier={1.2} /> : undefined}>
-              <View accessible accessibilityRole="header" accessibilityLabel={agent ? `${title}, ${sessionIdentity(agent.harness, state)}` : title} style={styles.titleLine}>
-                <Text style={styles.titleText} color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
-              </View>
-            </ConnectionTitle>
+            {showSessions && <ToolbarButton icon="line.3.horizontal" label={waiting ? `Sessions, ${waiting} ${waiting === 1 ? "needs" : "need"} your reply` : "Sessions"} badge={waiting || undefined} onPress={() => { Keyboard.dismiss(); setDrawerOpen(true); }} />}
+            <Pressable accessible={false} style={styles.title} disabled={!pane} onLongPress={() => armSplitDrag({ agentId: id, title })} onPressOut={endSplitPress}>
+              <ConnectionTitle title={title} subtitle={workspace} hidden={connectionInRail || galleryOpen || previewOpen || modelOpen} style={styles.fill}
+                detail={agent ? <ProviderLabel harness={agent.harness} workspaceId={agent.workspaceId} parts={[workspace]} state={state} maxFontSizeMultiplier={1.2} /> : undefined}>
+                <View accessible accessibilityRole="header" accessibilityLabel={agent ? `${title}, ${sessionIdentity(agent.harness, state)}` : title} style={styles.titleLine}>
+                  <Text style={styles.titleText} color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
+                </View>
+              </ConnectionTitle>
+            </Pressable>
             {files.length > 0 && <ToolbarButton icon="photo.on.rectangle" count={files.length} label={`Open previews, ${files.length} ${files.length === 1 ? "preview" : "previews"}`} onPress={showGallery} />}
-            {(agent || createPreview || reloadMessages) && <ToolbarButton icon="ellipsis" label="Session actions" onPress={() => sessionActions.open(agent, { closeConversation: expanded ? () => router.dismissTo("/") : undefined, createPreview, reloadMessages })} />}
+            {(agent || createPreview || reloadMessages) && <ToolbarButton icon="ellipsis" label="Session actions" onPress={() => sessionActions.open(agent, { closeConversation: expanded && !pane ? () => router.dismissTo("/") : undefined, createPreview, reloadMessages })} />}
+            {pane && <ToolbarButton icon="xmark" label="Close conversation" onPress={pane.onClose} />}
           </View>}
           {galleryOpen && <View style={[styles.bar, StyleSheet.absoluteFill, { backgroundColor: colors.background }]} onAccessibilityEscape={closeGallery}>
             <ToolbarButton icon="chevron.left" label="Close previews" onPress={closeGallery} />
@@ -229,7 +311,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
             <ToolbarButton icon="plus" label="New preview" onPress={createPreview} />
           </View>}
         </View>
-      </SafeAreaView>
+      </View>
       <View style={{ flex: 1 }}>
         <View onLayout={({ nativeEvent }) => setChatHeight(nativeEvent.layout.height)} style={[{ flex: 1 }, paneWidth > 752 && styles.readingWidth]} pointerEvents={galleryOpen ? "none" : "auto"} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"} accessibilityElementsHidden={galleryOpen}>
           {!hasTimeline ? (
@@ -242,40 +324,41 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
           ) : (
             <View style={{ flex: 1 }} onLayout={keepBottomEdge}>
               <FlashList
-                key={`${listGeneration.current}:${listReset}`}
+                key={listGeneration.current}
                 ref={listRef}
                 data={messages}
                 keyExtractor={(row) => row.key}
                 getItemType={rowType}
                 renderItem={({ item }) => <ChatRow agentId={id} row={item} showGallery={showGallery} openPreview={openPreview} />}
                 ItemSeparatorComponent={Gap}
-                contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm, paddingBottom: spacing.lg }}
+                contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm, paddingBottom: spacing.xs }}
                 onContentSizeChange={(_, height) => {
-                  const viewport = listHeight.current;
-                  const shrankPastEnd = viewport !== null && height < contentHeight.current && height < scrollOffset.current + viewport / 2;
                   contentHeight.current = height;
-                  if (shrankPastEnd) {
-                    scrollOffset.current = 0;
-                    contentHeight.current = 0;
-                    restoreOffset.current = null;
-                    followEnd.current = true;
-                    atBottomRef.current = true;
-                    memory.offset = null;
-                    setListReset((count) => count + 1);
+                  const viewport = listHeight.current;
+                  if (followEnd.current && viewport !== null) {
+                    scrollOffset.current = Math.max(0, height - viewport);
+                    void listRef.current?.scrollToOffset({ offset: scrollOffset.current, animated: false });
+                  }
+                  notePosition();
+                }}
+                maintainVisibleContentPosition={{ startRenderingFromBottom: true, disabled: atBottom }}
+                drawDistance={windowHeight}
+                initialScrollIndex={restoreIndex >= 0 ? restoreIndex : undefined}
+                initialScrollIndexParams={restoreIndex >= 0 ? { viewOffset: restoreAnchor.current?.offset } : Platform.OS === "android" ? { viewOffset: PAST_THE_END } : undefined}
+                onLoad={() => {
+                  if (restoreIndex >= 0) {
+                    void listRef.current?.scrollToIndex({ index: restoreIndex, viewOffset: restoreAnchor.current?.offset, animated: false });
                     return;
                   }
-                  if (followEnd.current && listHeight.current !== null) void listRef.current?.scrollToOffset({ offset: Math.max(0, height - listHeight.current), animated: false });
-                }}
-                maintainVisibleContentPosition={{ autoscrollToBottomThreshold: 0.25, startRenderingFromBottom: true, animateAutoScrollToBottom: false }}
-                onLoad={() => {
-                  const offset = restoreOffset.current;
-                  if (offset !== null && !focusQuestion) void listRef.current?.scrollToOffset({ offset, animated: false });
-                  else toEnd(false);
+                  restoreAnchor.current = null;
+                  followEnd.current = true;
+                  toEnd(false);
                 }}
                 onStartReached={() => void store.loadOlder(id)}
                 onStartReachedThreshold={0.5}
                 onScroll={onScroll}
                 onScrollBeginDrag={() => {
+                  restoreAnchor.current = null;
                   followEnd.current = false;
                   meter.start();
                 }}
@@ -287,11 +370,11 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
                   followEnd.current = atBottomRef.current;
                   setTimeout(meter.stop, 500);
                 }}
-                scrollEventThrottle={64}
+                scrollEventThrottle={16}
                 keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="handled"
-                ListHeaderComponent={timeline?.loadingOlder ? <ActivityIndicator style={{ marginBottom: spacing.md }} /> : rows.length === 0 ? <Text color="textMuted" style={{ textAlign: "center" }}>No messages yet.</Text> : null}
-                ListFooterComponent={showWorking ? <Working /> : null}
+                ListHeaderComponent={timeline?.hasMore ? <View style={styles.olderSlot}>{timeline.loadingOlder && <ActivityIndicator />}</View> : rows.length === 0 ? <Text color="textMuted" style={{ textAlign: "center" }}>No messages yet.</Text> : null}
+                ListFooterComponent={<View style={styles.workingSlot}>{showWorking && <Working />}</View>}
               />
               {!atBottom && (
                 <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => toEnd(true)} style={[styles.latestTarget, { right: chatPadding - 6 }]}>
@@ -302,7 +385,7 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
               )}
             </View>
           )}
-          {dock && pending?.type === "question" && <QuestionCard key={pending.key} item={pending.item} actions={actions} {...dock} />}
+          {dock && pending?.type === "question" && <QuestionCard key={pending.key} item={pending.item} actions={actions} openPreview={openPreview} {...dock} />}
           {dock && pending?.type === "approval" && <ApprovalCard key={pending.key} item={pending.item} tool={pending.tool} reviewOnDesktop={pending.reviewOnDesktop} actions={actions} {...dock} />}
           {dock && pending?.type === "plan" && <PlanCard key={pending.key} item={pending.item} actions={actions} {...dock} />}
           <View style={pending ? { display: "none" } : undefined}>
@@ -345,12 +428,15 @@ function SessionView({ id, draft, focusQuestion, galleryOpen, viewerOpen }: { id
   );
 }
 
-function ToolbarButton({ icon, label, count, onPress }: { icon: ComponentProps<typeof Icon>["name"]; label: string; count?: number; onPress?: () => void }) {
+function ToolbarButton({ icon, label, count, badge, onPress }: { icon: ComponentProps<typeof Icon>["name"]; label: string; count?: number; badge?: number; onPress?: () => void }) {
   const colors = useColors();
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !onPress }} disabled={!onPress} onPress={onPress}
     style={({ pressed }) => [styles.headerButton, count !== undefined && styles.countButton, pressed && { backgroundColor: colors.pressed }]}>
     <Icon name={icon} size={20} color={onPress ? "textStrong" : "textSubtle"} />
     {count !== undefined && <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.count}>{count}</Text>}
+    {badge !== undefined && <View style={[styles.badge, { backgroundColor: colors.warning }]}>
+      <Text variant="caption" color="background" numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.badgeText}>{badge}</Text>
+    </View>}
   </Pressable>;
 }
 
@@ -376,11 +462,17 @@ const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
   count: { fontVariant: ["tabular-nums"] },
   title: { flex: 1, minWidth: 0 },
+  fill: { flex: 1 },
+  activeLine: { position: "absolute", top: 0, left: 0, right: 0, height: 2 },
+  badge: { position: "absolute", top: 5, right: 1, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: "center", justifyContent: "center" },
+  badgeText: { fontSize: 12, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] },
   titleText: { flexShrink: 1, fontSize: 17, lineHeight: 22, fontWeight: "600" },
   titleLine: { flexDirection: "row", alignItems: "center", marginBottom: 1 },
   opening: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.md },
   openingText: { flex: 1 },
   readingWidth: { width: 720, alignSelf: "center" },
+  olderSlot: { height: 36, marginBottom: spacing.md, alignItems: "center", justifyContent: "center" },
+  workingSlot: { height: 32 },
   working: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingTop: spacing.md },
   latestTarget: { position: "absolute", bottom: spacing.xs, width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   latest: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },

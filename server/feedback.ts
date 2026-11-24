@@ -18,7 +18,7 @@ import type { RestartOutcome } from "../shared/restartGate";
 import type { AgentRunner } from "./agents";
 import * as gitOps from "./git";
 import { claudeBin, claudeEnv, stripAppEnv } from "./claude";
-import { findTranscript } from "./vscodeTimeline";
+import { findTranscript } from "./transcripts";
 import { HOME, type Store } from "./store";
 import { T } from "./strings";
 import { findExecutable, loginShellPath, withLoginPath } from "./loginPath";

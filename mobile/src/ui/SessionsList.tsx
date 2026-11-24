@@ -4,6 +4,7 @@ import { Stack, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Keyboard, PanResponder, Platform, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
 import type { SearchBarCommands } from "react-native-screens";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Agent, TimelineItem } from "@shared/protocol";
 import { groupAgents, workspaceName } from "../logic/agents";
 import { buildProject, compareAgents, topWorkspace } from "../logic/workspaces";
@@ -18,13 +19,15 @@ import { ConnectionTitle } from "./ConnectionTitle";
 import { Icon } from "./Icon";
 import { RenameDialog } from "./RenameDialog";
 import { Segmented } from "./Segmented";
-import { rowSwipeGate, SessionRow, SessionRowFrame } from "./SessionRow";
+import { ROW_INSET, rowSwipeGate, SessionRow, SessionRowFrame } from "./SessionRow";
 import { ProviderLabel } from "./ProviderMark";
 import { MenuButton, SESSION_SORT_OPTIONS, SortButton } from "./SortButton";
 import type { ListView } from "../state/sortPrefs";
 import { relativeTime } from "../logic/time";
 import { Text } from "./Text";
 import { useSessionActions } from "./sessionActions";
+import { armSplitDrag } from "./SplitDrag";
+import type { ActionChoice } from "./actionMenu";
 import { NEW_SESSION_CLEARANCE, NewSessionButton } from "./NewSessionButton";
 import { WorkspacesView } from "./WorkspacesView";
 
@@ -33,12 +36,13 @@ const GROUPING_OPTIONS = [{ value: "workspace", label: "Workspace" }, { value: "
 const tabs = ["sessions", "waiting", "workspaces"] as const;
 type Tab = (typeof tabs)[number];
 
-export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId, onOpenSession, headerHeight = 0 }: {
+export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId, onOpenSession, splitChoices, headerHeight = 0 }: {
   docked?: boolean;
   paneWidth?: number;
   sessionId?: string;
   workspaceId?: string;
   onOpenSession?: (id: string, focusQuestion: boolean) => void;
+  splitChoices?: (agent: Agent) => ActionChoice[];
   headerHeight?: number;
 }) {
   const router = useRouter();
@@ -67,17 +71,20 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
   const list = useRef<FlashListRef<Item>>(null);
   const lastVisibleSelection = useRef<string>(undefined);
   const listKey = scopedWorkspace ? `workspace:${scopedWorkspace.id}` : tab;
-  const [androidSearch, setAndroidSearch] = useState(false);
+  const ownHeader = docked || Platform.OS === "android";
+  const insets = useSafeAreaInsets();
   const actions = useSessionActions();
+  const { open: openActions } = actions;
+  const longPress = useCallback((agent: Agent) => {
+    const menu = () => openActions(agent, { leading: splitChoices?.(agent) });
+    if (docked) armSplitDrag({ agentId: agent.id, title: agent.title }, menu);
+    else menu();
+  }, [docked, openActions, splitChoices]);
   const [refreshing, setRefreshing] = useState(false);
 
   const waitingAgents = useMemo(() => agents.filter((agent) => agent.status === "waiting"), [agents]);
   const waitingIds = JSON.stringify(waitingAgents.map((agent) => agent.id).sort());
   const timelines = useAppState((s) => s.timelines);
-
-  useEffect(() => {
-    if (androidSearch) searchBar.current?.focus();
-  }, [androidSearch]);
 
   const refreshWaiting = useCallback(async () => {
     const ids: string[] = JSON.parse(waitingIds);
@@ -161,8 +168,8 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
 
   return (
     <View style={{ flex: 1 }}>
-      {docked && scopedWorkspace ? null : docked ? (
-        <View>
+      {docked && scopedWorkspace ? null : ownHeader ? (
+        <View style={docked ? undefined : { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }}>
           <View style={styles.railHeader}>
             <ConnectionTitle title="Lodestar" style={styles.railTitle}>
               {appTitle(1.2)}
@@ -172,9 +179,9 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
               onPress={() => { if (railSearch) setQuery(""); setRailSearch(!railSearch); }} style={styles.headerButton}>
               <Icon name={railSearch ? "xmark" : "magnifyingglass"} size={20} color="textStrong" />
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="New session" onPress={() => router.push("/new")} style={styles.headerButton}>
+            {docked && <Pressable accessibilityRole="button" accessibilityLabel="New session" onPress={() => router.push("/new")} style={styles.headerButton}>
               <Icon name="pencil" size={20} color="textStrong" />
-            </Pressable>
+            </Pressable>}
             <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => router.push("/settings")} style={styles.headerButton}>
               <Icon name="gearshape" size={20} color="textStrong" />
             </Pressable>
@@ -190,10 +197,10 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
           headerTitle: () => <ConnectionTitle title="Lodestar" maxFontSizeMultiplier={1.1}>
             <Text accessibilityRole="header" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.1} style={styles.appTitle}>Lodestar</Text>
           </ConnectionTitle>,
-          headerSearchBarOptions: Platform.OS !== "android" || androidSearch ? { ref: searchBar, autoFocus: androidSearch, onClose: () => { setQuery(""); setAndroidSearch(false); }, placeholder: searchLabel, onChangeText: (e) => setQuery(e.nativeEvent.text), autoCapitalize: "none", hideWhenScrolling: false, barTintColor: colors.inputBackground, tintColor: colors.accentText, headerIconColor: colors.textStrong, textColor: colors.textStrong, hintTextColor: colors.textMuted, shouldShowHintSearchIcon: false } : undefined,
-          headerRight: () => androidSearch ? null : <View style={styles.headerActions}>
+          headerSearchBarOptions: { ref: searchBar, onClose: () => setQuery(""), placeholder: searchLabel, onChangeText: (e) => setQuery(e.nativeEvent.text), autoCapitalize: "none", hideWhenScrolling: false, barTintColor: colors.inputBackground, tintColor: colors.accentText, headerIconColor: colors.textStrong, textColor: colors.textStrong, hintTextColor: colors.textMuted, shouldShowHintSearchIcon: false },
+          headerRight: () => <View style={styles.headerActions}>
             {viewMenu}
-            <Pressable accessibilityRole="button" accessibilityLabel={tab === "workspaces" ? "Search workspaces" : "Search sessions"} onPress={() => Platform.OS === "android" ? setAndroidSearch(true) : searchBar.current?.focus()} style={styles.headerButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel={tab === "workspaces" ? "Search workspaces" : "Search sessions"} onPress={() => searchBar.current?.focus()} style={styles.headerButton}>
               <Icon name="magnifyingglass" size={20} color="textStrong" />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={() => router.push("/settings")} style={styles.headerButton}>
@@ -271,9 +278,9 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
               }
               if (tab === "waiting") {
                 const pending = timelines[item.agent.id]?.items.findLast((entry): entry is Extract<TimelineItem, { kind: "permission" }> => entry.kind === "permission" && entry.status === "pending");
-                return <WaitingRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} workspace={item.workspace} pending={pending} onPress={open} onLongPress={actions.open} />;
+                return <WaitingRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} workspace={item.workspace} pending={pending} onPress={open} onLongPress={longPress} />;
               }
-              return <SessionRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} subtitle={item.workspace} time={scopedWorkspace ? scopedSort : view.ordering} onPress={open} onLongPress={actions.open} />;
+              return <SessionRow agent={item.agent} selected={docked ? sessionId === item.agent.id : undefined} subtitle={item.workspace} time={scopedWorkspace ? scopedSort : view.ordering} onPress={open} onLongPress={longPress} />;
             }}
           />
         )}
@@ -291,10 +298,10 @@ const SectionHeader = memo(function SectionHeader({ title, count, first, workspa
   return (
     <View style={[styles.sectionHeader, { backgroundColor: colors.background, paddingTop: first ? 0 : spacing.sm }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${count} ${count === 1 ? "session" : "sessions"}`} accessibilityState={{ expanded }} onPress={onToggle} style={styles.sectionToggle}>
-        <WorkspaceIcon workspaceId={workspaceId} />
-        <Text variant="secondary" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={18 / 14} style={styles.sectionTitle}>{title}</Text>
-        {!expanded && <Text variant="secondary" color="textSubtle" maxFontSizeMultiplier={18 / 14} style={styles.sectionCount}>{count}</Text>}
-        <Icon name={expanded ? "chevron.down" : "chevron.right"} size={12} color="textSubtle" />
+        <WorkspaceIcon workspaceId={workspaceId} size={20} />
+        <Text variant="secondary" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.25} style={styles.sectionTitle}>{title}</Text>
+        {!expanded && <Text variant="secondary" color="textSubtle" maxFontSizeMultiplier={1.25} style={styles.sectionCount}>{count}</Text>}
+        <Icon name={expanded ? "chevron.down" : "chevron.right"} size={14} color="textSubtle" />
       </Pressable>
       {onNew && <Pressable accessibilityRole="button" accessibilityLabel={`New session in ${title}`} onPress={onNew} style={styles.sectionNew}>
         <Icon name="plus" size={18} color="textMuted" />
@@ -352,7 +359,7 @@ function releaseRowSwipe() {
   rowSwipeGate.claimed = false;
 }
 
-const SECTION_HEADER_HEIGHT = 40;
+const SECTION_HEADER_HEIGHT = 48;
 const BRAND_SIZE = 26;
 const BRAND_HALF = BRAND_SIZE / 2;
 const RAY_BASE = 5;
@@ -374,11 +381,11 @@ const styles = StyleSheet.create({
   rayLeft: { position: "absolute", left: 0, top: BRAND_HALF - RAY_BASE, borderTopWidth: RAY_BASE, borderBottomWidth: RAY_BASE, borderRightWidth: BRAND_HALF, borderTopColor: "transparent", borderBottomColor: "transparent" },
   rayRight: { position: "absolute", left: BRAND_HALF, top: BRAND_HALF - RAY_BASE, borderTopWidth: RAY_BASE, borderBottomWidth: RAY_BASE, borderLeftWidth: BRAND_HALF, borderTopColor: "transparent", borderBottomColor: "transparent" },
   brandSlot: { width: 26, height: 26, marginRight: 10 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", paddingLeft: spacing.lg, paddingRight: spacing.xs },
-  sectionToggle: { flex: 1, minWidth: 0, minHeight: 40, flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionTitle: { fontSize: 14, lineHeight: 18, fontWeight: "700", flexShrink: 1 },
-  sectionCount: { fontSize: 13, lineHeight: 18, fontVariant: ["tabular-nums"] },
-  sectionNew: { width: 44, height: 40, alignItems: "center", justifyContent: "center" },
+  sectionHeader: { flexDirection: "row", alignItems: "center", paddingLeft: ROW_INSET, paddingRight: spacing.xs },
+  sectionToggle: { flex: 1, minWidth: 0, minHeight: SECTION_HEADER_HEIGHT, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  sectionTitle: { fontSize: 17, lineHeight: 22, fontWeight: "700", flexShrink: 1 },
+  sectionCount: { fontSize: 15, lineHeight: 22, fontVariant: ["tabular-nums"] },
+  sectionNew: { width: 44, height: SECTION_HEADER_HEIGHT, alignItems: "center", justifyContent: "center" },
   waitingEmpty: { flex: 1, alignItems: "center", paddingTop: 72, gap: spacing.md, paddingHorizontal: 16 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
 });

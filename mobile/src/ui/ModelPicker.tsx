@@ -22,12 +22,16 @@ const SWITCH_MESSAGES: Record<SwitchBlock, string> = {
   waiting: "Answer the pending request before switching tools",
   notion: "Notion page chats run on Claude only",
   feedback: "Improvement sessions run on Claude only",
-  imported: "Sessions imported from VS Code run on Claude only",
 };
 
 function modelOf(provider: MobileModelProvider, model: string | null) {
   const id = model ?? provider.defaultModel;
-  return provider.models.find((entry) => entry.value === id) ?? provider.models.find((entry) => id !== null && entry.resolved === id);
+  if (id === null) return model === null ? provider.models.find((entry) => entry.value === "default") : undefined;
+  const base = provider.harness === "claude" ? id.replace(/\[1m\]$/i, "") : id;
+  const named = (entry: MobileModelProvider["models"][number]) => entry.value === id || entry.value === base;
+  const resolvesTo = (entry: MobileModelProvider["models"][number]) => entry.value !== "default" && (entry.resolved === id || entry.resolved === base);
+  return provider.models.find(named) ?? provider.models.find(resolvesTo)
+    ?? (model === null ? provider.models.find((entry) => entry.value === "default") : undefined);
 }
 
 export function useModelPicker(agent?: Agent, draft?: MobileModelSelection) {
@@ -221,7 +225,7 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
                 {!narrowed && <Icon name={hidden ? "chevron.right" : "chevron.down"} size={14} color="textMuted" />}
               </Pressable>
               {!hidden && <View style={[styles.group, { backgroundColor: colors.surfaceBase }]}>
-                {!narrowed && <Choice label={entry.harness === "claude" ? "Mac default" : `${name} default`} checked={entry.harness === displayed.harness && displayed.model === null} disabled={locked} onPress={() => choose(entry, null)} />}
+                {!needle && <Choice label={defaultChoiceLabel(entry)} checked={entry.harness === displayed.harness && displayed.model === null} disabled={locked} onPress={() => choose(entry, null)} />}
                 {models.map((model) => {
                   const key = `${entry.harness}/${model.value}`;
                   const label = modelLabel(entry.harness, model.value, entry);
@@ -255,6 +259,11 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
         </View>}
       </ScrollView>
   </View>;
+}
+
+function defaultChoiceLabel(entry: MobileModelProvider) {
+  const base = entry.harness === "claude" ? "Mac default" : `${PROVIDER_NAMES[entry.harness]} default`;
+  return entry.defaultModel ? `${base} (${modelLabel(entry.harness, entry.defaultModel, entry)})` : base;
 }
 
 function Choice({ label, checked, disabled, onPress }: { label: string; checked: boolean; disabled?: boolean; onPress: () => void }) {

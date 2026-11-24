@@ -1,6 +1,7 @@
 import { runningWork } from "../shared/feedbackResume";
 import { confirmDialog } from "./ConfirmDialog";
 import { setKeepUnsavedOnUnload } from "./editorDocs";
+import { localNative } from "./remote";
 import { flash, getState } from "./store";
 import { S } from "./strings";
 
@@ -13,7 +14,7 @@ export async function reloadWindow() {
 }
 
 export async function restartDaemon() {
-  const native = window.agentNavNative?.restartDaemon;
+  const native = localNative()?.restartDaemon;
   if (!native) return;
   const { sessions, improvements } = runningWork(getState().agents, Object.values(getState().feedbacks));
   if (sessions > 0 || improvements > 0) {
@@ -34,7 +35,7 @@ export async function restartDaemon() {
   }
 }
 
-export const canRestartDaemon = () => !!window.agentNavNative?.restartDaemon;
+export const canRestartDaemon = () => !!localNative()?.restartDaemon;
 
 async function confirmUnsaved(detail: string, button: string) {
   if (!Object.keys(getState().dirtyTabs).length) return true;

@@ -8,8 +8,8 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { WebSocket } from "ws";
 import { MAX_IMAGE_BYTES } from "../shared/images";
-import type { MobileRelayLinkState, MobileRelayPairing } from "../shared/mobile";
-import { decodeText, encodeText, relayFrame, RelayFrame, RELAY_CHUNK_BYTES, RELAY_ID_RE, relayPrologue, startResponder, toBase64Url, toHex, type NoisePrimitives, type RelayHello, type RelayHttpRequest, type RelaySession, type RelayWelcome } from "../shared/relayNoise";
+import { MAX_MOBILE_FILE_BYTES, type MobileRelayLinkState, type MobileRelayPairing } from "../shared/mobile";
+import { decodeText, encodeText, RelayAssembler, relayFrame, RelayFrame, relayParts, RELAY_CHUNK_BYTES, RELAY_ID_RE, RELAY_MESSAGE_BYTES, relayPrologue, startResponder, toBase64Url, toHex, type NoisePrimitives, type RelayHello, type RelayHttpRequest, type RelaySession, type RelayWelcome } from "../shared/relayNoise";
 import type { MobileDevices, PairOutcome } from "./mobileAccess";
 import { T } from "./strings";
 
@@ -68,11 +68,18 @@ export type RelayLinkDeps = {
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 const KEEPALIVE_MS = 30_000;
 const FIRST_RETRY_MS = 100;
+const KNOCK_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
+const KNOCK_IDLE_MS = 5 * 60_000;
+const KNOCK_WAIT_MS = 6_000;
+const CLOSE_MAC_OFFLINE = 4404;
 const PONG_TIMEOUT_MS = 10_000;
 const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 const MAX_CHANNELS = 32;
-const HTTP_PATHS: Record<string, RelayHttpRequest["method"]> = { "/mobile/images": "POST", "/mobile/media": "GET" };
-const PASS_REQUEST_HEADERS = ["authorization", "content-type", "x-image-name", "range"];
+const WHOLE_FRAME_BYTES = 1024 * 1024 - 64;
+const DRAIN_POLL_MS = 25;
+const REPLY_ID_RE = /^\{"id":(\d+),/;
+const HTTP_PATHS: Record<string, RelayHttpRequest["method"]> = { "/mobile/images": "POST", "/mobile/files": "POST", "/mobile/media": "GET" };
+const PASS_REQUEST_HEADERS = ["authorization", "content-type", "x-image-name", "x-file-name", "range"];
 const PASS_RESPONSE_HEADERS = ["content-type", "content-length", "content-range", "accept-ranges"];
 
 export class RelayLink {
@@ -86,6 +93,11 @@ export class RelayLink {
   private running = false;
   private onlineSince: number | null = null;
   private lastLoggedError: string | null = null;
+  private knockTimer: NodeJS.Timeout | null = null;
+  private knocks = 0;
+  private knockFailures = 0;
+  private heardAt = 0;
+  private heard: (() => void) | null = null;
 
   constructor(private deps: RelayLinkDeps) {}
 
@@ -128,6 +140,8 @@ export class RelayLink {
       this.deps.log?.("[relay] connected");
       this.keepalive = setInterval(() => this.ping(socket), KEEPALIVE_MS);
       this.keepalive.unref();
+      this.knocks = Math.min(this.knockFailures, KNOCK_DELAYS_MS.length);
+      this.scheduleKnock(socket);
     });
     socket.on("unexpected-response", (_req, res) => {
       if (socket !== this.socket) return;
@@ -139,6 +153,7 @@ export class RelayLink {
       if (!isBinary) return this.control(data.toString());
       const buffer = data as Buffer;
       if (buffer.length < 4) return;
+      this.heardAt = Date.now();
       this.channels.get(buffer.readUInt32BE(0))?.receive(new Uint8Array(buffer.subarray(4)));
     });
     socket.on("error", (error) => {
@@ -181,9 +196,54 @@ export class RelayLink {
     this.retry.unref();
   }
 
+  private scheduleKnock(socket: WebSocket) {
+    const delay = KNOCK_DELAYS_MS[this.knocks] ?? KNOCK_IDLE_MS;
+    this.knockTimer = setTimeout(() => {
+      this.knockTimer = null;
+      if (socket !== this.socket) return;
+      this.knocks++;
+      if (this.heardAt >= Date.now() - delay) return this.scheduleKnock(socket);
+      this.knock(socket);
+    }, delay);
+    this.knockTimer.unref();
+  }
+
+  private knock(socket: WebSocket) {
+    const visitor = new WebSocket(`${this.deps.url.replace(/^http/, "ws")}/v1/client/${this.deps.identity.id}`, { handshakeTimeout: 10_000 });
+    let settled = false;
+    let wait: NodeJS.Timeout | null = null;
+    const settle = (reached: boolean | null) => {
+      if (settled) return;
+      settled = true;
+      if (wait) clearTimeout(wait);
+      if (this.heard === arrived) this.heard = null;
+      visitor.removeAllListeners();
+      visitor.on("error", () => {});
+      visitor.terminate();
+      if (socket !== this.socket) return;
+      if (reached) this.knockFailures = 0;
+      if (reached !== false) return this.scheduleKnock(socket);
+      this.knockFailures++;
+      this.logDisconnect("the relay stopped passing phones to this Mac");
+      this.dropSocket();
+      this.scheduleRetry();
+    };
+    const arrived = () => settle(true);
+    this.heard = arrived;
+    visitor.on("open", () => {
+      wait = setTimeout(() => settle(false), KNOCK_WAIT_MS);
+      wait.unref();
+    });
+    visitor.on("close", (code) => settle(code === CLOSE_MAC_OFFLINE ? false : null));
+    visitor.on("error", () => settle(null));
+  }
+
   private dropSocket() {
     if (this.keepalive) clearInterval(this.keepalive);
     this.keepalive = null;
+    if (this.knockTimer) clearTimeout(this.knockTimer);
+    this.knockTimer = null;
+    this.heard = null;
     if (this.pongTimer) clearTimeout(this.pongTimer);
     this.pongTimer = null;
     for (const channel of this.channels.values()) channel.dispose();
@@ -227,11 +287,14 @@ export class RelayLink {
       return;
     }
     if (typeof message.c !== "number") return;
+    this.heardAt = Date.now();
+    this.heard?.();
     const id = message.c;
     if (message.t === "open") {
       if (this.channels.size >= MAX_CHANNELS) return this.closeChannel(id, 4429, "too many connections");
       this.channels.set(id, new RelayChannel(id, this, this.deps));
     } else if (message.t === "close") {
+      this.channels.get(id)?.logEnd("the phone or the relay closed it");
       this.channels.get(id)?.dispose();
       this.channels.delete(id);
     }
@@ -270,11 +333,15 @@ class RelayChannel {
   private mode: "handshake" | "ws" | "http" | "done" = "handshake";
   private local: WebSocket | null = null;
   private queued: string[] = [];
+  private parts: RelayAssembler | null = null;
+  private outbox: Uint8Array[] = [];
+  private draining: NodeJS.Timeout | null = null;
   private httpHead: RelayHttpRequest | null = null;
   private httpBody: Uint8Array[] = [];
   private httpSize = 0;
   private timer: NodeJS.Timeout;
   private noise: NoisePrimitives;
+  private openedAt = Date.now();
 
   constructor(private id: number, private link: RelayLink, private deps: RelayLinkDeps) {
     this.noise = deps.noise ?? nodeNoise;
@@ -288,7 +355,11 @@ class RelayChannel {
       if (this.mode === "handshake") return this.handshake(frame);
       if (!this.session || this.mode === "done") return;
       const plaintext = this.session.open(frame);
-      if (this.mode === "ws") return this.toLocalSocket(decodeText(plaintext));
+      if (this.mode === "ws") {
+        const message = this.parts ? this.parts.push(plaintext) : plaintext;
+        if (message) this.toLocalSocket(decodeText(message));
+        return;
+      }
       if (this.mode === "http") return this.httpFrame(plaintext);
     } catch (error) {
       this.deps.log?.(`[relay] channel rejected: ${error instanceof Error ? error.message : String(error)}`);
@@ -314,12 +385,13 @@ class RelayChannel {
     this.deviceId = device.id;
     if (hello.kind === "ws") {
       this.mode = "ws";
-      this.welcome({ ok: true });
+      if (hello.parts === true) this.parts = new RelayAssembler();
+      this.welcome({ ok: true, ...(this.parts ? { parts: true as const } : {}) });
       return this.openLocalSocket();
     }
     if (hello.kind === "http") {
       this.mode = "http";
-      return this.welcome({ ok: true });
+      return this.welcome({ ok: true, acks: true });
     }
     this.welcome({ ok: false, error: "Unknown request" }, true);
   }
@@ -336,18 +408,42 @@ class RelayChannel {
     return this.link.send(this.id, this.session.seal(plaintext));
   }
 
+  private toPhone(text: string) {
+    const message = encodeText(text);
+    if (this.parts) {
+      this.outbox.push(...relayParts(message));
+      return this.drain();
+    }
+    if (message.length <= WHOLE_FRAME_BYTES) return void this.sendSealed(message);
+    const reply = REPLY_ID_RE.exec(text.slice(0, 32));
+    this.deps.log?.(`[relay] dropped a ${Math.round(message.length / 1024)} KB message for a phone that cannot take it in parts`);
+    if (reply) this.sendSealed(encodeText(JSON.stringify({ id: Number(reply[1]), error: "This is too large to load through the relay. Update Lodestar on your phone." })));
+  }
+
+  private drain() {
+    if (this.draining || this.mode === "done") return;
+    while (this.outbox.length > 0) {
+      if (this.link.buffered() > MAX_BUFFERED_BYTES / 2) {
+        this.draining = setTimeout(() => {
+          this.draining = null;
+          this.drain();
+        }, DRAIN_POLL_MS);
+        return;
+      }
+      if (!this.sendSealed(this.outbox.shift() as Uint8Array)) return;
+    }
+  }
+
   private openLocalSocket() {
     const target = this.deps.local();
     if (!target) return this.close(4404, "mac offline");
-    const socket = new WebSocket(`ws://${target.host}:${target.port}/mobile/ws`, { maxPayload: 2 * 1024 * 1024, headers: { "x-lodestar-relay-bridge": this.deps.bridgeKey } });
+    const socket = new WebSocket(`ws://${target.host}:${target.port}/mobile/ws`, { maxPayload: RELAY_MESSAGE_BYTES, headers: { "x-lodestar-relay-bridge": this.deps.bridgeKey } });
     this.local = socket;
     socket.on("open", () => {
       for (const text of this.queued) socket.send(text);
       this.queued = [];
     });
-    socket.on("message", (data) => {
-      this.sendSealed(encodeText(data.toString()));
-    });
+    socket.on("message", (data) => this.toPhone(data.toString()));
     socket.on("error", () => {});
     socket.on("close", (code, reason) => {
       if (this.local !== socket) return;
@@ -376,8 +472,11 @@ class RelayChannel {
     }
     if (type === RelayFrame.body && this.httpHead) {
       this.httpSize += body.length;
-      if (this.httpSize > MAX_IMAGE_BYTES) return this.respond(413, { error: T.errMobileImageTooLarge(MAX_IMAGE_BYTES / 1024 / 1024) });
+      if (this.httpHead.path.split("?")[0] === "/mobile/files") {
+        if (this.httpSize > MAX_MOBILE_FILE_BYTES) return this.respond(413, { error: T.errMobileFileTooLarge(MAX_MOBILE_FILE_BYTES / 1024 / 1024) });
+      } else if (this.httpSize > MAX_IMAGE_BYTES) return this.respond(413, { error: T.errMobileImageTooLarge(MAX_IMAGE_BYTES / 1024 / 1024) });
       this.httpBody.push(body.slice());
+      this.sendSealed(relayFrame(RelayFrame.ack, encodeText(String(this.httpSize))));
       return;
     }
     if (type === RelayFrame.end && this.httpHead) return this.forwardHttp(this.httpHead);
@@ -434,7 +533,13 @@ class RelayChannel {
 
   close(code = 1000, reason = "") {
     if (this.mode === "done") return;
+    this.logEnd(`this Mac closed it with ${code}${reason ? ` ${reason}` : ""}`);
     this.link.closeChannel(this.id, code, reason);
+  }
+
+  logEnd(why: string) {
+    if (this.mode !== "ws") return;
+    this.deps.log?.(`[relay] phone ${this.deviceId?.slice(0, 8) ?? "?"} left after ${Math.round((Date.now() - this.openedAt) / 1000)}s (${why})`);
   }
 
   dispose() {
@@ -443,6 +548,9 @@ class RelayChannel {
     const local = this.local;
     this.local = null;
     this.queued = [];
+    this.outbox = [];
+    if (this.draining) clearTimeout(this.draining);
+    this.draining = null;
     this.httpBody = [];
     if (local) {
       local.removeAllListeners("close");

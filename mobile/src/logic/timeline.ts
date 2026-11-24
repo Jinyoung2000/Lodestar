@@ -1,5 +1,6 @@
 import type { TimelineItem } from "@shared/protocol";
 import type { TimelinePage } from "@shared/mobile";
+import { isPreviewTool } from "./previewCard";
 import { PLAN_TOOL, QUESTION_TOOL } from "./questions";
 
 export type Tail = { items: TimelineItem[]; hasMore: boolean };
@@ -55,6 +56,7 @@ const isSystemNote = (item: UserItem): item is SystemNoteItem => item.source ===
 export type Row =
   | { type: "user"; key: string; item: UserItem }
   | { type: "assistant"; key: string; item: AssistantItem }
+  | { type: "preview"; key: string; item: ToolItem }
   | { type: "steps"; key: string; steps: Step[]; decisions: PermissionItem[]; running: boolean; failed: boolean }
   | { type: "approval"; key: string; item: PermissionItem; tool: ToolItem | null; reviewOnDesktop: boolean }
   | { type: "question"; key: string; item: PermissionItem }
@@ -95,6 +97,11 @@ export function buildRows(items: readonly TimelineItem[]): Row[] {
         if (item.name === QUESTION_TOOL || item.name === PLAN_TOOL) break;
         if (item.parentToolUseId) break;
         if (pendingTool.has(item.id)) break;
+        if (isPreviewTool(item.name)) {
+          flush();
+          rows.push({ type: "preview", key: item.id, item });
+          break;
+        }
         steps.push(item);
         break;
       case "thinking":

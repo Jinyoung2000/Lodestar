@@ -20,6 +20,7 @@ import { useFoldLayout } from "./FoldLayout";
 import { useKeyboardTop } from "./KeyboardSpacer";
 
 import { cachedThumbnail, PreviewThumbnail } from "./PreviewThumbnail";
+import { RelayVideoPlayer } from "./RelayVideoPlayer";
 
 function renderDocument(content: MobilePreview, title: string, width: number, height: number) {
   return <PreviewContent content={content} title={title} tile={{ width, height }} />;
@@ -134,8 +135,8 @@ type OpenPreview = { file: Preview; content?: MobilePreview; error?: string; thu
 
 function playableVideo(path: string): MobilePreview {
   if (/^https?:\/\//i.test(path)) return { kind: "video", uri: path };
-  const uri = client.hostUrl(path);
-  if (!uri) throw new Error(client.viaRelay ? "Videos play only on the same network as your Mac or over Tailscale." : "Connect to your Mac to play this video.");
+  const uri = client.hostUrl(path) ?? (client.viaRelay ? path : null);
+  if (!uri) throw new Error("Connect to your Mac to play this video.");
   return { kind: "video", uri };
 }
 
@@ -190,7 +191,7 @@ function PreviewContent({ content, title, tile, onImageError }: { content: Mobil
     if (failedUri === content.uri) return <View style={styles.center}><Text color="textMuted">Could not display this image.</Text></View>;
     return <Image source={{ uri: content.uri }} accessibilityLabel={title} onError={() => { setFailedUri(content.uri); onImageError?.(); }} resizeMode="contain" style={StyleSheet.absoluteFill} />;
   }
-  if (content.kind === "video") return <VideoPlayer uri={content.uri} />;
+  if (content.kind === "video") return content.uri.startsWith("/") ? <RelayVideoPlayer path={content.uri} /> : <VideoPlayer uri={content.uri} />;
   if (content.kind === "markdown") return <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.document}><MarkdownView text={content.text} /></ScrollView>;
   return <WebView javaScriptEnabled={!tile && content.kind === "html"} scrollEnabled={!tile && content.kind !== "svg"} source={source}
     containerStyle={{ backgroundColor: colors.surfaceBase, ...(tile ? { borderWidth: 1, borderColor: colors.separator } : {}) }}

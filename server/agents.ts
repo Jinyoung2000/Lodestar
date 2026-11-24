@@ -65,11 +65,15 @@ import { isAsideTool } from "../shared/asideTool";
 import { notionWriteGate, type NotionWriteGate } from "../shared/notionApproval";
 import { notionToolServer, type NotionToolHost } from "./notionTools";
 import { NOTION_SERVER, OWN_SERVER } from "../shared/notionMcp";
+import { isPreviewTool, PREVIEW_SERVER, PREVIEW_TOOL } from "../shared/previewCard";
+import { previewToolServer } from "./previewTool";
 
 const MAX_TOOL_OUTPUT = 20_000;
 const SESSION_PROMPT_APPEND = [
   "When you write a Slack message or draft for the user to send, put the message body alone in a fenced code block with the language `slack`, written in Slack mrkdwn: *bold*, _italic_, ~strike~, `code`, <https://example.com|link text>, <@U123> mentions, > quotes, and lines starting with • or - for bullets.",
   "Lodestar shows that block as a Slack preview with a button that copies it with Slack formatting. Keep explanations outside the block.",
+  `When you change or propose a screen, show it in the chat with ${PREVIEW_TOOL} (As-is and To-be frames) instead of pointing to an image path or describing it in words.`,
+  "When the user should choose between screen options, call AskUserQuestion and put each option's self-contained HTML in its preview field; Lodestar renders it inline at phone width.",
 ].join(" ");
 const BACKGROUND_NOTICE_MAX = 120;
 const CLAUDE_SCRATCH_ROOTS = typeof process.getuid === "function" ? [`/tmp/claude-${process.getuid()}`, `/private/tmp/claude-${process.getuid()}`] : [];
@@ -161,10 +165,6 @@ export type BoardHooks = {
   removed: (agentId: string) => void;
 };
 
-export type ImportHooks = {
-  beforeTurn: (agentId: string) => Promise<boolean>;
-  turnEnded: (agentId: string) => void;
-};
 
 export type NotionHooks = {
   host: (agentId: string, ask: NotionToolHost["ask"]) => NotionToolHost;
@@ -195,7 +195,6 @@ export class AgentRunner {
   private feedbackHooks: FeedbackHooks | null = null;
   private assistantHooks: AssistantHooks | null = null;
   private boardHooks: BoardHooks | null = null;
-  private importHooks: ImportHooks | null = null;
   private preparing = new Set<string>();
   private cancellingSteers = new Set<string>();
   private browserBridge: BrowserBridge | null = null;
@@ -375,7 +374,7 @@ export class AgentRunner {
   async moveToFolder(agentId: string, workspaceId: string) {
     const agent = this.store.agent(agentId);
     if (agent.workspaceId !== null) throw new Error(T.errMoveHasFolder);
-    if (agent.feedbackId || agent.imported) throw new Error(T.errMoveUnsupported);
+    if (agent.feedbackId) throw new Error(T.errMoveUnsupported);
     const workspace = this.store.workspace(workspaceId);
     if (workspace.feedback || workspace.archived) throw new Error(T.errFolderNotAddable(workspace.name));
     const from = agent.cwd;
@@ -427,24 +426,6 @@ export class AgentRunner {
 
   setBoardHooks(hooks: BoardHooks) {
     this.boardHooks = hooks;
-  }
-
-  setImportHooks(hooks: ImportHooks) {
-    this.importHooks = hooks;
-  }
-
-  adoptImported(agent: Agent, items: TimelineItem[]) {
-    this.store.addAgent(agent, items);
-    this.emit({ type: "agent", agent });
-  }
-
-  private markOwnWrite(agentId: string) {
-    if (!this.store.agents.some((a) => a.id === agentId && a.imported)) return;
-    for (const delay of [0, 2500, 8000]) setTimeout(() => this.importHooks?.turnEnded(agentId), delay).unref();
-  }
-
-  applyImported(agentId: string, items: TimelineItem[]) {
-    for (const item of items) this.upsert(agentId, item);
   }
 
   activeCount() {
@@ -788,16 +769,6 @@ export class AgentRunner {
       this.setStatus(agentId, "error");
       return;
     }
-    if (agent.imported && this.importHooks) {
-      this.preparing.add(agentId);
-      try {
-        if (await this.importHooks.beforeTurn(agentId)) this.closeRun(agentId);
-      } catch (error) {
-        console.error("[import] sync before send failed", error);
-      } finally {
-        this.preparing.delete(agentId);
-      }
-    }
     let modelPrompt = prompt;
     if (agent.feedbackId && this.feedbackHooks) {
       this.preparing.add(agentId);
@@ -876,6 +847,7 @@ export class AgentRunner {
     const mcpServers: Record<string, McpServerConfig> = {};
     if (this.browserBridge && !agent.feedbackId) mcpServers[BROWSER_SERVER_NAME] = browserMcpServer(this.browserBridge, () => this.store.settings.browserChatTools, agentId, () => [...this.store.agentRoots(this.store.agent(agentId)), join(HOME, "browser-shots"), ...CLAUDE_SCRATCH_ROOTS, ...writtenDirs(this.store.timeline(agentId))]);
     if (notionServer) mcpServers[OWN_SERVER] = notionServer;
+    if (!agent.feedbackId) mcpServers[PREVIEW_SERVER] = previewToolServer();
     if (overriddenNotion) mcpServers[NOTION_SERVER] = overriddenNotion as McpServerConfig;
     const q = query({
       prompt: input,
@@ -900,7 +872,7 @@ export class AgentRunner {
         canUseTool: (toolName, input, { signal, toolUseID }) =>
           isBlockedNotionWrite(toolName) && this.notionGate(agentId) !== "apply"
             ? Promise.resolve({ behavior: "deny" as const, message: BLOCKED_NOTION_WRITE_MESSAGE })
-            : classifyTool(toolName) === "own"
+            : classifyTool(toolName) === "own" || isPreviewTool(toolName)
               ? Promise.resolve({ behavior: "allow" as const, updatedInput: input })
               : !isInteractiveTool(toolName) && ((isBrowserToolName(toolName) && !browserToolNeedsApproval(toolName, input)) || this.store.agent(agentId).permissionMode === "bypassPermissions")
                 ? Promise.resolve({ behavior: "allow" as const, updatedInput: input })
@@ -1183,7 +1155,6 @@ export class AgentRunner {
       this.boardHooks?.turnEnded(agentId);
     }
     this.armIdleClose(agentId, run);
-    if (agent.imported) this.importHooks?.turnEnded(agentId);
     const next = outcome === "ok" ? agent.queue?.[0] : undefined;
     if (next) {
       this.takeQueued(agentId, next.id);
@@ -1513,7 +1484,6 @@ export class AgentRunner {
     } finally {
       this.restoring.delete(agentId);
       this.restoreCancelled.delete(agentId);
-      this.markOwnWrite(agentId);
     }
   }
 
@@ -1533,7 +1503,6 @@ export class AgentRunner {
       const plan = await planRestore(agent, this.store, preview.filesChanged ?? [], split.kept);
       return { files: plan.revert.length + plan.remove.length, plan };
     });
-    this.markOwnWrite(agentId);
     return result;
   }
 
@@ -1542,7 +1511,6 @@ export class AgentRunner {
     const agent = this.store.agent(agentId);
     if (this.runs.get(agentId)?.active || agent.status === "waiting" || this.restoring.has(agentId)) throw new Error(T.errAgentRunning);
     const modes = await probeCheckpointModes(agent, this.store.timeline(agentId));
-    this.markOwnWrite(agentId);
     return modes;
   }
 
@@ -1764,8 +1732,9 @@ export class AgentRunner {
             run.apiError = true;
             this.upsert(agentId, { id, kind: "error", text: block.text, auth: AUTH_API_ERRORS.has(message.error) });
           } else if (block.type === "text") {
-            this.clearDraft(agentId, run);
-            this.upsert(agentId, { id, kind: "assistant", text: block.text, streaming: false, at: new Date().toISOString(), model: message.message.model });
+            const streamedId = run.draftId;
+            run.draftId = null;
+            this.upsert(agentId, { id: streamedId ?? id, kind: "assistant", text: block.text, streaming: false, at: new Date().toISOString(), model: message.message.model });
           } else if (block.type === "thinking" && block.thinking.trim()) {
             this.upsert(agentId, { id, kind: "thinking", text: block.thinking });
           } else if (block.type === "tool_use") {

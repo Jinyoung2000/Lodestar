@@ -9,6 +9,9 @@ import { Icon } from "../Icon";
 import { MarkdownView } from "../MarkdownView";
 import { Text } from "../Text";
 import { RequestDock, type DockLayout } from "./RequestDock";
+import { looksLikeHtml } from "../../logic/previewCard";
+import { ExpandButton, HtmlFrameView, htmlPreviewFile } from "./PreviewCard";
+import type { Preview } from "../../logic/previews";
 
 export type Actions = {
   allow: (itemId: string) => Promise<unknown>;
@@ -96,7 +99,7 @@ export const ApprovalCard = memo(function ApprovalCard({ item, tool, reviewOnDes
   );
 });
 
-export const QuestionCard = memo(function QuestionCard({ item, actions, ...layout }: DockLayout & { item: PermissionItem; actions: Actions }) {
+export const QuestionCard = memo(function QuestionCard({ item, actions, openPreview, ...layout }: DockLayout & { item: PermissionItem; actions: Actions; openPreview: (file: Preview) => void }) {
   const colors = useColors();
   const questions = readQuestions(item.input);
   const [states, setStates] = useState<QuestionState[]>(() => layout.draft.states ?? questions.map(emptyQuestionState));
@@ -139,14 +142,20 @@ export const QuestionCard = memo(function QuestionCard({ item, actions, ...layou
       {q?.options.map((option, i) => {
         const selected = state.picked.includes(option.label);
         const icon = q.multiSelect ? (selected ? "checkmark.square.fill" : "square") : (selected ? "largecircle.fill.circle" : "circle");
+        const html = option.preview && looksLikeHtml(option.preview) ? option.preview : null;
         return <Pressable key={i} accessibilityRole={q.multiSelect ? "checkbox" : "radio"} accessibilityState={{ checked: selected, disabled: !!busy }} disabled={!!busy}
           onPress={() => { update(togglePick(q, state, option.label)); Keyboard.dismiss(); }}
-          style={({ pressed }) => [styles.option, { backgroundColor: selected ? withAlpha(colors.accent, 0.1) : pressed ? colors.pressed : colors.surface }]}>
-          <Icon name={icon} size={20} color={selected ? "accentText" : "textSubtle"} />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text variant="bodyStrong" color="textStrong" maxFontSizeMultiplier={1.25} style={{ fontSize: 15, lineHeight: 20, fontWeight: "500" }}>{option.label}</Text>
-            {!!option.description && <Text variant="secondary" color="textMuted" numberOfLines={2} maxFontSizeMultiplier={18 / 13} style={{ fontSize: 13, lineHeight: 18 }}>{option.description}</Text>}
+          style={({ pressed }) => [styles.option, option.preview ? styles.optionWithPreview : null, { backgroundColor: selected ? withAlpha(colors.accent, 0.1) : pressed ? colors.pressed : colors.surface }]}>
+          <View style={styles.optionTop}>
+            <Icon name={icon} size={20} color={selected ? "accentText" : "textSubtle"} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text variant="bodyStrong" color="textStrong" maxFontSizeMultiplier={1.25} style={{ fontSize: 15, lineHeight: 20, fontWeight: "500" }}>{option.label}</Text>
+              {!!option.description && <Text variant="secondary" color="textMuted" numberOfLines={2} maxFontSizeMultiplier={18 / 13} style={{ fontSize: 13, lineHeight: 18 }}>{option.description}</Text>}
+            </View>
+            {html && <ExpandButton label={option.label} onPress={() => openPreview(htmlPreviewFile(item.id, option.label, html))} />}
           </View>
+          {html && <View style={[styles.optionFrame, { borderColor: selected ? colors.accent : colors.separator }]}><HtmlFrameView html={html} maxHeight={OPTION_PREVIEW_MAX_HEIGHT} /></View>}
+          {!!option.preview && !html && <Text variant="caption" color="textMuted" style={styles.optionPreviewText}>{option.preview}</Text>}
         </Pressable>;
       })}
     </RequestDock>
@@ -202,7 +211,13 @@ export const AnsweredRow = memo(function AnsweredRow({ item }: { item: Permissio
   </View>;
 });
 
+const OPTION_PREVIEW_MAX_HEIGHT = 200;
+
 const styles = StyleSheet.create({
+  optionWithPreview: { flexDirection: "column", alignItems: "stretch", gap: spacing.sm, paddingTop: spacing.xs, paddingBottom: spacing.md },
+  optionTop: { flexGrow: 1, flexShrink: 1, flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 40 },
+  optionFrame: { overflow: "hidden", borderRadius: radius.sm, borderWidth: 1 },
+  optionPreviewText: { fontFamily: Platform.select({ ios: "Menlo", default: "monospace" }) },
   code: { borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingVertical: 10 },
   controls: { gap: spacing.sm },
   actions: { flexDirection: "row", gap: spacing.sm },

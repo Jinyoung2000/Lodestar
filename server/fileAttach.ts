@@ -1,5 +1,5 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, mkdirSync, writeFileSync } from "node:fs";
 import { mkdir, rm, stat } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve, sep } from "node:path";
@@ -28,6 +28,24 @@ export async function resolveFiles(refs: FileRef[] | undefined): Promise<Resolve
   }
   const chips = files.map((f) => ({ kind: "file" as const, label: f.name, path: f.path, bytes: f.bytes }));
   return { files, chips, model: (prompt) => withFileBlock(prompt, files) };
+}
+
+export function uploadedFilePath(id: string, name: string): string | null {
+  if (!ID_RE.test(id)) return null;
+  const folder = resolve(ATTACH_DIR, id);
+  const target = resolve(folder, sanitizeFileName(name));
+  return target.startsWith(folder + sep) ? target : null;
+}
+
+export function saveUploadBytes(bytes: Buffer, rawName: string): { id: string; name: string; bytes: number } {
+  if (bytes.length === 0) throw new Error("the file is empty");
+  const id = randomUUID();
+  const name = sanitizeFileName(rawName);
+  const target = uploadedFilePath(id, name);
+  if (!target) throw new Error("invalid file name");
+  mkdirSync(resolve(ATTACH_DIR, id), { recursive: true });
+  writeFileSync(target, bytes, { flag: "wx" });
+  return { id, name, bytes: bytes.length };
 }
 
 export async function discardUpload(id: unknown): Promise<null> {

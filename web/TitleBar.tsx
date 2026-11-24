@@ -15,6 +15,8 @@ import { sidebarPeek } from "./peekController";
 import { flash, focusPane, getState, goBackSession, goForwardSession, openBrowser, openInVSCode, refreshGit, setState, useStore, type BrowserTab } from "./store";
 import { confirmAction } from "./ConfirmDialog";
 import { fetchFlow, pullFlow, pushFlow } from "./gitSync";
+import { REMOTE_ID } from "./remote";
+import { useRemoteHost } from "./remoteHost";
 import { S } from "./strings";
 import { N } from "./notionStrings";
 import { Button } from "./ui/button";
@@ -153,17 +155,20 @@ export function TitleBar() {
 
   return (
     <header className="titlebar">
-      <Button
-        size="icon"
-        variant={leftOn ? "ghost-on" : "ghost"}
-        aria-label={S.sidebar}
-        title={editorLayout ? (focusSideOpen ? S.hidePrimarySideKey(focusSideKey) : S.showPrimarySideKey(focusSideKey)) : sidebarOpen ? S.hideSidebarKey(sidebarKey) : S.showSidebarKey(sidebarKey)}
-        onPointerEnter={(e) => e.pointerType === "mouse" && !getState().sidebarOpen && getState().layoutMode !== "editor" && sidebarPeek.enter("button")}
-        onPointerLeave={() => sidebarPeek.leave("button")}
-        onClick={() => runCommand("toggleSidebar")}
-      >
-        {sideRight ? <PanelRight /> : <PanelLeft />}
-      </Button>
+      <div className="titlebar-lead">
+        <Button
+          size="icon"
+          variant={leftOn ? "ghost-on" : "ghost"}
+          aria-label={S.sidebar}
+          title={editorLayout ? (focusSideOpen ? S.hidePrimarySideKey(focusSideKey) : S.showPrimarySideKey(focusSideKey)) : sidebarOpen ? S.hideSidebarKey(sidebarKey) : S.showSidebarKey(sidebarKey)}
+          onPointerEnter={(e) => e.pointerType === "mouse" && !getState().sidebarOpen && getState().layoutMode !== "editor" && sidebarPeek.enter("button")}
+          onPointerLeave={() => sidebarPeek.leave("button")}
+          onClick={() => runCommand("toggleSidebar")}
+        >
+          {sideRight ? <PanelRight /> : <PanelLeft />}
+        </Button>
+        {REMOTE_ID && <RemoteChip />}
+      </div>
       <div className="titlebar-center flex items-center gap-1">
         <Button size="icon" aria-label={S.back} title={S.titleBackKey(backKeys)} onClick={goBackSession}>
           <Codicon name="arrow-left" />
@@ -311,5 +316,17 @@ function BrowserButton() {
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function RemoteChip() {
+  const host = useRemoteHost();
+  const connected = useStore((state) => state.connected);
+  if (!host) return null;
+  return (
+    <span className="remote-chip" data-connected={connected} title={S.remoteWindowTip(host.name)}>
+      <Codicon name="remote" />
+      <span className="remote-chip-name">{host.name}</span>
+    </span>
   );
 }

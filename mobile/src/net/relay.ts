@@ -1,5 +1,5 @@
 import type { PairResult } from "@shared/mobile";
-import { decodeText, encodeText, fromBase64Url, relayFrame, RelayFrame, RELAY_CHUNK_BYTES, relayPrologue, startInitiator, toHex, type RelayHello, type RelayHttpResponse, type RelaySession, type RelayWelcome } from "./relayNoise.generated";
+import { decodeText, encodeText, fromBase64Url, RelayAssembler, relayFrame, RelayFrame, relayParts, RELAY_CHUNK_BYTES, RELAY_UPLOAD_WINDOW_BYTES, relayPrologue, startInitiator, toHex, type RelayHello, type RelayHttpResponse, type RelaySession, type RelayWelcome } from "./relayNoise.generated";
 import { phoneNoise, secureRandomBytes } from "./relayCrypto";
 
 export type RelayTarget = { url: string; id: string; key: string };
@@ -122,15 +122,20 @@ export class RelaySocket {
   onclose: ((event: { code?: number; reason?: string }) => void) | null = null;
   onerror: ((event: unknown) => void) | null = null;
   private channel: RelayChannel;
+  private parts: RelayAssembler | null = null;
 
   constructor(target: RelayEndpoint, factory?: RelaySocketFactory) {
-    this.channel = new RelayChannel(target, { v: 1, kind: "ws" }, {
+    this.channel = new RelayChannel(target, { v: 1, kind: "ws", parts: true }, {
       welcome: (welcome) => {
         if (!welcome.ok) return this.channel.finish(welcome.error === "bad token" ? 4401 : 4403, welcome.error);
+        if (welcome.parts === true) this.parts = new RelayAssembler();
         this.readyState = 1;
         this.onopen?.({});
       },
-      message: (plaintext) => this.onmessage?.({ data: decodeText(plaintext) }),
+      message: (plaintext) => {
+        const message = this.parts ? this.parts.push(plaintext) : plaintext;
+        if (message) this.onmessage?.({ data: decodeText(message) });
+      },
       closed: (code, reason) => {
         this.readyState = 3;
         this.onclose?.({ code, reason });
@@ -139,7 +144,9 @@ export class RelaySocket {
   }
 
   send(data: string) {
-    this.channel.send(encodeText(data));
+    const message = encodeText(data);
+    if (!this.parts) return this.channel.send(message);
+    for (const part of relayParts(message)) this.channel.send(part);
   }
 
   close() {
@@ -176,17 +183,33 @@ export function pairOverRelay(target: RelayTarget, code: string, deviceName: str
   });
 }
 
-export type RelayUploadOptions = { onProgress?: (fraction: number) => void; signal?: AbortSignal; timeoutMs?: number; factory?: RelaySocketFactory };
+export type RelayUploadOptions = { onProgress?: (fraction: number) => void; onHead?: (head: RelayHttpResponse) => void; onBody?: (chunk: Uint8Array) => void; idleTimeoutMs?: number; signal?: AbortSignal; timeoutMs?: number; factory?: RelaySocketFactory; unackedBytesPerSecond?: number };
 
-export function relayHttp(target: RelayEndpoint, request: { method: "GET" | "POST"; path: string; headers: Record<string, string>; body?: Uint8Array }, opts: RelayUploadOptions = {}): Promise<{ status: number; headers: Record<string, string>; body: Uint8Array }> {
+export type RelayBodySource = { size: number; read(from: number, to: number): Promise<Uint8Array> };
+
+const UNACKED_BYTES_PER_SECOND = 1024 * 1024;
+
+const bytesSource = (bytes: Uint8Array): RelayBodySource => ({ size: bytes.length, read: async (from, to) => bytes.subarray(from, to) });
+const isBodySource = (body: Uint8Array | RelayBodySource): body is RelayBodySource => !(body instanceof Uint8Array);
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+export function relayHttp(target: RelayEndpoint, request: { method: "GET" | "POST"; path: string; headers: Record<string, string>; body?: Uint8Array | RelayBodySource }, opts: RelayUploadOptions = {}): Promise<{ status: number; headers: Record<string, string>; body: Uint8Array }> {
   return new Promise((resolve, reject) => {
     let head: RelayHttpResponse | null = null;
     const chunks: Uint8Array[] = [];
     let done = false;
+    let acked = 0;
+    let wakeSender: (() => void) | null = null;
+    const wake = () => {
+      const resume = wakeSender;
+      wakeSender = null;
+      resume?.();
+    };
     const finish = (error: Error | null) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
+      wake();
       channel.close();
       if (error) return reject(error);
       const size = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
@@ -198,30 +221,60 @@ export function relayHttp(target: RelayEndpoint, request: { method: "GET" | "POS
       }
       resolve({ status: head?.status ?? 502, headers: head?.headers ?? {}, body });
     };
+    const source = request.body === undefined ? bytesSource(new Uint8Array(0)) : isBodySource(request.body) ? request.body : bytesSource(request.body);
+    const roomFor = async (sent: number) => {
+      while (!done && sent - acked >= RELAY_UPLOAD_WINDOW_BYTES) await new Promise<void>((resume) => (wakeSender = resume));
+    };
+    const sendBody = async (acks: boolean) => {
+      const started = Date.now();
+      const pace = opts.unackedBytesPerSecond ?? UNACKED_BYTES_PER_SECOND;
+      for (let at = 0; at < source.size; ) {
+        const block = await source.read(at, Math.min(source.size, at + RELAY_UPLOAD_WINDOW_BYTES));
+        if (done) return;
+        if (block.length === 0) throw new Error("Could not read the file");
+        for (let offset = 0; offset < block.length; offset += RELAY_CHUNK_BYTES) {
+          const sent = at + offset;
+          if (acks) await roomFor(sent);
+          else await wait(Math.max(0, (sent / pace) * 1000 - (Date.now() - started)));
+          if (done) return;
+          channel.send(relayFrame(RelayFrame.body, block.subarray(offset, offset + RELAY_CHUNK_BYTES)));
+          if (!acks) opts.onProgress?.(Math.min(1, (sent + RELAY_CHUNK_BYTES) / Math.max(1, source.size)));
+        }
+        at += block.length;
+      }
+      channel.send(relayFrame(RelayFrame.end, new Uint8Array(0)));
+    };
     const channel = new RelayChannel(target, { v: 1, kind: "http" }, {
       welcome: (welcome) => {
         if (!welcome.ok) return finish(new Error(welcome.error === "bad token" ? "This phone was removed from your Mac" : welcome.error));
         try {
           channel.send(relayFrame(RelayFrame.head, encodeText(JSON.stringify({ method: request.method, path: request.path, headers: request.headers }))));
-          const body = request.body ?? new Uint8Array(0);
-          for (let at = 0; at < body.length; at += RELAY_CHUNK_BYTES) {
-            channel.send(relayFrame(RelayFrame.body, body.subarray(at, at + RELAY_CHUNK_BYTES)));
-            opts.onProgress?.(Math.min(1, (at + RELAY_CHUNK_BYTES) / Math.max(1, body.length)));
-          }
-          channel.send(relayFrame(RelayFrame.end, new Uint8Array(0)));
         } catch (error) {
-          finish(error instanceof Error ? error : new Error(String(error)));
+          return finish(error instanceof Error ? error : new Error(String(error)));
         }
+        sendBody(welcome.acks === true).catch((error: unknown) => finish(error instanceof Error ? error : new Error(String(error))));
       },
       message: (frame) => {
         const type = frame[0];
-        if (type === RelayFrame.head) head = JSON.parse(decodeText(frame.subarray(1))) as RelayHttpResponse;
-        else if (type === RelayFrame.body) chunks.push(frame.slice(1));
-        else if (type === RelayFrame.end) finish(null);
+        if (opts.idleTimeoutMs) {
+          clearTimeout(timer);
+          timer = setTimeout(() => finish(new Error("Your Mac stopped answering")), opts.idleTimeoutMs);
+        }
+        if (type === RelayFrame.ack) {
+          acked = Math.max(acked, Number(decodeText(frame.subarray(1))) || 0);
+          opts.onProgress?.(Math.min(1, acked / Math.max(1, source.size)));
+          wake();
+        } else if (type === RelayFrame.head) {
+          head = JSON.parse(decodeText(frame.subarray(1))) as RelayHttpResponse;
+          opts.onHead?.(head);
+        } else if (type === RelayFrame.body) {
+          if (opts.onBody) opts.onBody(frame.subarray(1));
+          else chunks.push(frame.slice(1));
+        } else if (type === RelayFrame.end) finish(null);
       },
       closed: () => finish(head ? null : new Error("Could not reach your Mac through the relay")),
     }, opts.factory);
-    const timer = setTimeout(() => finish(new Error("The upload took too long")), opts.timeoutMs ?? 60_000);
+    let timer = setTimeout(() => finish(new Error(opts.idleTimeoutMs ? "Your Mac stopped answering" : "The upload took too long")), opts.idleTimeoutMs ?? opts.timeoutMs ?? 60_000);
     opts.signal?.addEventListener("abort", () => finish(new Error("Upload cancelled")));
   });
 }

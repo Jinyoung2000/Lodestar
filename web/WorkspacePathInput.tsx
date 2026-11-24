@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { localNative } from "./remote";
 import { S } from "./strings";
 import { Button } from "./ui/button";
 import { addWorkspaceByPath } from "./workspaceActions";
@@ -8,7 +9,7 @@ export type WorkspacePathInputProps = { className: string; onAdded?: () => void;
 export function WorkspacePathInput({ className, onAdded, onCancel }: WorkspacePathInputProps) {
   const [dir, setDir] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const pickFolder = window.agentNavNative?.pickFolder;
+  const pickFolder = localNative()?.pickFolder;
 
   const add = async (path: string) => {
     if (!path.trim()) return;

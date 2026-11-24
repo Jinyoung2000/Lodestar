@@ -60,10 +60,10 @@ internal class SessionNotifications(private val context: Context) {
     return context.createConfigurationContext(systemConfig).getColor(R.color.session_notification_accent)
   }
 
-  fun live(sessions: Collection<Session>, connected: Boolean, activity: Map<String, String>, questions: Map<String, String>): Notification {
+  fun live(sessions: Collection<Session>, connected: Boolean): Notification {
     val shown = if (connected) sessions.mapNotNull { session -> liveState(session)?.let { session to it } }.sortedBy { it.second.ordinal } else emptyList()
     val promoted = shown.any { it.second == LiveState.WAITING || it.second == LiveState.RUNNING }
-    val lines = shown.take(MAX_LINES).map { (session, state) -> entry(state, session.title, detail(session, state, activity, questions)) }
+    val lines = shown.take(MAX_LINES).map { (session, state) -> entry(state, session.title) }
     val title = if (shown.isEmpty()) "Lodestar" else LiveState.entries.mapNotNull { state ->
       shown.count { it.second == state }.takeIf { it > 0 }?.let { "$it ${state.count}" }
     }.joinToString(" · ")
@@ -96,21 +96,12 @@ internal class SessionNotifications(private val context: Context) {
     else -> null
   }
 
-  private fun detail(session: Session, state: LiveState, activity: Map<String, String>, questions: Map<String, String>) = when (state) {
-    LiveState.WAITING -> questions[session.id] ?: "Needs your reply"
-    LiveState.ERROR -> "Stopped with an error"
-    LiveState.RUNNING -> activity[session.id] ?: "Working"
-    LiveState.FINISHED -> activity[session.id] ?: "Finished"
-  }
-
-  private fun entry(state: LiveState, title: String, doing: String): CharSequence {
+  private fun entry(state: LiveState, title: String): CharSequence {
     val name = if (title.length > TITLE_CHARS) title.take(TITLE_CHARS - 1).trimEnd() + "…" else title
     return SpannableStringBuilder().apply {
       append(state.label)
       append(" · ")
       append(name, StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-      append("  ")
-      append(doing)
     }
   }
 
@@ -139,7 +130,7 @@ internal class SessionNotifications(private val context: Context) {
     private const val LIVE = "session-live"
     private const val ALERT = "session-alerts"
     private const val ALERT_ID = 2
-    private const val TITLE_CHARS = 18
+    private const val TITLE_CHARS = 40
     private const val MAX_LINES = 6
     const val LIVE_ID = 1
   }
