@@ -74,7 +74,8 @@ contextBridge.exposeInMainWorld("agentNavNative", {
   newWindow: (): Promise<void> => ipcRenderer.invoke("agent-nav:new-window"),
   openRemoteWindow: (remote: string): Promise<void> => ipcRenderer.invoke("agent-nav:open-remote-window", remote),
   closeWindow: (): Promise<void> => ipcRenderer.invoke("agent-nav:close-window"),
-  setOpenAgents: (agentIds: string[], layoutMode: "chat" | "editor"): Promise<void> => ipcRenderer.invoke("agent-nav:open-agents", agentIds, layoutMode),
+  setOpenAgents: (agentIds: string[], layoutMode: "chat" | "editor", activeAgentId: string | null): Promise<void> => ipcRenderer.invoke("agent-nav:open-agents", agentIds, layoutMode, activeAgentId),
+  focusEditorWindow: (agentId: string): Promise<boolean> => ipcRenderer.invoke("agent-nav:focus-editor-window", agentId),
   openNotificationSession: (agentId: string): Promise<void> => ipcRenderer.invoke("agent-nav:open-notification-session", agentId),
   windowIds: (): Promise<string[]> => ipcRenderer.invoke("agent-nav:window-ids"),
   onWindowsChanged: (listener: (ids: string[]) => void): (() => void) => {

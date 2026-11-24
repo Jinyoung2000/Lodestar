@@ -74,7 +74,8 @@ declare global {
       newWindow?: () => Promise<void>;
       openRemoteWindow?: (remote: string) => Promise<void>;
       closeWindow?: () => Promise<void>;
-      setOpenAgents?: (agentIds: string[], layoutMode: "chat" | "editor") => Promise<void>;
+      setOpenAgents?: (agentIds: string[], layoutMode: "chat" | "editor", activeAgentId: string | null) => Promise<void>;
+      focusEditorWindow?: (agentId: string) => Promise<boolean>;
       openNotificationSession?: (agentId: string) => Promise<void>;
       windowIds?: () => Promise<string[]>;
       onWindowsChanged?: (listener: (ids: string[]) => void) => () => void;

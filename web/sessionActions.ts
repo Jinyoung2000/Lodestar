@@ -132,13 +132,15 @@ let reportedOpen = "";
 let reportedNativeWindow = "";
 
 function reportOpenAgents() {
-  const { panes, layoutMode, settings } = getState();
+  const { panes, activePaneId, layoutMode, settings } = getState();
   const agentIds = [...new Set(panes.flatMap((p) => (p.kind === "agent" ? [p.agentId] : [])))].sort();
+  const active = panes.find((p) => p.id === activePaneId);
+  const activeAgentId = active?.kind === "agent" ? active.agentId : null;
   const key = agentIds.join(",");
-  const nativeKey = `${layoutMode}:${key}`;
+  const nativeKey = `${layoutMode}:${activeAgentId ?? ""}:${key}`;
   if (settings && nativeKey !== reportedNativeWindow) {
     reportedNativeWindow = nativeKey;
-    void window.agentNavNative?.setOpenAgents?.(agentIds, layoutMode).catch(() => {
+    void window.agentNavNative?.setOpenAgents?.(agentIds, layoutMode, activeAgentId).catch(() => {
       reportedNativeWindow = "";
     });
   }
@@ -165,6 +167,20 @@ function autoMarkRead() {
       .catch(() => {})
       .finally(() => readInFlight.delete(agent.id));
   }
+}
+
+export function openListedSession(agentId: string, inNewPane: boolean) {
+  const focusEditorWindow = window.agentNavNative?.focusEditorWindow;
+  if (inNewPane || getState().layoutMode !== "chat" || !focusEditorWindow) {
+    openAgent(agentId, inNewPane ? "new" : "active");
+    return;
+  }
+  focusEditorWindow(agentId).then(
+    (focused) => {
+      if (!focused) openAgent(agentId, "active");
+    },
+    () => openAgent(agentId, "active"),
+  );
 }
 
 function call(promise: Promise<unknown>) {

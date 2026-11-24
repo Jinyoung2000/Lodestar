@@ -178,6 +178,13 @@ export function windowForAgent(input: { windows: readonly { id: string; agentIds
   return targetWindow({ ids, focusedId: input.focusedId, lastActiveId: input.lastActiveId });
 }
 
+export type WindowSessions = { id: string; layoutMode: "chat" | "editor" | null; activeAgentId: string | null; remote?: string };
+
+export function editorWindowShowing(input: { windows: readonly WindowSessions[]; agentId: string; exceptId?: string; focusedId: string | null; lastActiveId: string | null }): string | null {
+  const ids = input.windows.filter((w) => w.id !== input.exceptId && w.layoutMode === "editor" && w.activeAgentId === input.agentId).map((w) => w.id);
+  return ids.length ? targetWindow({ ids, focusedId: input.focusedId, lastActiveId: input.lastActiveId }) : null;
+}
+
 export const quitWhenAllWindowsClosed = (platform: string) => platform !== "darwin";
 
 const MIN_VISIBLE_W = 120;

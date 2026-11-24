@@ -29,7 +29,7 @@ import { notificationTarget, pinnedFromSetting } from "../shared/miniChat";
 import { chromeLikeUserAgent, guestPopupDecision } from "./guestPopup";
 import { S } from "../web/strings";
 import tokens from "../design-system/tokens.json";
-import { addNewWindow, applyClose, cascade, closePolicy, EMPTY_REGISTRY, fitBounds, isRemoteId, launchPlan, newWindowPlan, quitWhenAllWindowsClosed, targetWindow, updateRecord, windowForAgent, windowUrl, type Registry, type WindowRecord } from "../shared/windows";
+import { addNewWindow, applyClose, cascade, closePolicy, editorWindowShowing, EMPTY_REGISTRY, fitBounds, isRemoteId, launchPlan, newWindowPlan, quitWhenAllWindowsClosed, targetWindow, updateRecord, windowForAgent, windowUrl, type Registry, type WindowRecord } from "../shared/windows";
 import { loadRegistry, saveRegistry } from "./windowRegistry";
 import { argvOpenPaths, classifyOpenPath, containingDir, fileUnder, OpenQueue, planOpenWindow, type OpenTarget, type PathFs } from "../shared/openPath";
 import type { LayoutMode } from "../web/floatLayout";
@@ -63,7 +63,7 @@ if (INVISIBLE) {
 const SRC_ROOT = process.env.AGENT_NAV_SRC ?? join(homedir(), "Repository", "agent-nav");
 
 
-type AppWindow = { id: string; win: BrowserWindow; remote?: string; initialChat: boolean; layoutMode: LayoutMode | null; hung: boolean; hungTimer: ReturnType<typeof setTimeout> | null; loadRecovery: boolean; reloads: number[]; loadCount: number; boundsTimer?: ReturnType<typeof setTimeout> | null };
+type AppWindow = { id: string; win: BrowserWindow; remote?: string; initialChat: boolean; layoutMode: LayoutMode | null; activeAgentId: string | null; hung: boolean; hungTimer: ReturnType<typeof setTimeout> | null; loadRecovery: boolean; reloads: number[]; loadCount: number; boundsTimer?: ReturnType<typeof setTimeout> | null };
 const appWindows = new Map<string, AppWindow>();
 let registry: Registry = EMPTY_REGISTRY;
 let lastActiveId: string | null = null;
@@ -323,7 +323,7 @@ function createWindow(record: WindowRecord, options: { deferLoad?: boolean; init
     titleBarStyle: "hiddenInset",
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: true, preload: join(import.meta.dirname, "preload.cjs") },
   });
-  const entry: AppWindow = { id, win, ...(record.remote ? { remote: record.remote } : {}), initialChat: options.initialChat ?? false, layoutMode: null, hung: false, hungTimer: null, loadRecovery: false, reloads: [], loadCount: 0 };
+  const entry: AppWindow = { id, win, ...(record.remote ? { remote: record.remote } : {}), initialChat: options.initialChat ?? false, layoutMode: null, activeAgentId: null, hung: false, hungTimer: null, loadRecovery: false, reloads: [], loadCount: 0 };
   appWindows.set(id, entry);
   lastActiveId = id;
   win.on("focus", () => {
@@ -335,6 +335,7 @@ function createWindow(record: WindowRecord, options: { deferLoad?: boolean; init
   win.webContents.on("did-start-loading", () => {
     settledWindows.delete(id);
     entry.layoutMode = null;
+    entry.activeAgentId = null;
   });
   win.webContents.on("will-prevent-unload", (event) => {
     logLine(`[electron] window ${id}: will-prevent-unload, leaving without a dialog`);
@@ -698,9 +699,19 @@ const notifier = new Notifier(dispatchNotificationAction);
 
 const agentRemotes = new Map<string, string | null>();
 
-function windowForNotification(agentId: string, all = liveWindows()): AppWindow | null {
+function windowsForAgent(agentId: string, all: AppWindow[]): AppWindow[] {
   const remote = agentRemotes.get(agentId);
-  const candidates = remote === undefined ? all : all.filter((w) => (w.remote ?? null) === remote);
+  return remote === undefined ? all : all.filter((w) => (w.remote ?? null) === remote);
+}
+
+function editorWindowFor(agentId: string, all: AppWindow[], exceptId?: string): AppWindow | null {
+  const candidates = windowsForAgent(agentId, all);
+  const id = editorWindowShowing({ windows: candidates, agentId, exceptId, focusedId: focusedWindowId(), lastActiveId });
+  return candidates.find((w) => w.id === id) ?? null;
+}
+
+function windowForNotification(agentId: string, all = liveWindows()): AppWindow | null {
+  const candidates = windowsForAgent(agentId, all);
   const windows = candidates.map((w) => ({ id: w.id, agentIds: openAgents.get(w.id) ?? new Set<string>() }));
   const id = windowForAgent({ windows, agentId, focusedId: focusedWindowId(), lastActiveId });
   return candidates.find((w) => w.id === id) ?? null;
@@ -731,7 +742,8 @@ function routeOpenSession(agentId: string) {
 async function openNotifiedSession(agentId: string) {
   const tried = new Set<string>();
   while (!quitFlow.quitting) {
-    const target = windowForNotification(agentId, liveWindows().filter((w) => !w.hung && !tried.has(w.id)));
+    const live = liveWindows().filter((w) => !w.hung && !tried.has(w.id));
+    const target = editorWindowFor(agentId, live) ?? windowForNotification(agentId, live.filter((w) => w.layoutMode === "chat"));
     const entry = target ?? openNewWindow(true);
     if (!target && (!(await whenAppReady(entry, () => entry.layoutMode !== null)) || entry.win.isDestroyed())) {
       throw new Error(`Chat window ${entry.id} did not load`);
@@ -1078,11 +1090,22 @@ ipcMain.handle("agent-nav:close-window", (event) => {
   closeWindowEntry(source);
 });
 
-ipcMain.handle("agent-nav:open-agents", (event, agentIds: unknown, layoutMode: unknown) => {
+ipcMain.handle("agent-nav:open-agents", (event, agentIds: unknown, layoutMode: unknown, activeAgentId: unknown) => {
   const source = appWindowOf(event);
   if (!source || !Array.isArray(agentIds)) throw new Error("open agents refused");
   openAgents.set(source.id, new Set(agentIds.filter((id): id is string => typeof id === "string").slice(0, 200)));
   source.layoutMode = layoutMode === "chat" || layoutMode === "editor" ? layoutMode : null;
+  source.activeAgentId = typeof activeAgentId === "string" && activeAgentId.length <= 100 ? activeAgentId : null;
+});
+
+ipcMain.handle("agent-nav:focus-editor-window", (event, agentId: unknown) => {
+  const source = appWindowOf(event);
+  if (!source || typeof agentId !== "string" || agentId.length > 100) throw new Error("focus editor window refused");
+  const target = source.layoutMode === "chat" ? editorWindowFor(agentId, liveWindows().filter((w) => !w.hung && (w.remote ?? null) === (source.remote ?? null)), source.id) : null;
+  if (!target) return false;
+  logLine(`[electron] window ${source.id}: session ${agentId} is open in editor window ${target.id}, focusing it`);
+  bringToFront(target);
+  return true;
 });
 
 ipcMain.handle("agent-nav:open-notification-session", (event, agentId: unknown) => {

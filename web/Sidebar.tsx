@@ -22,7 +22,7 @@ import { worktreeMenuState } from "./worktreeMenu";
 import { rpc } from "./rpc";
 import { WorkspacePathInput } from "./WorkspacePathInput";
 import { canPickFolder, newProjectInNewSession, openFolderInNewSession } from "./folderOpen";
-import { allowPermission, copySessionLink, deleteSession, ensureRowChanges, markRead, setDone, setPinned } from "./sessionActions";
+import { allowPermission, copySessionLink, deleteSession, ensureRowChanges, markRead, openListedSession, setDone, setPinned } from "./sessionActions";
 import { FALLBACK_ORDERING, isDefaultView, relativeTime, sidebarLayout, sumChanges, type FolderOrder, type Ordering, type SessionGroup, type SessionRow as Row, type ShowRange } from "./sessionList";
 import { expandGroup, resetSessionView, setCollapsedGroups, setSessionView, startRename, toggleGroupCollapsed, toggleGroupExpanded, toggleParentCollapsed, useSessionList } from "./sessionListState";
 import { beginSessionDrag } from "./sessionDrag";
@@ -542,7 +542,7 @@ function SessionRow({ row, active, menu, onMenu, childrenCollapsed, onToggleChil
         className="session-item"
         title={renaming ? undefined : tooltip}
         aria-current={active || undefined}
-        onClick={renaming ? undefined : (e: MouseEvent) => openAgent(agent.id, e.altKey ? "new" : "active")}
+        onClick={renaming ? undefined : (e: MouseEvent) => openListedSession(agent.id, e.altKey)}
         onDoubleClick={renaming ? undefined : () => startRename(agent.id)}
         onPointerDown={renaming ? undefined : (e: ReactPointerEvent<HTMLElement>) => beginSessionDrag(e, agent.id, agent.title, row.scope)}
         onContextMenu={(e: MouseEvent) => {
