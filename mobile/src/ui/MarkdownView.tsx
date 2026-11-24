@@ -1,7 +1,8 @@
 import * as Clipboard from "expo-clipboard";
 import { memo, useCallback, useState, type ReactNode } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { tokenPreview } from "../logic/previews";
+import { mediaPathPreview, tokenPreview } from "../logic/previews";
+import type { Tokens } from "marked";
 import { isOpenableLink, parseMarkdown, type Token } from "../logic/markdown";
 import { radius, spacing, useColors } from "../theme/theme";
 import { Icon } from "./Icon";
@@ -12,7 +13,7 @@ type Any = Token & Record<string, unknown>;
 
 export const MarkdownView = memo(function MarkdownView({ text, selectable = true, previewCards = false }: { text: string; selectable?: boolean; previewCards?: boolean }) {
   const source = parseMarkdown(text);
-  const tokens = previewCards ? source.flatMap(visibleBlock) : source;
+  const tokens = previewCards ? source.flatMap(visibleBlock).map(withMediaFileNames) : source;
   if (tokens.length === 0) return null;
   return (
     <View>
@@ -29,6 +30,13 @@ function visibleBlock(token: Token): Token[] {
   const inline = token.tokens.filter((child) => child.type !== "image" || !tokenPreview(child, ""));
   if (inline.every((child) => child.type === "br" || !child.raw.trim() || !!tokenPreview(child, ""))) return [];
   return inline.length === token.tokens.length ? [token] : [{ ...token, tokens: inline }];
+}
+
+function withMediaFileNames(token: Token): Token {
+  if (token.type === "codespan") return mediaPathPreview(token.text, "") ? { ...token, text: token.text.trim().split("/").pop() ?? token.text } : token;
+  if (token.type === "list") return { ...token, items: token.items.map((item: Tokens.ListItem) => ({ ...item, tokens: item.tokens.map(withMediaFileNames) })) };
+  if ("tokens" in token && Array.isArray(token.tokens)) return { ...token, tokens: token.tokens.map(withMediaFileNames) };
+  return token;
 }
 
 function Block({ token, selectable, last }: { token: Any; selectable: boolean; last: boolean }): ReactNode {
