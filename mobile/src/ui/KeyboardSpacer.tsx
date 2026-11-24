@@ -2,11 +2,26 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import { Animated, AppState, Easing, Keyboard, Platform, TextInput, type KeyboardEvent, type KeyboardMetrics } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+const FOCUS_EVENT_GRACE_MS = [50, 250];
+
 function listenForKeyboard(notify: () => void) {
-  const show = Keyboard.addListener("keyboardDidShow", notify);
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const notifyAgainAfterFocusEvent = () => {
+    notify();
+    for (const delay of FOCUS_EVENT_GRACE_MS) {
+      const timer = setTimeout(() => { timers.delete(timer); notify(); }, delay);
+      timers.add(timer);
+    }
+  };
+  const show = Keyboard.addListener("keyboardDidShow", notifyAgainAfterFocusEvent);
   const hide = Keyboard.addListener("keyboardDidHide", notify);
   const appState = AppState.addEventListener("change", notify);
-  return () => { show.remove(); hide.remove(); appState.remove(); };
+  return () => {
+    show.remove();
+    hide.remove();
+    appState.remove();
+    timers.forEach(clearTimeout);
+  };
 }
 
 let reportedStaleMetrics: KeyboardMetrics | null = null;
@@ -31,15 +46,15 @@ export function KeyboardSpacer({ keyboardOnly = false }: { keyboardOnly?: boolea
   const idleHeight = keyboardOnly ? 0 : insets.bottom;
   const keyboardOpen = useSyncExternalStore(listenForKeyboard, () => openKeyboard() !== undefined);
   const keyboardHeight = keyboardOpen ? Keyboard.metrics()?.height ?? 0 : 0;
-  const initialHeight = keyboardHeight === 0 ? idleHeight : Platform.OS === "android"
+  const targetHeight = keyboardHeight === 0 ? idleHeight : Platform.OS === "android"
     ? keyboardHeight + insets.bottom
     : Math.max(keyboardHeight, insets.bottom);
-  const height = useRef(new Animated.Value(initialHeight)).current;
+  const height = useRef(new Animated.Value(targetHeight)).current;
   useEffect(() => {
     const move = (to: number, duration: number) => Animated.timing(height, { toValue: to, duration, easing: Easing.bezier(0.17, 0.59, 0.4, 0.77), useNativeDriver: false }).start();
     const show = (e: KeyboardEvent) => move(Platform.OS === "android" ? e.endCoordinates.height + insets.bottom : Math.max(e.endCoordinates.height, insets.bottom), e.duration || (Platform.OS === "android" ? 120 : 250));
     const hide = (e: KeyboardEvent) => move(idleHeight, e.duration || (Platform.OS === "android" ? 120 : 250));
-    if (!keyboardOpen) move(idleHeight, 120);
+    move(targetHeight, 120);
     const subs =
       Platform.OS === "android"
         ? [Keyboard.addListener("keyboardDidShow", show), Keyboard.addListener("keyboardDidHide", hide)]
@@ -48,6 +63,6 @@ export function KeyboardSpacer({ keyboardOnly = false }: { keyboardOnly?: boolea
       subs.forEach((s) => s.remove());
       height.stopAnimation();
     };
-  }, [height, idleHeight, insets.bottom, keyboardOpen]);
+  }, [height, idleHeight, insets.bottom, targetHeight]);
   return <Animated.View style={{ height }} />;
 }
