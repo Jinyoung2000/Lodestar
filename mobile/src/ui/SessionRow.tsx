@@ -27,6 +27,7 @@ export const SessionRow = memo(function SessionRow({ agent, selected, subtitle, 
 export const rowSwipeGate = { claimed: false };
 
 const SWIPE_COMMIT = 88;
+export const ROW_INSET = 22;
 
 export function SessionRowFrame({ agent, selected, state, stamp, emphasized, showPin, detailsLabel, children, onPress, onLongPress }: RowActions & {
   state: SessionState; stamp: string; emphasized: boolean; showPin?: boolean; detailsLabel?: string; children: ReactNode;
@@ -94,14 +95,14 @@ function useRowSwipe(onCommit: () => void) {
 }
 
 const styles = StyleSheet.create({
-  row: { minHeight: 48, justifyContent: "center", paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: 1 },
+  row: { minHeight: 48, justifyContent: "center", paddingLeft: ROW_INSET, paddingRight: spacing.lg, paddingVertical: spacing.sm, gap: 1 },
   action: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6, paddingRight: spacing.xl },
   line: { flexDirection: "row", alignItems: "center", gap: 10 },
   title: { flex: 1, minWidth: 0, fontSize: 15, lineHeight: 20, fontWeight: "400" },
   strong: { fontWeight: "600" },
   pin: { width: 14, height: 14 },
   mark: { marginRight: -4 },
-  unreadDot: { position: "absolute", left: 5, top: spacing.sm + 6, width: 8, height: 8, borderRadius: 4 },
+  unreadDot: { position: "absolute", left: ROW_INSET - 14, top: spacing.sm + 6, width: 8, height: 8, borderRadius: 4 },
   details: { paddingLeft: 22, gap: 1 },
   time: { flexShrink: 1, maxWidth: "28%", fontSize: 13, lineHeight: 18, fontVariant: ["tabular-nums"] },
 });

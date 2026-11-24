@@ -18,7 +18,7 @@ import { ConnectionTitle } from "./ConnectionTitle";
 import { Icon } from "./Icon";
 import { RenameDialog } from "./RenameDialog";
 import { Segmented } from "./Segmented";
-import { rowSwipeGate, SessionRow, SessionRowFrame } from "./SessionRow";
+import { ROW_INSET, rowSwipeGate, SessionRow, SessionRowFrame } from "./SessionRow";
 import { ProviderLabel } from "./ProviderMark";
 import { MenuButton, SESSION_SORT_OPTIONS, SortButton } from "./SortButton";
 import type { ListView } from "../state/sortPrefs";
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   rayLeft: { position: "absolute", left: 0, top: BRAND_HALF - RAY_BASE, borderTopWidth: RAY_BASE, borderBottomWidth: RAY_BASE, borderRightWidth: BRAND_HALF, borderTopColor: "transparent", borderBottomColor: "transparent" },
   rayRight: { position: "absolute", left: BRAND_HALF, top: BRAND_HALF - RAY_BASE, borderTopWidth: RAY_BASE, borderBottomWidth: RAY_BASE, borderLeftWidth: BRAND_HALF, borderTopColor: "transparent", borderBottomColor: "transparent" },
   brandSlot: { width: 26, height: 26, marginRight: 10 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", paddingLeft: spacing.lg, paddingRight: spacing.xs },
+  sectionHeader: { flexDirection: "row", alignItems: "center", paddingLeft: ROW_INSET, paddingRight: spacing.xs },
   sectionToggle: { flex: 1, minWidth: 0, minHeight: SECTION_HEADER_HEIGHT, flexDirection: "row", alignItems: "center", gap: spacing.sm },
   sectionTitle: { fontSize: 17, lineHeight: 22, fontWeight: "700", flexShrink: 1 },
   sectionCount: { fontSize: 15, lineHeight: 22, fontVariant: ["tabular-nums"] },
