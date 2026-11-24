@@ -48,7 +48,8 @@ export function shortLinkLabel(href: string): string {
   if (!/^https?:\/\//i.test(href)) return href.replace(/^mailto:/i, "");
   try {
     const url = new URL(href);
-    const host = url.host.replace(/^www\./, "");
+    const fullHost = url.host.replace(/^www\./, "");
+    const host = fullHost.length > 24 ? fullHost.split(".").slice(-2).join(".") : fullHost;
     const segments = url.pathname.split("/").filter(Boolean);
     const last = segments.at(-1);
     if (!last) return host;
