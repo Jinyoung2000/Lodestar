@@ -116,7 +116,7 @@ export default function NewSession() {
     setStarting(true);
     try {
       const agent = await store.createSession(workspaceId, text, images, worktree, modelChoice, files);
-      router.replace({ pathname: "/session/[id]", params: { id: agent.id } });
+      router.replace({ pathname: "/session/[id]", params: { id: agent.id, started: "1" } });
     } finally {
       setStarting(false);
     }

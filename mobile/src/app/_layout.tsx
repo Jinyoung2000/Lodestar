@@ -159,7 +159,7 @@ export default function RootLayout() {
                   }}
                 >
                   <Stack.Screen name="index" options={{ title: "Lodestar", headerShown: railWidth === 0 && Platform.OS !== "android" }} />
-                  <Stack.Screen name="session/[id]" dangerouslySingular={singleSessionSlot} options={{ title: "", headerBackButtonDisplayMode: "minimal", animation: pushAnimation }} />
+                  <Stack.Screen name="session/[id]" dangerouslySingular={singleSessionSlot} options={({ route }) => ({ title: "", headerBackButtonDisplayMode: "minimal", animation: (route.params as { started?: string } | undefined)?.started ? "none" : pushAnimation })} />
                   <Stack.Screen name="workspace/[id]" options={{ title: "", headerBackButtonDisplayMode: "minimal" }} />
                   <Stack.Screen name="add-workspace" options={{ title: "Add workspace", presentation: "modal" }} />
                   <Stack.Screen name="new" options={{ title: "New session", animation: pushAnimation }} />
