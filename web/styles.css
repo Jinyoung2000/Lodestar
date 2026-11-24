@@ -10678,6 +10678,11 @@ button[data-variant]:disabled .codicon {
 .layout-title-bar {
   display: flex;
   align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1_5) var(--space-2) var(--space-1);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+}
 .link-offer-text {
   word-break: break-all;
 }
@@ -10719,11 +10724,6 @@ button[data-variant]:disabled .codicon {
 }
 .link-add-problem {
   margin-top: var(--space-1);
-}
-  gap: var(--space-1);
-  padding: var(--space-1_5) var(--space-2) var(--space-1);
-  font-size: var(--text-ui);
-  line-height: var(--leading-ui);
 }
 .layout-title {
   flex: 1;
