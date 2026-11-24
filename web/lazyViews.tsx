@@ -1,5 +1,20 @@
 import { useEffect, useState } from "react";
-import { useStore, type PrViewTab, type SideState } from "./store";
+import { reloadWindow, useStore, type PrViewTab, type SideState } from "./store";
+
+const CHUNK_RELOAD_KEY = "agent-nav.chunkReloadAt";
+const CHUNK_RELOAD_GAP_MS = 60_000;
+
+function reloadForMissingChunk(error: unknown) {
+  console.error("[agent-nav] could not load a view chunk", error);
+  try {
+    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 0);
+    if (Date.now() - last < CHUNK_RELOAD_GAP_MS) return;
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
+  } catch {
+    return;
+  }
+  reloadWindow();
+}
 
 type Slot<C> = { component: C | null; load: () => Promise<C> };
 
@@ -22,7 +37,7 @@ function useSlot<C>(entry: Slot<C>, wanted = true): C | null {
     let alive = true;
     entry.load().then(
       (component) => alive && setLoaded(() => component),
-      (error) => console.error("[agent-nav] could not load a view chunk", error),
+      (error) => alive && reloadForMissingChunk(error),
     );
     return () => {
       alive = false;

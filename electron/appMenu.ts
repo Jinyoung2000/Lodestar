@@ -28,7 +28,7 @@ export function buildAppMenu(keymapState: KeymapState, boardMenuShown: boolean, 
   const template: MenuItemConstructorOptions[] = [
     {
       label: "Lodestar",
-      submenu: [{ role: "about" }, { type: "separator" }, { role: "hide" }, { role: "hideOthers" }, { type: "separator" }, { role: "quit" }],
+      submenu: [{ role: "about" }, { type: "separator" }, { label: S.menu.settings, ...accel("openSettings", "Cmd+,"), click: () => send("openSettings") }, { type: "separator" }, { role: "hide" }, { role: "hideOthers" }, { type: "separator" }, { role: "quit" }],
     },
     {
       label: S.menu.file,

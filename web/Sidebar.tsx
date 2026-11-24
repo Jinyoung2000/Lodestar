@@ -10,7 +10,7 @@ import { GroupMenu, GroupOrderMenu } from "./GroupMenu";
 import { PullRequestsSection } from "./PullRequestsSection";
 import { SectionMoveItems } from "./SectionMoveItems";
 import { beginSectionDrag, useSectionDrag, useSidebarOrder, type SidebarSection } from "./sidebarOrder";
-import { BoardIcon, Chat, Check, ChevronDown, ChevronRight, Close, Codicon, CircleFilled, CircleSmallFilled, CommentDiscussion, DotSpinner, Filter, Folder, FolderCompact, More, Pin, Plus, ProviderIcon, Search, TreeItemExpanded, WorktreeCompact } from "./icons";
+import { BoardIcon, Chat, Check, ChevronDown, ChevronRight, Close, Codicon, CircleFilled, CircleSmallFilled, CommentDiscussion, DotSpinner, Filter, Folder, FolderCompact, Gear, More, Pin, Plus, ProviderIcon, Search, TreeItemExpanded, WorktreeCompact } from "./icons";
 import { RenameInput } from "./RenameInput";
 import { automationsAwaitingInput } from "./automationModel";
 import { openDecisionCount } from "../shared/followups";
@@ -227,12 +227,15 @@ function ReleaseNotice() {
 
 function SidebarFoot() {
   const operator = useStore((s) => improvementsShown(s.operator));
-  const release = useStore((s) => s.settings?.notifyNewVersion === true && releaseToNotify(s.release) !== null);
-  if (!operator && !release) return null;
+  const settingsOpen = useStore((s) => s.overlay?.kind === "status");
   return (
     <div className="sidebar-foot">
       <ReleaseNotice />
       {operator && <ImprovementsEntry />}
+      <button type="button" className="side-item" data-active={settingsOpen || undefined} aria-pressed={settingsOpen} onClick={() => runCommand("openSettings")}>
+        <Gear /> {S.settings}
+        <SideKeycaps command="openSettings" />
+      </button>
     </div>
   );
 }

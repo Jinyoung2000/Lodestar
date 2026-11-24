@@ -1497,6 +1497,7 @@ export const S = {
     splitChat: "Split Chat",
     sideChat: "Side Chat (/btw)",
     feedback: "Send Feedback",
+    settings: "Settings…",
     attach: "Attach File or Selection",
     askAboutSelection: "Ask About Selected Code",
     openFile: "Open File",
