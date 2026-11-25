@@ -23,7 +23,7 @@ import {
   type AutomationsState,
   type AutomationTrigger,
 } from "../shared/automations";
-import type { Agent, ServerEvent, TimelineItem } from "../shared/protocol";
+import type { Agent, ServerEvent, TimelineItem, UserAttachment } from "../shared/protocol";
 import type { CreateParams } from "./agents";
 import { HOME, type Store } from "./store";
 import { T } from "./strings";
@@ -38,7 +38,7 @@ type BranchInfo = { repoRoot: string | null; current: string | null; defaultBase
 export type AutomationDeps = {
   store: AutomationStoreView;
   create: (params: CreateParams) => Promise<Agent>;
-  send: (agentId: string, prompt: string) => Promise<{ queued: boolean }>;
+  send: (agentId: string, prompt: string, options: { display: string; attachments: UserAttachment[] }) => Promise<{ queued: boolean }>;
   branches: (dir: string) => Promise<BranchInfo>;
   emit: (event: ServerEvent) => void;
   autoBlocked?: () => boolean;
@@ -205,7 +205,7 @@ export class AutomationService {
         const agent = this.deps.store.agents.find((a) => a.id === agentId);
         if (!agent) throw new Error(T.automationSessionGone);
         this.bind(run, agent.id);
-        await this.deps.send(agent.id, automation.prompt);
+        await this.deps.send(agent.id, automation.prompt, { display: "", attachments: [automationChip(automation)] });
       } else {
         const agent = await this.deps.create(await this.createParams(automation));
         const marked = this.deps.store.patchAgent(agent.id, { automationId: automation.id });
@@ -235,7 +235,7 @@ export class AutomationService {
     const { store } = this.deps;
     const workspace = store.workspace(automation.target.workspaceId);
     if (workspace.feedback || workspace.archived) throw new Error(T.errAutomationWorkspace);
-    const base = { prompt: automation.prompt, permissionMode: automation.permissionMode, model: automation.model, effort: automation.effort, harness: automation.harness };
+    const base = { prompt: automation.prompt, automationChip: automationChip(automation), permissionMode: automation.permissionMode, model: automation.model, effort: automation.effort, harness: automation.harness };
     if (!automation.target.worktree) return { ...base, workspaceId: workspace.id, worktree: null };
     const top = workspace.parentId ? store.workspace(workspace.parentId) : workspace;
     const info = await this.deps.branches(top.dir);
@@ -492,4 +492,8 @@ export function turnFailure(items: TimelineItem[]): string | null {
     if (item.kind === "result") return item.isError ? (lastErrorText(items) ?? T.automationTurnFailed) : null;
   }
   return null;
+}
+
+function automationChip(automation: Automation): Extract<UserAttachment, { kind: "automation" }> {
+  return { kind: "automation", label: automation.title, id: automation.id };
 }

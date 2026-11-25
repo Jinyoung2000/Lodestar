@@ -106,6 +106,7 @@ export type UserAttachment =
   | { kind: "screenshot"; label: string; thumb: string }
   | { kind: "diffFeedback"; label: string; path: string; line: number; endLine: number; id: string; text: string }
   | { kind: "handoff"; label: string; id: string }
+  | { kind: "automation"; label: string; id: string }
   | { kind: "image"; label: string; id: string; thumb: string }
   | { kind: "file"; label: string; path: string; bytes: number }
   | { kind: "notion"; label: string; url: string };

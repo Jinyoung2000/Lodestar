@@ -188,6 +188,7 @@ export type CreateParams = {
   images?: ImageRef[];
   files?: FileRef[];
   shown?: string;
+  automationChip?: Extract<UserAttachment, { kind: "automation" }>;
   notionContext?: { text: string; label: string; url: string; title: string };
   harness?: Harness;
   providerId?: string | null;
@@ -346,6 +347,8 @@ export class AgentRunner {
       ? { display: params.prompt, attachments: [{ kind: "notion" as const, label: params.notionContext.label, url: params.notionContext.url }, ...imageChips] }
       : handoff
       ? { display: params.shown ?? "", attachments: [...(params.handoffId ? [{ kind: "handoff" as const, label: T.handoffLabel(handoff.title), id: params.handoffId }] : []), ...imageChips] }
+      : params.automationChip
+        ? { display: "", attachments: [params.automationChip, ...imageChips] }
       : imageChips.length
         ? { display: params.prompt, attachments: imageChips }
         : {};

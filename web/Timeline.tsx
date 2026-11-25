@@ -17,7 +17,7 @@ import { CheckpointActions, RestoredMarker, TimelineContext } from "./Checkpoint
 import { linkifyElement, type FileRef } from "./fileRefs";
 import { linkifySessionRefs, MARKDOWN_URI } from "./sessionLinks";
 import { markFileRefs, useFileRefVersion } from "./fileRefMark";
-import { BookCompact, Check, ChevronDown, ChevronRightCompact, Codicon, Copy, DotSpinner, Edit, Spark, TerminalCompact, Tools } from "./icons";
+import { BookCompact, Check, ChevronDown, ChevronDownCompact, ChevronRightCompact, Codicon, Copy, DotSpinner, Edit, Spark, TerminalCompact, Tools } from "./icons";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { toTarget } from "./lsp";
 import { useStuckBubble } from "./stuckBubble";
@@ -146,6 +146,9 @@ const UserHead = memo(function UserHead({ user, first }: { user: UserItem; first
   const sentinelRef = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const stuck = useStuckBubble(sentinelRef, bubbleRef);
+  const [promptOpen, setPromptOpen] = useState(false);
+  const automation = user.attachments?.some((attachment) => attachment.kind === "automation");
+  const bodyText = automation && promptOpen ? user.text : (user.shown ?? user.text);
   return (
     <>
       <span className="turn-sentinel" ref={sentinelRef} aria-hidden="true" />
@@ -153,15 +156,19 @@ const UserHead = memo(function UserHead({ user, first }: { user: UserItem; first
         {!codex && !locked?.has(user.id) && <CheckpointActions user={user} first={first} />}
         {user.attachments?.length ? (
           <div className="user-attachments">
-            {user.attachments.map((attachment) => (
-              <AttachmentChip key={attachmentKey(attachment)} attachment={attachment} />
-            ))}
+            {user.attachments.map((attachment) =>
+              attachment.kind === "automation" ? (
+                <AutomationBubbleChip key={attachment.id} label={attachment.label} open={promptOpen} onToggle={() => setPromptOpen((open) => !open)} />
+              ) : (
+                <AttachmentChip key={attachmentKey(attachment)} attachment={attachment} />
+              ),
+            )}
           </div>
         ) : null}
         {user.attachments?.length ? <FeedbackBodies attachments={user.attachments} /> : null}
-        {(user.shown !== "" || !user.attachments?.length) && (
+        {(bodyText !== "" || !user.attachments?.length) && (
           <div className="row-user">
-            <Markdown className="row-user-text" text={user.shown ?? user.text} breaks linkify={false} />
+            <Markdown className="row-user-text" text={bodyText} breaks linkify={false} />
           </div>
         )}
       </div>
@@ -176,6 +183,7 @@ function AttachmentChip({ attachment }: { attachment: UserAttachment }) {
   if (attachment.kind === "file") return <FileBubbleChip attachment={attachment} />;
   if (attachment.kind === "handoff") return <HandoffBubbleChip label={attachment.label} id={attachment.id} />;
   if (attachment.kind === "notion") return <NotionBubbleChip label={attachment.label} url={attachment.url} />;
+  if (attachment.kind === "automation") return null;
   const { path, line } = attachment;
   const file = path ? path.slice(path.lastIndexOf("/") + 1) : null;
   const where = file ? (line ? `${file}:${line}` : file) : null;
@@ -194,6 +202,16 @@ function attachmentKey(attachment: UserAttachment) {
   if (attachment.kind === "notion") return `notion:${attachment.url}`;
   if (attachment.kind === "file") return `file:${attachment.path}`;
   return attachment.id;
+}
+
+function AutomationBubbleChip({ label, open, onToggle }: { label: string; open: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" className="user-attachment user-attachment-handoff" aria-expanded={open} title={open ? S.automationPromptHide : S.automationPromptShow} onClick={onToggle}>
+      <Codicon name="watch" size={12} />
+      <span className="user-attachment-name">{label}</span>
+      {open ? <ChevronDownCompact size={12} /> : <ChevronRightCompact size={12} />}
+    </button>
+  );
 }
 
 function FileBubbleChip({ attachment }: { attachment: Extract<UserAttachment, { kind: "file" }> }) {

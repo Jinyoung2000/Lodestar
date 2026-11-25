@@ -15,30 +15,8 @@ import { PreviewCardRow } from "./PreviewCard";
 export const ChatRow = memo(function ChatRow({ row, showGallery, openPreview, agentId }: { row: Row; agentId: string; showGallery: () => void; openPreview: (file: Preview) => void }) {
   const colors = useColors();
   switch (row.type) {
-    case "user": {
-      const item = row.item;
-      const images = messagePreviews(item);
-      const chips = (item.attachments ?? []).filter((a) => a.kind !== "image" && a.kind !== "screenshot");
-      const text = item.shown ?? item.text;
-      const imageOnly = images.length > 0 && !chips.length && !text.trim();
-      return (
-        <View style={styles.userWrap}>
-          <View style={imageOnly ? styles.imageBubble : [styles.userBubble, { backgroundColor: colors.userBubble }]}>
-            {images.length > 0 && (
-              <View style={styles.thumbs}>
-                {images.map((image, index) => (
-                  <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Open ${image.title}`} onPress={() => openPreview(image)}><Image source={{ uri: image.thumb }} style={[styles.thumb, imageOnly && images.length === 1 && styles.singleImage, { backgroundColor: colors.surfaceBase }]} /></Pressable>
-                ))}
-              </View>
-            )}
-            {chips.map((chip, i) => (
-              <Text key={i} variant="caption" color="textMuted" numberOfLines={1}>{`@ ${"label" in chip ? chip.label : ""}`}</Text>
-            ))}
-            {!!text && <Text color="textStrong" selectable>{text}</Text>}
-          </View>
-        </View>
-      );
-    }
+    case "user":
+      return <UserRow item={row.item} openPreview={openPreview} />;
     case "assistant":
       return (
         <View style={styles.assistant}>
@@ -76,6 +54,40 @@ export const ChatRow = memo(function ChatRow({ row, showGallery, openPreview, ag
       );
   }
 });
+
+function UserRow({ item, openPreview }: { item: Extract<Row, { type: "user" }>["item"]; openPreview: (file: Preview) => void }) {
+  const colors = useColors();
+  const [promptOpen, setPromptOpen] = useState(false);
+  const images = messagePreviews(item);
+  const attachments = item.attachments ?? [];
+  const automation = attachments.find((a) => a.kind === "automation");
+  const chips = attachments.filter((a) => a.kind !== "image" && a.kind !== "screenshot" && a.kind !== "automation");
+  const text = automation && promptOpen ? item.text : (item.shown ?? item.text);
+  const imageOnly = images.length > 0 && !chips.length && !automation && !text.trim();
+  return (
+    <View style={styles.userWrap}>
+      <View style={imageOnly ? styles.imageBubble : [styles.userBubble, { backgroundColor: colors.userBubble }]}>
+        {images.length > 0 && (
+          <View style={styles.thumbs}>
+            {images.map((image, index) => (
+              <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Open ${image.title}`} onPress={() => openPreview(image)}><Image source={{ uri: image.thumb }} style={[styles.thumb, imageOnly && images.length === 1 && styles.singleImage, { backgroundColor: colors.surfaceBase }]} /></Pressable>
+            ))}
+          </View>
+        )}
+        {automation && (
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: promptOpen }} accessibilityLabel={`${automation.label}, ${promptOpen ? "hide" : "show"} the automation prompt`} hitSlop={8} onPress={() => setPromptOpen((open) => !open)} style={styles.automationChip}>
+            <Text variant="caption" color="textMuted" numberOfLines={1} style={styles.automationLabel}>{automation.label}</Text>
+            <Icon name={promptOpen ? "chevron.up" : "chevron.down"} size={10} color="textMuted" />
+          </Pressable>
+        )}
+        {chips.map((chip, i) => (
+          <Text key={i} variant="caption" color="textMuted" numberOfLines={1}>{`@ ${"label" in chip ? chip.label : ""}`}</Text>
+        ))}
+        {!!text && <Text color="textStrong" selectable>{text}</Text>}
+      </View>
+    </View>
+  );
+}
 
 function AttachmentGroup({ files, agentId, open, showGallery }: { files: Preview[]; agentId: string; open: (file: Preview) => void; showGallery: () => void }) {
   if (!files.length) return null;
@@ -125,6 +137,8 @@ export const rowType = (row: Row) => (row.type === "user" ? "user" : row.type ==
 const styles = StyleSheet.create({
   imageToggle: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: spacing.xs, minHeight: 40 },
   userWrap: { alignItems: "flex-end" },
+  automationChip: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  automationLabel: { flexShrink: 1 },
   userBubble: { maxWidth: "85%", borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, gap: spacing.xs },
   imageBubble: { maxWidth: "85%" },
   singleImage: { width: 160, height: 160, borderRadius: 12 },

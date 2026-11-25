@@ -286,7 +286,7 @@ morningReview.start();
 automations = new AutomationService({
   store,
   create: (params) => runner.create(params),
-  send: (agentId, prompt) => runner.send(agentId, prompt),
+  send: (agentId, prompt, options) => runner.send(agentId, prompt, options),
   branches: (dir) => gitOps.branches(dir),
   emit: broadcast,
   autoBlocked: () => automationsAutoBlocked(process.env),

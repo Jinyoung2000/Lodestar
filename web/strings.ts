@@ -2296,6 +2296,8 @@ export const S = {
   handoffSameWorktree: "Same Worktree",
   handoffSameWorktreeDescription: "Continues in the worktree of the original session",
   handoffOpenTip: "Open the handoff document",
+  automationPromptShow: "Show the automation prompt",
+  automationPromptHide: "Hide the automation prompt",
   handoffReadOnly: "Read only",
   handoffSave: "Save",
 
