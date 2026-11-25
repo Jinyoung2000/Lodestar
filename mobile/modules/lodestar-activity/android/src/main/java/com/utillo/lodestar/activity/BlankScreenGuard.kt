@@ -75,7 +75,8 @@ internal class BlankScreenGuard(private val onReport: (String) -> Unit) : Applic
     if (blankChecks < BLANK_CHECKS) return
     blankChecks = 0
     val healing = recreated < MAX_RECREATES
-    onReport("screen blank: $finding${if (healing) "; recreating the activity" else ""}\n${tree(content, 0)}".take(TEXT_CHARS))
+    val summary = "screen blank: $finding${if (healing) "; recreating the activity" else ""}\n${ProcessSnapshot.memory()}\n${tree(content, 0)}".take(TEXT_CHARS)
+    Thread({ onReport("$summary\n-- own logcat --\n${ProcessSnapshot.ownLogcat()}") }, "lodestar-blank-report").start()
     if (healing) {
       recreated++
       armed.remove(activity)

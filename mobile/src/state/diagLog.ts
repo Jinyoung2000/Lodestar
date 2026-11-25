@@ -9,6 +9,7 @@ type ExitRecord = { source: "java" | "system"; at?: number; reason?: string; tra
 type ExitReasons = {
   takeRecent(): ExitRecord[];
   clearStall?(): void;
+  memory?(): string;
   addListener?(event: "mainThreadStall", listener: (event: { text: string }) => void): { remove(): void };
 };
 type HermesHooks = {
@@ -18,7 +19,7 @@ type HermesHooks = {
 
 const MAX_LINES = 800;
 const LINE_CHARS = 3000;
-const EXIT_CHARS = 12_000;
+const EXIT_CHARS = 40_000;
 const SAVE_DELAY_MS = 1000;
 const UPLOAD_DELAY_MS = 15_000;
 const URGENT_UPLOAD_DELAY_MS = 800;
@@ -119,6 +120,10 @@ function heap() {
   if (!stats) return;
   const picked = Object.entries(stats).filter(([name, value]) => typeof value === "number" && /heap|alloc|numGC|gcTime/i.test(name)).map(([name, value]) => `${name}=${value}`);
   add("M", [picked.join(" ")], false);
+  try {
+    const native = exitReasons?.memory?.();
+    if (native) add("M", [native], false);
+  } catch {}
 }
 
 async function start() {
@@ -151,8 +156,10 @@ const exitReasons = Platform.OS === "android" ? requireOptionalNativeModule<Exit
 function watchMainThread() {
   exitReasons?.addListener?.("mainThreadStall", ({ text }) => {
     const ended = text.startsWith("main thread answered");
-    add(ended ? "W" : "E", [`${text.startsWith("screen blank") ? "[blank]" : "[stall]"} ${text}`], true, EXIT_CHARS);
-    if (!ended) setTimeout(() => exitReasons.clearStall?.(), STALL_CLEAR_DELAY_MS);
+    const memory = text.startsWith("trim memory") || text.startsWith("low memory");
+    const tag = text.startsWith("screen blank") ? "[blank]" : memory ? "[memory]" : "[stall]";
+    add(ended || memory ? "W" : "E", [`${tag} ${text}`], !memory, EXIT_CHARS);
+    if (!ended && !memory) setTimeout(() => exitReasons.clearStall?.(), STALL_CLEAR_DELAY_MS);
   });
 }
 

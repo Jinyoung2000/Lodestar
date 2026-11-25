@@ -26,6 +26,8 @@ class ExitReasonsModule : Module() {
 
     OnDestroy { stallListener = null }
 
+    Function("memory") { ProcessSnapshot.memory() }
+
     Function("clearStall") { stallFile(context).delete() }
 
     Function("takeRecent") {
@@ -62,6 +64,7 @@ class ExitReasonsModule : Module() {
       val guard = BlankScreenGuard { text -> stallListener?.invoke(text) }
       guard.alreadyRunning(current)
       application.registerActivityLifecycleCallbacks(guard)
+      application.registerComponentCallbacks(ProcessSnapshot.pressureWatcher { text -> stallListener?.invoke(text) })
     }
 
     private fun takeFile(file: File): String? {

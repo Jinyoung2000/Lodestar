@@ -49,7 +49,7 @@ internal class MainThreadWatchdog(private val file: File, private val onEvent: (
       }
       if (pending && reportedAt == 0L && now - postedAt >= STALL_MS && inForeground()) {
         reportedAt = now
-        val text = "main thread blocked ${now - postedAt}ms\n${stacks()}".take(TEXT_CHARS)
+        val text = "main thread blocked ${now - postedAt}ms\n${stacks()}".take(TEXT_CHARS) + "\n${ProcessSnapshot.memory()}\n-- own logcat --\n${ProcessSnapshot.ownLogcat()}"
         runCatching { file.writeText(text) }
         onEvent(text)
       }

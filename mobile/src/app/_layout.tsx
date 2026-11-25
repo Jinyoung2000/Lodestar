@@ -14,7 +14,7 @@ import { ActionMenuHost } from "../ui/ActionMenuHost";
 import { ConnectionStatusProvider } from "../ui/ConnectionTitle";
 import { CrashBoundary, CrashScreen } from "../ui/CrashBoundary";
 import { describeCrash, installCrashRecorder, recordCrash } from "../state/crashLog";
-import { diagState, installDiagLog } from "../state/diagLog";
+import { diag, diagState, installDiagLog } from "../state/diagLog";
 import { foldRailWidth, FoldLayoutContext, useWindowFontScale } from "../ui/FoldLayout";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
 import { SessionsList } from "../ui/SessionsList";
@@ -166,6 +166,7 @@ export default function RootLayout() {
             <View ref={detailRef} style={styles.detail} onLayout={() => measureSplitRegion(detailRef.current)}>
               <SafeAreaProvider style={styles.detail}>
                 <Stack
+                  screenListeners={transitionLog}
                   screenLayout={({ route: screen, children }) => screen.name === "settings" || screen.name === "connect"
                     ? <View style={styles.form}>{children}</View>
                     : <>{children}</>}
@@ -205,6 +206,11 @@ export default function RootLayout() {
 }
 
 const singleSessionSlot = () => "session";
+
+const transitionLog = ({ route }: { route: { name: string } }) => ({
+  transitionStart: (event: { data?: { closing?: boolean } }) => diag(`transition start ${route.name}${event.data?.closing ? " closing" : ""}`),
+  transitionEnd: (event: { data?: { closing?: boolean } }) => diag(`transition end ${route.name}${event.data?.closing ? " closing" : ""}`),
+});
 
 const styles = StyleSheet.create({
   shell: { flex: 1 },
