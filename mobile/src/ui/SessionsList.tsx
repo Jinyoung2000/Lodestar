@@ -162,10 +162,6 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
   }, [listKey, onOpenSession, router, tab]);
   const searchLabel = tab === "workspaces" ? "Search workspaces" : "Search sessions";
   const viewMenu = tab === "sessions" && !scopedWorkspace ? <ViewMenu view={view} /> : null;
-  const appTitle = (size: number) => <View style={styles.brand}>
-    <BrandMark />
-    <Text accessibilityRole="header" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={size} style={styles.appTitle}>Lodestar</Text>
-  </View>;
 
   return (
     <View style={{ flex: 1 }}>
@@ -176,7 +172,7 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
               <Icon name="line.3.horizontal" size={20} color="textStrong" />
             </Pressable>}
             <ConnectionTitle title="Lodestar" style={styles.railTitle}>
-              {appTitle(1.2)}
+              <RailBrand />
             </ConnectionTitle>
             {viewMenu}
             <Pressable accessibilityRole="button" accessibilityLabel={railSearch ? "Close search" : searchLabel}
@@ -314,6 +310,21 @@ const SectionHeader = memo(function SectionHeader({ title, count, first, workspa
   );
 });
 
+function RailBrand() {
+  const [room, setRoom] = useState(0);
+  const [wordWidth, setWordWidth] = useState(0);
+  const wordFits = !room || !wordWidth || room >= BRAND_SIZE + BRAND_GAP + wordWidth;
+  return <View onLayout={(e) => setRoom(e.nativeEvent.layout.width)} style={styles.brandRoom}>
+    <View accessible={!wordFits} accessibilityRole="header" accessibilityLabel="Lodestar" style={styles.brand}>
+      <BrandMark />
+      {wordFits && <Text accessibilityRole="header" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.appTitle}>Lodestar</Text>}
+    </View>
+    <View accessible={false} importantForAccessibility="no-hide-descendants" pointerEvents="none" style={styles.wordProbe}>
+      <Text onLayout={(e) => setWordWidth(Math.ceil(e.nativeEvent.layout.width))} maxFontSizeMultiplier={1.2} style={styles.appTitle}>Lodestar</Text>
+    </View>
+  </View>;
+}
+
 function BrandMark() {
   const colors = useColors();
   return <View accessible={false} importantForAccessibility="no-hide-descendants" style={styles.brandMark}>
@@ -366,6 +377,7 @@ function releaseRowSwipe() {
 const SECTION_HEADER_HEIGHT = 48;
 const BRAND_SIZE = 26;
 const BRAND_HALF = BRAND_SIZE / 2;
+const BRAND_GAP = 10;
 const RAY_BASE = 5;
 
 const styles = StyleSheet.create({
@@ -379,7 +391,9 @@ const styles = StyleSheet.create({
   headerButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   headerActions: { flexDirection: "row" },
   appTitle: { fontSize: 20, lineHeight: 24, fontWeight: "600", flexShrink: 1 },
-  brand: { flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
+  brand: { flexDirection: "row", alignItems: "center", gap: BRAND_GAP, minWidth: 0 },
+  brandRoom: { alignSelf: "stretch", minWidth: 0 },
+  wordProbe: { position: "absolute", left: 0, top: 0, width: 400, flexDirection: "row", alignItems: "flex-start", opacity: 0 },
   brandMark: { width: BRAND_SIZE, height: BRAND_SIZE },
   rayUp: { position: "absolute", left: BRAND_HALF - RAY_BASE, top: 0, borderLeftWidth: RAY_BASE, borderRightWidth: RAY_BASE, borderBottomWidth: BRAND_HALF, borderLeftColor: "transparent", borderRightColor: "transparent" },
   rayDown: { position: "absolute", left: BRAND_HALF - RAY_BASE, top: BRAND_HALF, borderLeftWidth: RAY_BASE, borderRightWidth: RAY_BASE, borderTopWidth: BRAND_HALF, borderLeftColor: "transparent", borderRightColor: "transparent" },
