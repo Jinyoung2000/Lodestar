@@ -471,10 +471,21 @@ else {
 }
 const initialChat = WINDOW_ID !== null && new URLSearchParams(location.search).get(CHAT_WINDOW_QUERY) === "1";
 let pickFolderOnStart = !EMBED && WINDOW_ID !== null && !restored && !initialChat;
+const startPickListeners = new Set<() => void>();
 export function takePickFolderOnStart(): boolean {
   const pick = pickFolderOnStart;
   pickFolderOnStart = false;
+  if (pick) for (const listener of startPickListeners) listener();
   return pick;
+}
+export function useStartFolderPick(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      startPickListeners.add(listener);
+      return () => startPickListeners.delete(listener);
+    },
+    () => pickFolderOnStart,
+  );
 }
 const restoredTabs = sanitizeRestoredTabs(restored);
 for (const pane of restored?.panes ?? []) paneSeq = Math.max(paneSeq, Number(pane.id.replace("pane-", "")) || 0);

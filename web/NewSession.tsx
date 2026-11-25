@@ -8,7 +8,7 @@ import { OpenFolderDialog } from "./OpenFolderDialog";
 import { canPickFolder, createProject, pickFolder } from "./folderOpen";
 import { Popup } from "./Popup";
 import { rpc } from "./rpc";
-import { closePane, finishSessionDraft, flash, isTopWorkspace, refreshGit, rememberPick, setState, takePickFolderOnStart, useStore, withoutPaneDraft, type DraftSeed, type HandoffSeed } from "./store";
+import { closePane, finishSessionDraft, flash, isTopWorkspace, refreshGit, rememberPick, setState, takePickFolderOnStart, useStartFolderPick, useStore, withoutPaneDraft, type DraftSeed, type HandoffSeed } from "./store";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -198,41 +198,44 @@ function FolderPill({ paneId, workspaceId, extraIds, name }: { paneId: string; w
   const [openFolder, setOpenFolder] = useState(false);
   const pillRef = useRef<HTMLButtonElement>(null);
   const workspaces = useStore((s) => s.workspaces);
-  useEffect(() => {
-    if (takePickFolderOnStart()) setOpen(true);
-  }, []);
+  const startPick = useStartFolderPick();
+  const shown = open || startPick;
+  const close = () => {
+    setOpen(false);
+    takePickFolderOnStart();
+  };
   const shownFor = useRef(workspaceId);
   useEffect(() => {
     if (shownFor.current !== workspaceId) setOpen(false);
     shownFor.current = workspaceId;
   }, [workspaceId]);
   const select = (id: string | null) => {
-    setOpen(false);
+    close();
     if (id === workspaceId && extraIds.length === 0) return;
     setState((s) => ({ panes: s.panes.map((p) => (p.id === paneId && p.kind === "draft" ? { ...p, workspaceId: id, extraWorkspaceIds: undefined } : p)), activeWorkspaceId: id ?? s.activeWorkspaceId }));
   };
   const extraNames = extraIds.flatMap((id) => workspaces.find((w) => w.id === id)?.name ?? []);
   return (
     <>
-      <button ref={pillRef} type="button" className="pill" aria-haspopup="listbox" aria-expanded={open} aria-label={S.folderPillAria([name, ...extraNames].join(", "))} onClick={() => setOpen((v) => !v)}>
+      <button ref={pillRef} type="button" className="pill" aria-haspopup="listbox" aria-expanded={shown} aria-label={S.folderPillAria([name, ...extraNames].join(", "))} onClick={() => (shown ? close() : setOpen(true))}>
         {workspaceId === null ? <CommentDiscussion /> : <FolderCompact />}
         <span>{name}</span>
         {extraNames.length > 0 && <span className="pill-extra">+{extraNames.length}</span>}
         <ChevronDown size={12} />
       </button>
-      {open && (
+      {shown && (
         <FolderList
           anchor={pillRef.current}
           workspaceId={workspaceId}
           onSelect={select}
-          onClose={() => setOpen(false)}
+          onClose={close}
           onOpenFolder={() => {
-            setOpen(false);
+            close();
             if (!canPickFolder()) return setOpenFolder(true);
             void pickFolder().then((workspace) => workspace && select(workspace.id));
           }}
           onNewProject={() => {
-            setOpen(false);
+            close();
             void createProject().then((workspace) => workspace && select(workspace.id));
           }}
         />
