@@ -37,6 +37,8 @@ const NEAR_BOTTOM = 120;
 const PAST_THE_END = 1_000_000;
 const PROMPT_HIDDEN_BY = 4;
 const PINNED_PROMPT_ZONE = 48;
+type EndRow = { type: "end"; key: "list-end"; working: boolean };
+type ListRow = Row | EndRow;
 type SessionParams = { id: string; draft?: string; focusQuestion?: string; gallery?: string; viewer?: string };
 
 type PaneUi = { galleryOpen: boolean; viewerOpen: boolean; setGallery: (open: boolean) => void; setViewer: (open: boolean) => void };
@@ -104,7 +106,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
   const { open: modelOpen, close: closeModel } = model;
   const workspaces = useAppState((s) => s.workspaces);
   const timeline = useAppState((s) => s.timelines[id]);
-  const listRef = useRef<FlashListRef<Row>>(null);
+  const listRef = useRef<FlashListRef<ListRow>>(null);
   const scrollOffset = useRef(0);
   const listHeight = useRef<number | null>(null);
   const contentHeight = useRef(0);
@@ -301,6 +303,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
   const running = agent?.status === "running";
   const lastMessage = messages.at(-1);
   const showWorking = running && !pending && !(lastMessage?.type === "steps" && lastMessage.running) && !(lastMessage?.type === "assistant" && lastMessage.item.streaming);
+  const listRows = useMemo<ListRow[]>(() => [...messages, { type: "end", key: "list-end", working: showWorking }], [messages, showWorking]);
   const hasTimeline = !!timeline && (timeline.synced || timeline.cached || timeline.items.length > 0);
   const timelineError = !hasTimeline && conn === "online" ? timeline?.error : undefined;
   const reloadMessages = timelineError ? () => void store.syncTimeline(id) : undefined;
@@ -365,12 +368,12 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
               <FlashList
                 key={listGeneration.current}
                 ref={listRef}
-                data={messages}
+                data={listRows}
                 keyExtractor={(row) => row.key}
-                getItemType={rowType}
-                renderItem={({ item }) => <ChatRow agentId={id} row={item} showGallery={showGallery} openPreview={openPreview} />}
+                getItemType={(row) => row.type === "end" ? "end" : rowType(row)}
+                renderItem={({ item }) => item.type === "end" ? <View style={styles.workingSlot}>{item.working && <Working />}</View> : <ChatRow agentId={id} row={item} showGallery={showGallery} openPreview={openPreview} />}
                 ItemSeparatorComponent={Gap}
-                contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm, paddingBottom: spacing.xs }}
+                contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm }}
                 onContentSizeChange={(_, height) => {
                   contentHeight.current = height;
                   const viewport = listHeight.current;
@@ -413,7 +416,6 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
                 keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="handled"
                 ListHeaderComponent={timeline?.hasMore ? <View style={styles.olderSlot}>{timeline.loadingOlder && <ActivityIndicator />}</View> : rows.length === 0 ? <Text color="textMuted" style={{ textAlign: "center" }}>No messages yet.</Text> : null}
-                ListFooterComponent={<View style={styles.workingSlot}>{showWorking && <Working />}</View>}
               />
               {pinnedPrompt?.type === "user" && <PinnedPrompt row={pinnedPrompt} inset={chatPadding} onPress={jumpToPinnedPrompt} />}
               {!atBottom && (
@@ -494,8 +496,8 @@ function PinnedPrompt({ row, inset, onPress }: { row: Extract<Row, { type: "user
   </View>;
 }
 
-const Gap = ({ leadingItem, trailingItem }: { leadingItem?: Row; trailingItem?: Row }) =>
-  <View style={{ height: trailingItem?.type === "steps" && leadingItem?.type === "assistant" ? 0 : spacing.sm }} />;
+const Gap = ({ leadingItem, trailingItem }: { leadingItem?: ListRow; trailingItem?: ListRow }) =>
+  trailingItem?.type === "end" ? null : <View style={{ height: trailingItem?.type === "steps" && leadingItem?.type === "assistant" ? 0 : spacing.sm }} />;
 
 function Working() {
   const colors = useColors();
@@ -526,7 +528,7 @@ const styles = StyleSheet.create({
   openingText: { flex: 1 },
   readingWidth: { width: 720, alignSelf: "center" },
   olderSlot: { height: 36, marginBottom: spacing.md, alignItems: "center", justifyContent: "center" },
-  workingSlot: { height: 32 },
+  workingSlot: { height: 32 + spacing.xs },
   working: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingTop: spacing.md },
   pinnedPromptSlot: { position: "absolute", top: spacing.xs, left: 0, right: 0, alignItems: "flex-end" },
   pinnedPrompt: { maxWidth: "85%", borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
