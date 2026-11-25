@@ -30,8 +30,10 @@ export function stopMate(agentId: string) {
   void rpc.call("agents.interrupt", { agentId }).catch(fail);
 }
 
-export function setMateModel(agentId: string, model: string) {
-  void rpc.call("agents.setModel", { agentId, model }).catch(fail);
+export function setMateModel(agentId: string, model: string, providerId: string | null) {
+  const current = getState().agents.find((a) => a.id === agentId)?.providerId ?? null;
+  if (current === providerId) void rpc.call("agents.setModel", { agentId, model }).catch(fail);
+  else void rpc.call("agents.switchHarness", { agentId, harness: "claude", model, effort: null, ...(providerId ? { providerId } : {}) }).catch(fail);
 }
 
 export function setMateEffort(agentId: string, effort: EffortLevel) {

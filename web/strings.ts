@@ -95,7 +95,7 @@ export const S = {
   providerSave: "Save",
   providerSaving: "Saving...",
   modelGroupToggle: (name: string, open: boolean) => `${open ? "Hide" : "Show"} ${name} models`,
-  switchUnavailable: { notion: "Notion page chats run on Claude only", feedback: "Improvement sessions run on Claude only", assistant: "Mate runs on Claude only" },
+  switchUnavailable: { notion: "Notion page chats run on Claude only", feedback: "Improvement sessions run on Claude only", assistant: "Mate runs on Claude or a custom provider only" },
 
   permissionModes: {
     default: "Ask Before Edits",

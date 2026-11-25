@@ -633,7 +633,8 @@ export class AgentRunner {
     const items = this.store.timeline(agentId);
     const live = this.runs.get(agentId)?.active || this.preparing.has(agentId) || this.restoring.has(agentId) || this.otherRunners().some((r) => r.isActive(agentId));
     const pending = [...this.pending.keys()].some((key) => key.startsWith(`${agentId}:`)) || this.otherRunners().some((r) => r.pendingApprovalIds(agentId).length > 0);
-    const blocked = switchBlock(agent, items) ?? (pending ? "waiting" : live ? "running" : null);
+    const mateStaysOnClaude = agent.assistant === true && target === "claude";
+    const blocked = switchBlock(mateStaysOnClaude ? { ...agent, assistant: false } : agent, items) ?? (pending ? "waiting" : live ? "running" : null);
     if (blocked) throw new Error(T.switchBlocked[blocked]);
     if (from === "claude") this.closeRun(agentId);
     else await this.runnerOf(agentId)?.remove(agentId);

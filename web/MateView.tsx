@@ -5,6 +5,7 @@ import { effortName, modelChip } from "./Composer";
 import { useDefaults } from "./defaults";
 import { builtinEffort, supportedLevels } from "./effortLevels";
 import { agoText } from "./followUpsModel";
+import { useCustomProvider } from "./harness";
 import { Codicon, ModelIcon } from "./icons";
 import { checkInMate, openMateSession, sendToMate, setMateEffort, setMateModel, stopMate } from "./mateActions";
 import { MateFeed } from "./MateFeed";
@@ -114,9 +115,12 @@ function MateComposer({ agent }: MateComposerProps) {
   const modelRef = useRef<HTMLButtonElement>(null);
   const effortRef = useRef<HTMLButtonElement>(null);
   const models = useStore((s) => s.meta?.models) ?? NO_ITEMS;
+  const providers = useStore((s) => s.customProviders) ?? NO_ITEMS;
+  const provider = useCustomProvider(agent.providerId);
   const defaults = useDefaults();
-  const model = agent.model ?? defaults.model;
-  const levels = supportedLevels(model);
+  const model = provider ? (agent.model ?? provider.defaultModel) : (agent.model ?? defaults.model);
+  const levels = provider ? NO_ITEMS : supportedLevels(model);
+  const chipName = provider ? (provider.models.find((m) => m.id === model)?.name ?? model ?? provider.name) : modelChip(model, agent.activeModel, models).name;
   const effort = agent.effort ?? defaults.effort ?? builtinEffort(levels);
   const running = agent.status === "running";
   const toggle = (name: "model" | "effort") => setMenu((open) => (open === name ? null : name));
@@ -144,7 +148,7 @@ function MateComposer({ agent }: MateComposerProps) {
       <textarea className="mate-input" rows={1} value={draft} placeholder={A.placeholder} aria-label={A.placeholder} onChange={(event) => setDraft(event.target.value)} onKeyDown={onKeyDown} />
       <button ref={modelRef} type="button" className="chip" data-chip="model" aria-haspopup="dialog" aria-expanded={menu === "model"} aria-label={A.model} title={A.model} onClick={() => toggle("model")}>
         <ModelIcon />
-        <span className="chip-label chip-main">{modelChip(model, agent.activeModel, models).name}</span>
+        <span className="chip-label chip-main">{chipName}</span>
       </button>
       {levels.length > 0 && (
         <button ref={effortRef} type="button" className="chip" data-chip aria-haspopup="listbox" aria-expanded={menu === "effort"} aria-label={A.effort} title={A.effort} onClick={() => toggle("effort")}>
@@ -160,7 +164,7 @@ function MateComposer({ agent }: MateComposerProps) {
           <Codicon name="arrow-up" />
         </Button>
       )}
-      {menu === "model" && <ModelMenu anchor={modelRef.current} current={model ?? "default"} onClose={() => setMenu(null)} onChoose={(value) => setMateModel(agent.id, value)} />}
+      {menu === "model" && <ModelMenu anchor={modelRef.current} current={model ?? "default"} providers={providers} currentProvider={provider?.id ?? null} onClose={() => setMenu(null)} onChoose={(value, _asDefault, providerId) => setMateModel(agent.id, value, providerId)} />}
       {menu === "effort" && <EffortMenu anchor={effortRef.current} label={A.effort} levels={levels} current={effort} onClose={() => setMenu(null)} onChoose={(level) => setMateEffort(agent.id, level)} />}
     </form>
   );
