@@ -710,6 +710,11 @@ function editorWindowFor(agentId: string, all: AppWindow[], exceptId?: string): 
   return candidates.find((w) => w.id === id) ?? null;
 }
 
+function openWindowForAgent(agentId: string, initialChat = false): AppWindow {
+  const remote = agentRemotes.get(agentId);
+  return remote ? openRemoteWindow(remote) : openNewWindow(initialChat);
+}
+
 function windowForNotification(agentId: string, all = liveWindows()): AppWindow | null {
   const candidates = windowsForAgent(agentId, all);
   const windows = candidates.map((w) => ({ id: w.id, agentIds: openAgents.get(w.id) ?? new Set<string>() }));
@@ -744,7 +749,7 @@ async function openNotifiedSession(agentId: string) {
   while (!quitFlow.quitting) {
     const live = liveWindows().filter((w) => !w.hung && !tried.has(w.id));
     const target = editorWindowFor(agentId, live) ?? windowForNotification(agentId, live.filter((w) => w.layoutMode === "chat"));
-    const entry = target ?? openNewWindow(true);
+    const entry = target ?? openWindowForAgent(agentId, true);
     if (!target && (!(await whenAppReady(entry, () => entry.layoutMode !== null)) || entry.win.isDestroyed())) {
       throw new Error(`Chat window ${entry.id} did not load`);
     }
@@ -763,7 +768,7 @@ async function routeToMainWindow(action: NotifyAction, mode: NotifyMode = "route
   let target = windowForNotification(action.agentId);
   const opened = !target;
   if (!target) {
-    target = openNewWindow();
+    target = openWindowForAgent(action.agentId);
     await whenAppReady(target);
   }
   notifyRoutes.push({ agentId: action.agentId, action: action.action, windowId: target.id, opened });
