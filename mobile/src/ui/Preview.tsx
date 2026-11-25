@@ -127,8 +127,11 @@ export function PreviewGallery({ files, open, footer, agentId }: {
   />;
 }
 
+const extendBottomBackground = `<script>addEventListener("load",()=>{const root=document.documentElement,body=document.body,clear=(el)=>getComputedStyle(el).backgroundColor.replace(/\\s/g,"").match(/^(transparent|rgba\\(.*,0\\))$/);if(!body||!clear(root)||!clear(body))return;const box=body.getBoundingClientRect();if(box.bottom>=innerHeight)return;let el=document.elementFromPoint(Math.max(1,Math.min(innerWidth,box.right)/2),box.bottom-1);while(el&&el!==body&&clear(el))el=el.parentElement;if(el&&el!==body)root.style.backgroundColor=getComputedStyle(el).backgroundColor;})</script>`;
+
 function htmlDocument(html: string, background: string, authored = false) {
-  return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src about:; style-src 'unsafe-inline'; img-src data:; font-src data:; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'"><style>*{box-sizing:border-box}html{background:${background};${authored ? "color-scheme:light" : ""}}body{margin:0}iframe{${authored ? "color-scheme:light dark;" : ""}border:0;width:100vw;height:100dvh;display:block}</style><iframe title="Lodestar Preview" sandbox="allow-scripts" srcdoc="${escapeHtml(html)}"></iframe>`;
+  const page = authored ? html + extendBottomBackground : html;
+  return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src about:; style-src 'unsafe-inline'; img-src data:; font-src data:; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'"><style>*{box-sizing:border-box}html{background:${background};${authored ? "color-scheme:light" : ""}}body{margin:0}iframe{${authored ? "color-scheme:light dark;" : ""}border:0;width:100vw;height:100dvh;display:block}</style><iframe title="Lodestar Preview" sandbox="allow-scripts" srcdoc="${escapeHtml(page)}"></iframe>`;
 }
 
 type OpenPreview = { file: Preview; content?: MobilePreview; error?: string; thumbnail?: boolean };
