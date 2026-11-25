@@ -11,6 +11,7 @@ import { readQuestions } from "../../logic/questions";
 import { requestDraft, sessionViewState } from "../../state/sessionView";
 import { releasePreview, useExpandedPreview } from "../../state/expandedPreview";
 import { store, useAppState } from "../../state/app";
+import { diag } from "../../state/diagLog";
 import { closePane, commitPanes, isDrawerOpen, setDrawerOpen, setRailHidden, useSplitState } from "../../state/split";
 import { sessionPreviews, type Preview } from "../../logic/previews";
 import { PreviewGallery, PreviewModal, usePreview } from "../../ui/Preview";
@@ -78,6 +79,7 @@ function SplitSessions({ panes, params }: { panes: readonly string[]; params: Se
   const close = (paneId: string) => {
     const next = closePane(panes, paneId, activeId);
     if (!next.active) {
+      diag("nav home: closed the last pane");
       router.dismissTo("/");
       return;
     }

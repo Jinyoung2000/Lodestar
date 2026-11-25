@@ -1,8 +1,8 @@
-import { DarkTheme, DefaultTheme, SplashScreen, Stack, ThemeProvider as NavigationThemeProvider, useGlobalSearchParams, useRouter, useSegments, type Href } from "expo-router";
+import { DarkTheme, DefaultTheme, SplashScreen, Stack, ThemeProvider as NavigationThemeProvider, useGlobalSearchParams, useNavigationContainerRef, useRouter, useSegments, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import type { Agent } from "@shared/protocol";
 import { useCallback, useEffect, useMemo, useRef, type ComponentRef } from "react";
-import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Linking, Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { bootstrap, store, useAppState, useConnection } from "../state/app";
 import { releasePreview, useExpandedPreview } from "../state/expandedPreview";
@@ -43,6 +43,7 @@ export default function RootLayout() {
   }), [colors, scheme]);
   const router = useRouter();
   const [route] = useSegments();
+  useNavigationDiag();
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const { connection, bootstrapped } = useConnection();
   const { width } = useWindowDimensions();
@@ -125,6 +126,7 @@ export default function RootLayout() {
       const snapshot = store.getState();
       if (!active || snapshot.syncedAt === previousSnapshot || snapshot.agents.some((agent) => agent.id === sessionId)) return;
       releasePreview(sessionId);
+      diag(`nav home: session ${sessionId.slice(0, 8)} missing after sync`);
       router.dismissTo("/");
     });
     return () => { active = false; };
@@ -206,6 +208,36 @@ export default function RootLayout() {
 }
 
 const singleSessionSlot = () => "session";
+
+type NavState = { index?: number; routes: { name: string; params?: object; state?: NavState }[] };
+
+function innerStack(state: NavState | undefined): NavState["routes"] {
+  if (!state) return [];
+  const focused = state.routes[state.index ?? state.routes.length - 1];
+  return focused?.state ? innerStack(focused.state) : state.routes;
+}
+
+function useNavigationDiag() {
+  const navigation = useNavigationContainerRef();
+  useEffect(() => {
+    let shown = "";
+    const offState = navigation.addListener("state", ({ data }) => {
+      const routes = innerStack(data.state).map((route) => {
+        const id = (route.params as { id?: string } | undefined)?.id;
+        return id ? `${route.name}:${id.slice(0, 8)}` : route.name;
+      }).join(">");
+      if (routes === shown) return;
+      shown = routes;
+      diag(`nav stack ${routes}`);
+    });
+    const link = Linking.addEventListener("url", ({ url }) => diag(`link ${url}`));
+    void Linking.getInitialURL().then((url) => diag(`initial link ${url ?? "none"}`)).catch(() => {});
+    return () => {
+      offState();
+      link.remove();
+    };
+  }, [navigation]);
+}
 
 const transitionLog = ({ route }: { route: { name: string } }) => ({
   transitionStart: (event: { data?: { closing?: boolean } }) => diag(`transition start ${route.name}${event.data?.closing ? " closing" : ""}`),
