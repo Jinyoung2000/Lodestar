@@ -6,7 +6,11 @@ import { AppState, Dimensions, PixelRatio, Platform } from "react-native";
 type UploadTarget = { url: string; fields: Record<string, string> };
 type SavedLog = { key: string; text: string };
 type ExitRecord = { source: "java" | "system"; at?: number; reason?: string; trace?: string | null } & Record<string, unknown>;
-type ExitReasons = { takeRecent(): ExitRecord[] };
+type ExitReasons = {
+  takeRecent(): ExitRecord[];
+  clearStall?(): void;
+  addListener?(event: "mainThreadStall", listener: (event: { text: string }) => void): { remove(): void };
+};
 type HermesHooks = {
   enablePromiseRejectionTracker?(options: { allRejections: boolean; onUnhandled(id: number, error: unknown): void }): void;
   getInstrumentedStats?(): Record<string, unknown>;
@@ -23,6 +27,7 @@ const BEAT_MS = 1000;
 const STALL_MS = 1500;
 const SLOW_FRAME_MS = 500;
 const NO_FRAME_MS = 3000;
+const STALL_CLEAR_DELAY_MS = 2000;
 const DEVICE_KEY = "diag:device";
 const LOG_KEY = "diag:log";
 
@@ -141,10 +146,20 @@ function isHelperProcessReclaimed(exit: Record<string, unknown>) {
   return String(exit.process ?? "").includes(":") && exit.reason === "other" && exit.status === 0;
 }
 
+const exitReasons = Platform.OS === "android" ? requireOptionalNativeModule<ExitReasons>("LodestarExitReasons") : null;
+
+function watchMainThread() {
+  exitReasons?.addListener?.("mainThreadStall", ({ text }) => {
+    const ended = text.startsWith("main thread answered");
+    add(ended ? "W" : "E", [`[stall] ${text}`], true, EXIT_CHARS);
+    if (!ended) setTimeout(() => exitReasons.clearStall?.(), STALL_CLEAR_DELAY_MS);
+  });
+}
+
 function reportPreviousExits() {
   let exits: ExitRecord[] = [];
   try {
-    exits = requireOptionalNativeModule<ExitReasons>("LodestarExitReasons")?.takeRecent() ?? [];
+    exits = exitReasons?.takeRecent() ?? [];
   } catch (error) {
     add("D", ["exit reasons unreadable", error], false);
   }
@@ -204,5 +219,6 @@ export function installDiagLog() {
   });
   setInterval(heap, HEAP_EVERY_MS);
   setInterval(heartbeat, BEAT_MS);
+  watchMainThread();
   void start();
 }

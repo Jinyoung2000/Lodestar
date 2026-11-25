@@ -14,11 +14,22 @@ class ExitReasonsModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("LodestarExitReasons")
 
-    OnCreate { installJavaCrashRecorder(context) }
+    Events("mainThreadStall")
+
+    OnCreate {
+      installJavaCrashRecorder(context)
+      stallListener = { text -> runCatching { sendEvent("mainThreadStall", mapOf("text" to text)) } }
+      startWatchdog(context)
+    }
+
+    OnDestroy { stallListener = null }
+
+    Function("clearStall") { stallFile(context).delete() }
 
     Function("takeRecent") {
       val found = mutableListOf<Map<String, Any?>>()
       takeJavaCrash(context)?.let { found.add(mapOf("source" to "java", "trace" to it)) }
+      takeFile(stallFile(context))?.let { found.add(mapOf("source" to "watchdog", "trace" to it)) }
       found.addAll(takeExitInfo(context))
       found
     }
@@ -29,6 +40,23 @@ class ExitReasonsModule : Module() {
     private const val SEEN_KEY = "seenUntil"
     private const val TRACE_CHARS = 12_000
     @Volatile private var installed = false
+    @Volatile private var watching = false
+    @Volatile private var stallListener: ((String) -> Unit)? = null
+
+    private fun stallFile(context: Context) = File(context.filesDir, "last-main-thread-stall.txt")
+
+    private fun startWatchdog(context: Context) {
+      if (watching) return
+      watching = true
+      MainThreadWatchdog(stallFile(context)) { text -> stallListener?.invoke(text) }.start()
+    }
+
+    private fun takeFile(file: File): String? {
+      if (!file.exists()) return null
+      val text = runCatching { file.readText() }.getOrNull()
+      file.delete()
+      return text
+    }
 
     private fun crashFile(context: Context) = File(context.filesDir, "last-java-crash.txt")
 
@@ -43,13 +71,7 @@ class ExitReasonsModule : Module() {
       }
     }
 
-    private fun takeJavaCrash(context: Context): String? {
-      val file = crashFile(context)
-      if (!file.exists()) return null
-      val text = runCatching { file.readText() }.getOrNull()
-      file.delete()
-      return text
-    }
+    private fun takeJavaCrash(context: Context) = takeFile(crashFile(context))
 
     private fun takeExitInfo(context: Context): List<Map<String, Any?>> {
       if (Build.VERSION.SDK_INT < 30) return emptyList()
