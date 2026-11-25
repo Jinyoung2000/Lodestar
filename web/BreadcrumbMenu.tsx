@@ -144,6 +144,10 @@ export function BreadcrumbMenu({ source, anchor, pointerX, name, onPick, onPrevi
         return;
       }
       const next = navigatePicker(rows, focusId, nav, expanded, Math.max(1, Math.floor(body / PICKER_ROW)));
+      if ((nav === "left" || nav === "right") && next.focusId === focusId && next.expanded === expanded) {
+        onMove(nav === "right" ? 1 : -1);
+        return;
+      }
       setFocusId(next.focusId);
       if (next.expanded !== expanded) setExpanded(next.expanded);
       return;

@@ -145,7 +145,7 @@ export function Breadcrumbs({ tabKey, workspaceId, path, deleted }: { tabKey: st
           </button>
         ))}
       </nav>
-      {menu && <BreadcrumbMenu source={menu.source} anchor={menu.anchor} pointerX={menu.pointerX} name={menu.name} onPick={pick} onPreview={preview} onClose={closeMenu} onMove={move} />}
+      {menu && <BreadcrumbMenu key={menu.index} source={menu.source} anchor={menu.anchor} pointerX={menu.pointerX} name={menu.name} onPick={pick} onPreview={preview} onClose={closeMenu} onMove={move} />}
       {context && <CrumbContextMenu at={context} onClose={() => setContext(null)} onReveal={() => revealInFiles(workspaceId, context.path, context.file)} />}
     </>
   );
