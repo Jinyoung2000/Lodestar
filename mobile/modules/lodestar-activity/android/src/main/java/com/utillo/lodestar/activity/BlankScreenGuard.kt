@@ -2,38 +2,38 @@ package com.utillo.lodestar.activity
 
 import android.app.Activity
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.PixelCopy
 import android.view.View
 import android.view.ViewGroup
 
 internal class BlankScreenGuard(private val onReport: (String) -> Unit) : Application.ActivityLifecycleCallbacks {
   private val main = Handler(Looper.getMainLooper())
-  private val started = mutableSetOf<Activity>()
+  private val armed = mutableSetOf<Activity>()
+  private var watched: Activity? = null
+  private var blankChecks = 0
   private var recreated = 0
+  private val loop = Runnable { tick() }
 
   fun alreadyRunning(activity: Activity?) {
-    if (activity != null) started.add(activity)
+    if (activity != null) watch(activity)
   }
 
-  override fun onActivityResumed(activity: Activity) {
-    if (activity !in started) {
-      started.add(activity)
-      return
-    }
-    CHECK_DELAYS_MS.forEachIndexed { index, delay ->
-      main.postDelayed({ check(activity, index == CHECK_DELAYS_MS.lastIndex) }, delay)
-    }
-  }
+  override fun onActivityResumed(activity: Activity) = watch(activity)
 
   override fun onActivityPaused(activity: Activity) {
-    main.removeCallbacksAndMessages(null)
+    if (watched === activity) watched = null
+    main.removeCallbacks(loop)
   }
 
   override fun onActivityDestroyed(activity: Activity) {
-    started.remove(activity)
+    armed.remove(activity)
   }
 
   override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
@@ -41,21 +41,72 @@ internal class BlankScreenGuard(private val onReport: (String) -> Unit) : Applic
   override fun onActivityStopped(activity: Activity) = Unit
   override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
 
-  private fun check(activity: Activity, last: Boolean) {
+  private fun watch(activity: Activity) {
+    watched = activity
+    blankChecks = 0
+    main.removeCallbacks(loop)
+    main.postDelayed(loop, CHECK_EVERY_MS)
+  }
+
+  private fun tick() {
+    val activity = watched ?: return
+    main.postDelayed(loop, CHECK_EVERY_MS)
     if (activity.isFinishing || activity.isDestroyed || !activity.hasWindowFocus()) return
     val content = activity.findViewById<ViewGroup>(android.R.id.content) ?: return
-    val shown = visibleLeaves(content)
-    if (shown >= MIN_LEAVES) {
-      main.removeCallbacksAndMessages(null)
+    val leaves = visibleLeaves(content)
+    if (leaves < MIN_LEAVES) {
+      judge(activity, content, "$leaves visible views")
       return
     }
-    if (!last) return
+    samplePixels(activity) { uniform ->
+      if (watched !== activity) return@samplePixels
+      if (uniform == null) {
+        armed.add(activity)
+        blankChecks = 0
+      } else {
+        judge(activity, content, "$leaves visible views but the window shows one flat color ${uniform}")
+      }
+    }
+  }
+
+  private fun judge(activity: Activity, content: ViewGroup, finding: String) {
+    if (activity !in armed) return
+    blankChecks++
+    if (blankChecks < BLANK_CHECKS) return
+    blankChecks = 0
     val healing = recreated < MAX_RECREATES
-    onReport("screen blank after resume: $shown visible views${if (healing) "; recreating the activity" else ""}\n${tree(content, 0)}".take(TEXT_CHARS))
+    onReport("screen blank: $finding${if (healing) "; recreating the activity" else ""}\n${tree(content, 0)}".take(TEXT_CHARS))
     if (healing) {
       recreated++
+      armed.remove(activity)
       activity.recreate()
     }
+  }
+
+  private fun samplePixels(activity: Activity, done: (String?) -> Unit) {
+    if (Build.VERSION.SDK_INT < 26) return done(null)
+    val bitmap = Bitmap.createBitmap(SAMPLE_W, SAMPLE_H, Bitmap.Config.ARGB_8888)
+    try {
+      PixelCopy.request(activity.window, bitmap, { result ->
+        val uniform = if (result == PixelCopy.SUCCESS) flatColor(bitmap) else null
+        bitmap.recycle()
+        done(uniform)
+      }, main)
+    } catch (_: Exception) {
+      bitmap.recycle()
+      done(null)
+    }
+  }
+
+  private fun flatColor(bitmap: Bitmap): String? {
+    val first = bitmap.getPixel(0, bitmap.height / 2)
+    for (y in bitmap.height / 10 until bitmap.height) for (x in 0 until bitmap.width) {
+      val pixel = bitmap.getPixel(x, y)
+      if (Math.abs(Color.red(pixel) - Color.red(first)) > PIXEL_TOLERANCE ||
+        Math.abs(Color.green(pixel) - Color.green(first)) > PIXEL_TOLERANCE ||
+        Math.abs(Color.blue(pixel) - Color.blue(first)) > PIXEL_TOLERANCE) return null
+    }
+    return String.format("#%06x", first and 0xffffff)
   }
 
   private fun visibleLeaves(view: View): Int {
@@ -86,7 +137,11 @@ internal class BlankScreenGuard(private val onReport: (String) -> Unit) : Applic
   }
 
   companion object {
-    private val CHECK_DELAYS_MS = listOf(1500L, 3000L)
+    private const val CHECK_EVERY_MS = 1500L
+    private const val BLANK_CHECKS = 2
+    private const val SAMPLE_W = 108
+    private const val SAMPLE_H = 240
+    private const val PIXEL_TOLERANCE = 6
     private const val MIN_LEAVES = 3
     private const val MIN_ALPHA = 0.01f
     private const val MAX_RECREATES = 3
