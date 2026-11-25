@@ -1,16 +1,17 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { mateFeed, type AssistantState } from "../shared/assistant";
-import type { Agent } from "../shared/protocol";
+import { harnessOf, type Agent } from "../shared/protocol";
 import { effortName, modelChip } from "./Composer";
 import { useDefaults } from "./defaults";
 import { builtinEffort, supportedLevels } from "./effortLevels";
 import { agoText } from "./followUpsModel";
-import { useCustomProvider } from "./harness";
+import { codexDefaultModel, codexLevels, codexModelChip, useCustomProvider, useToolMeta } from "./harness";
 import { Codicon, ModelIcon } from "./icons";
 import { checkInMate, openMateSession, sendToMate, setMateEffort, setMateModel, stopMate } from "./mateActions";
 import { MateFeed } from "./MateFeed";
 import { MatePanel } from "./MatePanel";
-import { EffortMenu, ModelMenu } from "./Pickers";
+import { sourceOf, type SourceKey } from "./modelChoices";
+import { EffortMenu, ModelMenu, type ModelGroup } from "./Pickers";
 import { useNow } from "./PrBits";
 import { useStore } from "./store";
 import { S } from "./strings";
@@ -115,13 +116,15 @@ function MateComposer({ agent }: MateComposerProps) {
   const modelRef = useRef<HTMLButtonElement>(null);
   const effortRef = useRef<HTMLButtonElement>(null);
   const models = useStore((s) => s.meta?.models) ?? NO_ITEMS;
-  const providers = useStore((s) => s.customProviders) ?? NO_ITEMS;
+  const harness = harnessOf(agent);
   const provider = useCustomProvider(agent.providerId);
+  const toolMeta = useToolMeta(harness);
   const defaults = useDefaults();
-  const model = provider ? (agent.model ?? provider.defaultModel) : (agent.model ?? defaults.model);
-  const levels = provider ? NO_ITEMS : supportedLevels(model);
-  const chipName = provider ? (provider.models.find((m) => m.id === model)?.name ?? model ?? provider.name) : modelChip(model, agent.activeModel, models).name;
-  const effort = agent.effort ?? defaults.effort ?? builtinEffort(levels);
+  const model = provider ? (agent.model ?? provider.defaultModel) : harness === "claude" ? (agent.model ?? defaults.model) : (agent.model ?? codexDefaultModel(toolMeta));
+  const levels = provider ? NO_ITEMS : harness === "claude" ? supportedLevels(model) : codexLevels(toolMeta, model);
+  const effort = agent.effort ?? (harness === "claude" ? defaults.effort : (toolMeta?.models.find((m) => m.value === model)?.defaultEffort ?? toolMeta?.defaultEffort)) ?? builtinEffort(levels);
+  const chipName = provider ? (provider.models.find((m) => m.id === model)?.name ?? model ?? provider.name) : harness === "claude" ? modelChip(model, agent.activeModel, models).name : codexModelChip(model, agent.activeModel, toolMeta, S.harnessNames[harness]).name;
+  const group = harness === "claude" && !provider ? null : sourceOf(harness, provider?.id);
   const running = agent.status === "running";
   const toggle = (name: "model" | "effort") => setMenu((open) => (open === name ? null : name));
   const send = () => {
@@ -164,8 +167,27 @@ function MateComposer({ agent }: MateComposerProps) {
           <Codicon name="arrow-up" />
         </Button>
       )}
-      {menu === "model" && <ModelMenu anchor={modelRef.current} current={model ?? "default"} providers={providers} currentProvider={provider?.id ?? null} onClose={() => setMenu(null)} onChoose={(value, _asDefault, providerId) => setMateModel(agent.id, value, providerId)} />}
+      {menu === "model" && <MateModelMenu anchor={modelRef.current} model={model ?? "default"} group={group} onClose={() => setMenu(null)} onChoose={(value, chosen) => setMateModel(agent.id, value, chosen)} />}
       {menu === "effort" && <EffortMenu anchor={effortRef.current} label={A.effort} levels={levels} current={effort} onClose={() => setMenu(null)} onChoose={(level) => setMateEffort(agent.id, level)} />}
     </form>
   );
+}
+
+const OTHER_TOOLS = ["codex", "cursor", "antigravity"] as const;
+
+type MateModelMenuProps = { anchor: HTMLElement | null; model: string; group: SourceKey | null; onClose: () => void; onChoose: (model: string, group: SourceKey | null) => void };
+
+function MateModelMenu({ anchor, model, group, onClose, onChoose }: MateModelMenuProps) {
+  const codex = useToolMeta("codex");
+  const cursor = useToolMeta("cursor");
+  const antigravity = useToolMeta("antigravity");
+  const providers = useStore((s) => s.customProviders) ?? NO_ITEMS;
+  const groups = useMemo<ModelGroup[]>(() => {
+    const metas = { codex, cursor, antigravity };
+    return [
+      ...OTHER_TOOLS.filter((tool) => metas[tool]?.loggedIn).map((tool) => ({ key: tool, name: S.harnessNames[tool], models: (metas[tool]?.models ?? []).map((m) => ({ value: m.value, name: m.displayName })) })),
+      ...providers.filter((p) => p.hasKey).map((p) => ({ key: sourceOf("claude", p.id), name: p.name, models: p.models.map((m) => ({ value: m.id, name: m.name ?? m.id })) })),
+    ];
+  }, [codex, cursor, antigravity, providers]);
+  return <ModelMenu anchor={anchor} current={model} groups={groups} currentGroup={group} onClose={onClose} onChoose={(value, _asDefault, chosen) => onChoose(value, chosen as SourceKey | null)} />;
 }

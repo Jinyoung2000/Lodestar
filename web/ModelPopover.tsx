@@ -51,11 +51,11 @@ export function EffortPicker() {
   return <ModelPopover area="levels" />;
 }
 
-function blockOf(s: State, agentId: string | null): "notion" | "feedback" | "assistant" | null {
+function blockOf(s: State, agentId: string | null): "notion" | "feedback" | null {
   const agent = agentId ? s.agents.find((a) => a.id === agentId) : undefined;
   if (!agent) return null;
   const block = switchBlock(agent, s.timelines[agent.id] ?? []);
-  return block === "notion" || block === "feedback" || block === "assistant" ? block : null;
+  return block === "notion" || block === "feedback" ? block : null;
 }
 
 function levelsOf(row: ChoiceRow | undefined): EffortLevel[] {
@@ -102,7 +102,7 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
   const metas = { codexMeta, antigravityMeta, cursorMeta };
   const statusOf = (next: SourceKey): string | null => {
     if (next !== source && handoff) return S.handoffClaudeOnly;
-    if (next !== source && blocked && !(blocked === "assistant" && toolOfSource(next) === "claude")) return S.switchUnavailable[blocked];
+    if (next !== source && blocked) return S.switchUnavailable[blocked];
     const custom = providerIdOf(next);
     if (custom) return customProviders.find((p) => p.id === custom)?.hasKey ? null : S.providerNeedsKey;
     const tool = toolOfSource(next);

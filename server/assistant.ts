@@ -32,7 +32,8 @@ import {
 import { FOLLOW_UP_LIMITS, isTracked, parseMorning, scanSession, type FollowUpItem, type FollowUpsState, type SnoozeChoice } from "../shared/followups";
 import type { Agent, ServerEvent, TimelineItem } from "../shared/protocol";
 import type { AssistantAsk, CreateParams } from "./agents";
-import { assistantToolServer, type AssistantToolHost } from "./assistantTools";
+import { assistantToolServer, callAssistantTool, isAssistantToolDef, type AssistantToolHost, type CallToolResult } from "./assistantTools";
+import { mateMcpLaunch, type McpLaunch } from "./mateMcp";
 import { HOME, type Store } from "./store";
 import { T } from "./strings";
 
@@ -43,6 +44,7 @@ const TICK_MS = 60_000;
 const FIRST_TICK_MS = 12_000;
 const SETTLE_MS = 500;
 const NOTES_LIMIT = 64_000;
+const FOREIGN_INSTRUCTION_FILES = ["AGENTS.md", "GEMINI.md"];
 
 type AssistantStoreView = Pick<Store, "settings" | "agents" | "workspaces" | "timeline" | "addAgent" | "patchAgent" | "removeItem">;
 type AssistantRunner = {
@@ -54,6 +56,7 @@ type AssistantRunner = {
   interrupt: (agentId: string) => Promise<unknown>;
   rename: (agentId: string, title: string) => void;
   setPinned: (agentId: string, pinned: boolean) => void;
+  askTool: (agentId: string, toolName: string, input: Record<string, unknown>, signal: AbortSignal) => Promise<boolean>;
 };
 type AssistantFollowUps = { state: () => FollowUpsState; refresh: () => void; snooze: (id: string, choice: unknown) => FollowUpsState; dismiss: (id: string) => FollowUpsState };
 
@@ -176,12 +179,6 @@ export class AssistantService {
   options(agent: Agent, ask: AssistantAsk): Partial<Options> {
     const root = resolve(agent.cwd);
     const host = this.host();
-    const titled = (input: Record<string, unknown>) => {
-      const target = typeof input.session === "string" ? this.deps.store.agents.find((a) => a.id === input.session) : undefined;
-      if (!target) return input;
-      const pending = host.pendingOf(target.id);
-      return { ...input, session_title: target.title, ...(pending ? { pending } : {}) };
-    };
     return {
       settingSources: ["user", "project"],
       systemPrompt: { type: "preset", preset: "claude_code", append: ASSISTANT_PROMPT },
@@ -191,7 +188,7 @@ export class AssistantService {
         if (isAssistantTool(toolName)) {
           const refusal = this.refusal(toolName, input);
           if (refusal) return { behavior: "deny" as const, message: refusal };
-          return assistantToolAsks(toolName) && this.agent()?.permissionMode !== "bypassPermissions" ? ask(toolName, titled(input), signal, toolUseID) : allow;
+          return assistantToolAsks(toolName) && this.agent()?.permissionMode !== "bypassPermissions" ? ask(toolName, this.titled(host, input), signal, toolUseID) : allow;
         }
         const path = typeof input.file_path === "string" ? resolve(root, input.file_path) : null;
         if ((toolName === "Edit" || toolName === "Write") && path && (path === root || path.startsWith(root + sep))) return allow;
@@ -199,6 +196,36 @@ export class AssistantService {
         return ask(toolName, input, signal, toolUseID);
       },
     };
+  }
+
+  private titled(host: AssistantToolHost, input: Record<string, unknown>) {
+    const target = typeof input.session === "string" ? this.deps.store.agents.find((a) => a.id === input.session) : undefined;
+    if (!target) return input;
+    const pending = host.pendingOf(target.id);
+    return { ...input, session_title: target.title, ...(pending ? { pending } : {}) };
+  }
+
+  async callTool(agentId: string, name: string, input: Record<string, unknown>, signal: AbortSignal): Promise<CallToolResult> {
+    const agent = this.agent();
+    const refuse = (message: string): CallToolResult => ({ content: [{ type: "text", text: message }], isError: true });
+    if (!agent || agent.id !== agentId) return refuse(T.errAssistantToolCaller);
+    if (!isAssistantToolDef(name)) return refuse(`Unknown tool: ${name}`);
+    const full = assistantToolName(name);
+    const refusal = this.refusal(full, input);
+    if (refusal) return refuse(refusal);
+    const host = this.host();
+    if (assistantToolAsks(full) && agent.permissionMode !== "bypassPermissions" && !(await this.deps.runner.askTool(agent.id, full, this.titled(host, input), signal))) return refuse(T.permissionDeniedByUser);
+    return callAssistantTool(host, name, input);
+  }
+
+  foreignSetup(agent: Agent): McpLaunch | null {
+    if (!agent.assistant) return null;
+    mkdirSync(this.dir, { recursive: true });
+    const notesPath = join(this.dir, ASSISTANT_NOTES_FILE);
+    const notes = existsSync(notesPath) ? readFileSync(notesPath, "utf8").slice(0, NOTES_LIMIT).trim() : "";
+    const text = [T.assistantForeignHeader(ASSISTANT_NOTES_FILE), "", ASSISTANT_PROMPT, "", `# ${ASSISTANT_NOTES_FILE}`, "", notes, ""].join("\n");
+    for (const file of FOREIGN_INSTRUCTION_FILES) writeFileSync(join(this.dir, file), text);
+    return mateMcpLaunch(agent.id);
   }
 
   private refusal(toolName: string, input: Record<string, unknown>): string | null {
@@ -521,8 +548,9 @@ export class AssistantService {
       },
       rename: (session, title) => {
         const agent = this.target(session);
+        const before = agent.title;
         runner.rename(agent.id, title);
-        return `Renamed "${agent.title}" to "${title.trim()}".`;
+        return `Renamed "${before}" to "${title.trim()}".`;
       },
       pin: (session, pinned) => {
         const agent = this.target(session);

@@ -80,7 +80,7 @@ export default function Mate() {
       />
       <Segmented underline options={[{ value: "chat", label: "Chat" }, { value: "tracking", label: "Tracking", count: waiting, countTone: "attention" }, { value: "reminders", label: "Reminders" }]} value={tab} onChange={setTab} />
       {tab === "chat" ? <MateChat agent={agent} assistant={assistant} modelControl={{ harness: model.selection.harness, name: model.name, effort: model.effort, onPress: model.show }} /> : tab === "tracking" ? <MateTracking /> : <MateReminders assistant={assistant} />}
-      {modelOpen && <ModelPicker agentId={agent.id} selection={model.selection} close={closeModel} claudeOnly apply={(selection) => store.setModel(agent.id, selection)} />}
+      {modelOpen && <ModelPicker agentId={agent.id} selection={model.selection} close={closeModel} apply={(selection) => store.setModel(agent.id, selection)} />}
     </SafeAreaView>
   );
 }

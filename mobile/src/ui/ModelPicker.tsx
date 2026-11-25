@@ -22,7 +22,6 @@ const SWITCH_MESSAGES: Record<SwitchBlock, string> = {
   waiting: "Answer the pending request before switching tools",
   notion: "Notion page chats run on Claude only",
   feedback: "Improvement sessions run on Claude only",
-  assistant: "Mate runs on Claude only",
 };
 
 type SourceKey = Harness | `p:${string}`;
@@ -81,11 +80,10 @@ type Props = {
   onResetDraft?: () => void;
   close: () => void;
   keyboardInset?: number;
-  claudeOnly?: boolean;
   apply: (choice: MobileModelSelection) => Promise<MobileModelSelection>;
 };
 
-export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, close, keyboardInset = 0, claudeOnly, apply }: Props) {
+export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, close, keyboardInset = 0, apply }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { paneWidth, fontScale } = useFoldLayout();
@@ -95,7 +93,7 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
   const favorites = useAppState((state) => state.modelPins);
   const online = useAppState((state) => state.conn === "online");
   const [reportedBlock, setSwitchBlock] = useState<SwitchBlock | null | undefined>(agentId ? undefined : null);
-  const switchBlock = reportedBlock === null && claudeOnly ? "assistant" : reportedBlock;
+  const switchBlock = reportedBlock;
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [page, setPage] = useState<"models" | "reasoning" | "filter">("models");

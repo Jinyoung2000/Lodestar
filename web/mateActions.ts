@@ -1,4 +1,5 @@
-import type { EffortLevel, PermissionDecision } from "../shared/protocol";
+import { harnessOf, type EffortLevel, type PermissionDecision } from "../shared/protocol";
+import { providerIdOf, sourceOf, toolOfSource, type SourceKey } from "./modelChoices";
 import { rpc } from "./rpc";
 import { flash, getState, openAgent, setState } from "./store";
 import { S } from "./strings";
@@ -30,10 +31,16 @@ export function stopMate(agentId: string) {
   void rpc.call("agents.interrupt", { agentId }).catch(fail);
 }
 
-export function setMateModel(agentId: string, model: string, providerId: string | null) {
-  const current = getState().agents.find((a) => a.id === agentId)?.providerId ?? null;
-  if (current === providerId) void rpc.call("agents.setModel", { agentId, model }).catch(fail);
-  else void rpc.call("agents.switchHarness", { agentId, harness: "claude", model, effort: null, ...(providerId ? { providerId } : {}) }).catch(fail);
+export function setMateModel(agentId: string, model: string, group: SourceKey | null) {
+  const agent = getState().agents.find((a) => a.id === agentId);
+  if (!agent) return;
+  const target = group ?? "claude";
+  if (sourceOf(harnessOf(agent), agent.providerId) === target) {
+    void rpc.call("agents.setModel", { agentId, model }).catch(fail);
+    return;
+  }
+  const providerId = providerIdOf(target);
+  void rpc.call("agents.switchHarness", { agentId, harness: toolOfSource(target), model, effort: null, ...(providerId ? { providerId } : {}) }).catch(fail);
 }
 
 export function setMateEffort(agentId: string, effort: EffortLevel) {

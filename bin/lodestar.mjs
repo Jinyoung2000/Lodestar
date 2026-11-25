@@ -4,6 +4,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
+import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(realpathSync(fileURLToPath(import.meta.url)));
@@ -46,6 +47,7 @@ async function main() {
   const [group, command, ...rest] = process.argv.slice(2);
   if (!group || group === "help" || group === "--help" || group === "-h") return console.log(USAGE);
   if (group === "automation" || group === "automations") return automationCommand(command, rest);
+  if (group === "mate-mcp") return mateMcp();
   if (group !== "session") return openPaths(process.argv.slice(2));
   if (!command) return usage();
   const args = parseArgs(rest);
@@ -473,6 +475,109 @@ async function automationDelete({ positional }) {
   await rpc("automations.delete", { id: automation.id });
   console.log(`Deleted "${automation.title}"`);
   await done();
+}
+
+const MCP_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
+
+function mateMcp() {
+  let live = null;
+  let callSeq = 0;
+  const waiting = new Map();
+  const inflight = new Map();
+  const write = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
+  const reply = (id, result) => write({ jsonrpc: "2.0", id, result });
+  const replyError = (id, code, message) => write({ jsonrpc: "2.0", id, error: { code, message } });
+  const open = () => {
+    if (live) return live;
+    live = new Promise((resolveSocket, reject) => {
+      let token;
+      try {
+        token = readFileSync(join(HOME, "token"), "utf8").trim();
+      } catch {
+        live = null;
+        reject(new Error("Lodestar is not running"));
+        return;
+      }
+      const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws/rpc?token=${token}`, { headers: { origin: `http://127.0.0.1:${PORT}` } });
+      ws.on("open", () => resolveSocket(ws));
+      ws.on("error", (error) => {
+        live = null;
+        reject(new Error(`cannot reach the Lodestar daemon on port ${PORT} (${error.message})`));
+      });
+      ws.on("close", () => {
+        live = null;
+        for (const waiter of waiting.values()) waiter.reject(new Error("the Lodestar daemon closed the connection"));
+        waiting.clear();
+      });
+      ws.on("message", (data) => {
+        const message = JSON.parse(String(data));
+        const waiter = waiting.get(message.id);
+        if (!waiter) return;
+        waiting.delete(message.id);
+        if (message.error) waiter.reject(new Error(typeof message.error === "string" ? message.error : (message.error.message ?? JSON.stringify(message.error))));
+        else waiter.resolve(message.result);
+      });
+    });
+    return live;
+  };
+  const call = async (method, params) => {
+    const ws = await open();
+    const id = nextId++;
+    return new Promise((resolveCall, reject) => {
+      waiting.set(id, { resolve: resolveCall, reject });
+      ws.send(JSON.stringify({ id, method, params }));
+    });
+  };
+  const failure = (error) => ({ content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }], isError: true });
+  const handle = async (message) => {
+    if (!message || typeof message !== "object" || message.jsonrpc !== "2.0") return;
+    const { id, method, params } = message;
+    if (method === "notifications/cancelled") {
+      const callId = inflight.get(params?.requestId);
+      if (callId) void call("assistant.mcpCancel", { callId }).catch(() => undefined);
+      return;
+    }
+    if (id === undefined || id === null) return;
+    if (method === "initialize") {
+      const asked = params?.protocolVersion;
+      return reply(id, { protocolVersion: MCP_VERSIONS.includes(asked) ? asked : MCP_VERSIONS[0], capabilities: { tools: {} }, serverInfo: { name: "lodestar_work", title: "Lodestar Mate", version: "1" } });
+    }
+    if (method === "ping") return reply(id, {});
+    if (method === "tools/list") {
+      try {
+        return reply(id, { tools: await call("assistant.mcpTools", {}) });
+      } catch (error) {
+        return replyError(id, -32603, error instanceof Error ? error.message : String(error));
+      }
+    }
+    if (method === "tools/call") {
+      const callId = `${process.pid}:${++callSeq}`;
+      inflight.set(id, callId);
+      try {
+        return reply(id, await call("assistant.mcpCall", { callId, agentId: SELF_ID, name: String(params?.name ?? ""), arguments: params?.arguments ?? {} }));
+      } catch (error) {
+        return reply(id, failure(error));
+      } finally {
+        inflight.delete(id);
+      }
+    }
+    replyError(id, -32601, `Method not found: ${method}`);
+  };
+  const lines = createInterface({ input: process.stdin });
+  lines.on("line", (line) => {
+    if (!line.trim()) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      return write({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
+    }
+    for (const message of Array.isArray(parsed) ? parsed : [parsed]) void handle(message);
+  });
+  lines.on("close", () => {
+    if (live) void live.then((ws) => ws.close(), () => undefined);
+    process.exit(0);
+  });
 }
 
 main().catch((error) => fail(error.message));

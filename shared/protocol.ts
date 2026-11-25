@@ -945,6 +945,9 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
   "followUps.dismiss": { params: { id: string }; result: FollowUpsState };
   "followUps.keepOpen": { params: { agentId: string }; result: FollowUpsState };
   "assistant.get": { params: Record<string, never>; result: AssistantState };
+  "assistant.mcpTools": { params: Record<string, never>; result: { name: string; description: string; inputSchema: Record<string, unknown> }[] };
+  "assistant.mcpCall": { params: { callId: string; agentId: string; name: string; arguments?: Record<string, unknown> }; result: { content: unknown[]; isError?: boolean } };
+  "assistant.mcpCancel": { params: { callId: string }; result: null };
   "assistant.checkIn": { params: Record<string, never>; result: AssistantState };
   "assistant.cancelReminder": { params: { id: string }; result: AssistantState };
   "assistant.readNotes": { params: Record<string, never>; result: { text: string } };

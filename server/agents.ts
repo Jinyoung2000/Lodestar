@@ -69,6 +69,7 @@ import { notionToolServer, type NotionToolHost } from "./notionTools";
 import { NOTION_SERVER, OWN_SERVER } from "../shared/notionMcp";
 import { isPreviewTool, PREVIEW_SERVER, PREVIEW_TOOL } from "../shared/previewCard";
 import { previewToolServer } from "./previewTool";
+import type { McpLaunch } from "./mateMcp";
 
 const MAX_TOOL_OUTPUT = 20_000;
 const SESSION_PROMPT_APPEND = [
@@ -161,6 +162,7 @@ export type AssistantAsk = (toolName: string, input: Record<string, unknown>, si
 export type AssistantHooks = {
   options: (agent: Agent, ask: AssistantAsk) => Partial<Options> | null;
   silentTurn: (agentId: string) => boolean;
+  foreignSetup: (agent: Agent) => McpLaunch | null;
 };
 
 export type BoardHooks = {
@@ -241,6 +243,7 @@ export class AgentRunner {
         void this.send(agentId, next.text, shownOf(next)).catch((error) => console.error("[agent] queued send failed", error));
       },
       idleLimitMs: () => this.idleLimitMs(),
+      mateMcp: (agent) => (agent.assistant ? (this.assistantHooks?.foreignSetup(agent) ?? null) : null),
     };
     this.codex = new CodexRunner(host);
     this.antigravity = new AntigravityRunner(host);
@@ -634,8 +637,7 @@ export class AgentRunner {
     const items = this.store.timeline(agentId);
     const live = this.runs.get(agentId)?.active || this.preparing.has(agentId) || this.restoring.has(agentId) || this.otherRunners().some((r) => r.isActive(agentId));
     const pending = [...this.pending.keys()].some((key) => key.startsWith(`${agentId}:`)) || this.otherRunners().some((r) => r.pendingApprovalIds(agentId).length > 0);
-    const mateStaysOnClaude = agent.assistant === true && target === "claude";
-    const blocked = switchBlock(mateStaysOnClaude ? { ...agent, assistant: false } : agent, items) ?? (pending ? "waiting" : live ? "running" : null);
+    const blocked = switchBlock(agent, items) ?? (pending ? "waiting" : live ? "running" : null);
     if (blocked) throw new Error(T.switchBlocked[blocked]);
     if (from === "claude") this.closeRun(agentId);
     else await this.runnerOf(agentId)?.remove(agentId);
@@ -1319,6 +1321,15 @@ export class AgentRunner {
     const next = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
     if (!next) throw new Error(T.errEmptyTitle);
     this.emit({ type: "agent", agent: this.store.patchAgent(agentId, { title: next.slice(0, 200) }) });
+  }
+
+  async askTool(agentId: string, toolName: string, input: Record<string, unknown>, signal: AbortSignal): Promise<boolean> {
+    const result = await this.askPermission(agentId, toolName, input, signal);
+    const other = this.runnerOf(agentId);
+    if (other && this.store.agents.find((a) => a.id === agentId)?.status === "waiting" && ![...this.pending.keys()].some((key) => key.startsWith(`${agentId}:`)) && other.pendingApprovalIds(agentId).length === 0) {
+      this.setStatus(agentId, other.isActive(agentId) ? "running" : "idle");
+    }
+    return result.behavior === "allow";
   }
 
   respondPermission(agentId: string, itemId: string, decision: PermissionDecision) {

@@ -74,6 +74,7 @@ import { automationHandlers } from "./automationHandlers";
 import { FollowUpsService } from "./followUps";
 import { followUpHandlers } from "./followUpHandlers";
 import { AssistantService } from "./assistant";
+import { assistantToolList } from "./assistantTools";
 import { MobilePush } from "./mobilePush";
 import { ReleaseCheck } from "./releaseCheck";
 import { assistantAutoBlocked, automationsAutoBlocked, followUpsAutoBlocked, mentionCollectionBlocked, morningReviewAutoBlocked } from "./mentionGate";
@@ -304,6 +305,7 @@ assistant = new AssistantService({
     interrupt: (agentId) => runner.interrupt(agentId),
     rename: (agentId, title) => runner.rename(agentId, title),
     setPinned: (agentId, pinned) => runner.setPinned(agentId, pinned),
+    askTool: (agentId, toolName, input, signal) => runner.askTool(agentId, toolName, input, signal),
   },
   followUps,
   emit: broadcast,
@@ -311,7 +313,8 @@ assistant = new AssistantService({
   push: (message) => mobilePush.send(message),
 });
 const assistantService = assistant;
-runner.setAssistantHooks({ options: (agent, ask) => assistantService.options(agent, ask), silentTurn: (agentId) => assistantService.silentTurn(agentId) });
+const mateCalls = new Map<string, AbortController>();
+runner.setAssistantHooks({ options: (agent, ask) => assistantService.options(agent, ask), silentTurn: (agentId) => assistantService.silentTurn(agentId), foreignSetup: (agent) => assistantService.foreignSetup(agent) });
 assistant.start();
 const releaseCheck = new ReleaseCheck({ enabled: () => store.settings.notifyNewVersion === true, onChange: (release) => broadcast({ type: "release", release }) });
 releaseCheck.start();
@@ -563,6 +566,24 @@ const handlers: Handlers = {
   "assistant.cancelReminder": ({ id }) => assistantService.cancelReminder(String(id)),
   "assistant.readNotes": () => assistantService.readNotes(),
   "assistant.writeNotes": ({ text }) => assistantService.writeNotes(text),
+  "assistant.mcpTools": () => assistantToolList(),
+  "assistant.mcpCall": async ({ callId, agentId, name, arguments: input }, client) => {
+    const id = String(callId);
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    mateCalls.set(id, controller);
+    client?.once("close", abort);
+    try {
+      return await assistantService.callTool(String(agentId), String(name), input && typeof input === "object" ? input : {}, controller.signal);
+    } finally {
+      mateCalls.delete(id);
+      client?.off("close", abort);
+    }
+  },
+  "assistant.mcpCancel": ({ callId }) => {
+    mateCalls.get(String(callId))?.abort();
+    return null;
+  },
   ...terminalHandlers({ termAsk }),
   "perf.stats": ({ reset }) => {
     const snapshot = perfSnapshot();

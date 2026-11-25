@@ -5,6 +5,7 @@ import { antigravityApprovesAll, antigravityMode } from "../../shared/antigravit
 import type { CodexHost } from "../codex/runner";
 import { isDirectory } from "../cwdWatch";
 import { imageBlock } from "../images";
+import { acpMcpServers, isMateToolCall } from "../mateMcp";
 import { chatGuidance } from "../sessionEnv";
 import { T } from "../strings";
 import { AcpConnection, AcpError, ANTIGRAVITY_LAUNCH, antigravityBin, antigravityEnv, type AcpLaunch } from "./acp";
@@ -470,7 +471,7 @@ export class AcpRunner {
     const guidance = connection.canAppendSystemPrompt() ? chatGuidance(agent, this.host.store.workspaces, { explicitId: true }) : null;
     const common = {
       cwd: agent.cwd,
-      mcpServers: [],
+      mcpServers: acpMcpServers(this.host.mateMcp(agent)),
       ...(extraDirs.length && connection.canAddDirectories() ? { additionalDirectories: extraDirs } : {}),
       ...(guidance ? { _meta: { antigravity: { systemPrompt: { append: guidance } } } } : {}),
     };
@@ -758,7 +759,7 @@ export class AcpRunner {
     const options = (params.options as AcpPermissionOption[] | undefined) ?? [];
     if (!session?.active) return Promise.resolve({ outcome: { outcome: "cancelled" } });
     const agent = this.host.store.agent(session.agentId);
-    if (this.provider.approves(agent.permissionMode, params.toolCall as AcpToolCall | undefined)) {
+    if (this.provider.approves(agent.permissionMode, params.toolCall as AcpToolCall | undefined) || (agent.assistant === true && isMateToolCall(params.toolCall))) {
       const optionId = chooseOption(options, "allow");
       return Promise.resolve(optionId ? { outcome: { outcome: "selected", optionId } } : { outcome: { outcome: "cancelled" } });
     }

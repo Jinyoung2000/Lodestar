@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import type { CustomProviderView } from "../shared/customProviders";
 import { type EffortLevel, type ModelInfo } from "../shared/protocol";
 import { effortName } from "./Composer";
 import { builtinEffort, supportedLevels } from "./effortLevels";
@@ -16,11 +15,13 @@ import { applyEffort, currentModelAndEffort, setModelPin } from "./modelPick";
 type ModelMenuProps = {
   anchor: HTMLElement | null;
   current: string;
-  onChoose: (value: string, asDefault: boolean, providerId: string | null) => void;
+  onChoose: (value: string, asDefault: boolean, group: string | null) => void;
   onClose: () => void;
-  providers?: readonly CustomProviderView[];
-  currentProvider?: string | null;
+  groups?: readonly ModelGroup[];
+  currentGroup?: string | null;
 };
+
+export type ModelGroup = { key: string; name: string; models: readonly { value: string; name: string }[] };
 
 type EffortMenuProps = {
   anchor: HTMLElement | null;
@@ -55,18 +56,18 @@ export function EffortMenu({ anchor, label, levels, current, onChoose, onClose }
   );
 }
 
-export function ModelMenu({ anchor, current, onChoose, onClose, providers = [], currentProvider = null }: ModelMenuProps) {
+export function ModelMenu({ anchor, current, onChoose, onClose, groups = [], currentGroup = null }: ModelMenuProps) {
   const meta = useStore((s) => s.meta);
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const [othersOpen, setOthersOpen] = useState(false);
-  const [openProviders, setOpenProviders] = useState<readonly string[]>(currentProvider ? [currentProvider] : []);
+  const [openGroups, setOpenGroups] = useState<readonly string[]>(currentGroup ? [currentGroup] : []);
   const modelPins = useStore((s) => s.modelPins);
   const pinned = modelPins ?? [];
   const models = meta?.models ?? [];
   const q = query.trim().toLowerCase();
 
-  const claudeCurrent = currentProvider ? null : current;
+  const claudeCurrent = currentGroup ? null : current;
   const currentValue = claudeCurrent === null ? undefined : models.find((m) => modelMatches(m, claudeCurrent))?.value;
   const top = currentValue && !pinned.includes(currentValue) ? [...pinned, currentValue] : pinned;
   const grouped = top.length > 0 && !q;
@@ -75,33 +76,30 @@ export function ModelMenu({ anchor, current, onChoose, onClose, providers = [], 
     const toEntry = (model: ModelInfo): Entry => ({ kind: "model", model });
     const pinnedEntries = grouped ? matches.filter((m) => top.includes(m.value)).map(toEntry) : [];
     const otherEntries = (grouped ? matches.filter((m) => !top.includes(m.value)) : matches).map(toEntry);
-    const known = models.some((m) => [m.value, m.displayName, m.resolvedModel].some((v) => v?.toLowerCase() === q)) || providers.some((p) => p.models.some((m) => [m.id, m.name].some((v) => v?.toLowerCase() === q)));
+    const known = models.some((m) => [m.value, m.displayName, m.resolvedModel].some((v) => v?.toLowerCase() === q)) || groups.some((g) => g.models.some((m) => [m.value, m.name].some((v) => v.toLowerCase() === q)));
     if (q && !known && /^[\w.[\]:/-]+$/.test(query.trim())) otherEntries.push({ kind: "custom", value: query.trim() });
     return { pinnedEntries, otherEntries };
-  }, [models, providers, q, query, top, grouped]);
-  const providerGroups = useMemo(
+  }, [models, groups, q, query, top, grouped]);
+  const shownGroups = useMemo(
     () =>
-      providers
-        .filter((p) => p.hasKey && p.models.length > 0)
-        .map((p) => ({
-          provider: p,
-          entries: p.models
-            .filter((m) => !q || `${m.name ?? ""} ${m.id} ${p.name}`.toLowerCase().includes(q))
-            .map((m): Entry => ({ kind: "provider", providerId: p.id, value: m.id, name: m.name ?? m.id })),
+      groups
+        .map((group) => ({
+          group,
+          entries: group.models.filter((m) => !q || `${m.name} ${m.value} ${group.name}`.toLowerCase().includes(q)).map((m): Entry => ({ kind: "group", group: group.key, value: m.value, name: m.name })),
         }))
-        .filter((group) => group.entries.length > 0),
-    [providers, q],
+        .filter((shown) => shown.entries.length > 0),
+    [groups, q],
   );
-  const providerOpen = (id: string) => !!q || openProviders.includes(id);
-  const toggleProvider = (id: string) => setOpenProviders((open) => (open.includes(id) ? open.filter((other) => other !== id) : [...open, id]));
+  const groupOpen = (key: string) => !!q || openGroups.includes(key);
+  const toggleGroup = (key: string) => setOpenGroups((open) => (open.includes(key) ? open.filter((other) => other !== key) : [...open, key]));
   const empty = meta?.error ? S.modelsFailed : S.modelsUnavailable;
   const claudeEntries = grouped && !othersOpen ? pinnedEntries : [...pinnedEntries, ...otherEntries];
-  const entries = [...claudeEntries, ...providerGroups.flatMap((group) => (providerOpen(group.provider.id) ? group.entries : []))];
+  const entries = [...claudeEntries, ...shownGroups.flatMap((shown) => (groupOpen(shown.group.key) ? shown.entries : []))];
   const renderRow = (entry: Entry, i: number) => (
     <ModelRow
-      key={entry.kind === "model" ? entry.model.value : entry.kind === "provider" ? `${entry.providerId}:${entry.value}` : "custom"}
+      key={entry.kind === "model" ? entry.model.value : entry.kind === "group" ? `${entry.group}:${entry.value}` : "custom"}
       entry={entry}
-      selected={entry.kind === "model" ? claudeCurrent !== null && modelMatches(entry.model, claudeCurrent) : entry.kind === "provider" && entry.providerId === currentProvider && entry.value === current}
+      selected={entry.kind === "model" ? claudeCurrent !== null && modelMatches(entry.model, claudeCurrent) : entry.kind === "group" && entry.group === currentGroup && entry.value === current}
       active={i === index}
       shortcut={i < SHORTCUT_COUNT ? i + 1 : null}
       pinned={entry.kind === "model" && pinned.includes(entry.model.value)}
@@ -115,7 +113,7 @@ export function ModelMenu({ anchor, current, onChoose, onClose, providers = [], 
     if (!entry) return;
     const value = entry.kind === "model" ? entry.model.value : entry.value;
     onClose();
-    onChoose(value, asDefault, entry.kind === "provider" ? entry.providerId : null);
+    onChoose(value, asDefault, entry.kind === "group" ? entry.group : null);
   };
   const pickNth = useRef<(n: number, asDefault: boolean) => boolean>(() => false);
   pickNth.current = (n, asDefault) => {
@@ -166,12 +164,12 @@ export function ModelMenu({ anchor, current, onChoose, onClose, providers = [], 
             {pinnedEntries.map((entry, i) => renderRow(entry, i))}
             {grouped && <GroupToggle label={S.otherModels} open={othersOpen} onToggle={() => setOthersOpen((v) => !v)} />}
             {(!grouped || othersOpen) && otherEntries.map((entry, i) => renderRow(entry, pinnedEntries.length + i))}
-            {providerGroups.map((group) => {
-              const start = entries.findIndex((entry) => entry.kind === "provider" && entry.providerId === group.provider.id);
+            {shownGroups.map(({ group, entries: groupEntries }) => {
+              const start = entries.findIndex((entry) => entry.kind === "group" && entry.group === group.key);
               return (
-                <Fragment key={group.provider.id}>
-                  <GroupToggle label={group.provider.name} open={providerOpen(group.provider.id)} onToggle={() => toggleProvider(group.provider.id)} />
-                  {providerOpen(group.provider.id) && group.entries.map((entry, i) => renderRow(entry, start + i))}
+                <Fragment key={group.key}>
+                  <GroupToggle label={group.name} open={groupOpen(group.key)} onToggle={() => toggleGroup(group.key)} />
+                  {groupOpen(group.key) && groupEntries.map((entry, i) => renderRow(entry, start + i))}
                 </Fragment>
               );
             })}
@@ -186,7 +184,7 @@ export function ModelMenu({ anchor, current, onChoose, onClose, providers = [], 
   );
 }
 
-type Entry = { kind: "model"; model: ModelInfo } | { kind: "custom"; value: string } | { kind: "provider"; providerId: string; value: string; name: string };
+type Entry = { kind: "model"; model: ModelInfo } | { kind: "custom"; value: string } | { kind: "group"; group: string; value: string; name: string };
 
 const SHORTCUT_COUNT = 9;
 
@@ -194,7 +192,7 @@ function ModelRow({ entry, selected, active, shortcut, pinned, onHover, onChoose
   return (
     <div className="popup-row model-row" role="option" aria-selected={selected} data-active={active || undefined} onMouseEnter={onHover} onClick={onChoose}>
       <span className="popup-check">{selected && <Check size={12} />}</span>
-      <span className="popup-row-title">{entry.kind === "model" ? entry.model.displayName : entry.kind === "provider" ? entry.name : S.customModelOption(entry.value)}</span>
+      <span className="popup-row-title">{entry.kind === "model" ? entry.model.displayName : entry.kind === "group" ? entry.name : S.customModelOption(entry.value)}</span>
       {shortcut !== null && <kbd className="popup-row-key">⌘{shortcut}</kbd>}
       {entry.kind !== "custom" && (
         <button

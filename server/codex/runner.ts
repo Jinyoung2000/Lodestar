@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { Agent, CodexMeta, CodexModelInfo, EffortLevel, PermissionDecision, QueuedMessage, ServerEvent, TimelineItem, TurnChanges, UserAttachment } from "../../shared/protocol";
 import { EFFORT_LEVELS } from "../../shared/protocol";
 import { CODEX_FALLBACK_MODE, codexPermission, codexSessionConfig, withWritableRoots } from "../../shared/codexPermission";
+import { ASSISTANT_SERVER } from "../../shared/assistant";
 import { isDirectory } from "../cwdWatch";
+import { codexMcpConfig, type McpLaunch } from "../mateMcp";
 import { cleanAnswers, QUESTION_TOOL } from "../interactiveTools";
 import { imagePath } from "../images";
 import { chatGuidance, sessionEnv } from "../sessionEnv";
@@ -26,6 +28,7 @@ export type CodexHost = {
   recordAfterEdit: (agentId: string, toolName: string, input: Record<string, unknown>) => Promise<unknown>;
   sendQueued: (agentId: string, next: QueuedMessage) => void;
   idleLimitMs: () => number;
+  mateMcp: (agent: Agent) => McpLaunch | null;
 };
 
 type ToolItem = Extract<TimelineItem, { kind: "tool" }>;
@@ -354,7 +357,7 @@ export class CodexRunner {
       approvalPolicy: permission.approvalPolicy,
       approvalsReviewer: permission.approvalsReviewer,
       sandbox: permission.sandbox,
-      config: codexSessionConfig(sessionEnv(agent.id)),
+      config: { ...codexSessionConfig(sessionEnv(agent.id)), ...codexMcpConfig(this.host.mateMcp(agent)) },
       ...(guidance ? { developerInstructions: guidance } : {}),
       ...(agent.model ? { model: agent.model } : {}),
     };
@@ -610,6 +613,7 @@ export class CodexRunner {
       case "item/tool/requestUserInput":
         return session ? this.askQuestion(session, id, params) : Promise.resolve({ answers: {} });
       case "mcpServer/elicitation/request":
+        if (session && params.serverName === ASSISTANT_SERVER && this.host.store.agents.find((a) => a.id === session.agentId)?.assistant) return Promise.resolve({ action: "accept", content: {}, _meta: null });
         if (session) this.host.upsert(session.agentId, { id: randomUUID(), kind: "notice", text: T.codexElicitation(String(params.serverName ?? "MCP")) });
         return Promise.resolve({ action: "decline", content: null, _meta: null });
       default:
