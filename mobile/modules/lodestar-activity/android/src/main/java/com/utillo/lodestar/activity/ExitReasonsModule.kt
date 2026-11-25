@@ -28,6 +28,10 @@ class ExitReasonsModule : Module() {
 
     Function("memory") { ProcessSnapshot.memory() }
 
+    Function("setUploadTarget") { url: String, fields: Map<String, String>, device: String ->
+      NativeUpload.configure(context, url, fields, device)
+    }
+
     Function("clearStall") { stallFile(context).delete() }
 
     Function("takeRecent") {
@@ -61,7 +65,7 @@ class ExitReasonsModule : Module() {
       if (guarding) return
       val application = context as? Application ?: return
       guarding = true
-      val guard = BlankScreenGuard { text -> stallListener?.invoke(text) }
+      val guard = BlankScreenGuard({ name, text -> NativeUpload.send(application, name, text) }) { text -> stallListener?.invoke(text) }
       guard.alreadyRunning(current)
       application.registerActivityLifecycleCallbacks(guard)
       application.registerComponentCallbacks(ProcessSnapshot.pressureWatcher { text -> stallListener?.invoke(text) })

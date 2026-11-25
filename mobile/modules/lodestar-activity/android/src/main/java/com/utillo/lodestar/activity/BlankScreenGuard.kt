@@ -9,16 +9,21 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.PixelCopy
 import android.view.View
 import android.view.ViewGroup
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
-internal class BlankScreenGuard(private val onReport: (String) -> Unit) : Application.ActivityLifecycleCallbacks {
+internal class BlankScreenGuard(private val upload: (String, String) -> String?, private val onReport: (String) -> Unit) : Application.ActivityLifecycleCallbacks {
   private val main = Handler(Looper.getMainLooper())
   private val armed = mutableSetOf<Activity>()
   private var watched: Activity? = null
   private var blankChecks = 0
-  private var recreated = 0
+  private val recreatedAt = ArrayDeque<Long>()
   private val loop = Runnable { tick() }
 
   fun alreadyRunning(activity: Activity?) {
@@ -74,11 +79,18 @@ internal class BlankScreenGuard(private val onReport: (String) -> Unit) : Applic
     blankChecks++
     if (blankChecks < BLANK_CHECKS) return
     blankChecks = 0
-    val healing = recreated < MAX_RECREATES
+    val now = SystemClock.uptimeMillis()
+    while (recreatedAt.isNotEmpty() && now - recreatedAt.first() > RECREATE_WINDOW_MS) recreatedAt.removeFirst()
+    val healing = recreatedAt.size < MAX_RECREATES
     val summary = "screen blank: $finding${if (healing) "; recreating the activity" else ""}\n${ProcessSnapshot.memory()}\n${tree(content, 0)}".take(TEXT_CHARS)
-    Thread({ onReport("$summary\n-- own logcat --\n${ProcessSnapshot.ownLogcat()}") }, "lodestar-blank-report").start()
+    val name = "${SimpleDateFormat("yyyy-MM-dd'T'HH-mm-ss-SSS'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date())}-native-blank.txt"
+    Thread({
+      val log = ProcessSnapshot.ownLogcat()
+      val uploaded = upload(name, "[crash] native blank screen report\n$summary\n-- own logcat --\n$log")
+      onReport("$summary\nfull report: ${uploaded ?: "not uploaded"}\n-- own logcat tail --\n${log.takeLast(TAIL_CHARS)}")
+    }, "lodestar-blank-report").start()
     if (healing) {
-      recreated++
+      recreatedAt.addLast(now)
       armed.remove(activity)
       activity.recreate()
     }
@@ -138,7 +150,9 @@ internal class BlankScreenGuard(private val onReport: (String) -> Unit) : Applic
   }
 
   companion object {
-    private const val CHECK_EVERY_MS = 1500L
+    private const val CHECK_EVERY_MS = 500L
+    private const val RECREATE_WINDOW_MS = 60_000L
+    private const val TAIL_CHARS = 16_000
     private const val BLANK_CHECKS = 2
     private const val SAMPLE_W = 108
     private const val SAMPLE_H = 240

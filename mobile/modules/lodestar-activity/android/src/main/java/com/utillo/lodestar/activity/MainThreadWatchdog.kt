@@ -49,7 +49,7 @@ internal class MainThreadWatchdog(private val file: File, private val onEvent: (
       }
       if (pending && reportedAt == 0L && now - postedAt >= STALL_MS && inForeground()) {
         reportedAt = now
-        val text = "main thread blocked ${now - postedAt}ms\n${stacks()}".take(TEXT_CHARS) + "\n${ProcessSnapshot.memory()}\n-- own logcat --\n${ProcessSnapshot.ownLogcat()}"
+        val text = "main thread blocked ${now - postedAt}ms\n${stacks()}".take(TEXT_CHARS) + "\n${ProcessSnapshot.memory()}\n-- own logcat tail --\n${ProcessSnapshot.ownLogcat().takeLast(LOG_TAIL_CHARS)}"
         runCatching { file.writeText(text) }
         onEvent(text)
       }
@@ -77,5 +77,6 @@ internal class MainThreadWatchdog(private val file: File, private val onEvent: (
     private const val OVERSLEEP_MS = 1000L
     private const val FRAMES = 60
     private const val TEXT_CHARS = 12_000
+    private const val LOG_TAIL_CHARS = 16_000
   }
 }

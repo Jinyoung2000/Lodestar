@@ -10,6 +10,7 @@ type ExitReasons = {
   takeRecent(): ExitRecord[];
   clearStall?(): void;
   memory?(): string;
+  setUploadTarget?(url: string, fields: Record<string, string>, device: string): void;
   addListener?(event: "mainThreadStall", listener: (event: { text: string }) => void): { remove(): void };
 };
 type HermesHooks = {
@@ -138,6 +139,13 @@ async function start() {
       void send(saved.key, `${saved.text}\n-- sent at next launch ${launchedAt.toISOString()}`);
     } catch {
       add("D", ["previous log unreadable"], false);
+    }
+  }
+  if (target) {
+    try {
+      exitReasons?.setUploadTarget?.(target.url, target.fields, device);
+    } catch (error) {
+      add("D", ["native upload target not set", error], false);
     }
   }
   reportPreviousExits();
