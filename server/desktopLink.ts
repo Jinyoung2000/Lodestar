@@ -517,6 +517,15 @@ export async function openLink(identity: LinkIdentity, target: LinkTarget, hello
   return { welcome, stream, host: reached };
 }
 
+const sendableCloseCode = (code: unknown): code is number => typeof code === "number" && Number.isInteger(code) && ((code >= 1000 && code <= 1014 && code !== 1004 && code !== 1005 && code !== 1006) || (code >= 3000 && code <= 4999));
+
+function closeLikeRemote(client: WebSocket, frame: { code?: unknown; reason?: unknown } | null) {
+  const reason = typeof frame?.reason === "string" ? Buffer.from(frame.reason).subarray(0, 120).toString() : "";
+  if (frame?.code === 1005) return client.close(1000, reason);
+  if (sendableCloseCode(frame?.code)) return client.close(frame.code, reason);
+  client.close(1013, "The other Mac closed this connection");
+}
+
 export class DesktopLinkClient {
   constructor(private deps: LinkClientDeps) {}
 
@@ -546,7 +555,7 @@ export class DesktopLinkClient {
         if (client.readyState !== WebSocket.OPEN) return;
         if (type === LinkFrame.text) client.send(decodeText(body));
         else if (type === LinkFrame.binary) client.send(body, { binary: true });
-        else if (type === LinkFrame.close) client.close(1013, "The other Mac closed this connection");
+        else if (type === LinkFrame.close) closeLikeRemote(client, parseJson<{ code?: unknown; reason?: unknown }>(body));
       };
       client.on("message", (data, isBinary) => void stream.send(isBinary ? LinkFrame.binary : LinkFrame.text, bytesOf(data)));
       client.on("error", () => {});
