@@ -48,7 +48,7 @@ export type RpcOptions = {
   connectTimeoutMs?: number;
   backoff?: (attempt: number) => number;
   log?: (line: string) => void;
-  onCall?: (method: string, ms: number, ok: boolean) => void;
+  onCall?: (method: string, ms: number, ok: boolean, error?: unknown) => void;
 };
 
 type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
@@ -164,7 +164,7 @@ export class RpcClient {
           resolve(value as never);
         },
         reject: (error) => {
-          done?.(method, Date.now() - started, false);
+          done?.(method, Date.now() - started, false, error);
           reject(error);
         },
         timer,

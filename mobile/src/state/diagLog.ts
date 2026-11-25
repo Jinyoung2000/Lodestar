@@ -1,9 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { requireOptionalNativeModule } from "expo";
 import * as Updates from "expo-updates";
 import { AppState, Dimensions, PixelRatio, Platform } from "react-native";
 
 type UploadTarget = { url: string; fields: Record<string, string> };
 type SavedLog = { key: string; text: string };
+type ExitRecord = { source: "java" | "system"; at?: number; reason?: string; trace?: string | null } & Record<string, unknown>;
+type ExitReasons = { takeRecent(): ExitRecord[] };
 type HermesHooks = {
   enablePromiseRejectionTracker?(options: { allRejections: boolean; onUnhandled(id: number, error: unknown): void }): void;
   getInstrumentedStats?(): Record<string, unknown>;
@@ -11,6 +14,7 @@ type HermesHooks = {
 
 const MAX_LINES = 800;
 const LINE_CHARS = 3000;
+const EXIT_CHARS = 12_000;
 const SAVE_DELAY_MS = 1000;
 const UPLOAD_DELAY_MS = 15_000;
 const URGENT_UPLOAD_DELAY_MS = 800;
@@ -47,9 +51,9 @@ function show(value: unknown): string {
   }
 }
 
-function add(level: string, parts: unknown[], urgent: boolean) {
+function add(level: string, parts: unknown[], urgent: boolean, maxChars = LINE_CHARS) {
   const stamp = ((Date.now() - launchedAt.getTime()) / 1000).toFixed(2).padStart(8, " ");
-  lines.push(`${stamp} ${level} ${parts.map(show).join(" ").slice(0, LINE_CHARS)}`);
+  lines.push(`${stamp} ${level} ${parts.map(show).join(" ").slice(0, maxChars)}`);
   if (lines.length > MAX_LINES) lines.splice(100, lines.length - MAX_LINES);
   if (!started) return;
   saveTimer ??= setTimeout(save, SAVE_DELAY_MS);
@@ -121,9 +125,26 @@ async function start() {
       add("D", ["previous log unreadable"], false);
     }
   }
+  reportPreviousExits();
   started = true;
   save();
   scheduleUpload(URGENT_UPLOAD_DELAY_MS);
+}
+
+const QUIET_EXITS = new Set(["user requested", "user stopped", "package updated", "exit self"]);
+
+function reportPreviousExits() {
+  let exits: ExitRecord[] = [];
+  try {
+    exits = requireOptionalNativeModule<ExitReasons>("LodestarExitReasons")?.takeRecent() ?? [];
+  } catch (error) {
+    add("D", ["exit reasons unreadable", error], false);
+  }
+  for (const { trace, at, ...rest } of exits) {
+    const when = typeof at === "number" ? new Date(at).toISOString() : "";
+    const loud = rest.source === "java" || !QUIET_EXITS.has(String(rest.reason));
+    add(loud ? "E" : "D", [`[exit] ${when}`, rest, ...(trace ? [`\n${trace}`] : [])], loud, EXIT_CHARS);
+  }
 }
 
 export function installDiagLog() {

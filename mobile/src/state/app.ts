@@ -19,7 +19,7 @@ markStart("launch-list");
 
 export const client = new RpcClient({
   log: (line) => console.log(line),
-  onCall: (method, ms, ok) => method !== "mobile.ping" && record(`rpc ${method}`, ms, ok ? undefined : "failed"),
+  onCall: (method, ms, ok, error) => method !== "mobile.ping" && record(`rpc ${method}`, ms, ok ? undefined : `failed: ${error instanceof Error ? error.message : String(error)}`),
 });
 if (AppState.currentState === "background" || AppState.currentState === "inactive") client.pause();
 export const store = new AppStore(asyncCache);

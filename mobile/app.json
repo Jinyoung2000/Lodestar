@@ -3,7 +3,7 @@
     "name": "Lodestar",
     "slug": "lodestar-mobile",
     "scheme": "lodestar",
-    "version": "0.2.5",
+    "version": "0.2.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -57,7 +57,7 @@
     ],
     "android": {
       "package": "com.utillo.lodestar",
-      "versionCode": 7,
+      "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#1f1f1f",
