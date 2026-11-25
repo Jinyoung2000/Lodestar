@@ -1,6 +1,7 @@
 import { useLayoutEffect, useState } from "react";
 import { ActivityBar } from "./ActivityBar";
 import { MainActions, PinnedBodies } from "./EditorArea";
+import { OutlineSection } from "./OutlineView";
 import { ReferencesPanel } from "./ReferencesPanel";
 import { Close } from "./icons";
 import { useLayoutConfig } from "./layoutConfigStore";
@@ -31,6 +32,7 @@ export function FocusSideBar({ width }: { width: number }) {
       <div className="right-body focus-side-body" data-group-body="side">
         <PinnedBodies activeKey={view} withQuick={false} />
       </div>
+      {view === "files" && <OutlineSection />}
       <ReferencesPanel />
     </section>
   );

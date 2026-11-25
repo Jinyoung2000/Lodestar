@@ -47,7 +47,7 @@ export function breadcrumbSymbols(key: string): Extension {
         const tree = await fetchDocumentSymbols(this.view);
         if (this.destroyed || mine !== this.request) return;
         if (this.view.state.doc !== doc) return this.schedule(REFRESH_DELAY_MS);
-        write(key, tree, this.view.state.selection.main.head);
+        write(key, tree, this.view.state.selection.main.head, true);
       }
 
       destroy() {
@@ -59,12 +59,12 @@ export function breadcrumbSymbols(key: string): Extension {
   );
 }
 
-function write(key: string, tree: readonly SymbolNode[], head: number) {
+function write(key: string, tree: readonly SymbolNode[], head: number, fetched = false) {
   const before = states.get(key) ?? EMPTY;
   const path = symbolPathAt(tree, head);
   const same = path.length === before.path.length && path.every((node, i) => node.name === before.path[i]!.name && node.kind === before.path[i]!.kind && node.nameFrom === before.path[i]!.nameFrom);
   states.set(key, same ? { tree, path: before.path } : { tree, path });
-  if (!same || (tree.length === 0) !== (before.tree.length === 0)) notify();
+  if (!same || fetched || (tree.length === 0) !== (before.tree.length === 0)) notify();
 }
 
 const notify = () => {

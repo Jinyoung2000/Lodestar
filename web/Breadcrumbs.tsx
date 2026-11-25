@@ -5,13 +5,14 @@ import "./breadcrumbCommands";
 import { BreadcrumbMenu, type MenuClose, type MenuSource } from "./BreadcrumbMenu";
 import { crumbsFor, listable, symbolTone, type PickTarget } from "./breadcrumbModel";
 import { currentBreadcrumbSymbols, useBreadcrumbSymbols } from "./breadcrumbSymbols";
-import { symbolIcon, type SymbolNode } from "./documentSymbols";
+import { symbolIcon } from "./documentSymbols";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { expandFolders, revealFilePath, setFilesView } from "./filesView";
 import { Codicon } from "./icons";
 import { viewFor } from "./lsp";
 import { openFile, setState } from "./store";
 import { S } from "./strings";
+import { revealSymbol, scrollNearTop } from "./symbolReveal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 export function Breadcrumbs({ tabKey, workspaceId, path, deleted }: { tabKey: string; workspaceId: string; path: string; deleted: boolean }) {
@@ -48,7 +49,7 @@ export function Breadcrumbs({ tabKey, workspaceId, path, deleted }: { tabKey: st
   const pick = (target: PickTarget, side: boolean) => {
     closeMenu("pick");
     if (target.type === "file") openFile({ workspaceId, path: target.path }, { preview: true, side });
-    else if (target.type === "symbol") revealSymbol(tabKey, workspaceId, path, target.node, side);
+    else if (target.type === "symbol") revealSymbol(tabKey, workspaceId, path, target.node, { side });
   };
 
   const preview = (target: PickTarget) => {
@@ -75,7 +76,7 @@ export function Breadcrumbs({ tabKey, workspaceId, path, deleted }: { tabKey: st
   const reveal = (index: number) => {
     const crumb = crumbs[index];
     if (!crumb) return;
-    if (crumb.kind === "symbol") revealSymbol(tabKey, workspaceId, path, crumb.node, false);
+    if (crumb.kind === "symbol") revealSymbol(tabKey, workspaceId, path, crumb.node);
     else if (crumb.kind === "file") viewFor(tabKey)?.focus();
     else {
       navRef.current?.querySelector<HTMLElement>(`[data-index="${index + 1}"]`)?.focus();
@@ -159,26 +160,6 @@ function menuSource(workspaceId: string, path: string, tabKey: string, index: nu
   if (!crumb) return null;
   if (crumb.kind === "symbol") return { kind: "symbols", siblings: crumb.siblings, current: crumb.node };
   return listable(path) ? { kind: "files", workspaceId, dir: crumb.dir, current: crumb.path } : null;
-}
-
-function revealSymbol(tabKey: string, workspaceId: string, path: string, node: SymbolNode, side: boolean) {
-  const view = viewFor(tabKey);
-  if (!view) return;
-  if (side) {
-    const line = view.state.doc.lineAt(node.nameFrom);
-    openFile({ workspaceId, path, line: line.number, column: node.nameFrom - line.from + 1 }, { side: true });
-    return;
-  }
-  view.dispatch({ selection: { anchor: node.nameFrom } });
-  scrollNearTop(view, node.nameFrom);
-  view.focus();
-}
-
-function scrollNearTop(view: EditorView, pos: number) {
-  const coords = view.coordsAtPos(pos);
-  const box = view.scrollDOM.getBoundingClientRect();
-  if (coords && coords.top >= box.top && coords.bottom <= box.bottom) return;
-  view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: "start", yMargin: view.defaultLineHeight * 3 }) });
 }
 
 function revealInFiles(workspaceId: string, path: string, isFile: boolean) {

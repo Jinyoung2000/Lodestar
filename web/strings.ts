@@ -309,6 +309,12 @@ export const S = {
   htmlShowSource: "Show Source",
   htmlPreviewTitle: "HTML preview",
   references: "References",
+  outline: {
+    title: "Outline",
+    collapseAll: "Collapse All",
+    noEditor: "No editor is open that can provide outline information.",
+    unavailable: "The active editor cannot provide outline information.",
+  },
   referencesKey: "References (⇧F12)",
   fileNotFound: "File not found",
   lspError: "LSP disconnected",
