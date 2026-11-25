@@ -213,7 +213,7 @@ export default function NewSession() {
           placeholder="Describe the task"
           autoFocus={!contextOpen}
           onSend={(text, images, _steer, files) => start(text, images, files)}
-          modelControl={{ harness: model.selection.harness, name: model.name, effort: model.effort, onPress: model.show, disabled: starting }}
+          modelControl={{ harness: model.selection.harness, providerId: model.selection.providerId, name: model.name, effort: model.effort, onPress: model.show, disabled: starting }}
         />
         {!expanded && <KeyboardSpacer />}
       </View>
@@ -224,7 +224,7 @@ export default function NewSession() {
         close={model.close}
         keyboardInset={expanded || keyboardTop === undefined ? 0 : Math.max(0, windowHeight - keyboardTop)}
         apply={async (selection) => {
-          setModelChoice(selection.harness === "claude" && selection.model === null && selection.effort === null ? undefined : selection);
+          setModelChoice(selection.harness === "claude" && !selection.providerId && selection.model === null && selection.effort === null ? undefined : selection);
           return selection;
         }}
       />}

@@ -31,6 +31,7 @@ export const MOBILE_METHODS = [
   "mobile.browse",
   "mobile.preview",
   "mobile.models",
+  "mobile.providers",
   "models.pins",
   "models.setPin",
   "mobile.setModel",
@@ -55,7 +56,7 @@ export const MOBILE_METHODS = [
 export type MobileMethod = (typeof MOBILE_METHODS)[number];
 
 // 모바일에 보내는 서버 이벤트 종류. 설정, 받은편지함, 보드, 메모, Notion, 피드백 같은 데스크톱 전용 이벤트는 보내지 않는다.
-export const MOBILE_EVENT_TYPES = ["workspaces", "agent", "agentRemoved", "timelineUpsert", "timelineRemove", "modelPins", "followUps", "assistant"] as const;
+export const MOBILE_EVENT_TYPES = ["workspaces", "agent", "agentRemoved", "timelineUpsert", "timelineRemove", "modelPins", "followUps", "assistant", "customProviders"] as const;
 
 // 연결 직후 인증을 마치면 서버가 한 번 보내는 메시지
 export type MobileReady = { protocol: number; host: string; serverTime: number };
@@ -124,9 +125,10 @@ export type MobileBrowseResult = {
 // agents.create 에 폰이 보내는 worktree. 기준 브랜치(base)에서 새 브랜치(branch)로 갈라진다.
 export type MobileWorktreeRequest = { branch: string; base: string };
 
-export type MobileModelSelection = { harness: Harness; model: string | null; effort: EffortLevel | null };
+export type MobileModelSelection = { harness: Harness; model: string | null; effort: EffortLevel | null; providerId?: string | null };
 export type MobileModel = Pick<PickerModel, "value" | "resolved" | "displayName" | "levels" | "defaultLevel"> & { pinKey?: string };
-export type MobileModelProvider = { harness: Harness; models: MobileModel[]; defaultModel: string | null; defaultModelKnown: boolean };
+export type MobileModelProvider = { harness: Harness; providerId?: string; name?: string; models: MobileModel[]; defaultModel: string | null; defaultModelKnown: boolean };
+export type MobileCustomProvider = { id: string; name: string };
 export type MobileModelCatalog = { providers: MobileModelProvider[]; switchBlock: SwitchBlock | null };
 export const MAX_MOBILE_FILE_BYTES = 50 * 1024 * 1024;
 export type MobileFileRef = { id: string; name: string; mediaType: string };

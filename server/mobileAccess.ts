@@ -8,6 +8,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 import { dirname } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
+import { isProviderId } from "../shared/customProviders";
 import { buildManualPairing, buildPairingUri, MAX_MOBILE_FILE_BYTES, MOBILE_EVENT_TYPES, MOBILE_MEDIA_PATH, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, mobileModelId, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileModelSelection, type MobileReady, type MobileRelayPairing, type MobileRoute, type PairingOffer, type PairResult } from "../shared/mobile";
 import { MAX_FILES } from "../shared/files";
 import { MAX_IMAGE_BYTES, MAX_IMAGES } from "../shared/images";
@@ -261,12 +262,19 @@ function harnessOfParam(value: unknown): Harness {
   return value as Harness;
 }
 
+function providerIdOf(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  return isProviderId(value) ? value : fail(T.errMobileParam("providerId"));
+}
+
 function modelSelectionOf(value: unknown): MobileModelSelection {
-  const { harness, model, effort } = asObject(value);
+  const { harness, model, effort, providerId } = asObject(value);
   const provider = harnessOfParam(harness);
   if (model !== null && !mobileModelId(model)) fail(T.errMobileParam("model"));
   if (effort !== null && !isEffortLevel(effort)) fail(T.errMobileParam("effort"));
-  return { harness: provider, model, effort };
+  const custom = providerIdOf(providerId);
+  if (custom && provider !== "claude") fail(T.errMobileParam("providerId"));
+  return { harness: provider, model, effort, ...(custom ? { providerId: custom } : {}) };
 }
 
 export function guardMobileCall(method: string, raw: unknown, browseRoot?: string): Record<string, unknown> {
@@ -280,11 +288,12 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
     case "agents.list":
       return {};
     case "models.pins":
+    case "mobile.providers":
       return {};
     case "models.setPin":
-      return { harness: harnessOfParam(p.harness), model: mobileModelId(p.model) ? p.model : fail(T.errMobileParam("model")), pinned: typeof p.pinned === "boolean" ? p.pinned : fail(T.errMobileParam("pinned")) };
+      return { harness: harnessOfParam(p.harness), model: mobileModelId(p.model) ? p.model : fail(T.errMobileParam("model")), pinned: typeof p.pinned === "boolean" ? p.pinned : fail(T.errMobileParam("pinned")), ...(providerIdOf(p.providerId) ? { providerId: providerIdOf(p.providerId) } : {}) };
     case "mobile.models":
-      return { ...(p.switchOnly === true ? { switchOnly: true } : {}), ...(p.agentId === undefined ? {} : { agentId: idOf(p.agentId, "agentId") }), ...(p.harness === undefined ? {} : { harness: harnessOfParam(p.harness) }) };
+      return { ...(p.switchOnly === true ? { switchOnly: true } : {}), ...(p.agentId === undefined ? {} : { agentId: idOf(p.agentId, "agentId") }), ...(p.harness === undefined ? {} : { harness: harnessOfParam(p.harness) }), ...(providerIdOf(p.providerId) ? { providerId: providerIdOf(p.providerId) } : {}) };
     case "mobile.setModel":
       return { agentId: idOf(p.agentId, "agentId"), selection: modelSelectionOf(p.selection) };
     case "agents.timelinePage": {
@@ -376,6 +385,8 @@ export function shapeMobileEvent(event: ServerEvent): ServerEvent | null {
       return event.agent.feedbackId ? null : event;
     case "timelineUpsert":
       return { ...event, item: compactTimelineItem(event.item) };
+    case "customProviders":
+      return { type: "customProviders", providers: event.providers.filter((p) => p.hasKey).map((p) => ({ ...p, baseUrl: "" })) };
     default:
       return event;
   }

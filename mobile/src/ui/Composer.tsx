@@ -13,7 +13,7 @@ import { showActionMenu } from "./actionMenu";
 import { useWindowFontScale } from "./FoldLayout";
 import { Icon } from "./Icon";
 import { ModelSubtitle, modelPickerLabel } from "./ModelPicker";
-import { ProviderMark, PROVIDER_NAMES } from "./ProviderMark";
+import { ProviderMark, PROVIDER_NAMES, useProviderName } from "./ProviderMark";
 import { Text } from "./Text";
 
 type Props = {
@@ -28,7 +28,7 @@ type Props = {
   autoFocus?: boolean;
   initialText?: string;
   draftKey?: string;
-  modelControl?: { harness: Harness; name: string; effort: EffortLevel | null; onPress: () => void; disabled?: boolean };
+  modelControl?: { harness: Harness; providerId?: string | null; name: string; effort: EffortLevel | null; onPress: () => void; disabled?: boolean };
 };
 
 const MIN_HEIGHT = MIN_TOUCH;
@@ -47,6 +47,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const [wraps, setWraps] = useState(false);
   const [compactModelWidth, setCompactModelWidth] = useState(MIN_TOUCH);
   const [editing, setEditing] = useState(false);
+  const modelProviderName = useProviderName(modelControl?.providerId);
   const [selection, setSelection] = useState(() => ({ start: initialText?.length ?? 0, end: initialText?.length ?? 0 }));
   const [nextSelection, setNextSelection] = useState<typeof selection>();
   const [queueExpanded, setQueueExpanded] = useState(false);
@@ -361,11 +362,11 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
             style={[styles.input, styles.inputType, { color: colors.textStrong, start: expanded ? spacing.md : compactStart, end: expanded ? spacing.md : compactEnd, height: expanded ? editorHeight : MIN_HEIGHT, bottom: expanded ? MIN_TOUCH : 0 }]}
           />
           <View style={styles.controls}>
-            {modelControl && <Pressable accessibilityRole="button" accessibilityLabel={`${PROVIDER_NAMES[modelControl.harness]}, ${modelPickerLabel(modelControl.name, modelControl.effort)}`}
+            {modelControl && <Pressable accessibilityRole="button" accessibilityLabel={`${modelProviderName ?? PROVIDER_NAMES[modelControl.harness]}, ${modelPickerLabel(modelControl.name, modelControl.effort)}`}
               accessibilityState={{ disabled: !modelAvailable }} disabled={!modelAvailable} onPress={modelControl.onPress}
               style={({ pressed }) => [styles.model, styles.modelLabelled, pressed && { backgroundColor: colors.pressed }]}
               onLayout={expanded ? undefined : (e) => setCompactModelWidth(Math.ceil(e.nativeEvent.layout.width))}>
-              <ProviderMark harness={modelControl.harness} size={18} selected />
+              <ProviderMark harness={modelControl.harness} providerId={modelControl.providerId} size={18} selected />
               <ModelSubtitle name={modelControl.name} effort={modelControl.effort} />
             </Pressable>}
             {showStop && <Pressable accessibilityRole="button" accessibilityLabel="Stop" disabled={!canSend} onPress={onStop} style={styles.iconButton}>

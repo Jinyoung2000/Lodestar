@@ -665,7 +665,7 @@ function phoneAgent(id: string) {
   return agent;
 }
 
-const phoneModels = mobileModels(store, runner, metaService);
+const phoneModels = mobileModels(store, runner, metaService, customProviders);
 const workspaceIcons = new WorkspaceIcons();
 const phoneModelChanges = new Set<string>();
 
@@ -689,7 +689,7 @@ async function createPhoneSession({ workspaceId, prompt, images, files, worktree
     if (!info.branches.includes(worktree.base)) throw new Error(T.errMobileParam("base"));
     target = top.id;
   }
-  return runner.create({ ...choice, workspaceId: target, prompt, permissionMode: resolved.permissionMode.value, worktree: worktree ?? null, ...(images?.length ? { images } : {}), ...(files?.length ? { files: phoneFiles(files) } : {}) });
+  return runner.create({ ...choice, providerId: "providerId" in choice ? (choice.providerId ?? null) : null, workspaceId: target, prompt, permissionMode: resolved.permissionMode.value, worktree: worktree ?? null, ...(images?.length ? { images } : {}), ...(files?.length ? { files: phoneFiles(files) } : {}) });
 }
 
 const mobileHandlers: Record<string, (params: never, client: WebSocket) => unknown> = {
@@ -741,20 +741,23 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
     handlers["agents.send"]({ ...params, ...(files?.length ? { files: phoneFiles(files) } : {}) }, client),
   "agents.create": (params: MobileSessionRequest) => createPhoneSession(params),
   "mobile.createSession": ({ selection, ...params }: MobileSessionRequest & { selection: MobileModelSelection }) => createPhoneSession(params, selection),
-  "mobile.models": async ({ agentId, harness, switchOnly }: { agentId?: string; harness?: Harness; switchOnly?: boolean }): Promise<MobileModelCatalog> => {
+  "mobile.models": async ({ agentId, harness, switchOnly, providerId }: { agentId?: string; harness?: Harness; switchOnly?: boolean; providerId?: string }): Promise<MobileModelCatalog> => {
     if (agentId) phoneAgent(agentId);
-    const providers = switchOnly ? [] : await Promise.all((harness ? [harness] : HARNESS_VALUES).map((target) => phoneModels.provider(target)));
-    return { providers: providers.filter((provider) => provider !== null), switchBlock: agentId ? switchBlock(phoneAgent(agentId), store.timeline(agentId)) : null };
+    const builtIn = switchOnly || providerId ? [] : await Promise.all((harness ? [harness] : HARNESS_VALUES).map((target) => phoneModels.provider(target)));
+    const custom = switchOnly ? [] : providerId ? [await phoneModels.custom(providerId)] : harness ? [] : await phoneModels.customAll();
+    const providers = [...builtIn, ...custom].filter((provider) => provider !== null);
+    return { providers, switchBlock: agentId ? switchBlock(phoneAgent(agentId), store.timeline(agentId)) : null };
   },
+  "mobile.providers": async () => (await customProviders.views()).filter((p) => p.hasKey).map((p) => ({ id: p.id, name: p.name })),
   "mobile.setModel": async ({ agentId, selection }: { agentId: string; selection: MobileModelSelection }): Promise<MobileModelSelection> => {
     phoneAgent(agentId);
     if (phoneModelChanges.has(agentId)) throw new Error(T.errMobileModelBusy);
     phoneModelChanges.add(agentId);
     try {
-      const { harness, model, effort } = await phoneModels.select(selection);
-      await runner.switchHarness(agentId, harness, model, effort);
+      const { harness, model, effort, providerId } = await phoneModels.select(selection);
+      await runner.switchHarness(agentId, harness, model, effort, providerId ?? null);
       const agent = phoneAgent(agentId);
-      return { harness: harnessOf(agent), model: agent.model, effort: agent.effort };
+      return { harness: harnessOf(agent), model: agent.model, effort: agent.effort, providerId: agent.providerId ?? null };
     } finally {
       phoneModelChanges.delete(agentId);
     }

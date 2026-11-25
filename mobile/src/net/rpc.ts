@@ -1,4 +1,4 @@
-import type { MobileBrowseResult, MobileMethod, MobileModelCatalog, MobileModelSelection, MobilePreview, MobileReady, MobileSessionRequest } from "@shared/mobile";
+import type { MobileCustomProvider, MobileBrowseResult, MobileMethod, MobileModelCatalog, MobileModelSelection, MobilePreview, MobileReady, MobileSessionRequest } from "@shared/mobile";
 import type { Agent, Harness, RpcMethods, ServerEvent } from "@shared/protocol";
 import { reconnectDelay } from "../logic/backoff";
 import { hasMixedRoutes, routeAddress, routeLabel, routesFromAddress, routeSocketUrl, type ConnectionRoute } from "../logic/routes";
@@ -19,7 +19,8 @@ export type { MobileMethod };
 type MobileOnly = {
   "agents.create": { params: MobileSessionRequest; result: Agent };
   "mobile.createSession": { params: MobileSessionRequest & { selection: MobileModelSelection }; result: Agent };
-  "mobile.models": { params: { agentId?: string; harness?: Harness; switchOnly?: boolean }; result: MobileModelCatalog };
+  "mobile.models": { params: { agentId?: string; harness?: Harness; switchOnly?: boolean; providerId?: string }; result: MobileModelCatalog };
+  "mobile.providers": { params: Record<string, never>; result: MobileCustomProvider[] };
   "mobile.setModel": { params: { agentId: string; selection: MobileModelSelection }; result: MobileModelSelection };
   "mobile.preview": { params: { agentId: string; itemId: string; target: string }; result: MobilePreview };
   "mobile.browse": { params: { path?: string }; result: MobileBrowseResult };

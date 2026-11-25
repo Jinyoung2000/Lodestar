@@ -1,6 +1,7 @@
 import { Image, StyleSheet, View } from "react-native";
 import type { Harness } from "@shared/protocol";
 import type { SessionState } from "../logic/agents";
+import { useAppState } from "../state/app";
 import { useColors } from "../theme/theme";
 import type { PaletteName } from "../theme/tokens.generated";
 import { Text } from "./Text";
@@ -16,36 +17,42 @@ const STATES: Record<SessionState, string> = { waiting: "Needs your reply", erro
 export const STATE_LABEL: Record<SessionState, string | null> = { waiting: "Needs your reply", error: "Stopped with an error", running: "Working", unread: null, idle: null };
 export const STATE_COLOR: Record<SessionState, PaletteName> = { waiting: "warning", error: "danger", running: "accentText", unread: "textMuted", idle: "textMuted" };
 
-export function sessionIdentity(harness: Harness | undefined, state: SessionState) {
-  return `${PROVIDER_NAMES[harness ?? "claude"]}, ${STATES[state]}`;
+export function sessionIdentity(harness: Harness | undefined, state: SessionState, providerName?: string | null) {
+  return `${providerName ?? PROVIDER_NAMES[harness ?? "claude"]}, ${STATES[state]}`;
+}
+
+export function useProviderName(providerId: string | null | undefined): string | null {
+  return useAppState((state) => (providerId ? (state.customProviders.find((p) => p.id === providerId)?.name ?? null) : null));
 }
 
 const MARK_COLOR: Record<Harness, PaletteName> = { claude: "providerClaude", codex: "providerCodex", antigravity: "providerAntigravity", cursor: "providerCursor" };
 const LETTERS: Partial<Record<Harness, string>> = { antigravity: "A", cursor: "C" };
 
-export function ProviderMark({ harness = "claude", size = 16 }: { harness?: Harness; state?: SessionState; selected?: boolean; size?: number }) {
+export function ProviderMark({ harness = "claude", providerId, size = 16 }: { harness?: Harness; providerId?: string | null; state?: SessionState; selected?: boolean; size?: number }) {
   const colors = useColors();
-  const color = colors[MARK_COLOR[harness]];
+  const providerName = useProviderName(providerId);
+  const letter = providerName ? (providerName.trim()[0] ?? "?").toUpperCase() : LETTERS[harness];
+  const color = providerName ? colors.textMuted : colors[MARK_COLOR[harness]];
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.mark, { width: size, height: size }]}>
-      {harness === "antigravity" || harness === "cursor"
+      {letter
         ? <View style={[styles.letterBox, { borderColor: color, width: size, height: size, borderRadius: Math.max(2, size / 5) }]}>
-          <Text allowFontScaling={false} style={[styles.letter, { color, fontSize: Math.round(size * 0.68), lineHeight: Math.round(size * 0.82) }]}>{LETTERS[harness]}</Text>
+          <Text allowFontScaling={false} style={[styles.letter, { color, fontSize: Math.round(size * 0.68), lineHeight: Math.round(size * 0.82) }]}>{letter}</Text>
         </View>
         : <Image accessible={false} importantForAccessibility="no" source={MARKS[harness as keyof typeof MARKS]} resizeMode="contain" style={{ width: size, height: size, tintColor: color }} />}
     </View>
   );
 }
 
-export function ProviderLabel({ harness, workspaceId, parts = [], state, selected, maxFontSizeMultiplier = 1.6 }: {
-  workspaceId?: string | null; harness?: Harness; parts?: (string | null | undefined)[]; state?: SessionState; selected?: boolean; maxFontSizeMultiplier?: number;
+export function ProviderLabel({ harness, providerId, workspaceId, parts = [], state, selected, maxFontSizeMultiplier = 1.6 }: {
+  workspaceId?: string | null; harness?: Harness; providerId?: string | null; parts?: (string | null | undefined)[]; state?: SessionState; selected?: boolean; maxFontSizeMultiplier?: number;
 }) {
   const label = state ? STATE_LABEL[state] : null;
   const rest = parts.filter((part): part is string => !!part);
   if (!harness && rest.length === 0 && !label) return null;
   return (
     <View style={styles.label}>
-      {harness && <ProviderMark harness={harness} size={14} selected={selected} />}
+      {harness && <ProviderMark harness={harness} providerId={providerId} size={14} selected={selected} />}
       {rest.length > 0 && <WorkspaceIcon workspaceId={workspaceId} size={14} />}
       <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={maxFontSizeMultiplier} style={styles.labelText}>
         {rest.join(" · ")}

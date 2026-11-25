@@ -1,4 +1,4 @@
-import type { MobileBrowseResult, MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
+import type { MobileBrowseResult, MobileCustomProvider, MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
 import type { AssistantState } from "@shared/assistant";
 import type { FollowUpsState } from "@shared/followups";
 import type { SnoozeChoice } from "../logic/mateCore.generated";
@@ -32,6 +32,8 @@ export const MODEL_HARNESSES: Harness[] = ["claude", "codex", "antigravity", "cu
 
 export type State = {
   modelProviders: ModelProviders;
+  customProviders: MobileCustomProvider[];
+  customModelProviders: MobileModelProvider[] | undefined;
   modelPins: string[] | null;
   requestQueuing: RequestQueuing;
   workspaceIcons: MobileWorkspaceIcons;
@@ -59,7 +61,7 @@ const timelineKey = (id: string) => `cache:v1:tl:${id}`;
 const EMPTY: SessionTimeline = { items: [], hasMore: false, synced: false, cached: false, loading: false, loadingOlder: false };
 
 export class AppStore {
-  private state: State = { modelProviders: {}, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null };
+  private state: State = { modelProviders: {}, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null };
   private listeners = new Set<() => void>();
   private link: Link | null = null;
   private unsubscribers: (() => void)[] = [];
@@ -97,9 +99,9 @@ export class AppStore {
     const raw = await this.cache.get(INDEX_KEY);
     if (!raw) return false;
     try {
-      const index = JSON.parse(raw) as { agents: Agent[]; workspaces: Workspace[]; recent: string[]; hostName: string | null; modelProviders?: ModelProviders; modelPins?: string[]; workspaceIcons?: MobileWorkspaceIcons };
+      const index = JSON.parse(raw) as { agents: Agent[]; workspaces: Workspace[]; recent: string[]; hostName: string | null; modelProviders?: ModelProviders; modelPins?: string[]; workspaceIcons?: MobileWorkspaceIcons; customProviders?: MobileCustomProvider[] };
       this.recent = index.recent ?? [];
-      this.set({ modelProviders: index.modelProviders ?? {}, modelPins: index.modelPins ?? null, workspaceIcons: index.workspaceIcons ?? {}, agents: index.agents, workspaces: index.workspaces, hostName: index.hostName ?? null, loaded: true });
+      this.set({ modelProviders: index.modelProviders ?? {}, customProviders: Array.isArray(index.customProviders) ? index.customProviders : [], modelPins: index.modelPins ?? null, workspaceIcons: index.workspaceIcons ?? {}, agents: index.agents, workspaces: index.workspaces, hostName: index.hostName ?? null, loaded: true });
       return true;
     } catch {
       return false;
@@ -143,7 +145,7 @@ export class AppStore {
     this.opened.clear();
     const keys = [INDEX_KEY, ...this.recent.map(timelineKey), ...Object.keys(this.state.timelines).map(timelineKey)];
     this.recent = [];
-    this.set({ modelProviders: {}, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null });
+    this.set({ modelProviders: {}, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null });
     await this.cache.remove([...new Set(keys)]).catch(() => {});
   }
 
@@ -174,6 +176,7 @@ export class AppStore {
       if (this.opened.size > 0) void link.call("agents.setOpen", { agentIds: [...this.opened] }).catch(() => {});
       void this.loadDefaults(link, generation);
       void this.loadMate(link, generation);
+      void this.loadCustomProviders();
       if (this.iconsGeneration !== generation || workspaces.some((w) => !(w.id in this.state.workspaceIcons))) void this.loadWorkspaceIcons(link, generation);
     } catch (error) {
       if (this.connectionGeneration !== generation) return;
@@ -219,6 +222,11 @@ export class AppStore {
     switch (event.type) {
       case "modelPins":
         this.acceptModelPins(event.pins);
+        break;
+      case "customProviders":
+        this.customFreshUntil = 0;
+        this.set({ customProviders: event.providers.map((p) => ({ id: p.id, name: p.name })), customModelProviders: undefined });
+        this.touchIndex();
         break;
       case "workspaces":
         this.set({ workspaces: event.workspaces });
@@ -423,7 +431,35 @@ export class AppStore {
     return request;
   }
 
+  private customFreshUntil = 0;
+  private customRequest: Promise<void> | null = null;
+
+  loadCustomProviders(): Promise<void> {
+    if (this.customFreshUntil > Date.now() && this.state.customModelProviders !== undefined) return Promise.resolve();
+    if (this.customRequest) return this.customRequest;
+    const generation = this.connectionGeneration;
+    const request = this.call("mobile.providers", {})
+      .then(async (result) => {
+        const names = Array.isArray(result) ? (result as MobileCustomProvider[]) : [];
+        const catalogs = await Promise.all(names.map((p) => this.modelCall<MobileModelCatalog>("mobile.models", { providerId: p.id }, MODEL_TIMEOUT_MS).catch(() => null)));
+        if (generation !== this.connectionGeneration) return;
+        const providers = catalogs.flatMap((catalog) => catalog?.providers.filter((p) => p.providerId) ?? []);
+        this.customFreshUntil = Date.now() + 300_000;
+        this.set({ customProviders: names.map((p) => ({ id: p.id, name: p.name })), customModelProviders: providers });
+        this.touchIndex();
+      })
+      .catch(() => {
+        if (generation === this.connectionGeneration) this.set({ customModelProviders: [] });
+      })
+      .finally(() => {
+        if (this.customRequest === request) this.customRequest = null;
+      });
+    this.customRequest = request;
+    return request;
+  }
+
   async warmModels() {
+    void this.loadCustomProviders();
     const results = await Promise.allSettled(MODEL_HARNESSES.map((harness) => this.loadProvider(harness)));
     const failed = MODEL_HARNESSES.filter((_, index) => results[index].status === "rejected");
     const missing = failed.filter((harness) => this.state.modelProviders[harness] === undefined);
@@ -456,10 +492,10 @@ export class AppStore {
     return request;
   }
 
-  async setModelPin(harness: Harness, model: string, pinned: boolean) {
+  async setModelPin(harness: Harness, model: string, pinned: boolean, providerId?: string) {
     const revision = this.pinRevision;
     const generation = this.connectionGeneration;
-    const pins = await this.call("models.setPin", { harness, model, pinned }) as string[];
+    const pins = await this.call("models.setPin", { harness, model, pinned, ...(providerId ? { providerId } : {}) }) as string[];
     if (generation === this.connectionGeneration && revision === this.pinRevision) this.acceptModelPins(pins);
   }
 
@@ -624,7 +660,7 @@ export class AppStore {
     const writes: Promise<void>[] = [];
     for (const key of dirty) {
       if (key === "*index") {
-        writes.push(this.cache.set(INDEX_KEY, JSON.stringify({ agents: this.state.agents, workspaces: this.state.workspaces, recent: this.recent, hostName: this.state.hostName, modelProviders: this.state.modelProviders, modelPins: this.state.modelPins, workspaceIcons: this.state.workspaceIcons })));
+        writes.push(this.cache.set(INDEX_KEY, JSON.stringify({ agents: this.state.agents, workspaces: this.state.workspaces, recent: this.recent, hostName: this.state.hostName, modelProviders: this.state.modelProviders, modelPins: this.state.modelPins, workspaceIcons: this.state.workspaceIcons, customProviders: this.state.customProviders })));
         continue;
       }
       const timeline = this.state.timelines[key];

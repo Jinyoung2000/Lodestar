@@ -18,7 +18,7 @@ import { CreatePreview } from "../../ui/CreatePreview";
 import { Button } from "../../ui/Button";
 import { createFrameMeter } from "../../state/frames";
 import { radius, spacing, useColors } from "../../theme/theme";
-import { ProviderLabel, sessionIdentity } from "../../ui/ProviderMark";
+import { ProviderLabel, sessionIdentity, useProviderName } from "../../ui/ProviderMark";
 import { ConnectionTitle } from "../../ui/ConnectionTitle";
 import { Composer } from "../../ui/Composer";
 import { useFoldLayout } from "../../ui/FoldLayout";
@@ -274,6 +274,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
   const reloadMessages = timelineError ? () => void store.syncTimeline(id) : undefined;
   const title = agent?.title ?? "Session";
   const state = agent ? stateOf(agent) : "idle";
+  const providerName = useProviderName(agent?.providerId);
   const workspace = agent ? workspaceName(agent, workspaces) : "";
   const hideChatToolbar = !!pending && availableHeight < 200 && !galleryOpen;
   const showSessions = !!pane?.first && railCollapsed;
@@ -290,8 +291,8 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
             {showSessions && <ToolbarButton icon="line.3.horizontal" label={waiting ? `Sessions, ${waiting} ${waiting === 1 ? "needs" : "need"} your reply` : "Sessions"} badge={waiting || undefined} onPress={() => { Keyboard.dismiss(); setDrawerOpen(true); }} />}
             <Pressable accessible={false} style={styles.title} disabled={!pane} onLongPress={() => armSplitDrag({ agentId: id, title })} onPressOut={endSplitPress}>
               <ConnectionTitle title={title} subtitle={workspace} hidden={connectionInRail || galleryOpen || previewOpen || modelOpen} style={styles.fill}
-                detail={agent ? <ProviderLabel harness={agent.harness} workspaceId={agent.workspaceId} parts={[workspace]} state={state} maxFontSizeMultiplier={1.2} /> : undefined}>
-                <View accessible accessibilityRole="header" accessibilityLabel={agent ? `${title}, ${sessionIdentity(agent.harness, state)}` : title} style={styles.titleLine}>
+                detail={agent ? <ProviderLabel harness={agent.harness ?? (agent.providerId ? "claude" : undefined)} providerId={agent.providerId} workspaceId={agent.workspaceId} parts={[workspace]} state={state} maxFontSizeMultiplier={1.2} /> : undefined}>
+                <View accessible accessibilityRole="header" accessibilityLabel={agent ? `${title}, ${sessionIdentity(agent.harness, state, providerName)}` : title} style={styles.titleLine}>
                   <Text style={styles.titleText} color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
                 </View>
               </ConnectionTitle>
@@ -394,7 +395,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
             initialText={draft}
             draftKey={id}
             disabled={conn !== "online" || !agent || !!pending || galleryOpen || previewOpen || modelOpen}
-            modelControl={agent ? { harness: model.selection.harness, name: model.name, effort: model.effort, onPress: model.show } : undefined}
+            modelControl={agent ? { harness: model.selection.harness, providerId: model.selection.providerId, name: model.name, effort: model.effort, onPress: model.show } : undefined}
             onSend={send}
             onStop={() => void store.interrupt(id).catch(() => {})}
             onDequeue={async (queueId) => (await store.dequeue(id, queueId))?.text ?? null}

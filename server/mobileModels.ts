@@ -3,6 +3,7 @@ import { claudeModels, modelPinKey, toolModels, type PickerModel } from "../shar
 import { modelNameFromId } from "../shared/modelName";
 import type { EffortLevel, Harness } from "../shared/protocol";
 import type { AgentRunner } from "./agents";
+import type { CustomProviders } from "./customProviders";
 import { defaultsReader } from "./defaults";
 import type { MetaService } from "./meta";
 import type { Store } from "./store";
@@ -30,7 +31,20 @@ function providerOf(harness: Harness, choices: PickerModel[], defaultId: string 
   return { harness, models, defaultModel, defaultModelKnown: !!reportedDefault };
 }
 
-export function mobileModels(store: Store, runner: AgentRunner, metaService: MetaService) {
+export function mobileModels(store: Store, runner: AgentRunner, metaService: MetaService, customProviders: CustomProviders) {
+  async function custom(providerId: string): Promise<MobileModelProvider | null> {
+    const found = (await customProviders.views()).find((p) => p.id === providerId && p.hasKey);
+    if (!found) return null;
+    const models = found.models.map((m) => ({ value: m.id, pinKey: modelPinKey("claude", m.id, found.id), resolved: null, displayName: m.name ?? m.id, levels: [], defaultLevel: null }));
+    return { harness: "claude", providerId: found.id, name: found.name, models, defaultModel: found.defaultModel, defaultModelKnown: true };
+  }
+
+  async function customAll(): Promise<MobileModelProvider[]> {
+    const views = await customProviders.views();
+    const listed = await Promise.all(views.filter((p) => p.hasKey).map((p) => custom(p.id)));
+    return listed.filter((p): p is MobileModelProvider => p !== null);
+  }
+
   const pending = new Map<Harness, Promise<MobileModelProvider | null>>();
   const readProvider = async (harness: Harness) => {
     if (harness === "claude") {
@@ -57,6 +71,13 @@ export function mobileModels(store: Store, runner: AgentRunner, metaService: Met
   }
 
   async function select(selection: MobileModelSelection): Promise<MobileModelSelection> {
+    if (selection.providerId) {
+      const origin = await custom(selection.providerId);
+      if (!origin || selection.harness !== "claude") throw new Error(T.errMobileProviderUnavailable);
+      const model = selection.model ?? origin.defaultModel;
+      if (!origin.models.some((m) => m.value === model)) throw new Error(T.errMobileModelUnavailable);
+      return { harness: "claude", model, effort: null, providerId: origin.providerId };
+    }
     const origin = await provider(selection.harness);
     if (!origin) throw new Error(T.errMobileProviderUnavailable);
     const id = selection.model ?? origin.defaultModel;
@@ -71,5 +92,5 @@ export function mobileModels(store: Store, runner: AgentRunner, metaService: Met
     return { ...selection, model: selection.model ?? (origin.defaultModelKnown ? origin.defaultModel : null), effort: selection.effort ?? model?.defaultLevel ?? null };
   }
 
-  return { provider, select };
+  return { provider, custom, customAll, select };
 }

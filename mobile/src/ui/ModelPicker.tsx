@@ -25,6 +25,11 @@ const SWITCH_MESSAGES: Record<SwitchBlock, string> = {
   assistant: "Mate runs on Claude only",
 };
 
+type SourceKey = Harness | `p:${string}`;
+const entryKey = (entry: MobileModelProvider): SourceKey => (entry.providerId ? `p:${entry.providerId}` : entry.harness);
+const selectionKey = (selection: MobileModelSelection): SourceKey => (selection.providerId ? `p:${selection.providerId}` : selection.harness);
+const entryName = (entry: MobileModelProvider) => entry.name ?? PROVIDER_NAMES[entry.harness];
+
 function modelOf(provider: MobileModelProvider, model: string | null) {
   const id = model ?? provider.defaultModel;
   if (id === null) return model === null ? provider.models.find((entry) => entry.value === "default") : undefined;
@@ -37,15 +42,17 @@ function modelOf(provider: MobileModelProvider, model: string | null) {
 
 export function useModelPicker(agent?: Agent, draft?: MobileModelSelection) {
   const [open, setOpen] = useState(false);
-  const selection = agent
-    ? { harness: agent.harness ?? "claude", model: agent.model, effort: agent.effort }
+  const selection: MobileModelSelection = agent
+    ? { harness: agent.harness ?? "claude", model: agent.model, effort: agent.effort, ...(agent.providerId ? { providerId: agent.providerId } : {}) }
     : draft ?? DEFAULT_MODEL_SELECTION;
-  const { harness } = selection;
-  const provider = useAppState((state) => state.modelProviders[harness]);
+  const { harness, providerId } = selection;
+  const builtIn = useAppState((state) => state.modelProviders[harness]);
+  const custom = useAppState((state) => (providerId ? state.customModelProviders?.find((entry) => entry.providerId === providerId) : undefined));
+  const provider = providerId ? custom : builtIn;
   const selected = selection.model === "default" ? null : selection.model;
-  const modelId = selected ?? agent?.activeModel ?? provider?.defaultModel ?? null;
+  const modelId = providerId ? (selected ?? provider?.defaultModel ?? agent?.activeModel ?? null) : (selected ?? agent?.activeModel ?? provider?.defaultModel ?? null);
   const model = provider ? modelOf(provider, modelId) : undefined;
-  const name = modelId ? modelLabel(harness, modelId, provider, agent?.activeModel) : "…";
+  const name = modelId ? (providerId ? (provider?.models.find((entry) => entry.value === modelId)?.displayName ?? modelId) : modelLabel(harness, modelId, provider, agent?.activeModel)) : "…";
   const effort = selection.effort ?? agent?.activeEffort ?? model?.defaultLevel ?? null;
   const show = useCallback(() => {
     Keyboard.dismiss();
@@ -84,6 +91,7 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
   const { paneWidth, fontScale } = useFoldLayout();
   const searchHint = paneWidth < 360 && fontScale >= 1.3 ? "Search" : "Find a model";
   const available = useAppState((state) => state.modelProviders);
+  const customAvailable = useAppState((state) => state.customModelProviders);
   const favorites = useAppState((state) => state.modelPins);
   const online = useAppState((state) => state.conn === "online");
   const [reportedBlock, setSwitchBlock] = useState<SwitchBlock | null | undefined>(agentId ? undefined : null);
@@ -92,8 +100,8 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
   const [retry, setRetry] = useState(0);
   const [page, setPage] = useState<"models" | "reasoning" | "filter">("models");
   const [query, setQuery] = useState("");
-  const [chosenFilter, setFilter] = useState<Harness | "favorites" | null>();
-  const [collapsed, setCollapsed] = useState<Partial<Record<Harness, boolean>>>({});
+  const [chosenFilter, setFilter] = useState<SourceKey | "favorites" | null>();
+  const [collapsed, setCollapsed] = useState<Partial<Record<SourceKey, boolean>>>({});
   const [changingPin, setChangingPin] = useState(false);
   const [draft, setDraft] = useState<MobileModelSelection | null>(null);
   const [saving, setSaving] = useState(false);
@@ -127,41 +135,41 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
   }, [page, saving]);
 
   const displayed = draft ?? selection;
-  const providers = MODEL_HARNESSES.flatMap((harness) => available[harness] ?? []);
+  const providers = [...MODEL_HARNESSES.flatMap((harness) => available[harness] ?? []), ...(customAvailable ?? [])];
   const loading = online && !loadError && MODEL_HARNESSES.some((harness) => available[harness] === undefined);
   const filter = chosenFilter === undefined ? (!query.trim() && favorites?.length ? "favorites" : null) : chosenFilter;
   const pinOrder = new Map(favorites?.map((key, index) => [key, index]));
-  const provider = providers.find((entry) => entry.harness === displayed.harness);
+  const provider = providers.find((entry) => entryKey(entry) === selectionKey(displayed));
   const current = provider && modelOf(provider, displayed.model);
   const effort = displayed.effort ?? current?.defaultLevel ?? null;
-  const changed = displayed.harness !== selection.harness || displayed.model !== selection.model || displayed.effort !== selection.effort;
+  const changed = selectionKey(displayed) !== selectionKey(selection) || displayed.model !== selection.model || displayed.effort !== selection.effort;
   const narrowed = !!query.trim() || filter !== null;
   const needle = query.trim().toLowerCase();
   const groups = providers.flatMap((entry) => {
-    if (filter && filter !== "favorites" && filter !== entry.harness) return [];
+    if (filter && filter !== "favorites" && filter !== entryKey(entry)) return [];
     const models = entry.models.filter((model) => {
-      return (filter !== "favorites" || (model.pinKey !== undefined && pinOrder.has(model.pinKey))) && [PROVIDER_NAMES[entry.harness], model.displayName, modelLabel(entry.harness, model.value, entry), model.value].some((value) => value.toLowerCase().includes(needle));
+      return (filter !== "favorites" || (model.pinKey !== undefined && pinOrder.has(model.pinKey))) && [entryName(entry), model.displayName, modelLabel(entry.harness, model.value, entry), model.value].some((value) => value.toLowerCase().includes(needle));
     }).sort((a, b) => (pinOrder.get(a.pinKey ?? "") ?? pinOrder.size) - (pinOrder.get(b.pinKey ?? "") ?? pinOrder.size));
     return models.length ? [{ entry, models }] : [];
   });
 
-  const favorite = async (harness: Harness, model: string, pinned: boolean) => {
+  const favorite = async (entry: MobileModelProvider, model: string, pinned: boolean) => {
     setChangingPin(true);
     setError(null);
-    try { await store.setModelPin(harness, model, pinned); }
+    try { await store.setModelPin(entry.harness, model, pinned, entry.providerId); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save favorite."); }
     finally { setChangingPin(false); }
   };
   const choose = (entry: MobileModelProvider, model: string | null) => {
     setError(null);
-    if (entry.harness === selection.harness && model === selection.model) {
+    if (entryKey(entry) === selectionKey(selection) && model === selection.model) {
       setDraft(null);
       return;
     }
-    if (entry.harness === displayed.harness && model === displayed.model) return;
+    if (entryKey(entry) === selectionKey(displayed) && model === displayed.model) return;
     const next = modelOf(entry, model);
     const level = model && displayed.effort && next?.levels.includes(displayed.effort) ? displayed.effort : null;
-    setDraft({ harness: entry.harness, model, effort: level });
+    setDraft({ harness: entry.harness, model, effort: level, ...(entry.providerId ? { providerId: entry.providerId } : {}) });
   };
   const save = async (choice: MobileModelSelection, dismiss: boolean) => {
     if (inFlight.current) return;
@@ -218,24 +226,26 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
           {loadError ? <View><Text variant="secondary" color="textMuted">{loadError}</Text>{!loadError.startsWith("Update Lodestar") && <Button title="Try again" kind="plain" onPress={() => { setLoadError(null); setRetry((n) => n + 1); }} />}</View> : loading && !groups.length && <ActivityIndicator color={colors.textMuted} />}
           {switchBlock && <Text variant="caption" color="textMuted" style={styles.note}>{SWITCH_MESSAGES[switchBlock]}</Text>}
           {groups.map(({ entry, models }) => {
-            const name = PROVIDER_NAMES[entry.harness];
-            const hidden = !narrowed && (collapsed[entry.harness] ?? ((entry.harness === "antigravity" || entry.harness === "cursor") && displayed.harness !== entry.harness));
-            const locked = !online || saving || (switchBlock !== null && entry.harness !== selection.harness);
-            return <View key={entry.harness}>
-              <Pressable accessibilityRole="button" accessibilityLabel={name} accessibilityState={{ expanded: !hidden }} disabled={narrowed} style={styles.groupHead} onPress={() => setCollapsed((old) => ({ ...old, [entry.harness]: !hidden }))}>
-                <ProviderMark harness={entry.harness} size={16} /><Text color="textMuted" style={styles.bold}>{name}</Text>
+            const key = entryKey(entry);
+            const name = entryName(entry);
+            const optional = !!entry.providerId || entry.harness === "antigravity" || entry.harness === "cursor";
+            const hidden = !narrowed && (collapsed[key] ?? (optional && selectionKey(displayed) !== key));
+            const locked = !online || saving || (switchBlock !== null && key !== selectionKey(selection));
+            return <View key={key}>
+              <Pressable accessibilityRole="button" accessibilityLabel={name} accessibilityState={{ expanded: !hidden }} disabled={narrowed} style={styles.groupHead} onPress={() => setCollapsed((old) => ({ ...old, [key]: !hidden }))}>
+                <ProviderMark harness={entry.harness} providerId={entry.providerId} size={16} /><Text color="textMuted" style={styles.bold}>{name}</Text>
                 <Text variant="caption" color="textMuted" style={styles.flex}>{models.length}</Text>
                 {!narrowed && <Icon name={hidden ? "chevron.right" : "chevron.down"} size={14} color="textMuted" />}
               </Pressable>
               {!hidden && <View style={[styles.group, { backgroundColor: colors.surfaceBase }]}>
-                {!needle && <Choice label={defaultChoiceLabel(entry)} checked={entry.harness === displayed.harness && displayed.model === null} disabled={locked} onPress={() => choose(entry, null)} />}
+                {!needle && <Choice label={defaultChoiceLabel(entry)} checked={key === selectionKey(displayed) && displayed.model === null} disabled={locked} onPress={() => choose(entry, null)} />}
                 {models.map((model) => {
-                  const key = `${entry.harness}/${model.value}`;
+                  const rowKey = `${key}/${model.value}`;
                   const label = modelLabel(entry.harness, model.value, entry);
                   const starred = !!model.pinKey && pinOrder.has(model.pinKey);
-                  return <View key={key} style={styles.modelRow}>
-                    <Choice label={label} checked={entry.harness === displayed.harness && displayed.model !== null && model.value === current?.value} disabled={locked} onPress={() => choose(entry, model.value)} />
-                    <Pressable accessibilityRole="button" accessibilityLabel={`${starred ? "Unfavorite" : "Favorite"} ${label}`} accessibilityState={{ selected: starred }} disabled={!online || !favorites || !model.pinKey || changingPin} style={styles.target} onPress={() => void favorite(entry.harness, model.value, !starred)}>
+                  return <View key={rowKey} style={styles.modelRow}>
+                    <Choice label={label} checked={key === selectionKey(displayed) && displayed.model !== null && model.value === current?.value} disabled={locked} onPress={() => choose(entry, model.value)} />
+                    <Pressable accessibilityRole="button" accessibilityLabel={`${starred ? "Unfavorite" : "Favorite"} ${label}`} accessibilityState={{ selected: starred }} disabled={!online || !favorites || !model.pinKey || changingPin} style={styles.target} onPress={() => void favorite(entry, model.value, !starred)}>
                       <Image accessible={false} importantForAccessibility="no" source={starred ? require("../../assets/model-picker/favorite.png") : require("../../assets/model-picker/favorite-outline.png")} style={{ width: 17, height: 17, tintColor: starred ? colors.accentText : colors.textMuted }} />
                     </Pressable>
                   </View>;
@@ -258,14 +268,14 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
         {page === "filter" && <View style={[styles.group, { backgroundColor: colors.surfaceBase }]}>
           <Choice label="All providers" checked={!filter} onPress={() => chooseFilter(null)} />
           <Choice label="Favorites" checked={filter === "favorites"} onPress={() => chooseFilter("favorites")} />
-          {providers.map((entry) => <Choice key={entry.harness} label={PROVIDER_NAMES[entry.harness]} checked={filter === entry.harness} onPress={() => chooseFilter(entry.harness)} />)}
+          {providers.map((entry) => <Choice key={entryKey(entry)} label={entryName(entry)} checked={filter === entryKey(entry)} onPress={() => chooseFilter(entryKey(entry))} />)}
         </View>}
       </ScrollView>
   </View>;
 }
 
 function defaultChoiceLabel(entry: MobileModelProvider) {
-  const base = entry.harness === "claude" ? "Mac default" : `${PROVIDER_NAMES[entry.harness]} default`;
+  const base = entry.harness === "claude" && !entry.providerId ? "Mac default" : `${entryName(entry)} default`;
   return entry.defaultModel ? `${base} (${modelLabel(entry.harness, entry.defaultModel, entry)})` : base;
 }
 

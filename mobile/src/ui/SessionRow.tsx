@@ -9,7 +9,7 @@ import { spacing, useColors, withAlpha } from "../theme/theme";
 import { Icon } from "./Icon";
 import { endSplitPress } from "./SplitDrag";
 import { ProjectIcon } from "./ProjectIcon";
-import { ProviderLabel, ProviderMark, sessionIdentity } from "./ProviderMark";
+import { ProviderLabel, ProviderMark, sessionIdentity, useProviderName } from "./ProviderMark";
 import { Text } from "./Text";
 
 type RowActions = { agent: Agent; selected?: boolean; onPress: (id: string) => void; onLongPress: (agent: Agent) => void };
@@ -33,6 +33,7 @@ export function SessionRowFrame({ agent, selected, state, stamp, emphasized, sho
   state: SessionState; stamp: string; emphasized: boolean; showPin?: boolean; detailsLabel?: string; children: ReactNode;
 }) {
   const colors = useColors();
+  const providerName = useProviderName(agent.providerId);
   const unread = showPin && !!agent.unread;
   const doneLabel = agent.done ? "Mark as not done" : "Mark as done";
   const actionColor = agent.done ? "textStrong" : "onAccent";
@@ -44,7 +45,7 @@ export function SessionRowFrame({ agent, selected, state, stamp, emphasized, sho
       <Text variant="secondary" color={actionColor} style={styles.strong}>{agent.done ? "Not done" : "Done"}</Text>
     </Animated.View>
     <Animated.View {...swipe.handlers} style={{ transform: [{ translateX: swipe.offset }], backgroundColor: colors.background }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={[agent.title, sessionIdentity(agent.harness, state), agent.pinned ? "Pinned" : null, agent.done ? "Done" : null, detailsLabel, stamp].filter(Boolean).join(", ")} accessibilityState={selected === undefined ? undefined : { selected }} accessibilityHint="Long press for more actions"
+      <Pressable accessibilityRole="button" accessibilityLabel={[agent.title, sessionIdentity(agent.harness, state, providerName), agent.pinned ? "Pinned" : null, agent.done ? "Done" : null, detailsLabel, stamp].filter(Boolean).join(", ")} accessibilityState={selected === undefined ? undefined : { selected }} accessibilityHint="Long press for more actions"
         accessibilityActions={[{ name: "toggleDone", label: doneLabel }]} onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === "toggleDone") toggleDone(); }}
         onPress={() => onPress(agent.id)} onLongPress={() => onLongPress(agent)} onPressOut={endSplitPress}
         style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.pressed : selected ? colors.selected : colors.background }]}>
@@ -52,7 +53,7 @@ export function SessionRowFrame({ agent, selected, state, stamp, emphasized, sho
           {state === "waiting" && !selected && !pressed && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(colors.warning, 0.14) }]} />}
           {unread && <View pointerEvents="none" style={[styles.unreadDot, { backgroundColor: colors.unread }]} />}
           <View style={styles.line}>
-            <View style={styles.mark}><ProviderMark harness={agent.harness} size={16} /></View>
+            <View style={styles.mark}><ProviderMark harness={agent.harness} providerId={agent.providerId} size={16} /></View>
             <Text color={showPin && agent.done ? "textMuted" : emphasized ? "textStrong" : "text"} numberOfLines={1} style={[styles.title, emphasized && styles.strong]}>{agent.title}</Text>
             {showPin && agent.pinned && <View accessibilityLabel="Pinned" style={styles.pin}><ProjectIcon mark="pinned" size={14} strong={selected} /></View>}
             <Text variant="caption" color={unread ? "unread" : "textSubtle"} numberOfLines={1} maxFontSizeMultiplier={16 / 13}
