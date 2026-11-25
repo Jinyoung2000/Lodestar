@@ -2091,7 +2091,7 @@ export const S = {
   formattedWith: (name: string) => `Formatted with ${name}`,
   formatUnchanged: (name: string) => `Already formatted (${name})`,
   noFormatter: (language: string) => `There is no formatter for '${language}' files installed.`,
-  formatFailed: (message: string) => `Format failed: ${message}`,
+  savedUnformatted: (message: string) => `Saved without formatting. ${message}`,
   formatDocChanged: "The file changed while formatting. Try again.",
   formatNeedsEditor: "Open a file tab to format it",
   formatCannot: (extension: string, language: string) => `Extension '${extension}' is configured as formatter but it cannot format '${language}'-files`,

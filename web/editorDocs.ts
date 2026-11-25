@@ -587,7 +587,7 @@ export async function formatDoc(key: string, selection: boolean, silent: boolean
   try {
     result = await rpc.call("format.run", { workspaceId: doc.workspaceId, path, text, range, formatter });
   } catch (error) {
-    if (!options.quiet) flash(S.formatFailed((error as Error).message), "error");
+    if (!options.quiet) reportFormatError(view, (error as Error).message, silent);
     return false;
   }
   if (result.problem) {
@@ -599,7 +599,7 @@ export async function formatDoc(key: string, selection: boolean, silent: boolean
     try {
       formatted = await lspFormat(view, range);
     } catch (error) {
-      if (!options.quiet) flash(S.formatFailed((error as Error).message), "error");
+      if (!options.quiet) reportFormatError(view, (error as Error).message, silent);
       return false;
     }
   }
@@ -613,6 +613,10 @@ export async function formatDoc(key: string, selection: boolean, silent: boolean
   if (!silent && changed) announce(S.formattedWith(label));
   else if (!silent) hint(S.formatUnchanged(label), view);
   return changed;
+}
+
+function reportFormatError(view: EditorView, message: string, onSave: boolean) {
+  hint(onSave ? S.savedUnformatted(message) : message, view);
 }
 
 export function formatPastedRange(view: EditorView, range: { from: number; to: number }) {

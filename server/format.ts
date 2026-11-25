@@ -210,7 +210,7 @@ async function prepareFormatter(id: FormatterId, languageId: string, ctx: ToolCo
       ok: true,
       run: async () => {
         const result = await execTool(tool, args, workspaceDir, text);
-        if (result.code !== 0) throw new Error(T.errFormatFailed("oxfmt", firstLine(result.stderr || result.stdout)));
+        if (result.code !== 0) throw new Error(T.errFormatFailed("oxfmt", toolMessage(result.stderr || result.stdout, absolute)));
         return result.stdout;
       },
     };
@@ -236,7 +236,7 @@ async function prepareFormatter(id: FormatterId, languageId: string, ctx: ToolCo
       ok: true,
       run: async () => {
         const result = await execTool(tool, args, workspaceDir, text);
-        if (result.code !== 0) throw new Error(T.errFormatFailed("Prettier", firstLine(result.stderr)));
+        if (result.code !== 0) throw new Error(T.errFormatFailed("Prettier", toolMessage(result.stderr, absolute)));
         return result.stdout;
       },
     };
@@ -308,6 +308,11 @@ function execTool(tool: ToolLocation, args: string[], cwd: string, input: string
     });
     child.stdin?.end(input);
   });
+}
+
+function toolMessage(output: string, absolute: string) {
+  const line = output.split("\n").find((text) => text.trim()) ?? "";
+  return firstLine(line.trim().replace(/^\[error\]\s*/, "").replace(`${absolute}: `, ""));
 }
 
 function firstLine(text: string) {
