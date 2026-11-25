@@ -14,12 +14,14 @@ import { ActionMenuHost } from "../ui/ActionMenuHost";
 import { ConnectionStatusProvider } from "../ui/ConnectionTitle";
 import { CrashBoundary, CrashScreen } from "../ui/CrashBoundary";
 import { describeCrash, installCrashRecorder, recordCrash } from "../state/crashLog";
+import { diagState, installDiagLog } from "../state/diagLog";
 import { foldRailWidth, FoldLayoutContext, useWindowFontScale } from "../ui/FoldLayout";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
 import { SessionsList } from "../ui/SessionsList";
 import { measureSplitRegion, SplitDragLayer, useSplitDropRegion } from "../ui/SplitDrag";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
+installDiagLog();
 installCrashRecorder();
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
@@ -135,6 +137,7 @@ export default function RootLayout() {
     if (themeChoice !== null) void applySystemTheme(colors.background, scheme);
   }, [colors.background, scheme, themeChoice]);
 
+  diagState("layout", `route=${route ?? "index"} id=${id ?? "-"} theme=${themeChoice} boot=${bootstrapped} paired=${!!connection} width=${Math.round(width)} rail=${railWidth} panes=${panes.length}`);
   if (themeChoice === null) return null;
   const pushAnimation = expanded ? "none" : Platform.OS === "android" ? "fade_from_bottom" : "default";
   return (
