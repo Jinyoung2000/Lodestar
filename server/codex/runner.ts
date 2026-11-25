@@ -8,6 +8,7 @@ import { codexMcpConfig, type McpLaunch } from "../mateMcp";
 import { cleanAnswers, QUESTION_TOOL } from "../interactiveTools";
 import { imagePath } from "../images";
 import { chatGuidance, sessionEnv } from "../sessionEnv";
+import { withChatBlockGuidance } from "../sessionGuidance";
 import type { Store } from "../store";
 import { T } from "../strings";
 import { AppServer, AppServerError, codexBin } from "./appServer";
@@ -351,14 +352,14 @@ export class CodexRunner {
 
   private async ensureThread(server: AppServer, session: Session, agent: Agent, permission: NonNullable<ReturnType<typeof codexPermission>>): Promise<string> {
     if (session.loaded && session.threadId) return session.threadId;
-    const guidance = chatGuidance(agent, this.host.store.workspaces, { explicitId: false });
+    const guidance = withChatBlockGuidance(chatGuidance(agent, this.host.store.workspaces, { explicitId: false }));
     const common = {
       cwd: agent.cwd,
       approvalPolicy: permission.approvalPolicy,
       approvalsReviewer: permission.approvalsReviewer,
       sandbox: permission.sandbox,
       config: { ...codexSessionConfig(sessionEnv(agent.id)), ...codexMcpConfig(this.host.mateMcp(agent)) },
-      ...(guidance ? { developerInstructions: guidance } : {}),
+      developerInstructions: guidance,
       ...(agent.model ? { model: agent.model } : {}),
     };
     let response: { thread?: { id?: string }; model?: string; reasoningEffort?: string | null } | null = null;

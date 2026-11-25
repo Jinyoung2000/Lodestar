@@ -7,6 +7,7 @@ import { isDirectory } from "../cwdWatch";
 import { imageBlock } from "../images";
 import { acpMcpServers, isMateToolCall } from "../mateMcp";
 import { chatGuidance } from "../sessionEnv";
+import { withChatBlockGuidance } from "../sessionGuidance";
 import { T } from "../strings";
 import { AcpConnection, AcpError, ANTIGRAVITY_LAUNCH, antigravityBin, antigravityEnv, type AcpLaunch } from "./acp";
 import {
@@ -81,6 +82,7 @@ type Session = {
   approvalSince: number | null;
   interruptTimer: NodeJS.Timeout | null;
   folders: string;
+  pendingGuidance: string | null;
 };
 
 type SessionResponse = { sessionId?: string; configOptions?: AcpConfigOption[]; models?: { currentModelId?: string } };
@@ -200,7 +202,9 @@ export class AcpRunner {
     }
     const turn: PromptTurn = { pending: 1, initial: null };
     session.promptTurn = turn;
-    void connection.request<PromptResponse>("session/prompt", { sessionId, prompt: promptContent(prompt, shown) }).then(
+    const sent = session.pendingGuidance ? `${session.pendingGuidance}\n\n${prompt}` : prompt;
+    session.pendingGuidance = null;
+    void connection.request<PromptResponse>("session/prompt", { sessionId, prompt: promptContent(sent, shown) }).then(
       (value) => {
         turn.initial = { status: "fulfilled", value };
         this.promptSettled(session, turn);
@@ -446,6 +450,7 @@ export class AcpRunner {
         approvalSince: null,
         interruptTimer: null,
         folders: "",
+        pendingGuidance: null,
       };
       this.sessions.set(agent.id, session);
       if (session.sessionId) this.bySession.set(session.sessionId, agent.id);
@@ -468,12 +473,13 @@ export class AcpRunner {
   private async ensureSession(connection: AcpConnection, session: Session, agent: Agent): Promise<string> {
     if (session.loaded && session.sessionId) return session.sessionId;
     const extraDirs = this.provider.processPerSession ? [] : this.host.store.extraDirs(agent);
-    const guidance = connection.canAppendSystemPrompt() ? chatGuidance(agent, this.host.store.workspaces, { explicitId: true }) : null;
+    const guidance = withChatBlockGuidance(chatGuidance(agent, this.host.store.workspaces, { explicitId: true }));
+    const appendsSystemPrompt = connection.canAppendSystemPrompt();
     const common = {
       cwd: agent.cwd,
       mcpServers: acpMcpServers(this.host.mateMcp(agent)),
       ...(extraDirs.length && connection.canAddDirectories() ? { additionalDirectories: extraDirs } : {}),
-      ...(guidance ? { _meta: { antigravity: { systemPrompt: { append: guidance } } } } : {}),
+      ...(appendsSystemPrompt ? { _meta: { antigravity: { systemPrompt: { append: guidance } } } } : {}),
     };
     let response: SessionResponse | null = null;
     if (session.sessionId) {
@@ -500,7 +506,9 @@ export class AcpRunner {
         session.sessionId = null;
       }
     }
+    const fresh = !response;
     if (!response) response = await connection.request<SessionResponse>("session/new", common);
+    session.pendingGuidance = fresh && !appendsSystemPrompt ? guidance : null;
     const sessionId = response?.sessionId;
     if (!sessionId) throw new AcpError(`${connection.label} did not return a session id`);
     session.sessionId = sessionId;

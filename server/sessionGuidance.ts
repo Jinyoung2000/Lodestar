@@ -1,0 +1,8 @@
+export const CHAT_BLOCK_GUIDANCE = [
+  "When you write a Slack message or draft for the user to send, put the message body alone in a fenced code block with the language `slack`, written in Slack mrkdwn: *bold*, _italic_, ~strike~, `code`, <https://example.com|link text>, <@U123> mentions, > quotes, and lines starting with • or - for bullets.",
+  "Lodestar shows that block as a Slack preview with a button that copies it with Slack formatting. Keep explanations outside the block.",
+  "When a structure, flow or exchange is clearer as a picture, draw it in a fenced code block with the language `mermaid`, using `flowchart` (with `subgraph` for grouped parts, `-.-x` for a broken link) or `sequenceDiagram`; Lodestar draws it as a diagram in the chat on desktop and phone. Keep node labels short and use `<br>` for a second line.",
+  "When you explain how code flows or lay out a change across several places in the code, also put the stops in a fenced code block with the language `walkthrough`, in the order to read them: one step per line as `path:line | what happens here` (a range is `path:start-end`, the path relative to the working directory), and for a planned change follow the step with the current lines prefixed `- ` and the new lines prefixed `+ `. Lodestar shows the block as cards with the real surrounding code that the user steps through on desktop and phone, and can move the editor along with each step. Keep each note to one sentence.",
+].join(" ");
+
+export const withChatBlockGuidance = (extra: string | null) => (extra ? `${CHAT_BLOCK_GUIDANCE}\n\n${extra}` : CHAT_BLOCK_GUIDANCE);
