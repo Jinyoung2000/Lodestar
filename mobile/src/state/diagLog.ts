@@ -19,6 +19,10 @@ const SAVE_DELAY_MS = 1000;
 const UPLOAD_DELAY_MS = 15_000;
 const URGENT_UPLOAD_DELAY_MS = 800;
 const HEAP_EVERY_MS = 60_000;
+const BEAT_MS = 1000;
+const STALL_MS = 1500;
+const SLOW_FRAME_MS = 500;
+const NO_FRAME_MS = 3000;
 const DEVICE_KEY = "diag:device";
 const LOG_KEY = "diag:log";
 
@@ -151,6 +155,29 @@ function reportPreviousExits() {
   }
 }
 
+let lastBeat = Date.now();
+let leftAt = 0;
+function heartbeat() {
+  const now = Date.now();
+  const late = now - lastBeat - BEAT_MS;
+  const spannedBackground = leftAt >= lastBeat;
+  lastBeat = now;
+  if (late > STALL_MS && !spannedBackground && AppState.currentState === "active") add("W", [`js thread stalled ${late}ms`], true);
+}
+
+function watchFirstFrame() {
+  const since = Date.now();
+  let drawn = false;
+  requestAnimationFrame(() => {
+    drawn = true;
+    const waited = Date.now() - since;
+    if (waited > SLOW_FRAME_MS) add("W", [`first frame ${waited}ms after active`], true);
+  });
+  setTimeout(() => {
+    if (!drawn) add("W", [`no frame ${NO_FRAME_MS}ms after active; js is running, the ui thread is not drawing`], true);
+  }, NO_FRAME_MS);
+}
+
 export function installDiagLog() {
   if (started || lines.length > 0) return;
   add("D", [header()], false);
@@ -167,8 +194,15 @@ export function installDiagLog() {
   });
   AppState.addEventListener("change", (next) => {
     add("S", [`appState ${next}`], next !== "active");
-    if (next !== "active") save();
+    if (next !== "active") {
+      leftAt = Date.now();
+      save();
+    } else {
+      lastBeat = Date.now();
+      watchFirstFrame();
+    }
   });
   setInterval(heap, HEAP_EVERY_MS);
+  setInterval(heartbeat, BEAT_MS);
   void start();
 }
