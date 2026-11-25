@@ -37,6 +37,9 @@ const NEAR_BOTTOM = 120;
 const PAST_THE_END = 1_000_000;
 const PROMPT_HIDDEN_BY = 4;
 const PINNED_PROMPT_ZONE = 48;
+const SETTLE_QUIET_FRAMES = 3;
+const SETTLE_LIMIT_MS = 250;
+const REVEAL_FALLBACK_MS = 1000;
 type EndRow = { type: "end"; key: "list-end"; working: boolean };
 type ListRow = Row | EndRow;
 type SessionParams = { id: string; draft?: string; focusQuestion?: string; gallery?: string; viewer?: string };
@@ -116,13 +119,17 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
 
   useEffect(() => {
     void store.openSession(id);
-    return () => store.closeSession(id);
+    return () => {
+      sessionViewState(id).activityAtLeave = store.getState().agents.find((a) => a.id === id)?.updatedAt;
+      store.closeSession(id);
+    };
   }, [id]);
   useEffect(() => () => meter.stop(), [meter]);
 
   const [memory] = useState(() => sessionViewState(id));
   const hasNews = !!agent && (!!agent.unread || agent.status === "running" || agent.status === "waiting");
-  const restoreAnchor = useRef(hasNews || focusQuestion ? null : memory.anchor);
+  const unchangedSinceLeave = !!agent && memory.activityAtLeave === agent.updatedAt;
+  const restoreAnchor = useRef(hasNews || focusQuestion || !unchangedSinceLeave ? null : memory.anchor);
   const followEnd = useRef(restoreAnchor.current === null);
   const [atBottom, setAtBottom] = useState(followEnd.current);
   const [pinnedPromptKey, setPinnedPromptKey] = useState<string | null>(null);
@@ -205,6 +212,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
 
   const restoreKey = restoreAnchor.current?.key;
   const restoreIndex = restoreKey === undefined ? -1 : messages.findIndex((row) => row.key === restoreKey);
+  const { settled, noteListChange, revealWhenQuiet } = useSettledReveal(listGeneration.current, messages.length > 0);
 
   const actions = useMemo<Actions>(
     () => ({
@@ -235,13 +243,13 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
     setPinnedPromptKey((current) => current === key ? current : key);
   }, []);
 
-  const notePosition = useCallback(() => {
+  const notePosition = useCallback((atEndNow?: boolean) => {
     notePinnedPrompt();
     const viewport = listHeight.current;
     if (viewport === null || restoreAnchor.current) return;
     const end = Math.max(0, contentHeight.current - viewport);
     const offset = Math.min(scrollOffset.current, end);
-    const near = end - offset < NEAR_BOTTOM;
+    const near = followEnd.current || (atEndNow ?? end - offset < NEAR_BOTTOM);
     const list = listRef.current;
     const index = near || !list ? -1 : list.getFirstVisibleIndex();
     const row = index >= 0 ? list?.props.data?.[index] : undefined;
@@ -255,9 +263,11 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
   }, [memory, notePinnedPrompt]);
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    scrollOffset.current = e.nativeEvent.contentOffset.y;
-    notePosition();
-  }, [notePosition]);
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    scrollOffset.current = contentOffset.y;
+    noteListChange();
+    notePosition(contentSize.height - (contentOffset.y + layoutMeasurement.height) < NEAR_BOTTOM);
+  }, [noteListChange, notePosition]);
 
   const toEnd = useCallback((animated = true) => {
     restoreAnchor.current = null;
@@ -364,7 +374,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
               </Text>}
             </View>
           ) : (
-            <View style={{ flex: 1 }} onLayout={keepBottomEdge}>
+            <View style={{ flex: 1, opacity: settled ? 1 : 0 }} onLayout={keepBottomEdge}>
               <FlashList
                 key={listGeneration.current}
                 ref={listRef}
@@ -376,6 +386,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
                 contentContainerStyle={{ paddingHorizontal: chatPadding, paddingTop: spacing.sm }}
                 onContentSizeChange={(_, height) => {
                   contentHeight.current = height;
+                  noteListChange();
                   const viewport = listHeight.current;
                   if (followEnd.current && viewport !== null) {
                     scrollOffset.current = Math.max(0, height - viewport);
@@ -388,6 +399,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
                 initialScrollIndex={restoreIndex >= 0 ? restoreIndex : undefined}
                 initialScrollIndexParams={restoreIndex >= 0 ? { viewOffset: restoreAnchor.current?.offset } : Platform.OS === "android" ? { viewOffset: PAST_THE_END } : undefined}
                 onLoad={() => {
+                  revealWhenQuiet(listGeneration.current);
                   if (restoreIndex >= 0) {
                     void listRef.current?.scrollToIndex({ index: restoreIndex, viewOffset: restoreAnchor.current?.offset, animated: false });
                     return;
@@ -468,6 +480,42 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
       <RenameDialog initial={sessionActions.renaming?.title ?? null} onSubmit={sessionActions.submitRename} onClose={sessionActions.closeRename} />
     </View>
   );
+}
+
+function useSettledReveal(generation: number, hasRows: boolean) {
+  const [shownGeneration, setShownGeneration] = useState(-1);
+  const changes = useRef(0);
+  const frame = useRef<number | null>(null);
+  const settled = !hasRows || shownGeneration === generation;
+  const noteListChange = useCallback(() => {
+    changes.current += 1;
+  }, []);
+  const revealWhenQuiet = useCallback((loaded: number) => {
+    const deadline = Date.now() + SETTLE_LIMIT_MS;
+    let seen = changes.current;
+    let quietFrames = 0;
+    const check = () => {
+      quietFrames = changes.current === seen ? quietFrames + 1 : 0;
+      seen = changes.current;
+      if (quietFrames < SETTLE_QUIET_FRAMES && Date.now() < deadline) {
+        frame.current = requestAnimationFrame(check);
+        return;
+      }
+      frame.current = null;
+      setShownGeneration(loaded);
+    };
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(check);
+  }, []);
+  useEffect(() => {
+    if (settled) return;
+    const fallback = setTimeout(() => setShownGeneration(generation), REVEAL_FALLBACK_MS);
+    return () => clearTimeout(fallback);
+  }, [generation, settled]);
+  useEffect(() => () => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+  }, []);
+  return { settled, noteListChange, revealWhenQuiet };
 }
 
 function ToolbarButton({ icon, label, count, badge, onPress }: { icon: ComponentProps<typeof Icon>["name"]; label: string; count?: number; badge?: number; onPress?: () => void }) {
