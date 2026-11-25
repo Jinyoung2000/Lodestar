@@ -1,5 +1,12 @@
 [
   {
+    "version": "0.2.6",
+    "versionCode": 8,
+    "commit": "0d433f6cb19844f59645f56aa8d6bc85ca7e0a8b",
+    "builtAt": "2026-11-25T11:58:00+09:00",
+    "jsCompatExceptions": []
+  },
+  {
     "version": "0.2.5",
     "versionCode": 7,
     "commit": "39b7ed1d7637a699887bb2bdb4eb547998d35670",
@@ -19,8 +26,16 @@
     "commit": "5bbb31640e0523150e4b4b9e9afe41b9ac89b341",
     "builtAt": "2026-11-24T12:09:00+09:00",
     "jsCompatExceptions": [
-      { "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionActivityService.kt", "blob": "ff4c7b8078325c779c0dca2f365e673f43f53ace", "reason": "ae9261d changes only private notification code; no function the JavaScript calls was added or changed" },
-      { "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionNotifications.kt", "blob": "744dce0b4e652f0c729a2576f5523cbf1dbf6ae8", "reason": "ae9261d changes only private notification code; no function the JavaScript calls was added or changed" }
+      {
+        "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionActivityService.kt",
+        "blob": "ff4c7b8078325c779c0dca2f365e673f43f53ace",
+        "reason": "ae9261d changes only private notification code; no function the JavaScript calls was added or changed"
+      },
+      {
+        "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionNotifications.kt",
+        "blob": "744dce0b4e652f0c729a2576f5523cbf1dbf6ae8",
+        "reason": "ae9261d changes only private notification code; no function the JavaScript calls was added or changed"
+      }
     ]
   },
   {
@@ -29,8 +44,16 @@
     "commit": "f38d84bc0e6a26cbc557c1a440f664370edde87f",
     "builtAt": "2026-11-23T16:05:00+09:00",
     "jsCompatExceptions": [
-      { "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionActivityService.kt", "blob": "6d831591274ff55cd0aeef9f0cd4750e14cb2008", "reason": "484e300 changes only private notification code; no function the JavaScript calls was added or changed" },
-      { "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionNotifications.kt", "blob": "7d3db6864be582bfceff0828ac1197a9cdec8723", "reason": "484e300 changes only private notification code; no function the JavaScript calls was added or changed" }
+      {
+        "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionActivityService.kt",
+        "blob": "6d831591274ff55cd0aeef9f0cd4750e14cb2008",
+        "reason": "484e300 changes only private notification code; no function the JavaScript calls was added or changed"
+      },
+      {
+        "path": "mobile/modules/lodestar-activity/android/src/main/java/com/utillo/lodestar/activity/SessionNotifications.kt",
+        "blob": "7d3db6864be582bfceff0828ac1197a9cdec8723",
+        "reason": "484e300 changes only private notification code; no function the JavaScript calls was added or changed"
+      }
     ]
   }
 ]
