@@ -950,6 +950,7 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
   "assistant.mcpCancel": { params: { callId: string }; result: null };
   "assistant.checkIn": { params: Record<string, never>; result: AssistantState };
   "assistant.cancelReminder": { params: { id: string }; result: AssistantState };
+  "assistant.undo": { params: { id: string }; result: { text: string } };
   "assistant.readNotes": { params: Record<string, never>; result: { text: string } };
   "assistant.writeNotes": { params: { text: string }; result: { text: string } };
   "notion.pins.list": { params: Record<string, never>; result: NotionPin[] };

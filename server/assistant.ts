@@ -14,6 +14,7 @@ import {
   CHECK_IN_GAP_DEFAULT,
   assistantToolAsks,
   assistantToolName,
+  assistantToolNeedsUserTurn,
   buildCheckIn,
   checkInItemIds,
   checkInReason,
@@ -23,6 +24,8 @@ import {
   isSilentReply,
   pushPreview,
   workDigest,
+  type AssistantAction,
+  type AssistantActionKind,
   type AssistantCheckIn,
   type AssistantReminder,
   type AssistantState,
@@ -73,7 +76,11 @@ export type AssistantDeps = {
 };
 
 type Wake = { startedAt: number; before: number; reason: CheckInReason; itemIds: string[]; running: boolean };
-type Saved = { version: number; reminders: AssistantReminder[]; told: string[]; lastNudgeId: string | null; checkIns: AssistantCheckIn[]; morningDate: string | null; ledger: { day: string; wakes: number } };
+type Saved = { version: number; reminders: AssistantReminder[]; told: string[]; lastNudgeId: string | null; checkIns: AssistantCheckIn[]; morningDate: string | null; ledger: { day: string; wakes: number }; actions: AssistantAction[] };
+type NewAction = Pick<AssistantAction, "kind" | "targets"> & Partial<Pick<AssistantAction, "workspace" | "after">>;
+const ACTION_KINDS = new Set<AssistantActionKind>(["markDone", "start", "rename", "pin"]);
+const isBusy = (agent: Agent) => agent.status === "running" || agent.status === "waiting";
+const quoted = (agents: readonly { title: string }[]) => agents.map((a) => `"${a.title}"`).join(", ");
 
 const dayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const clip = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
@@ -81,6 +88,7 @@ const tail = (text: string, max: number) => (text.length <= max ? text : `…${t
 
 export class AssistantService {
   private reminders: AssistantReminder[] = [];
+  private actions: AssistantAction[] = [];
   private told = new Set<string>();
   private lastNudgeId: string | null = null;
   private checkIns: AssistantCheckIn[] = [];
@@ -118,7 +126,7 @@ export class AssistantService {
 
   state(): AssistantState {
     const agent = this.agent();
-    return { enabled: this.enabled, agentId: agent?.id ?? null, notesPath: agent ? join(agent.cwd, ASSISTANT_NOTES_FILE) : null, busy: this.wake !== null, lastCheckIn: this.checkIns[0] ?? null, checkIns: this.checkIns, reminders: this.reminders };
+    return { enabled: this.enabled, agentId: agent?.id ?? null, notesPath: agent ? join(agent.cwd, ASSISTANT_NOTES_FILE) : null, busy: this.wake !== null, lastCheckIn: this.checkIns[0] ?? null, checkIns: this.checkIns, reminders: this.reminders, actions: this.actions };
   }
 
   private get standing() {
@@ -229,6 +237,7 @@ export class AssistantService {
   }
 
   private refusal(toolName: string, input: Record<string, unknown>): string | null {
+    if (assistantToolNeedsUserTurn(toolName) && this.wake) return T.errAssistantCheckInAct;
     const wants = toolName === assistantToolName(ASSISTANT_TOOLS.answerQuestion) ? "question" : toolName === assistantToolName(ASSISTANT_TOOLS.respondToApproval) ? "approval" : null;
     if (!wants) return null;
     const agent = typeof input.session === "string" ? this.deps.store.agents.find((a) => a.id === input.session && !a.assistant && !a.feedbackId) : undefined;
@@ -327,13 +336,8 @@ export class AssistantService {
     if (this.standing && !this.agent()) this.ensureAgent();
     const now = this.now();
     if (this.wake && now.getTime() - this.wake.startedAt > ASSISTANT_LIMITS.staleWakeMs) this.wake = null;
-    const due = this.reminders.filter((r) => Date.parse(r.at) <= now.getTime());
-    if (due.length) {
-      this.reminders = this.reminders.filter((r) => !due.includes(r));
-      for (const reminder of due) this.queue.push({ kind: "ownReminder", reminder });
-      this.save();
-      this.publish();
-    }
+    const queued = new Set(this.queue.flatMap((e) => (e.kind === "ownReminder" ? [e.reminder.id] : [])));
+    for (const reminder of this.reminders) if (Date.parse(reminder.at) <= now.getTime() && !queued.has(reminder.id)) this.queue.push({ kind: "ownReminder", reminder });
     this.queueMorning(now);
     void this.flush();
   }
@@ -379,7 +383,7 @@ export class AssistantService {
   async checkIn(): Promise<AssistantState> {
     if (!this.enabled) throw new Error(T.errAssistantOff);
     const agent = this.ensureAgent();
-    if (this.wake || agent.status !== "idle") throw new Error(T.errAssistantBusy);
+    if (this.wake || isBusy(agent)) throw new Error(T.errAssistantBusy);
     this.deps.followUps.refresh();
     this.queue.push({ kind: "manual" });
     await this.flush();
@@ -402,7 +406,7 @@ export class AssistantService {
       return;
     }
     const agent = this.agent();
-    if (!agent || agent.status !== "idle" || agent.queue?.length) return;
+    if (!agent || isBusy(agent) || agent.queue?.length) return;
     const now = this.now();
     const urgent = this.queue.some((e) => e.kind === "manual" || e.kind === "morning" || e.kind === "ownReminder");
     if (!urgent) {
@@ -431,6 +435,7 @@ export class AssistantService {
         const itemIds = event.itemIds.filter((id) => live.has(id));
         return itemIds.length ? [{ kind: "reminder", itemIds }] : [];
       }
+      if (event.kind === "ownReminder") return this.reminders.some((r) => r.id === event.reminder.id) ? [event] : [];
       return [event];
     });
     this.queue = [];
@@ -442,6 +447,12 @@ export class AssistantService {
     this.publish();
     try {
       await this.deps.runner.send(agent.id, buildCheckIn(events, this.source()), { system: true });
+      const told = new Set(events.flatMap((e) => (e.kind === "ownReminder" ? [e.reminder.id] : [])));
+      if (told.size) {
+        this.reminders = this.reminders.filter((r) => !told.has(r.id));
+        this.save();
+        this.publish();
+      }
     } catch (error) {
       console.error("[assistant] check-in could not start", error);
       if (this.wake === wake) this.wake = null;
@@ -452,9 +463,13 @@ export class AssistantService {
   private target(session: string): Agent {
     const wanted = session.trim();
     const agents = this.deps.store.agents.filter((a) => !a.assistant && !a.feedbackId);
-    const agent = agents.find((a) => a.id === wanted) ?? agents.find((a) => a.title.trim().toLowerCase() === wanted.toLowerCase());
-    if (!agent) throw new Error(T.errAssistantSession(wanted));
-    return agent;
+    const byId = agents.find((a) => a.id === wanted);
+    if (byId) return byId;
+    const titled = agents.filter((a) => a.title.trim().toLowerCase() === wanted.toLowerCase());
+    const open = titled.filter((a) => !a.done);
+    const agent = titled.length === 1 ? titled[0] : open.length === 1 ? open[0] : null;
+    if (agent) return agent;
+    throw new Error(titled.length > 1 ? T.errAssistantSessionAmbiguous(wanted) : T.errAssistantSession(wanted));
   }
 
   private host(): AssistantToolHost {
@@ -489,13 +504,11 @@ export class AssistantService {
         const matches = store.workspaces.filter((w) => !w.feedback && !w.archived && (w.id === workspace || w.name.trim().toLowerCase() === wanted));
         if (matches.length !== 1) throw new Error(T.errAssistantWorkspace(workspace));
         const agent = await runner.create({ workspaceId: matches[0].id, prompt, permissionMode: store.settings.defaultPermissionMode ?? "default", model: null, effort: null, worktree: null });
-        return `Started "${agent.title}" (session ${agent.id}) in ${matches[0].name}.`;
+        const action = this.record({ kind: "start", targets: [{ agentId: agent.id, title: agent.title, before: {} }], workspace: matches[0].name });
+        return `Started "${agent.title}" (session ${agent.id}) in ${matches[0].name}. ${this.undoHint(action)}`;
       },
-      markDone: (session) => {
-        const agent = this.target(session);
-        runner.setDone(agent.id, true);
-        return `Marked "${agent.title}" done.`;
-      },
+      markDone: (sessions) => this.markDone(sessions),
+      undo: (id) => this.undo(id).then((result) => result.text),
       setReminder: (text, when) => {
         const now = this.now();
         const at = when.inMinutes !== undefined ? new Date(now.getTime() + when.inMinutes * 60_000) : parseLocal(when.at);
@@ -550,12 +563,16 @@ export class AssistantService {
         const agent = this.target(session);
         const before = agent.title;
         runner.rename(agent.id, title);
-        return `Renamed "${before}" to "${title.trim()}".`;
+        const after = store.agents.find((a) => a.id === agent.id)?.title ?? title.trim();
+        const action = this.record({ kind: "rename", targets: [{ agentId: agent.id, title: after, before: { title: before } }], after: { title: after } });
+        return `Renamed "${before}" to "${after}". ${this.undoHint(action)}`;
       },
       pin: (session, pinned) => {
         const agent = this.target(session);
+        const before = agent.pinned === true;
         runner.setPinned(agent.id, pinned);
-        return `${pinned ? "Pinned" : "Unpinned"} "${agent.title}".`;
+        const action = this.record({ kind: "pin", targets: [{ agentId: agent.id, title: agent.title, before: { pinned: before } }], after: { pinned } });
+        return `${pinned ? "Pinned" : "Unpinned"} "${agent.title}". ${this.undoHint(action)}`;
       },
       pendingOf: (session) => {
         const agent = store.agents.find((a) => a.id === session);
@@ -565,12 +582,88 @@ export class AssistantService {
     };
   }
 
+  private markDone(sessions: readonly string[]): string {
+    const agents = [...new Map(sessions.map((session) => this.target(session)).map((agent) => [agent.id, agent])).values()];
+    const busy = agents.filter(isBusy);
+    const already = agents.filter((agent) => agent.done && !isBusy(agent));
+    const marking = agents.filter((agent) => !agent.done && !isBusy(agent));
+    const skipped = [...(busy.length ? [`Still working or waiting on the user, so not marked: ${quoted(busy)}.`] : []), ...(already.length ? [`Already done: ${quoted(already)}.`] : [])];
+    if (marking.length === 0) throw new Error(T.errAssistantNothingToMark(skipped.join(" ")));
+    for (const agent of marking) this.deps.runner.setDone(agent.id, true);
+    const action = this.record({ kind: "markDone", targets: marking.map((agent) => ({ agentId: agent.id, title: agent.title, before: {} })) });
+    return [`Marked done: ${quoted(marking)}. ${this.undoHint(action)}`, ...skipped].join("\n");
+  }
+
+  private undoHint(action: AssistantAction) {
+    return `Action ${action.id}; ${ASSISTANT_TOOLS.undoAction} reverses it.`;
+  }
+
+  private record(entry: NewAction): AssistantAction {
+    const mate = this.agent();
+    const afterId = mate ? (this.deps.store.timeline(mate.id).at(-1)?.id ?? null) : null;
+    const action: AssistantAction = { id: randomUUID().slice(0, 8), at: this.now().toISOString(), afterId, workspace: null, after: {}, undoneAt: null, ...entry };
+    this.actions = [action, ...this.actions].slice(0, ASSISTANT_LIMITS.actions);
+    this.save();
+    this.publish();
+    return action;
+  }
+
+  async undo(id?: unknown): Promise<{ text: string }> {
+    const wanted = typeof id === "string" && id.trim() ? id.trim() : null;
+    const action = wanted ? this.actions.find((a) => a.id === wanted) : this.actions.find((a) => !a.undoneAt);
+    if (!action) throw new Error(wanted ? T.errAssistantActionUnknown(wanted) : T.errAssistantNoAction);
+    if (action.undoneAt) throw new Error(T.errAssistantActionUndone(action.id));
+    const { store, runner, emit } = this.deps;
+    const reversed: string[] = [];
+    const kept: string[] = [];
+    for (const target of action.targets) {
+      const agent = store.agents.find((a) => a.id === target.agentId);
+      const name = `"${agent?.title ?? target.title}"`;
+      if (!agent) {
+        kept.push(`${name} no longer exists`);
+        continue;
+      }
+      if (action.kind === "markDone") {
+        if (!agent.done) kept.push(`${name} is open again already`);
+        else {
+          emit({ type: "agent", agent: store.patchAgent(agent.id, { done: false }) });
+          reversed.push(`reopened ${name}`);
+        }
+      } else if (action.kind === "start") {
+        if (agent.done && !isBusy(agent)) kept.push(`${name} is done already`);
+        else {
+          if (isBusy(agent)) await runner.interrupt(agent.id);
+          runner.setDone(agent.id, true);
+          reversed.push(`stopped ${name} and marked it done; changes it made to files stay`);
+        }
+      } else if (action.kind === "rename") {
+        if (agent.title !== action.after.title || target.before.title === undefined) kept.push(`${name} was renamed again since`);
+        else {
+          runner.rename(agent.id, target.before.title);
+          reversed.push(`renamed ${name} back to "${target.before.title}"`);
+        }
+      } else if (action.kind === "pin") {
+        if ((agent.pinned === true) !== action.after.pinned) kept.push(`${name} was ${agent.pinned ? "pinned" : "unpinned"} again since`);
+        else {
+          runner.setPinned(agent.id, target.before.pinned === true);
+          reversed.push(`${target.before.pinned ? "pinned" : "unpinned"} ${name} again`);
+        }
+      }
+    }
+    this.actions = this.actions.map((a) => (a.id === action.id ? { ...a, undoneAt: this.now().toISOString() } : a));
+    this.save();
+    this.publish();
+    const sentence = (parts: string[]) => parts.join("; ").replace(/^./, (c) => c.toUpperCase());
+    const text = [reversed.length ? `Undid action ${action.id}: ${sentence(reversed)}.` : `Nothing to undo in action ${action.id}.`, ...(kept.length ? [`Left as is: ${kept.join("; ")}.`] : [])].join(" ");
+    return { text };
+  }
+
   private publish() {
     this.deps.emit({ type: "assistant", state: this.state() });
   }
 
   private save() {
-    const saved: Saved = { version: FILE_VERSION, reminders: this.reminders, told: [...this.told], lastNudgeId: this.lastNudgeId, checkIns: this.checkIns, morningDate: this.morningDate, ledger: this.ledger };
+    const saved: Saved = { version: FILE_VERSION, reminders: this.reminders, told: [...this.told], lastNudgeId: this.lastNudgeId, checkIns: this.checkIns, morningDate: this.morningDate, ledger: this.ledger, actions: this.actions };
     const tmp = `${this.file}.${process.pid}.tmp`;
     writeFileSync(tmp, JSON.stringify(saved, null, 2));
     renameSync(tmp, this.file);
@@ -592,6 +685,10 @@ export class AssistantService {
         .slice(0, ASSISTANT_LIMITS.checkIns);
       this.morningDate = typeof raw.morningDate === "string" ? raw.morningDate : null;
       if (raw.ledger && typeof raw.ledger.day === "string" && Number.isInteger(raw.ledger.wakes)) this.ledger = { day: raw.ledger.day, wakes: raw.ledger.wakes };
+      this.actions = (Array.isArray(raw.actions) ? raw.actions : [])
+        .filter((a): a is AssistantAction => !!a && typeof a.id === "string" && ACTION_KINDS.has(a.kind) && iso(a.at) && Array.isArray(a.targets) && a.targets.every((t) => !!t && typeof t.agentId === "string" && typeof t.title === "string"))
+        .map((a) => ({ id: a.id, kind: a.kind, at: a.at, afterId: typeof a.afterId === "string" ? a.afterId : null, targets: a.targets.map((t) => ({ agentId: t.agentId, title: t.title, before: t.before && typeof t.before === "object" ? t.before : {} })), workspace: typeof a.workspace === "string" ? a.workspace : null, after: a.after && typeof a.after === "object" ? a.after : {}, undoneAt: iso(a.undoneAt) ? a.undoneAt : null }))
+        .slice(0, ASSISTANT_LIMITS.actions);
     } catch (error) {
       console.error("[assistant] could not read the saved state", error);
     }

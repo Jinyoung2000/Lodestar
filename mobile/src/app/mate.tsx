@@ -47,7 +47,7 @@ export default function Mate() {
   if (!assistant || !agent) return <View style={styles.fill} />;
   const now = Date.now();
   const waiting = items ? openDecisionCount(agents, items, now) : 0;
-  const busy = assistant.busy || agent.status !== "idle";
+  const busy = assistant.busy || agent.status === "running" || agent.status === "waiting";
   const checkIn = () => void store.checkInMate().catch((error: unknown) => Alert.alert("Mate could not check in", error instanceof Error ? error.message : String(error)));
   return (
     <SafeAreaView edges={["bottom"]} style={[styles.fill, { backgroundColor: colors.background }]}>

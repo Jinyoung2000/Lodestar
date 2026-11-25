@@ -9,10 +9,11 @@ export const ASSISTANT_NAME = "Mate";
 export const ASSISTANT_DEFAULT_MODEL = "sonnet";
 export const ASSISTANT_NOTES_FILE = "CLAUDE.md";
 
-const ASK_FIRST = new Set<string>(
-  [ASSISTANT_TOOLS.sendToSession, ASSISTANT_TOOLS.startSession, ASSISTANT_TOOLS.markDone, ASSISTANT_TOOLS.answerQuestion, ASSISTANT_TOOLS.respondToApproval, ASSISTANT_TOOLS.stopSession].map(assistantToolName),
-);
+const ASK_FIRST = new Set<string>([ASSISTANT_TOOLS.sendToSession, ASSISTANT_TOOLS.answerQuestion, ASSISTANT_TOOLS.respondToApproval, ASSISTANT_TOOLS.stopSession].map(assistantToolName));
 export const assistantToolAsks = (full: string) => ASK_FIRST.has(full);
+
+const ACTS_ON_ASK = new Set<string>([ASSISTANT_TOOLS.startSession, ASSISTANT_TOOLS.markDone].map(assistantToolName));
+export const assistantToolNeedsUserTurn = (full: string) => ACTS_ON_ASK.has(full);
 
 export const CHECK_IN_GAPS = [30, 60, 180, 0] as const;
 export const CHECK_IN_GAP_DEFAULT = 60;
@@ -29,11 +30,16 @@ export const ASSISTANT_LIMITS = {
   nudgeFreshMs: 10 * 60_000,
   checkIns: 40,
   pushBody: 180,
+  actions: 40,
+  markDoneAtOnce: 20,
 };
 
 export type AssistantReminder = { id: string; text: string; at: string; createdAt: string };
 export type AssistantCheckIn = { at: string; spoke: boolean; reason: CheckInReason; itemIds: string[]; anchorId: string | null };
-export type AssistantState = { enabled: boolean; agentId: string | null; notesPath: string | null; busy: boolean; lastCheckIn: AssistantCheckIn | null; checkIns: AssistantCheckIn[]; reminders: AssistantReminder[] };
+export type AssistantActionKind = "markDone" | "start" | "rename" | "pin";
+export type AssistantActionTarget = { agentId: string; title: string; before: { title?: string; pinned?: boolean } };
+export type AssistantAction = { id: string; kind: AssistantActionKind; at: string; afterId: string | null; targets: AssistantActionTarget[]; workspace: string | null; after: { title?: string; pinned?: boolean }; undoneAt: string | null };
+export type AssistantState = { enabled: boolean; agentId: string | null; notesPath: string | null; busy: boolean; lastCheckIn: AssistantCheckIn | null; checkIns: AssistantCheckIn[]; reminders: AssistantReminder[]; actions?: AssistantAction[] };
 
 export type CheckInReason = "morning" | "decision" | "reminder" | "manual";
 export type CheckInEvent = { kind: "decision"; itemId: string } | { kind: "reminder"; itemIds: string[] } | { kind: "ownReminder"; reminder: AssistantReminder } | { kind: "morning" } | { kind: "manual" };
@@ -45,9 +51,11 @@ export const ASSISTANT_PROMPT = [
   `Tools from the ${ASSISTANT_SERVER} server:`,
   `- ${ASSISTANT_TOOLS.listWork}: the current list of sessions that need a decision, are in progress, or look finished. Call it before you answer anything about the state of the work; do not answer from memory.`,
   `- ${ASSISTANT_TOOLS.readSession}: the last messages of one session. Use it before you describe or answer a session in any detail.`,
-  `- ${ASSISTANT_TOOLS.sendToSession}, ${ASSISTANT_TOOLS.startSession}, ${ASSISTANT_TOOLS.markDone}: these act on the user's sessions. Lodestar shows the user an approval card for each call, so when the user has told you to do it, call the tool directly instead of asking again in prose. Never call them on your own initiative; propose the action and wait for the user to say yes.`,
+  `- ${ASSISTANT_TOOLS.sendToSession}: writes to one of the user's sessions. Lodestar shows the user an approval card for each call, so when the user has told you to do it, call the tool directly instead of asking again in prose. Never call it on your own initiative; propose the message and wait for the user to say yes.`,
+  `- ${ASSISTANT_TOOLS.markDone}, ${ASSISTANT_TOOLS.startSession}: these run at once without an approval card, because each can be undone. Call them as soon as the user asks, without asking again; never on your own initiative (Lodestar refuses them during a check-in). ${ASSISTANT_TOOLS.markDone} takes several sessions in one call: when the user asks to mark finished work done, call ${ASSISTANT_TOOLS.listWork} and pass every session under "Looks finished" in one call. It refuses sessions that are working now or waiting on the user; mark those only after they finish. Each call returns an action id, and the chat shows the user what you did with an Undo button.`,
+  `- ${ASSISTANT_TOOLS.undoAction}: reverses one of your own actions (mark done, start a session, rename, pin) by its action id, or the latest one when no id is given. Use it when the user says to take back what you just did. Undoing a started session stops it and marks it done; changes it already made to files stay.`,
   `- ${ASSISTANT_TOOLS.answerQuestion}, ${ASSISTANT_TOOLS.respondToApproval}, ${ASSISTANT_TOOLS.stopSession}: act on a session that is waiting or running: answer the question card it shows, allow or deny the tool call it waits on, or stop its running turn. Each call shows the user an approval card. Read the session first so you know exactly what is pending, and never allow a tool call the user has not told you to allow.`,
-  `- ${ASSISTANT_TOOLS.renameSession}, ${ASSISTANT_TOOLS.pinSession}: tidy up. Rename a session whose title no longer says what it is about, or pin one the user wants kept in view. Only when the user asks.`,
+  `- ${ASSISTANT_TOOLS.renameSession}, ${ASSISTANT_TOOLS.pinSession}: tidy up. Rename a session whose title no longer says what it is about, or pin one the user wants kept in view. Only when the user asks. Both can be undone like mark done.`,
   `- ${ASSISTANT_TOOLS.setReminder}, ${ASSISTANT_TOOLS.listReminders}, ${ASSISTANT_TOOLS.cancelReminder}: your own reminders. When one is due, Lodestar wakes you with a check-in. Use them when the user says to bring something up later, and when you promise to follow up.`,
   `- ${ASSISTANT_TOOLS.snoozeDecision}, ${ASSISTANT_TOOLS.dismissDecision}: put off or drop a decision on the tracked list when the user says so. Lodestar reminds about open decisions on its own schedule, so when the user asks to hear about one later, snooze it as well as setting any reminder for an exact time, or they are reminded twice.`,
   "",
@@ -56,6 +64,7 @@ export const ASSISTANT_PROMPT = [
   "- Anything listed as a reminder that is due must be passed on. Never stay silent on a due reminder.",
   "- Do not repeat what you already told the user unless a reminder for it is due.",
   "",
+  "After you act, say in one short line what you did; do not ask whether to do it again.",
   "How to speak: short, the most important thing first. Name the session by its title, say what it is asking in one sentence, and list the choices it offered. If there is an obvious next step, say what you will do if the user just says yes. No headings, no tables, no filler, no emoji.",
   "Write in the language the user writes in. In Korean use the polite 해요 style.",
   "",

@@ -564,6 +564,7 @@ const handlers: Handlers = {
   "assistant.get": () => assistantService.state(),
   "assistant.checkIn": () => assistantService.checkIn(),
   "assistant.cancelReminder": ({ id }) => assistantService.cancelReminder(String(id)),
+  "assistant.undo": ({ id }) => assistantService.undo(String(id)),
   "assistant.readNotes": () => assistantService.readNotes(),
   "assistant.writeNotes": ({ text }) => assistantService.writeNotes(text),
   "assistant.mcpTools": () => assistantToolList(),

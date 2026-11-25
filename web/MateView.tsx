@@ -84,7 +84,7 @@ function MateChat({ agent, state, panel, onTogglePanel }: MateChatProps) {
           <span className="mate-status">{status}</span>
         </div>
         <div className="mate-head-actions">
-          <Button size="icon" aria-label={A.checkInNow} disabled={state.busy || agent.status !== "idle"} onClick={checkInMate}>
+          <Button size="icon" aria-label={A.checkInNow} disabled={state.busy || busy} onClick={checkInMate}>
             <Codicon name="refresh" spin={state.busy} />
           </Button>
           <Button size="icon" aria-label={panel ? A.hidePanel : A.showPanel} title={panel ? A.hidePanel : A.showPanel} aria-pressed={panel} onClick={onTogglePanel}>

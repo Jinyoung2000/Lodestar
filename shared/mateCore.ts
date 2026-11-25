@@ -1,4 +1,4 @@
-import type { AssistantCheckIn, CheckInReason } from "./assistant";
+import type { AssistantAction, AssistantCheckIn, CheckInReason } from "./assistant";
 import type { FollowUpItem, FollowUpsState } from "./followups";
 import type { Agent, TimelineItem } from "./protocol";
 
@@ -84,6 +84,7 @@ export const ASSISTANT_TOOLS = {
   stopSession: "stop_session",
   renameSession: "rename_session",
   pinSession: "pin_session",
+  undoAction: "undo_action",
 } as const;
 
 const PREFIX = `mcp__${ASSISTANT_SERVER}__`;
@@ -112,10 +113,6 @@ export function assistantApproval(toolName: string, input: Record<string, unknow
   switch (toolName.slice(PREFIX.length)) {
     case ASSISTANT_TOOLS.sendToSession:
       return { title: `Send to ${session}?`, message: text("text") };
-    case ASSISTANT_TOOLS.startSession:
-      return { title: `Start a session in ${text("workspace")}?`, message: text("prompt") };
-    case ASSISTANT_TOOLS.markDone:
-      return { title: `Mark ${session} done?`, message: "" };
     case ASSISTANT_TOOLS.answerQuestion:
       return { title: `Answer ${session}?`, message: [text("pending"), text("answer")].filter(Boolean).join("\n") };
     case ASSISTANT_TOOLS.respondToApproval:
@@ -136,14 +133,23 @@ export type MateEntry =
   | { kind: "decisions"; id: string; items: FollowUpItem[] }
   | { kind: "approval"; id: string; item: PermissionEntry; approval: AssistantApproval | null }
   | { kind: "question"; id: string; item: PermissionEntry }
+  | { kind: "action"; id: string; action: AssistantAction }
   | { kind: "working"; id: string }
   | { kind: "error"; id: string; text: string };
 
-export type MateFeedSource = { items: readonly TimelineItem[]; checkIns: readonly AssistantCheckIn[]; followUps: readonly FollowUpItem[]; status: Agent["status"]; now: number };
+export type MateFeedSource = { items: readonly TimelineItem[]; checkIns: readonly AssistantCheckIn[]; followUps: readonly FollowUpItem[]; status: Agent["status"]; now: number; actions?: readonly AssistantAction[] };
 
 export function mateFeed(source: MateFeedSource): MateEntry[] {
   const { items, checkIns, followUps, status, now } = source;
   const byAnchor = new Map(checkIns.flatMap((c) => (c.anchorId ? [[c.anchorId, c] as const] : [])));
+  const itemIds = new Set(items.map((item) => item.id));
+  const actionsAfter = new Map<string, AssistantAction[]>();
+  const loose: AssistantAction[] = [];
+  for (const action of [...(source.actions ?? [])].sort((a, b) => a.at.localeCompare(b.at))) {
+    if (!action.afterId) loose.push(action);
+    else if (itemIds.has(action.afterId)) actionsAfter.set(action.afterId, [...(actionsAfter.get(action.afterId) ?? []), action]);
+  }
+  const actionEntries = (list: readonly AssistantAction[]): MateEntry[] => list.map((action) => ({ kind: "action", id: `action:${action.id}`, action }));
   const open = new Map(followUps.filter((item) => !isSnoozed(item, now)).map((item) => [item.id, item]));
   const shown = new Set<string>();
   const entries: MateEntry[] = [];
@@ -163,8 +169,7 @@ export function mateFeed(source: MateFeedSource): MateEntry[] {
         entries.push({ kind: "checkIn", id: item.id, at: item.at ?? record?.at ?? null, reason: record?.reason ?? null });
         if (record?.itemIds.length) pendingCards = { id: item.id, ids: record.itemIds };
       } else if (item.text.trim()) entries.push({ kind: "user", id: item.id, text: item.shown ?? item.text });
-    } else if (item.kind === "assistant") {
-      if (!item.text.trim() || (!item.streaming && isSilentReply(item.text))) continue;
+    } else if (item.kind === "assistant" && item.text.trim() && (item.streaming || !isSilentReply(item.text))) {
       const last = entries[entries.length - 1];
       if (last?.kind === "mate" && last.streaming) entries[entries.length - 1] = { kind: "mate", id: item.id, text: item.text, streaming: item.streaming };
       else entries.push({ kind: "mate", id: item.id, text: item.text, streaming: item.streaming });
@@ -173,8 +178,11 @@ export function mateFeed(source: MateFeedSource): MateEntry[] {
       if (item.toolName === QUESTION_TOOL || item.toolName === PLAN_TOOL) entries.push({ kind: "question", id: item.id, item });
       else entries.push({ kind: "approval", id: item.id, item, approval: assistantApproval(item.toolName, item.input) });
     } else if (item.kind === "error") entries.push({ kind: "error", id: item.id, text: item.text });
+    const done = actionsAfter.get(item.id);
+    if (done) entries.push(...actionEntries(done));
   }
   flushCards();
+  entries.push(...actionEntries(loose));
   const untold = [...open.values()].filter((item) => !shown.has(item.id));
   if (untold.length) entries.push({ kind: "decisions", id: "open:cards", items: untold });
   const last = entries[entries.length - 1];

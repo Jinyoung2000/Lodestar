@@ -2,6 +2,7 @@ import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { ASSISTANT_LIMITS, ASSISTANT_SERVER, ASSISTANT_TOOLS } from "../shared/assistant";
 import { SNOOZE_CHOICES } from "../shared/followups";
+import { T } from "./strings";
 
 export type CallToolResult = Awaited<ReturnType<Parameters<typeof tool>[3]>>;
 
@@ -10,7 +11,8 @@ export type AssistantToolHost = {
   readSession: (session: string, messages: number) => string;
   send: (session: string, text: string) => Promise<string>;
   start: (workspace: string, prompt: string) => Promise<string>;
-  markDone: (session: string) => string;
+  markDone: (sessions: string[]) => string;
+  undo: (id?: string) => Promise<string>;
   setReminder: (text: string, when: { at?: string; inMinutes?: number }) => string;
   listReminders: () => string;
   cancelReminder: (id: string) => string;
@@ -56,11 +58,29 @@ const TOOLS: readonly ToolDef[] = [
   ),
   def(
     ASSISTANT_TOOLS.startSession,
-    "Start a new coding session in one of the user's workspaces with a first message. The user approves each call on a card.",
+    "Start a new coding session in one of the user's workspaces with a first message. Runs at once without an approval card and returns an action id that undo_action reverses (it stops the session and marks it done).",
     { workspace: z.string().min(1).max(200).describe("The workspace name as list_work prints it"), prompt: z.string().min(1).max(ASSISTANT_LIMITS.sendText).describe("The first message for the new session: a self-contained task description") },
     (host, args) => host.start(args.workspace, args.prompt),
   ),
-  def(ASSISTANT_TOOLS.markDone, "Mark a session done so it leaves the tracked list. The user approves each call on a card.", { session }, (host, args) => host.markDone(args.session)),
+  def(
+    ASSISTANT_TOOLS.markDone,
+    "Mark one or more sessions done so they leave the tracked list. Runs at once without an approval card and returns an action id that undo_action reverses. Refuses sessions that are working now or waiting on the user.",
+    {
+      sessions: z.array(session).min(1).max(ASSISTANT_LIMITS.markDoneAtOnce).optional().describe("The session ids to mark done, all in one call"),
+      session: session.optional().describe("One session id, when only one is meant"),
+    },
+    (host, args) => {
+      const ids = [...(args.sessions ?? []), ...(args.session ? [args.session] : [])];
+      if (ids.length === 0) throw new Error(T.errAssistantMarkWhich);
+      return host.markDone(ids);
+    },
+  ),
+  def(
+    ASSISTANT_TOOLS.undoAction,
+    "Undo one of your own actions: mark done, start a session, rename or pin. Give the action id from the tool result, or leave it out to undo your latest action that is not undone yet.",
+    { id: z.string().min(1).max(100).optional() },
+    (host, args) => host.undo(args.id),
+  ),
   def(
     ASSISTANT_TOOLS.setReminder,
     "Set a reminder for yourself. When it is due, Lodestar wakes you with a check-in that lists it, and you pass it on to the user. Give either at or in_minutes.",
@@ -93,8 +113,8 @@ const TOOLS: readonly ToolDef[] = [
     (host, args) => host.respondToApproval(args.session, args.decision),
   ),
   def(ASSISTANT_TOOLS.stopSession, "Stop the running turn of a session. The user approves each call on a card.", { session }, (host, args) => host.stop(args.session)),
-  def(ASSISTANT_TOOLS.renameSession, "Rename a session.", { session, title: z.string().min(1).max(200) }, (host, args) => host.rename(args.session, args.title)),
-  def(ASSISTANT_TOOLS.pinSession, "Pin a session so it stays in view and is not tidied away, or unpin it.", { session, pinned: z.boolean() }, (host, args) => host.pin(args.session, args.pinned)),
+  def(ASSISTANT_TOOLS.renameSession, "Rename a session. Returns an action id that undo_action reverses.", { session, title: z.string().min(1).max(200) }, (host, args) => host.rename(args.session, args.title)),
+  def(ASSISTANT_TOOLS.pinSession, "Pin a session so it stays in view and is not tidied away, or unpin it. Returns an action id that undo_action reverses.", { session, pinned: z.boolean() }, (host, args) => host.pin(args.session, args.pinned)),
 ];
 
 export function assistantToolServer(host: AssistantToolHost) {
