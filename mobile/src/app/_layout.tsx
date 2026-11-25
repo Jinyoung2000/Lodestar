@@ -6,7 +6,7 @@ import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from "reac
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { bootstrap, store, useAppState, useConnection } from "../state/app";
 import { releasePreview, useExpandedPreview } from "../state/expandedPreview";
-import { applyDrop, commitPanes, PANE_MIN, paneCapacity, setDrawerOpen, shownPanes, useSplitState, type DropTarget } from "../state/split";
+import { applyDrop, commitPanes, PANE_MIN, paneCapacity, setDrawerOpen, setRailHidden, shownPanes, useSplitState, type DropTarget } from "../state/split";
 import { loadThemeChoice, useThemeChoice } from "../state/themePrefs";
 import { applySystemTheme } from "../theme/systemTheme";
 import { scrim, ThemeProvider, useSchemeColors } from "../theme/theme";
@@ -61,7 +61,8 @@ export default function RootLayout() {
     const known = new Set(agentIds.split("\n"));
     return shownPanes(split, sessionId, capacity, (paneId) => known.has(paneId));
   }, [agentIds, capacity, sessionId, split]);
-  const railDocked = panes.length <= 1 || width - railWidth >= panes.length * PANE_MIN;
+  const hiddenByUser = !!sessionId && split.railHidden;
+  const railDocked = !hiddenByUser && (panes.length <= 1 || width - railWidth >= panes.length * PANE_MIN);
   const railCollapsed = expanded && !railDocked;
   const drawerOpen = railCollapsed && split.drawerOpen;
   const showRail = expanded && (railDocked || drawerOpen) && (!sessionId || previewOwner !== sessionId);
@@ -106,6 +107,7 @@ export default function RootLayout() {
   }, [panes, router]);
   const dropRegion = useMemo(() => capacity > 1 ? { panes, capacity, drop: dropInSplit } : null, [capacity, dropInSplit, panes]);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const hideRail = useCallback(() => setRailHidden(true), []);
   const splitChoices = useCallback((agent: Agent) => {
     if (!dropRegion || panes.includes(agent.id)) return [];
     if (panes.length < capacity) return [{ label: "Open in split", onPress: () => dropInSplit(agent.id, { index: Math.max(0, panes.indexOf(id ?? "")), zone: "after" }) }];
@@ -157,7 +159,8 @@ export default function RootLayout() {
                 accessibilityElementsHidden={!showRail} importantForAccessibility={showRail ? "auto" : "no-hide-descendants"}
                 style={[styles.rail, railCollapsed && [styles.drawer, { backgroundColor: colors.background }], { width: railWidth, display: showRail ? "flex" : "none", borderRightColor: colors.separator }]}>
                 <SessionsList docked sessionId={sessionId} workspaceId={route === "workspace" ? id : undefined}
-                  paneWidth={railWidth} onOpenSession={openSession} splitChoices={splitChoices} />
+                  paneWidth={railWidth} onOpenSession={openSession} splitChoices={splitChoices}
+                  onHide={dockedRail && sessionId ? hideRail : undefined} />
               </SafeAreaView>
             )}
             <View ref={detailRef} style={styles.detail} onLayout={() => measureSplitRegion(detailRef.current)}>

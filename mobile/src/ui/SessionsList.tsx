@@ -36,8 +36,9 @@ const GROUPING_OPTIONS = [{ value: "workspace", label: "Workspace" }, { value: "
 const tabs = ["sessions", "waiting", "workspaces"] as const;
 type Tab = (typeof tabs)[number];
 
-export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId, onOpenSession, splitChoices, headerHeight = 0 }: {
+export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId, onOpenSession, splitChoices, onHide, headerHeight = 0 }: {
   docked?: boolean;
+  onHide?: () => void;
   paneWidth?: number;
   sessionId?: string;
   workspaceId?: string;
@@ -170,7 +171,10 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
     <View style={{ flex: 1 }}>
       {docked && scopedWorkspace ? null : ownHeader ? (
         <View style={docked ? undefined : { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }}>
-          <View style={styles.railHeader}>
+          <View style={[styles.railHeader, onHide && styles.railHeaderWithHide]}>
+            {onHide && <Pressable accessibilityRole="button" accessibilityLabel="Hide sidebar" onPress={onHide} style={styles.headerButton}>
+              <Icon name="line.3.horizontal" size={20} color="textStrong" />
+            </Pressable>}
             <ConnectionTitle title="Lodestar" style={styles.railTitle}>
               {appTitle(1.2)}
             </ConnectionTitle>
@@ -369,6 +373,7 @@ const styles = StyleSheet.create({
   projectTitle: { minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.sm },
   scope: { flexDirection: "row", alignItems: "center" },
   railHeader: { minHeight: 48, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingLeft: spacing.lg },
+  railHeaderWithHide: { paddingLeft: 0 },
   railTitle: { flex: 1, minWidth: 0 },
   searchInput: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingHorizontal: spacing.md, minHeight: 48, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm },
   headerButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },

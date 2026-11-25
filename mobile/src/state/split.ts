@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSyncExternalStore } from "react";
 
 export const PANE_MIN = 360;
@@ -6,9 +7,10 @@ export const MAX_PANES = 4;
 export type DropZone = "before" | "after" | "center";
 export type DropTarget = { index: number; zone: DropZone };
 
-type SplitState = { panes: readonly string[]; recent: readonly string[]; drawerOpen: boolean };
+type SplitState = { panes: readonly string[]; recent: readonly string[]; drawerOpen: boolean; railHidden: boolean };
 
-let state: SplitState = { panes: [], recent: [], drawerOpen: false };
+const RAIL_HIDDEN_KEY = "pref:railHidden";
+let state: SplitState = { panes: [], recent: [], drawerOpen: false, railHidden: false };
 const listeners = new Set<() => void>();
 
 function set(next: Partial<SplitState>) {
@@ -32,6 +34,16 @@ export function commitPanes(panes: readonly string[], active: string) {
 export function setDrawerOpen(open: boolean) {
   if (state.drawerOpen !== open) set({ drawerOpen: open });
 }
+
+export function setRailHidden(hidden: boolean) {
+  if (state.railHidden === hidden) return;
+  set({ railHidden: hidden, drawerOpen: false });
+  void AsyncStorage.setItem(RAIL_HIDDEN_KEY, hidden ? "1" : "0").catch(() => {});
+}
+
+void AsyncStorage.getItem(RAIL_HIDDEN_KEY).then((saved) => {
+  if (saved === "1" && !state.railHidden) set({ railHidden: true });
+}).catch(() => {});
 
 export function isDrawerOpen() {
   return state.drawerOpen;

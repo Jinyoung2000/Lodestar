@@ -11,7 +11,7 @@ import { readQuestions } from "../../logic/questions";
 import { requestDraft, sessionViewState } from "../../state/sessionView";
 import { releasePreview, useExpandedPreview } from "../../state/expandedPreview";
 import { store, useAppState } from "../../state/app";
-import { closePane, commitPanes, isDrawerOpen, setDrawerOpen } from "../../state/split";
+import { closePane, commitPanes, isDrawerOpen, setDrawerOpen, setRailHidden, useSplitState } from "../../state/split";
 import { sessionPreviews, type Preview } from "../../logic/previews";
 import { PreviewGallery, PreviewModal, usePreview } from "../../ui/Preview";
 import { CreatePreview } from "../../ui/CreatePreview";
@@ -309,7 +309,13 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
   const providerName = useProviderName(agent?.providerId);
   const workspace = agent ? workspaceName(agent, workspaces) : "";
   const hideChatToolbar = !!pending && availableHeight < 200 && !galleryOpen;
-  const showSessions = !!pane?.first && railCollapsed;
+  const { railHidden } = useSplitState();
+  const showSessions = railCollapsed && (!pane || pane.first);
+  const openSessions = () => {
+    Keyboard.dismiss();
+    if (railHidden) setRailHidden(false);
+    else setDrawerOpen(true);
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -320,7 +326,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
           {!hideChatToolbar && <View style={[styles.bar, expanded && !showSessions && styles.expandedBar]} pointerEvents={galleryOpen ? "none" : "auto"} accessibilityElementsHidden={galleryOpen} importantForAccessibility={galleryOpen ? "no-hide-descendants" : "auto"}>
             {pane?.active && <View pointerEvents="none" style={[styles.activeLine, { backgroundColor: colors.accentText }]} />}
             {!expanded && <ToolbarButton icon="chevron.left" label="Back" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />}
-            {showSessions && <ToolbarButton icon="line.3.horizontal" label={waiting ? `Sessions, ${waiting} ${waiting === 1 ? "needs" : "need"} your reply` : "Sessions"} badge={waiting || undefined} onPress={() => { Keyboard.dismiss(); setDrawerOpen(true); }} />}
+            {showSessions && <ToolbarButton icon="line.3.horizontal" label={waiting ? `Sessions, ${waiting} ${waiting === 1 ? "needs" : "need"} your reply` : "Sessions"} badge={waiting || undefined} onPress={openSessions} />}
             <Pressable accessible={false} style={styles.title} disabled={!pane} onLongPress={() => armSplitDrag({ agentId: id, title })} onPressOut={endSplitPress}>
               <ConnectionTitle title={title} subtitle={workspace} hidden={connectionInRail || galleryOpen || previewOpen || modelOpen} style={styles.fill}
                 detail={agent ? <ProviderLabel harness={agent.harness ?? (agent.providerId ? "claude" : undefined)} providerId={agent.providerId} workspaceId={agent.workspaceId} parts={[workspace]} state={state} maxFontSizeMultiplier={1.2} /> : undefined}>
