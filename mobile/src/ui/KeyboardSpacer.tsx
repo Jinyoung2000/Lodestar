@@ -24,16 +24,23 @@ function listenForKeyboard(notify: () => void) {
   };
 }
 
-let reportedStaleMetrics: KeyboardMetrics | null = null;
+const MISSED_HIDE_REPORT_DELAY_MS = 1000;
+let checkedStaleMetrics: KeyboardMetrics | null = null;
+
+function reportIfHideNeverArrives(metrics: KeyboardMetrics) {
+  if (checkedStaleMetrics === metrics) return;
+  checkedStaleMetrics = metrics;
+  setTimeout(() => {
+    if (Keyboard.metrics() !== metrics || TextInput.State.currentlyFocusedInput()) return;
+    console.warn("Keyboard reported open with no focused input; treating it as closed", { height: metrics.height, appState: AppState.currentState });
+  }, MISSED_HIDE_REPORT_DELAY_MS);
+}
 
 function openKeyboard() {
   const metrics = Keyboard.metrics();
   if (!metrics) return undefined;
   if (TextInput.State.currentlyFocusedInput()) return metrics;
-  if (reportedStaleMetrics !== metrics) {
-    reportedStaleMetrics = metrics;
-    console.warn("Keyboard reported open with no focused input; treating it as closed", { height: metrics.height, appState: AppState.currentState });
-  }
+  reportIfHideNeverArrives(metrics);
   return undefined;
 }
 

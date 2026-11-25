@@ -133,6 +133,10 @@ async function start() {
 
 const QUIET_EXITS = new Set(["user requested", "user stopped", "package updated", "exit self"]);
 
+function isHelperProcessReclaimed(exit: Record<string, unknown>) {
+  return String(exit.process ?? "").includes(":") && exit.reason === "other" && exit.status === 0;
+}
+
 function reportPreviousExits() {
   let exits: ExitRecord[] = [];
   try {
@@ -142,7 +146,7 @@ function reportPreviousExits() {
   }
   for (const { trace, at, ...rest } of exits) {
     const when = typeof at === "number" ? new Date(at).toISOString() : "";
-    const loud = rest.source === "java" || !QUIET_EXITS.has(String(rest.reason));
+    const loud = rest.source === "java" || !(QUIET_EXITS.has(String(rest.reason)) || isHelperProcessReclaimed(rest));
     add(loud ? "E" : "D", [`[exit] ${when}`, rest, ...(trace ? [`\n${trace}`] : [])], loud, EXIT_CHARS);
   }
 }
