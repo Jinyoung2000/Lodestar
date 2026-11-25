@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
   command: { minHeight: MIN_TOUCH, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, paddingHorizontal: spacing.md },
   send: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   stopMark: { width: 11, height: 11, borderRadius: 2 },
-  segment: { marginStart: "auto", flexDirection: "row", borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: 2 },
+  segment: { marginStart: "auto", height: 36, flexDirection: "row", borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: 2 },
   segmentItem: { minHeight: 24, minWidth: 56, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, paddingHorizontal: spacing.md },
   modeLabel: { fontSize: 13, lineHeight: 18 },
   queueToggle: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 32 },
