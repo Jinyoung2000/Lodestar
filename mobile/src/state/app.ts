@@ -67,6 +67,7 @@ client.onStatus((status) => {
 
 AppState.addEventListener("change", (next) => {
   if (next !== "active") {
+    void store.flushSave();
     client.pause();
     return;
   }

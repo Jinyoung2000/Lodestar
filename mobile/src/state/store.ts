@@ -54,8 +54,10 @@ const PAGE = 60;
 const CACHE_ITEMS = 40;
 const CACHE_SESSIONS = 8;
 const MODEL_TIMEOUT_MS = 75_000;
-const SAVE_DELAY_MS = 400;
+const SAVE_DELAY_MS = 2000;
 const INDEX_KEY = "cache:v1:index";
+const MODELS_KEY = "cache:v1:models";
+const ICONS_KEY = "cache:v1:icons";
 const timelineKey = (id: string) => `cache:v1:tl:${id}`;
 
 const EMPTY: SessionTimeline = { items: [], hasMore: false, synced: false, cached: false, loading: false, loadingOlder: false };
@@ -96,12 +98,12 @@ export class AppStore {
   }
 
   async loadCache(): Promise<boolean> {
-    const raw = await this.cache.get(INDEX_KEY).catch(() => null);
+    const [raw, models, icons] = await Promise.all([INDEX_KEY, MODELS_KEY, ICONS_KEY].map((key) => this.cache.get(key).catch(() => null)));
     if (!raw) return false;
     try {
       const index = JSON.parse(raw) as { agents: Agent[]; workspaces: Workspace[]; recent: string[]; hostName: string | null; modelProviders?: ModelProviders; modelPins?: string[]; workspaceIcons?: MobileWorkspaceIcons; customProviders?: MobileCustomProvider[] };
       this.recent = index.recent ?? [];
-      this.set({ modelProviders: index.modelProviders ?? {}, customProviders: Array.isArray(index.customProviders) ? index.customProviders : [], modelPins: index.modelPins ?? null, workspaceIcons: index.workspaceIcons ?? {}, agents: index.agents, workspaces: index.workspaces, hostName: index.hostName ?? null, loaded: true });
+      this.set({ modelProviders: savedObject<ModelProviders>(models) ?? index.modelProviders ?? {}, customProviders: Array.isArray(index.customProviders) ? index.customProviders : [], modelPins: index.modelPins ?? null, workspaceIcons: savedObject<MobileWorkspaceIcons>(icons) ?? index.workspaceIcons ?? {}, agents: index.agents, workspaces: index.workspaces, hostName: index.hostName ?? null, loaded: true });
       return true;
     } catch {
       return false;
@@ -143,7 +145,7 @@ export class AppStore {
     this.saveTimer = null;
     this.dirty.clear();
     this.opened.clear();
-    const keys = [INDEX_KEY, ...this.recent.map(timelineKey), ...Object.keys(this.state.timelines).map(timelineKey)];
+    const keys = [INDEX_KEY, MODELS_KEY, ICONS_KEY, ...this.recent.map(timelineKey), ...Object.keys(this.state.timelines).map(timelineKey)];
     this.recent = [];
     this.set({ modelProviders: {}, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null });
     await this.cache.remove([...new Set(keys)]).catch(() => {});
@@ -193,7 +195,7 @@ export class AppStore {
       const icons = await link.call("mobile.workspaceIcons", {}, 20_000) as MobileWorkspaceIcons;
       if (this.connectionGeneration !== generation || !icons || typeof icons !== "object") return;
       this.set({ workspaceIcons: icons });
-      this.touchIndex();
+      this.touch("*icons");
     } catch {
       return;
     }
@@ -423,7 +425,7 @@ export class AppStore {
       const provider = catalog.providers.find((item) => item.harness === harness) ?? null;
       this.set({ modelProviders: { ...this.state.modelProviders, [harness]: provider } });
       this.providerFreshUntil.set(harness, Date.now() + (provider ? 300_000 : 30_000));
-      this.touchIndex();
+      this.touch("*models");
     }).finally(() => {
       if (this.providerRequests.get(harness) === request) this.providerRequests.delete(harness);
     });
@@ -643,7 +645,11 @@ export class AppStore {
   }
 
   private touchIndex() {
-    this.dirty.add("*index");
+    this.touch("*index");
+  }
+
+  private touch(part: "*index" | "*models" | "*icons") {
+    this.dirty.add(part);
     this.scheduleSave();
   }
 
@@ -659,8 +665,16 @@ export class AppStore {
     this.dirty.clear();
     const writes: Promise<void>[] = [];
     for (const key of dirty) {
+      if (key === "*models") {
+        writes.push(this.cache.set(MODELS_KEY, JSON.stringify(this.state.modelProviders)));
+        continue;
+      }
+      if (key === "*icons") {
+        writes.push(this.cache.set(ICONS_KEY, JSON.stringify(this.state.workspaceIcons)));
+        continue;
+      }
       if (key === "*index") {
-        writes.push(this.cache.set(INDEX_KEY, JSON.stringify({ agents: this.state.agents, workspaces: this.state.workspaces, recent: this.recent, hostName: this.state.hostName, modelProviders: this.state.modelProviders, modelPins: this.state.modelPins, workspaceIcons: this.state.workspaceIcons, customProviders: this.state.customProviders })));
+        writes.push(this.cache.set(INDEX_KEY, JSON.stringify({ agents: this.state.agents, workspaces: this.state.workspaces, recent: this.recent, hostName: this.state.hostName, modelPins: this.state.modelPins, customProviders: this.state.customProviders })));
         continue;
       }
       const timeline = this.state.timelines[key];
@@ -670,6 +684,16 @@ export class AppStore {
       writes.push(this.cache.set(timelineKey(key), JSON.stringify({ items: tail, hasMore: timeline.hasMore || tail.length < timeline.items.length })));
     }
     await Promise.all(writes).catch(() => {});
+  }
+}
+
+function savedObject<T extends object>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return value && typeof value === "object" && !Array.isArray(value) ? (value as T) : null;
+  } catch {
+    return null;
   }
 }
 
