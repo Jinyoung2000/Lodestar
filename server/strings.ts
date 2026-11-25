@@ -187,6 +187,8 @@ export const T = {
   errAlreadyExists: (path: string) => `A file or folder named ${path} already exists`,
   errBadNewPath: "Enter a name for the new file or folder",
   errNotWritable: (path: string) => `Cannot write outside the workspace: ${path}`,
+  errFormatterNotInstallable: (extensionId: string) => `${extensionId} is not a formatter Lodestar can install`,
+  errVscodeCliMissing: "Visual Studio Code is not installed, so the extension cannot be installed",
   errFormatFailed: (tool: string, detail: string) => `${tool} could not format this file: ${detail}`,
   formatNotAddedFolder: "This folder was not added as a workspace (a pull request checkout or a repository Lodestar downloaded), so its formatters and their config files are not run.",
   errBadScreenshot: "The screenshot is not a PNG image or is too large.",

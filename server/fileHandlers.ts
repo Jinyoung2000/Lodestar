@@ -2,7 +2,7 @@ import { isAbsolute } from "node:path";
 import type { ServerEvent } from "../shared/protocol";
 import { folderOf } from "../shared/sessionFolders";
 import { createWorkspaceEntry, listEmptyDirs, listFiles, listIgnoredFiles, openInVSCode, readWorkspaceBinary, readWorkspaceFileWithStat, renameWorkspaceEntry, resolveInside, saveWorkspaceFile, statWorkspaceFile, trashWorkspaceEntry } from "./files";
-import { formatLanguages, formatOnSaveOf, readFormatSettings, runFormat } from "./format";
+import { formatLanguages, formatOnSaveOf, installFormatterExtension, readFormatSettings, runFormat } from "./format";
 import { headTextOf } from "./headText";
 import { revealInFileManager } from "./reveal";
 import { searchWorkspace } from "./search";
@@ -62,6 +62,10 @@ export function fileHandlers(deps: FileHandlerDeps): HandlersFor<Exclude<Methods
       if (typeof chosen === "boolean") return { formatOnSave: chosen, source: "agent-nav" as const, languages };
       const fromVscode = formatOnSaveOf(settings);
       return fromVscode === null ? { formatOnSave: false, source: "builtin" as const, languages } : { formatOnSave: fromVscode, source: "vscode" as const, languages };
+    },
+    "format.installExtension": async ({ extensionId }) => {
+      await installFormatterExtension(String(extensionId));
+      return null;
     },
     "files.openInVSCode": async ({ workspaceId, path, line, column }) => {
       await openInVSCode(store.workspace(workspaceId).dir, path, line, column);

@@ -680,7 +680,9 @@ export type FormatResult = {
   language: string;
   problem?: FormatProblem;
   alternatives?: FormatChoice[];
+  install?: FormatInstall;
 };
+export type FormatInstall = { extensionId: string; label: string };
 export type FormatLanguage = {
   id: string;
   name: string;
@@ -736,6 +738,7 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
     result: FormatResult;
   };
   "format.config": { params: { workspaceId?: string }; result: { formatOnSave: boolean; source: DefaultSource; languages: FormatLanguage[] } };
+  "format.installExtension": { params: { extensionId: string }; result: null };
   "files.write": { params: { agentId: string; path: string; text: string | null }; result: null };
   "files.openInVSCode": {
     params: { workspaceId: string; path: string; line: number; column: number };

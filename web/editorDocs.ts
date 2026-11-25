@@ -3,13 +3,13 @@ import { Prec, type Extension, type StateCommand, type Text } from "@codemirror/
 import { redo, undo } from "@codemirror/commands";
 import { EditorView, keymap } from "@codemirror/view";
 import { useSyncExternalStore } from "react";
-import type { FormatResult, FormatterId } from "../shared/protocol";
+import type { FormatInstall, FormatResult, FormatterId } from "../shared/protocol";
 import { confirmAction, confirmDialog, promptText } from "./ConfirmDialog";
 import { currentEditorOptions } from "./editorOptions";
 import { copyName } from "./fileKind";
 import { FV } from "./fileViewStrings";
 import { absolutePath, lspFormat, notifySaved } from "./lsp";
-import { notify } from "./notices";
+import { dismissNotice, notify } from "./notices";
 import { rpc } from "./rpc";
 import { hasSaveTransforms, saveTransformChanges, type SaveTransformPhase } from "./saveTransforms";
 import { activeKeyOfGroup, closeTab, fileTabKey, flash, getState, openFile, pinEditorTab, refreshGit, replaceTab, setDirty, setState } from "./store";
@@ -612,6 +612,7 @@ export async function formatDoc(key: string, selection: boolean, silent: boolean
   const label = FORMATTER_NAME[result.formatter ?? "tsserver"];
   if (!silent && changed) announce(S.formattedWith(label));
   else if (!silent) hint(S.formatUnchanged(label), view);
+  if (!silent && result.install) offerProjectFormatter(key, selection, result.install, label);
   return changed;
 }
 
@@ -626,10 +627,13 @@ export function formatPastedRange(view: EditorView, range: { from: number; to: n
 }
 
 function reportFormatProblem(key: string, result: FormatResult, selection: boolean, silent: boolean) {
-  const { problem, language } = result;
+  const { problem, language, install } = result;
   if (!problem) return;
+  const installActions = install ? [{ label: S.formatInstall(install.label), run: () => void installFormatter(key, selection, install), primary: true }] : [];
   if (problem.kind === "none") {
-    if (!silent) hint(S.noFormatter(language), docs.get(key)?.view);
+    if (silent) return;
+    if (install) notify({ message: S.noFormatter(language), severity: "info", actions: installActions, key: installNoticeKey(install) });
+    else hint(S.noFormatter(language), docs.get(key)?.view);
     return;
   }
   const message =
@@ -643,7 +647,8 @@ function reportFormatProblem(key: string, result: FormatResult, selection: boole
             ? S.formatUnsupported(problem.extension)
             : S.formatAmbiguous(language);
   const actions = [
-    { label: S.formatConfigure, run: () => setState({ overlay: { kind: "status", section: "format" } }), primary: true },
+    ...installActions,
+    { label: S.formatConfigure, run: () => setState({ overlay: { kind: "status", section: "format" } }), primary: !install },
     ...(result.alternatives ?? []).map((choice) => ({ label: S.formatWith(choice.label), run: () => void formatDoc(key, selection, false, choice.formatter) })),
   ];
   notify({
@@ -657,6 +662,31 @@ function reportFormatProblem(key: string, result: FormatResult, selection: boole
 }
 
 const SAVE_NOTICE_MS = 15_000;
+
+async function installFormatter(key: string, selection: boolean, install: FormatInstall) {
+  const progress = notify({ message: S.formatInstalling(install.label), key: installNoticeKey(install), autoHideMs: null });
+  try {
+    await rpc.call("format.installExtension", { extensionId: install.extensionId });
+  } catch (error) {
+    notify({ message: S.formatInstallFailed(install.label), detail: (error as Error).message, severity: "error", key: installNoticeKey(install) });
+    return;
+  }
+  dismissNotice(progress);
+  await formatDoc(key, selection, false);
+}
+
+const installNoticeKey = (install: FormatInstall) => `format:install:${install.extensionId}`;
+const offeredProjectFormatters = new Set<string>();
+
+function offerProjectFormatter(key: string, selection: boolean, install: FormatInstall, usedLabel: string) {
+  if (offeredProjectFormatters.has(install.extensionId)) return;
+  offeredProjectFormatters.add(install.extensionId);
+  notify({
+    message: S.formatProjectUses(install.label, usedLabel),
+    actions: [{ label: S.formatInstall(install.label), run: () => void installFormatter(key, selection, install), primary: true }],
+    key: installNoticeKey(install),
+  });
+}
 
 export function applyMinimalText(view: EditorView, newText: string): boolean {
   const lineBreak = view.state.lineBreak;

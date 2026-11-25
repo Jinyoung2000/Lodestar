@@ -14,6 +14,7 @@ export type ResolveEnv = {
   extensionsDir: string;
   builtinExtensionsDir: string;
   globalRoots: () => Promise<string[]>;
+  vscodeCli?: string | null;
 };
 
 export function defaultResolveEnv(env: NodeJS.ProcessEnv = process.env): ResolveEnv {
@@ -24,7 +25,15 @@ export function defaultResolveEnv(env: NodeJS.ProcessEnv = process.env): Resolve
     extensionsDir: env.AGENT_NAV_VSCODE_EXTENSIONS_DIR ?? join(home, ".vscode", "extensions"),
     builtinExtensionsDir: env.AGENT_NAV_VSCODE_BUILTIN_EXTENSIONS_DIR ?? "/Applications/Visual Studio Code.app/Contents/Resources/app/extensions",
     globalRoots: () => (globalRootsCache ??= findGlobalRoots(home)),
+    vscodeCli: findVscodeCli(env),
   };
+}
+
+const VSCODE_APP_CLI = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code";
+
+function findVscodeCli(env: NodeJS.ProcessEnv) {
+  if (env.AGENT_NAV_VSCODE_CLI !== undefined) return existsSync(env.AGENT_NAV_VSCODE_CLI) ? env.AGENT_NAV_VSCODE_CLI : null;
+  return existsSync(VSCODE_APP_CLI) ? VSCODE_APP_CLI : null;
 }
 
 export type ToolContext = {

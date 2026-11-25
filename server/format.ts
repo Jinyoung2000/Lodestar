@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
-import type { FormatChoice, FormatLanguage, FormatProblem, FormatResult, FormatterId } from "../shared/protocol";
+import type { FormatChoice, FormatInstall, FormatLanguage, FormatProblem, FormatResult, FormatterId } from "../shared/protocol";
 import { defaultPaths, parseJsonc } from "./defaults";
 import {
   defaultResolveEnv,
@@ -137,8 +137,8 @@ export async function runFormat(request: FormatRequest): Promise<FormatResult> {
   const { dir, absolute, settings, chosen = {}, formatter: once, env = defaultResolveEnv() } = request;
   const languageId = languageIdOf(absolute);
   const language = languageNameOf(absolute);
-  const none = (): FormatResult => ({ text: null, formatter: null, language, problem: { kind: "none" } });
-  if (!languageId) return none();
+  if (!languageId) return { text: null, formatter: null, language, problem: { kind: "none" } };
+  const none = (): FormatResult => ({ text: null, formatter: null, language, problem: { kind: "none" }, install: installOffer(env, suggestedFormatter(absolute)) });
   const ctx: ToolContext = { workspaceDir: dir, file: absolute, flat: flatSettings(settings), env };
   const prepare = (id: FormatterId, ignoreSettings: boolean) => prepareFormatter(id, languageId, ctx, request, ignoreSettings);
   const done = async (id: FormatterId, prepared: Prepared & { ok: true }): Promise<FormatResult> => ({ text: await prepared.run(), formatter: id, language });
@@ -160,7 +160,7 @@ export async function runFormat(request: FormatRequest): Promise<FormatResult> {
   if (configured) {
     const id = EXTENSION_FORMATTER[configured.id];
     const extension = installedExtension(env, configured.id);
-    if (!extension) return failed({ kind: "unavailable", extensionId: configured.id }, null);
+    if (!extension) return { ...(await failed({ kind: "unavailable", extensionId: configured.id }, null)), install: id ? installOffer(env, id) : undefined };
     if (!id) return failed({ kind: "unsupported", extension: extension.displayName }, null);
     const prepared = await prepare(id, false);
     return prepared.ok ? done(id, prepared) : failed(problemOf(id, prepared, env), id);
@@ -177,8 +177,36 @@ export async function runFormat(request: FormatRequest): Promise<FormatResult> {
   if (providers.length > 1 && configuredHere.length !== 1) return failed({ kind: "ambiguous" }, null);
   const only = configuredHere[0] ?? providers[0];
   const prepared = await prepare(only, false);
-  return prepared.ok ? done(only, prepared) : failed(problemOf(only, prepared, env), only);
+  if (!prepared.ok) return failed(problemOf(only, prepared, env), only);
+  const result = await done(only, prepared);
+  return only === "tsserver" ? { ...result, install: projectFormatterOffer(env, absolute) } : result;
 }
+
+const INSTALLABLE: FormatterId[] = ["oxc", "prettier", "eslint"];
+
+function suggestedFormatter(absolute: string): FormatterId {
+  return hasRepoConfig("oxc", absolute) && !hasRepoConfig("prettier", absolute) ? "oxc" : "prettier";
+}
+
+function installOffer(env: ResolveEnv, id: FormatterId): FormatInstall | undefined {
+  if (!env.vscodeCli || !INSTALLABLE.includes(id) || installedExtension(env, FORMATTERS[id].extensionId)) return undefined;
+  return { extensionId: FORMATTERS[id].extensionId, label: FORMATTERS[id].label };
+}
+
+function projectFormatterOffer(env: ResolveEnv, absolute: string) {
+  const configured = (["prettier", "oxc"] as const).find((id) => hasRepoConfig(id, absolute));
+  return configured ? installOffer(env, configured) : undefined;
+}
+
+export async function installFormatterExtension(extensionId: string, env: ResolveEnv = defaultResolveEnv()) {
+  const id = INSTALLABLE.find((formatter) => FORMATTERS[formatter].extensionId === extensionId);
+  if (!id) throw new Error(T.errFormatterNotInstallable(extensionId));
+  if (!env.vscodeCli) throw new Error(T.errVscodeCliMissing);
+  const result = await execTool({ path: env.vscodeCli, loader: "native", args: [], origin: "path" }, ["--install-extension", extensionId], env.home, "", INSTALL_TIMEOUT_MS);
+  if (result.code !== 0 || !installedExtension(env, extensionId)) throw new Error(firstLine(result.stderr || result.stdout));
+}
+
+const INSTALL_TIMEOUT_MS = 180_000;
 
 function installedExtension(env: ResolveEnv, id: string) {
   return id === FORMATTERS.tsserver.extensionId ? { id, displayName: FORMATTERS.tsserver.name } : lookupExtension(env, id);
@@ -296,10 +324,10 @@ export function formatLanguages(settings: FormatSettings, chosen: Record<string,
   });
 }
 
-function execTool(tool: ToolLocation, args: string[], cwd: string, input: string) {
+function execTool(tool: ToolLocation, args: string[], cwd: string, input: string, timeout = 30_000) {
   const [command, argv, env] = tool.loader === "node" ? [process.execPath, [tool.path, ...tool.args, ...args], { ...process.env, ELECTRON_RUN_AS_NODE: "1" }] : [tool.path, [...tool.args, ...args], process.env];
   return new Promise<{ code: number; stdout: string; stderr: string }>((resolve, reject) => {
-    const child = execFile(command, argv, { cwd, env, maxBuffer: 64 * 1024 * 1024, timeout: 30_000 }, (error, stdout, stderr) => {
+    const child = execFile(command, argv, { cwd, env, maxBuffer: 64 * 1024 * 1024, timeout }, (error, stdout, stderr) => {
       if (error && typeof (error as NodeJS.ErrnoException).code !== "number") {
         reject(error);
         return;
