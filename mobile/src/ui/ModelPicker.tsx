@@ -16,6 +16,7 @@ import { Text } from "./Text";
 
 export const DEFAULT_MODEL_SELECTION: MobileModelSelection = { harness: "claude", model: null, effort: null };
 const EFFORT_NAMES: Record<EffortLevel, string> = { low: "Low", medium: "Med", high: "High", xhigh: "XHigh", max: "Max", ultra: "Ultra" };
+export const effortName = (level: EffortLevel) => (level === "medium" ? "Medium" : EFFORT_NAMES[level]);
 const SWITCH_MESSAGES: Record<SwitchBlock, string> = {
   running: "Wait for the reply to finish before switching tools",
   background: "Wait for the background tasks to finish before switching tools",
@@ -258,7 +259,7 @@ export function ModelPicker({ agentId, selection, close, keyboardInset = 0, appl
           </View>}
         </>}
         {page === "reasoning" && <View style={[styles.group, { backgroundColor: colors.surfaceBase }]}>
-          {current?.levels.map((level) => <Choice key={level} label={level === "medium" ? "Medium" : EFFORT_NAMES[level]} checked={effort === level} disabled={saving} onPress={() => chooseEffort(level)} />)}
+          {current?.levels.map((level) => <Choice key={level} label={effortName(level)} checked={effort === level} disabled={saving} onPress={() => chooseEffort(level)} />)}
         </View>}
         {page === "filter" && <View style={[styles.group, { backgroundColor: colors.surfaceBase }]}>
           <Choice label="All providers" checked={!filter} onPress={() => chooseFilter(null)} />

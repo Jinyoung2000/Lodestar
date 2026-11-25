@@ -12,7 +12,7 @@ import { MIN_TOUCH, radius, spacing, useColors, withAlpha } from "../theme/theme
 import { showActionMenu } from "./actionMenu";
 import { useWindowFontScale } from "./FoldLayout";
 import { Icon } from "./Icon";
-import { ModelSubtitle, modelPickerLabel } from "./ModelPicker";
+import { effortName, modelPickerLabel } from "./ModelPicker";
 import { ProviderMark, PROVIDER_NAMES, useProviderName } from "./ProviderMark";
 import { Text } from "./Text";
 
@@ -45,7 +45,6 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const maxInputHeight = Math.ceil(INPUT_LINE_HEIGHT * fontScale * MAX_INPUT_LINES) + INPUT_PADDING * 2;
   const editorHeight = Math.min(Math.max(MIN_HEIGHT, maxInputHeight), height);
   const [wraps, setWraps] = useState(false);
-  const [compactModelWidth, setCompactModelWidth] = useState(MIN_TOUCH);
   const [editing, setEditing] = useState(false);
   const modelProviderName = useProviderName(modelControl?.providerId);
   const [selection, setSelection] = useState(() => ({ start: initialText?.length ?? 0, end: initialText?.length ?? 0 }));
@@ -252,8 +251,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
   const modelAvailable = !!modelControl && !modelControl.disabled && !disabled;
   const showStop = !!(running && onStop);
   const compactStart = MIN_TOUCH + spacing.xs;
-  const modelWidth = modelControl ? Math.max(MIN_TOUCH, compactModelWidth) : 0;
-  const compactEnd = modelWidth + MIN_TOUCH * (Number(showStop) + 1) + spacing.xs;
+  const compactEnd = MIN_TOUCH * (Number(showStop) + 1) + spacing.xs;
   const expanded = !!text.length && (wraps || text.includes("\n"));
   const token = editing && modelAvailable && selection.start === selection.end ? text.slice(0, selection.start).match(/(?:^|\s)(\/[a-z]*)$/i)?.[1] : undefined;
   const modelCommand = token && "/model".startsWith(token.toLowerCase()) && !/\w/.test(text[selection.end] ?? "") ? token : undefined;
@@ -281,18 +279,6 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
           {queue.map((m) => (
             <QueueChip key={m.id} message={m} label="Queued" onNow={onSendQueuedNow ? () => onSendQueuedNow(m.id) : undefined} onCancel={onDequeue ? async () => { const back = await onDequeue(m.id); if (back) setText((t) => (t ? `${t}\n${back}` : back)); } : undefined} />
           ))}
-        </View>
-      )}
-      {running && (
-        <View style={styles.modeRow}>
-          <View style={[styles.segment, { backgroundColor: colors.surfaceBase, borderColor: colors.separator }]}>
-            <Pressable accessibilityRole="button" accessibilityState={{ selected: !steer }} hitSlop={{ top: 6, bottom: 2 }} onPress={() => setMode(false)} style={[styles.segmentItem, !steer && { backgroundColor: colors.selected }]}>
-              <Text variant="secondary" style={styles.modeLabel} color={!steer ? "textStrong" : "textMuted"}>Queue</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityState={{ selected: steer }} hitSlop={{ top: 6, bottom: 2 }} onPress={() => setMode(true)} style={[styles.segmentItem, steer && { backgroundColor: colors.selected }]}>
-              <Text variant="secondary" style={styles.modeLabel} color={steer ? "textStrong" : "textMuted"}>Steer</Text>
-            </Pressable>
-          </View>
         </View>
       )}
       {attachments.items.length > 0 && (
@@ -330,6 +316,28 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
         <Text variant="secondary" color="textStrong">/model</Text>
         <Text variant="caption" color="textMuted" numberOfLines={1}>Switch model</Text>
       </Pressable>}
+      {(modelControl || running) && (
+        <View style={styles.toolbar}>
+          {modelControl && <Pressable accessibilityRole="button" accessibilityLabel={`${modelProviderName ?? PROVIDER_NAMES[modelControl.harness]}, ${modelPickerLabel(modelControl.name, modelControl.effort)}`}
+            accessibilityState={{ disabled: !modelAvailable }} disabled={!modelAvailable} onPress={modelControl.onPress} hitSlop={{ top: 4, bottom: 4 }}
+            style={({ pressed }) => [styles.model, { borderColor: colors.separator, opacity: modelAvailable ? 1 : 0.5 }, pressed && { backgroundColor: colors.pressed }]}>
+            <ProviderMark harness={modelControl.harness} providerId={modelControl.providerId} size={16} selected />
+            <Text variant="secondary" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.modelName}>{modelControl.name}</Text>
+            {modelControl.effort && <Text variant="secondary" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3}>{`· ${effortName(modelControl.effort)}`}</Text>}
+            <Icon name="chevron.down" size={10} color="textSubtle" />
+          </Pressable>}
+          {running && (
+            <View style={[styles.segment, { backgroundColor: colors.surfaceBase, borderColor: colors.separator }]}>
+              <Pressable accessibilityRole="button" accessibilityState={{ selected: !steer }} hitSlop={{ top: 6, bottom: 2 }} onPress={() => setMode(false)} style={[styles.segmentItem, !steer && { backgroundColor: colors.selected }]}>
+                <Text variant="secondary" style={styles.modeLabel} color={!steer ? "textStrong" : "textMuted"}>Queue</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityState={{ selected: steer }} hitSlop={{ top: 6, bottom: 2 }} onPress={() => setMode(true)} style={[styles.segmentItem, steer && { backgroundColor: colors.selected }]}>
+                <Text variant="secondary" style={styles.modeLabel} color={steer ? "textStrong" : "textMuted"}>Steer</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      )}
       <View style={[styles.surface, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}>
         <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.measure, { start: compactStart, end: compactEnd }]}>
           <Text variant="body" maxFontSizeMultiplier={INPUT_FONT_LIMIT} style={styles.inputType} onTextLayout={(event) => setWraps(event.nativeEvent.lines.length > 1)}>{text}</Text>
@@ -362,13 +370,6 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
             style={[styles.input, styles.inputType, { color: colors.textStrong, start: expanded ? spacing.md : compactStart, end: expanded ? spacing.md : compactEnd, height: expanded ? editorHeight : MIN_HEIGHT, bottom: expanded ? MIN_TOUCH : 0 }]}
           />
           <View style={styles.controls}>
-            {modelControl && <Pressable accessibilityRole="button" accessibilityLabel={`${modelProviderName ?? PROVIDER_NAMES[modelControl.harness]}, ${modelPickerLabel(modelControl.name, modelControl.effort)}`}
-              accessibilityState={{ disabled: !modelAvailable }} disabled={!modelAvailable} onPress={modelControl.onPress}
-              style={({ pressed }) => [styles.model, styles.modelLabelled, pressed && { backgroundColor: colors.pressed }]}
-              onLayout={expanded ? undefined : (e) => setCompactModelWidth(Math.ceil(e.nativeEvent.layout.width))}>
-              <ProviderMark harness={modelControl.harness} providerId={modelControl.providerId} size={18} selected />
-              <ModelSubtitle name={modelControl.name} effort={modelControl.effort} />
-            </Pressable>}
             {showStop && <Pressable accessibilityRole="button" accessibilityLabel="Stop" disabled={!canSend} onPress={onStop} style={styles.iconButton}>
               {({ pressed }) => <View style={[styles.send, { backgroundColor: colors.textStrong, opacity: pressed ? 0.8 : 1 }]}><View style={[styles.stopMark, { backgroundColor: colors.background }]} /></View>}
             </Pressable>}
@@ -417,13 +418,13 @@ const styles = StyleSheet.create({
   inputType: { fontSize: 16, lineHeight: INPUT_LINE_HEIGHT, includeFontPadding: false },
   iconButton: { width: MIN_TOUCH, height: MIN_TOUCH, flexShrink: 0, alignItems: "center", justifyContent: "center" },
   controls: { marginStart: "auto", flexDirection: "row", alignItems: "center", flexShrink: 1, minWidth: 0 },
-  model: { minWidth: MIN_TOUCH, height: MIN_TOUCH, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, borderRadius: radius.md },
-  modelLabelled: { flexShrink: 1, maxWidth: 170, paddingHorizontal: spacing.sm },
+  toolbar: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  model: { flexShrink: 1, minWidth: 0, height: 36, flexDirection: "row", alignItems: "center", gap: spacing.xs, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.sm },
+  modelName: { flexShrink: 1, minWidth: 0 },
   command: { minHeight: MIN_TOUCH, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md, paddingHorizontal: spacing.md },
   send: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   stopMark: { width: 11, height: 11, borderRadius: 2 },
-  modeRow: { alignItems: "flex-end" },
-  segment: { flexDirection: "row", borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: 2 },
+  segment: { marginStart: "auto", flexDirection: "row", borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: 2 },
   segmentItem: { minHeight: 24, minWidth: 56, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, paddingHorizontal: spacing.md },
   modeLabel: { fontSize: 13, lineHeight: 18 },
   queueToggle: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 32 },
