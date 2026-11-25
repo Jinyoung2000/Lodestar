@@ -104,7 +104,51 @@ export class RelaySession {
   }
 
   open(ciphertext: Uint8Array): Uint8Array {
-    return this.p.open(this.receiveKey, nonceFor(this.received++), EMPTY, ciphertext);
+    const plaintext = this.p.open(this.receiveKey, nonceFor(this.received), EMPTY, ciphertext);
+    this.received++;
+    return plaintext;
+  }
+
+  get sentCount(): number {
+    return this.sent;
+  }
+
+  get receivedCount(): number {
+    return this.received;
+  }
+}
+
+export class RelayResendLog {
+  private frames: Uint8Array[] = [];
+  private first = 0;
+  private bytes = 0;
+
+  constructor(private maxFrames: number, private maxBytes: number) {}
+
+  add(sealed: Uint8Array) {
+    this.frames.push(sealed);
+    this.bytes += sealed.length;
+    while (this.frames.length > this.maxFrames || this.bytes > this.maxBytes) {
+      this.bytes -= (this.frames.shift() as Uint8Array).length;
+      this.first++;
+    }
+  }
+
+  from(index: unknown): Uint8Array[] | null {
+    if (typeof index !== "number" || !Number.isInteger(index) || index < this.first || index > this.first + this.frames.length) return null;
+    return this.frames.slice(index - this.first);
+  }
+}
+
+export type RelayResume = { t: "resume"; rx: number };
+
+export function parseRelayResume(text: string): RelayResume | null {
+  if (text.length > 64) return null;
+  try {
+    const message = JSON.parse(text) as { t?: unknown; rx?: unknown };
+    return message.t === "resume" && typeof message.rx === "number" && Number.isInteger(message.rx) && message.rx >= 0 ? { t: "resume", rx: message.rx } : null;
+  } catch {
+    return null;
   }
 }
 
@@ -173,8 +217,8 @@ export function relayPrologue(relayId: string): Uint8Array {
 }
 
 export type RelayStreamKind = "ws" | "http" | "pair";
-export type RelayHello = { v: 1; kind: "ws" | "http"; parts?: true } | { v: 1; kind: "pair"; code: string; deviceName: string };
-export type RelayWelcome = { ok: true; parts?: true; acks?: true; deviceId?: string; deviceToken?: string; host?: string; protocol?: number } | { ok: false; error: string };
+export type RelayHello = { v: 1; kind: "ws" | "http"; parts?: true; resume?: true } | { v: 1; kind: "pair"; code: string; deviceName: string };
+export type RelayWelcome = { ok: true; parts?: true; acks?: true; resume?: true; deviceId?: string; deviceToken?: string; host?: string; protocol?: number } | { ok: false; error: string };
 
 export const RelayFrame = { head: 1, body: 2, end: 3, ack: 4 } as const;
 

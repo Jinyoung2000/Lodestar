@@ -1,5 +1,5 @@
 import type { PairResult } from "@shared/mobile";
-import { decodeText, encodeText, fromBase64Url, RelayAssembler, relayFrame, RelayFrame, relayParts, RELAY_CHUNK_BYTES, RELAY_UPLOAD_WINDOW_BYTES, relayPrologue, startInitiator, toHex, type RelayHello, type RelayHttpResponse, type RelaySession, type RelayWelcome } from "./relayNoise.generated";
+import { decodeText, encodeText, fromBase64Url, parseRelayResume, RelayAssembler, relayFrame, RelayFrame, relayParts, RelayResendLog, RELAY_CHUNK_BYTES, RELAY_UPLOAD_WINDOW_BYTES, relayPrologue, startInitiator, toHex, type RelayHello, type RelayHttpResponse, type RelaySession, type RelayWelcome } from "./relayNoise.generated";
 import { phoneNoise, secureRandomBytes } from "./relayCrypto";
 
 export type RelayTarget = { url: string; id: string; key: string };
@@ -27,9 +27,12 @@ export function relayHost(target: RelayTarget) {
   return target.url.replace(/^https?:\/\//, "");
 }
 
-function relayClientUrl(target: RelayTarget) {
-  return `${target.url.replace(/^http/, "ws")}/v1/client/${target.id}`;
+function relayClientUrl(target: RelayTarget, resume: boolean) {
+  return `${target.url.replace(/^http/, "ws")}/v1/client/${target.id}${resume ? "?resume=1" : ""}`;
 }
+
+const RESEND_FRAMES = 2048;
+const RESEND_BYTES = 4 * 1024 * 1024;
 
 export function createRelayKey(): string {
   return toHex(secureRandomBytes(32));
@@ -39,18 +42,21 @@ type ChannelHandlers = {
   welcome: (welcome: RelayWelcome) => void;
   message: (plaintext: Uint8Array) => void;
   closed: (code: number, reason: string) => void;
+  resumed?: () => void;
 };
 
 class RelayChannel {
   private socket: RawSocket;
   private session: RelaySession | null = null;
   private finished = false;
+  private resend: RelayResendLog | null = null;
 
   constructor(target: RelayEndpoint, hello: RelayHello, private handlers: ChannelHandlers, factory: RelaySocketFactory = defaultFactory) {
     const remoteStatic = fromBase64Url(target.key);
     if (!remoteStatic || remoteStatic.length !== 32) throw new Error("The relay key in this pairing is not valid");
     const initiator = startInitiator(phoneNoise, { staticPrivate: hexBytes(target.privateKey), remoteStatic, prologue: relayPrologue(target.id) });
-    const socket = factory(relayClientUrl(target));
+    const wantsResume = hello.kind === "ws" && hello.resume === true;
+    const socket = factory(relayClientUrl(target, wantsResume));
     this.socket = socket;
     socket.binaryType = "arraybuffer";
     socket.onopen = () => {
@@ -61,13 +67,17 @@ class RelayChannel {
       }
     };
     socket.onmessage = (event) => {
-      if (this.finished || !(event.data instanceof ArrayBuffer)) return;
+      if (this.finished) return;
+      if (typeof event.data === "string") return this.resumeFrom(event.data);
+      if (!(event.data instanceof ArrayBuffer)) return;
       const bytes = new Uint8Array(event.data);
       try {
         if (!this.session) {
           const { payload, session } = initiator.readSecond(bytes);
           this.session = session;
-          return this.handlers.welcome(JSON.parse(decodeText(payload)) as RelayWelcome);
+          const welcome = JSON.parse(decodeText(payload)) as RelayWelcome;
+          if (wantsResume && welcome.ok && welcome.resume === true) this.resend = new RelayResendLog(RESEND_FRAMES, RESEND_BYTES);
+          return this.handlers.welcome(welcome);
         }
         this.handlers.message(this.session.open(bytes));
       } catch {
@@ -80,7 +90,24 @@ class RelayChannel {
 
   send(plaintext: Uint8Array) {
     if (!this.session || this.finished) throw new Error("Not connected to your Mac");
-    this.socket.send(toBuffer(this.session.seal(plaintext)));
+    const sealed = this.session.seal(plaintext);
+    this.resend?.add(sealed);
+    this.socket.send(toBuffer(sealed));
+  }
+
+  private resumeFrom(text: string) {
+    const resume = parseRelayResume(text);
+    if (!resume || !this.resend || !this.session) return;
+    const frames = this.resend.from(resume.rx);
+    if (!frames) return this.finish(4409, "cannot resume");
+    try {
+      this.socket.send(JSON.stringify({ t: "resume", rx: this.session.receivedCount }));
+      for (const frame of frames) this.socket.send(toBuffer(frame));
+    } catch {
+      this.finish(4409, "cannot resume");
+      return;
+    }
+    this.handlers.resumed?.();
   }
 
   close(code = 1000, reason = "") {
@@ -121,11 +148,12 @@ export class RelaySocket {
   onmessage: ((event: { data: unknown }) => void) | null = null;
   onclose: ((event: { code?: number; reason?: string }) => void) | null = null;
   onerror: ((event: unknown) => void) | null = null;
+  onresume: (() => void) | null = null;
   private channel: RelayChannel;
   private parts: RelayAssembler | null = null;
 
   constructor(target: RelayEndpoint, factory?: RelaySocketFactory) {
-    this.channel = new RelayChannel(target, { v: 1, kind: "ws", parts: true }, {
+    this.channel = new RelayChannel(target, { v: 1, kind: "ws", parts: true, resume: true }, {
       welcome: (welcome) => {
         if (!welcome.ok) return this.channel.finish(welcome.error === "bad token" ? 4401 : 4403, welcome.error);
         if (welcome.parts === true) this.parts = new RelayAssembler();
@@ -140,6 +168,7 @@ export class RelaySocket {
         this.readyState = 3;
         this.onclose?.({ code, reason });
       },
+      resumed: () => this.onresume?.(),
     }, factory);
   }
 

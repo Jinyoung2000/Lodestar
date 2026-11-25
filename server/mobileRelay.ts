@@ -9,7 +9,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { WebSocket } from "ws";
 import { MAX_IMAGE_BYTES } from "../shared/images";
 import { MAX_MOBILE_FILE_BYTES, type MobileRelayLinkState, type MobileRelayPairing } from "../shared/mobile";
-import { decodeText, encodeText, RelayAssembler, relayFrame, RelayFrame, relayParts, RELAY_CHUNK_BYTES, RELAY_ID_RE, RELAY_MESSAGE_BYTES, relayPrologue, startResponder, toBase64Url, toHex, type NoisePrimitives, type RelayHello, type RelayHttpRequest, type RelaySession, type RelayWelcome } from "../shared/relayNoise";
+import { decodeText, encodeText, parseRelayResume, RelayAssembler, relayFrame, RelayFrame, relayParts, RelayResendLog, RELAY_CHUNK_BYTES, RELAY_ID_RE, RELAY_MESSAGE_BYTES, relayPrologue, startResponder, toBase64Url, toHex, type NoisePrimitives, type RelayHello, type RelayHttpRequest, type RelaySession, type RelayWelcome } from "../shared/relayNoise";
 import type { MobileDevices, PairOutcome } from "./mobileAccess";
 import { T } from "./strings";
 
@@ -77,6 +77,9 @@ const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 const MAX_CHANNELS = 32;
 const WHOLE_FRAME_BYTES = 1024 * 1024 - 64;
 const DRAIN_POLL_MS = 25;
+const PARK_MS = 25_000;
+const RESEND_FRAMES = 4096;
+const RESEND_BYTES = 8 * 1024 * 1024;
 const REPLY_ID_RE = /^\{"id":(\d+),/;
 const HTTP_PATHS: Record<string, RelayHttpRequest["method"]> = { "/mobile/images": "POST", "/mobile/files": "POST", "/mobile/media": "GET" };
 const PASS_REQUEST_HEADERS = ["authorization", "content-type", "x-image-name", "x-file-name", "range"];
@@ -86,6 +89,7 @@ export class RelayLink {
   state: MobileRelayLinkState = { state: "off", error: null };
   private socket: WebSocket | null = null;
   private channels = new Map<number, RelayChannel>();
+  private parked = new Map<number, { channel: RelayChannel; timer: NodeJS.Timeout }>();
   private retry: NodeJS.Timeout | null = null;
   private keepalive: NodeJS.Timeout | null = null;
   private pongTimer: NodeJS.Timeout | null = null;
@@ -117,17 +121,39 @@ export class RelayLink {
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
     this.dropSocket();
+    this.dropParked();
     this.state = { state: "off", error: null };
   }
 
   closeDevice(deviceId: string) {
     for (const channel of this.channels.values()) if (channel.deviceId === deviceId) channel.close(4001, "device removed");
+    for (const { channel } of this.parked.values()) if (channel.deviceId === deviceId) channel.close(4001, "device removed");
+  }
+
+  private park(id: number, channel: RelayChannel) {
+    const timer = setTimeout(() => {
+      if (this.parked.get(id)?.channel !== channel) return;
+      this.parked.delete(id);
+      channel.logEnd("the relay did not bring it back");
+      channel.dispose();
+    }, PARK_MS);
+    timer.unref();
+    this.parked.set(id, { channel, timer });
+    channel.park();
+  }
+
+  private dropParked() {
+    for (const { channel, timer } of this.parked.values()) {
+      clearTimeout(timer);
+      channel.dispose();
+    }
+    this.parked.clear();
   }
 
   private connect() {
     if (!this.running) return;
     this.state = { state: "connecting", error: this.state.error };
-    const url = `${this.deps.url.replace(/^http/, "ws")}/v1/host/${this.deps.identity.id}`;
+    const url = `${this.deps.url.replace(/^http/, "ws")}/v1/host/${this.deps.identity.id}?resume=1`;
     const socket = new WebSocket(url, { headers: { "x-relay-secret": this.deps.identity.secret }, maxPayload: 2 * 1024 * 1024, handshakeTimeout: 15_000 });
     this.socket = socket;
     socket.binaryType = "nodebuffer";
@@ -246,7 +272,10 @@ export class RelayLink {
     this.heard = null;
     if (this.pongTimer) clearTimeout(this.pongTimer);
     this.pongTimer = null;
-    for (const channel of this.channels.values()) channel.dispose();
+    for (const [id, channel] of this.channels) {
+      if (channel.resumable()) this.park(id, channel);
+      else channel.dispose();
+    }
     this.channels.clear();
     const socket = this.socket;
     this.socket = null;
@@ -280,7 +309,7 @@ export class RelayLink {
       this.pongTimer = null;
       return;
     }
-    let message: { t?: unknown; c?: unknown };
+    let message: { t?: unknown; c?: unknown; resume?: unknown };
     try {
       message = JSON.parse(text);
     } catch {
@@ -290,9 +319,19 @@ export class RelayLink {
     this.heardAt = Date.now();
     this.heard?.();
     const id = message.c;
-    if (message.t === "open") {
+    if (message.t === "open" && message.resume === true) {
+      const kept = this.parked.get(id);
+      if (!kept) return this.closeChannel(id, CLOSE_MAC_OFFLINE, "mac restarted");
+      clearTimeout(kept.timer);
+      this.parked.delete(id);
+      this.channels.set(id, kept.channel);
+      kept.channel.unpark();
+    } else if (message.t === "open") {
       if (this.channels.size >= MAX_CHANNELS) return this.closeChannel(id, 4429, "too many connections");
       this.channels.set(id, new RelayChannel(id, this, this.deps));
+    } else if (message.t === "resume") {
+      const resume = parseRelayResume(text);
+      if (resume) this.channels.get(id)?.resumeFrom(resume.rx);
     } else if (message.t === "close") {
       this.channels.get(id)?.logEnd("the phone or the relay closed it");
       this.channels.get(id)?.dispose();
@@ -318,9 +357,20 @@ export class RelayLink {
     return this.socket?.bufferedAmount ?? 0;
   }
 
+  sendControl(text: string) {
+    const socket = this.socket;
+    if (socket?.readyState === socket?.OPEN) socket?.send(text);
+  }
+
   closeChannel(id: number, code = 1000, reason = "") {
     this.channels.get(id)?.dispose();
     this.channels.delete(id);
+    const kept = this.parked.get(id);
+    if (kept) {
+      clearTimeout(kept.timer);
+      kept.channel.dispose();
+      this.parked.delete(id);
+    }
     const socket = this.socket;
     if (socket?.readyState === socket?.OPEN) socket?.send(JSON.stringify({ t: "close", c: id, code, reason }));
   }
@@ -342,6 +392,8 @@ class RelayChannel {
   private timer: NodeJS.Timeout;
   private noise: NoisePrimitives;
   private openedAt = Date.now();
+  private resend: RelayResendLog | null = null;
+  private holding = false;
 
   constructor(private id: number, private link: RelayLink, private deps: RelayLinkDeps) {
     this.noise = deps.noise ?? nodeNoise;
@@ -353,7 +405,7 @@ class RelayChannel {
   receive(frame: Uint8Array) {
     try {
       if (this.mode === "handshake") return this.handshake(frame);
-      if (!this.session || this.mode === "done") return;
+      if (!this.session || this.mode === "done" || this.holding) return;
       const plaintext = this.session.open(frame);
       if (this.mode === "ws") {
         const message = this.parts ? this.parts.push(plaintext) : plaintext;
@@ -386,7 +438,8 @@ class RelayChannel {
     if (hello.kind === "ws") {
       this.mode = "ws";
       if (hello.parts === true) this.parts = new RelayAssembler();
-      this.welcome({ ok: true, ...(this.parts ? { parts: true as const } : {}) });
+      if (hello.resume === true) this.resend = new RelayResendLog(RESEND_FRAMES, RESEND_BYTES);
+      this.welcome({ ok: true, ...(this.parts ? { parts: true as const } : {}), ...(this.resend ? { resume: true as const } : {}) });
       return this.openLocalSocket();
     }
     if (hello.kind === "http") {
@@ -405,7 +458,34 @@ class RelayChannel {
 
   private sendSealed(plaintext: Uint8Array) {
     if (!this.session || this.mode === "done") return false;
-    return this.link.send(this.id, this.session.seal(plaintext));
+    const sealed = this.session.seal(plaintext);
+    if (!this.resend) return this.link.send(this.id, sealed);
+    this.resend.add(sealed);
+    if (!this.holding) this.link.send(this.id, sealed);
+    return true;
+  }
+
+  resumable() {
+    return this.resend !== null && this.mode === "ws" && this.session !== null;
+  }
+
+  park() {
+    this.holding = true;
+  }
+
+  unpark() {
+    if (!this.session) return;
+    this.deps.log?.(`[relay] phone ${this.deviceId?.slice(0, 8) ?? "?"} kept its connection while this Mac reconnected to the relay`);
+    this.link.sendControl(JSON.stringify({ t: "resume", c: this.id, rx: this.session.receivedCount }));
+  }
+
+  resumeFrom(index: number) {
+    if (!this.holding || !this.resend) return;
+    const frames = this.resend.from(index);
+    if (!frames) return this.close(4409, "cannot resume");
+    this.holding = false;
+    for (const frame of frames) if (!this.link.send(this.id, frame)) return;
+    this.drain();
   }
 
   private toPhone(text: string) {
