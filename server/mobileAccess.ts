@@ -334,6 +334,8 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
       return { agentId: idOf(p.agentId, "agentId"), read: p.read !== false };
     case "mobile.preview":
       return { agentId: idOf(p.agentId, "agentId"), itemId: idOf(p.itemId, "itemId"), target: textOf(p.target, "target", 2048) };
+    case "mobile.walkthrough":
+      return { agentId: idOf(p.agentId, "agentId"), itemId: idOf(p.itemId, "itemId"), source: textOf(p.source, "source", 64 * 1024) };
     case "mobile.browse": {
       const folder = resolveFolder(p.path, browseRoot);
       return { dir: folder.dir, display: folder.display };

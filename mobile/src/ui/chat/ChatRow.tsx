@@ -42,7 +42,7 @@ export const ChatRow = memo(function ChatRow({ row, showGallery, openPreview, ag
     case "assistant":
       return (
         <View style={styles.assistant}>
-          {row.item.text ? <MarkdownView text={row.item.text} previewCards={!row.item.streaming} diagramsFor={row.item.streaming ? undefined : row.item.id} onOpenPreview={openPreview} /> : <Text color="textMuted">…</Text>}
+          {row.item.text ? <MarkdownView text={row.item.text} previewCards={!row.item.streaming} diagramsFor={row.item.streaming ? undefined : row.item.id} agentId={agentId} onOpenPreview={openPreview} /> : <Text color="textMuted">…</Text>}
           <AttachmentGroup files={messagePreviews(row.item)} agentId={agentId} open={openPreview} showGallery={showGallery} />
         </View>
       );

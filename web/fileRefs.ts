@@ -4,7 +4,7 @@ import { isImagePath } from "./fileKind";
 import { fileIndex, normalizeRelative, resolveFileRef } from "./fileRefResolve";
 import { toTarget } from "./lsp";
 import { rpc } from "./rpc";
-import { ensureFiles, getState, openFile, setState, type FileTarget } from "./store";
+import { ensureFiles, getState, openFile, setState, type FileTarget, type OpenOptions } from "./store";
 
 export function parseHref(href: string): FileRef | null {
   if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !href.startsWith("file:")) return null;
@@ -86,13 +86,14 @@ export function linkifyElement(root: HTMLElement) {
   }
 }
 
-export async function openFileRef(workspaceId: string, ref: FileRef, extra: Partial<FileTarget> = {}, side = false) {
+export async function openFileRef(workspaceId: string, ref: FileRef, extra: Partial<FileTarget> = {}, side: boolean | OpenOptions = false) {
   ref = expandHome(ref);
   const base = { line: ref.line, column: ref.column, ...extra };
+  const options = typeof side === "boolean" ? { side } : side;
   if (ref.raw.startsWith("/")) {
     const target = toTarget(ref.raw, workspaceId);
     const outside = target.path.startsWith("../") || target.path.startsWith("/");
-    openFile({ ...((outside && (await sameFileInWorkspace(workspaceId, ref.raw))) || target), ...base }, { side });
+    openFile({ ...((outside && (await sameFileInWorkspace(workspaceId, ref.raw))) || target), ...base }, options);
     return;
   }
   const files = await ensureFiles(workspaceId);
@@ -102,7 +103,7 @@ export async function openFileRef(workspaceId: string, ref: FileRef, extra: Part
     return;
   }
   const path = result.kind === "found" || result.kind === "missing" ? result.path : normalizeRelative(ref.raw);
-  openFile({ workspaceId, path, ...base }, { side });
+  openFile({ workspaceId, path, ...base }, options);
 }
 
 async function sameFileInWorkspace(workspaceId: string, absolute: string): Promise<FileTarget | null> {

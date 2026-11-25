@@ -1062,25 +1062,25 @@ body[data-electron="1"] .titlebar-lead {
   font-size: calc(var(--markdown-code-size, var(--editor-font-size)) * var(--markdown-font-scale, 1));
   line-height: calc(var(--markdown-code-leading, var(--editor-line-height)) * var(--markdown-line-height-scale, 1));
 }
-.markdown pre .cm-syn-kw { color: var(--syntax-keyword); }
-.markdown pre .cm-syn-control { color: var(--syntax-keyword-control); }
-.markdown pre .cm-syn-function { color: var(--syntax-function); }
-.markdown pre .cm-syn-type { color: var(--syntax-type); }
-.markdown pre .cm-syn-string { color: var(--syntax-string); }
-.markdown pre .cm-syn-comment { color: var(--syntax-comment); }
-.markdown pre .cm-syn-variable { color: var(--syntax-variable); }
-.markdown pre .cm-syn-constant { color: var(--syntax-constant); }
-.markdown pre .cm-syn-number { color: var(--syntax-number); }
-.markdown pre .cm-syn-regexp { color: var(--syntax-regexp); }
-.markdown pre .cm-syn-escape { color: var(--syntax-escape); }
-.markdown pre .cm-syn-operator { color: var(--syntax-operator); }
-.markdown pre .cm-syn-tag { color: var(--syntax-tag); }
-.markdown pre .cm-syn-tag-bracket { color: var(--syntax-tag-bracket); }
-.markdown pre .cm-syn-attribute { color: var(--syntax-attribute); }
-.markdown pre .cm-syn-selector { color: var(--syntax-selector); }
-.markdown pre .cm-syn-value { color: var(--syntax-value); }
-.markdown pre .cm-syn-json-key { color: var(--syntax-json-key); }
-.markdown pre .cm-syn-punct { color: var(--editor-fg); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-kw { color: var(--syntax-keyword); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-control { color: var(--syntax-keyword-control); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-function { color: var(--syntax-function); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-type { color: var(--syntax-type); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-string { color: var(--syntax-string); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-comment { color: var(--syntax-comment); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-variable { color: var(--syntax-variable); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-constant { color: var(--syntax-constant); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-number { color: var(--syntax-number); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-regexp { color: var(--syntax-regexp); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-escape { color: var(--syntax-escape); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-operator { color: var(--syntax-operator); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-tag { color: var(--syntax-tag); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-tag-bracket { color: var(--syntax-tag-bracket); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-attribute { color: var(--syntax-attribute); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-selector { color: var(--syntax-selector); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-value { color: var(--syntax-value); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-json-key { color: var(--syntax-json-key); }
+:is(.markdown pre, .walkthrough-code) .cm-syn-punct { color: var(--editor-fg); }
 .markdown table {
   display: block;
   max-width: 100%;

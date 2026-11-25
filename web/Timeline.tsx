@@ -25,6 +25,8 @@ import { addCodeCopyButtons, heatmapTables, highlightCodeBlocks } from "./markdo
 import { addSlackCopyButtons, slackPreviews } from "./slackPreview";
 import { addMermaidButtons, mermaidPreviews } from "./mermaidPreview";
 import { MermaidLightbox } from "./MermaidLightbox";
+import { WalkthroughCard } from "./WalkthroughCard";
+import { walkthroughSegments } from "../shared/walkthrough";
 import { useLanguagesVersion } from "./languages";
 import { BROWSER_TOOL_PREFIX } from "../server/browserToolNames";
 import { browserToolLabel } from "./browserToolLabels";
@@ -442,7 +444,25 @@ function AutomatedMessageRow({ text }: { text: string }) {
   );
 }
 
-export function Markdown({ text, className, breaks = false, linkify = true, workspaceId, itemId, media = false, chunk = false, diagrams = true }: { text: string; className: string; breaks?: boolean; linkify?: boolean; workspaceId?: string | null; itemId?: string; media?: boolean; chunk?: boolean; diagrams?: boolean }) {
+type MarkdownProps = { text: string; className: string; breaks?: boolean; linkify?: boolean; workspaceId?: string | null; itemId?: string; media?: boolean; chunk?: boolean; diagrams?: boolean };
+
+export function Markdown(props: MarkdownProps) {
+  const segments = useMemo(() => (props.diagrams === false ? null : walkthroughSegments(props.text)), [props.text, props.diagrams]);
+  const { workspaceId: timelineWorkspaceId, agentId } = useContext(TimelineContext);
+  if (!segments || (segments.length === 1 && segments[0].kind === "markdown")) return <MarkdownBody {...props} />;
+  const workspaceId = props.workspaceId === undefined ? (timelineWorkspaceId ?? null) : props.workspaceId;
+  const body = segments.map((segment, index) =>
+    segment.kind === "markdown" ? <MarkdownBody key={index} {...props} text={segment.text} chunk /> : <WalkthroughCard key={index} source={segment.source} workspaceId={workspaceId} agentId={agentId || null} />,
+  );
+  if (props.chunk) return <>{body}</>;
+  return (
+    <div className={`markdown ${props.className}`} data-item-id={props.itemId}>
+      {body}
+    </div>
+  );
+}
+
+function MarkdownBody({ text, className, breaks = false, linkify = true, workspaceId, itemId, media = false, chunk = false, diagrams = true }: MarkdownProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [zoomed, setZoomed] = useState<SVGSVGElement | null>(null);
   const languagesVersion = useLanguagesVersion();

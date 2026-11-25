@@ -794,9 +794,11 @@ function consumeReveal(tabKey: string, view: EditorView) {
   }
   if (pos == null) return;
   const head = target.endColumn && target.line && !target.search ? Math.min(doc.line(Math.min(Math.max(target.line, 1), doc.lines)).from + target.endColumn - 1, doc.line(Math.min(Math.max(target.line, 1), doc.lines)).to) : null;
+  const lastLine = target.endLine && target.line && !target.search && target.endLine > target.line ? doc.line(Math.min(target.endLine, doc.lines)).to : null;
+  const selectionHead = head ?? lastLine;
   const scroller = view.scrollDOM;
   scroller.style.scrollBehavior = "auto";
-  const reveal = () => view.dispatch({ selection: head === null ? { anchor: pos! } : { anchor: pos!, head }, effects: EditorView.scrollIntoView(pos!, { y: "center" }) });
+  const reveal = () => view.dispatch({ selection: selectionHead === null ? { anchor: pos! } : { anchor: pos!, head: selectionHead }, effects: EditorView.scrollIntoView(pos!, { y: "center" }) });
   reveal();
   if (!editorFocusHeld(tabKey)) view.focus();
   const settle = (left: number) => {

@@ -3,6 +3,7 @@ import type { SwitchBlock } from "./harnessSwitch";
 import { PREVIEW_HTML_MAX_CHARS } from "./previewCard";
 import type { PickerModel } from "./modelChoices";
 import type { EffortLevel, Harness, ImageRef, RequestQueuing, TimelineItem } from "./protocol";
+import type { WalkthroughSlide } from "./walkthrough";
 
 export const MOBILE_PROTOCOL = 1;
 
@@ -30,6 +31,7 @@ export const MOBILE_METHODS = [
   // 세션 삭제(agents.remove)와 worktree 삭제는 되돌릴 수 없어 열지 않는다.
   "mobile.browse",
   "mobile.preview",
+  "mobile.walkthrough",
   "mobile.models",
   "mobile.providers",
   "models.pins",
@@ -68,6 +70,7 @@ export type MobileWorkspaceIcons = Record<string, string | null>;
 export const MOBILE_MEDIA_PATH = "/mobile/media";
 
 export type MobilePreview = { kind: "html"; html: string } | { kind: "image" | "video"; uri: string } | { kind: "markdown" | "svg" | "csv"; text: string };
+export type MobileWalkthrough = { slides: WalkthroughSlide[] };
 
 export type MobileHost = { address: string; iface: string; kind: "lan" | "tailscale" };
 

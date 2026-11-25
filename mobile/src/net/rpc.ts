@@ -1,4 +1,4 @@
-import type { MobileCustomProvider, MobileBrowseResult, MobileMethod, MobileModelCatalog, MobileModelSelection, MobilePreview, MobileReady, MobileSessionRequest } from "@shared/mobile";
+import type { MobileCustomProvider, MobileBrowseResult, MobileMethod, MobileModelCatalog, MobileModelSelection, MobilePreview, MobileReady, MobileSessionRequest, MobileWalkthrough } from "@shared/mobile";
 import type { Agent, Harness, RpcMethods, ServerEvent } from "@shared/protocol";
 import { reconnectDelay } from "../logic/backoff";
 import { hasMixedRoutes, routeAddress, routeLabel, routesFromAddress, routeSocketUrl, type ConnectionRoute } from "../logic/routes";
@@ -23,6 +23,7 @@ type MobileOnly = {
   "mobile.providers": { params: Record<string, never>; result: MobileCustomProvider[] };
   "mobile.setModel": { params: { agentId: string; selection: MobileModelSelection }; result: MobileModelSelection };
   "mobile.preview": { params: { agentId: string; itemId: string; target: string }; result: MobilePreview };
+  "mobile.walkthrough": { params: { agentId: string; itemId: string; source: string }; result: MobileWalkthrough };
   "mobile.browse": { params: { path?: string }; result: MobileBrowseResult };
 };
 type MobileRpc = { [M in MobileMethod]: M extends keyof MobileOnly ? MobileOnly[M] : M extends keyof RpcMethods ? RpcMethods[M] : never };

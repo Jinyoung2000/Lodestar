@@ -33,6 +33,7 @@ import { createDesktopLink } from "./desktopLinkHost";
 import { LINK_HTTP_PATHS, LINK_WS_PATHS, splitRemotePath, type LinkHttpPath, type LinkWsPath } from "../shared/desktopLink";
 import { WorkspaceIcons } from "./workspaceIcons";
 import { mobilePreview } from "./mobilePreview";
+import { mobileWalkthrough } from "./mobileWalkthrough";
 import { listFolder } from "./mobileFolders";
 import { mobileModels } from "./mobileModels";
 import { modelPinKey } from "../shared/modelChoices";
@@ -716,6 +717,10 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
     const agent = phoneAgent(agentId);
     const item = store.timeline(agentId).find((entry) => entry.id === itemId);
     return mobilePreview(agent.workspaceId ? agent.worktree?.root ?? phoneWorkspace(agent.workspaceId).dir : null, item, target, MOBILE_MEDIA_KEY);
+  },
+  "mobile.walkthrough": ({ agentId, itemId, source }: { agentId: string; itemId: string; source: string }) => {
+    const agent = phoneAgent(agentId);
+    return mobileWalkthrough(agent.cwd, store.timeline(agentId).find((entry) => entry.id === itemId), source);
   },
   "mobile.browse": ({ dir, display }: { dir: string; display: string }) =>
     listFolder({ dir, display }, new Map(store.workspaces.filter((w) => !w.feedback && !w.parentId).map((w) => [w.dir, w.id]))),

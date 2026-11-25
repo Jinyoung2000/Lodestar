@@ -77,6 +77,7 @@ const SESSION_PROMPT_APPEND = [
   `When you change or propose a screen, show it in the chat with ${PREVIEW_TOOL} (As-is and To-be frames) instead of pointing to an image path or describing it in words.`,
   "When the user should choose between screen options, call AskUserQuestion and put each option's self-contained HTML in its preview field; Lodestar renders it inline at phone width.",
   "When a structure, flow or exchange is clearer as a picture, draw it in a fenced code block with the language `mermaid`, using `flowchart` (with `subgraph` for grouped parts, `-.-x` for a broken link) or `sequenceDiagram`; Lodestar draws it as a diagram in the chat on desktop and phone. Keep node labels short and use `<br>` for a second line.",
+  "When you explain how code flows or lay out a change across several places in the code, also put the stops in a fenced code block with the language `walkthrough`, in the order to read them: one step per line as `path:line | what happens here` (a range is `path:start-end`, the path relative to the working directory), and for a planned change follow the step with the current lines prefixed `- ` and the new lines prefixed `+ `. Lodestar shows the block as cards with the real surrounding code that the user steps through on desktop and phone, and can move the editor along with each step. Keep each note to one sentence.",
 ].join(" ");
 const BACKGROUND_NOTICE_MAX = 120;
 const CLAUDE_SCRATCH_ROOTS = typeof process.getuid === "function" ? [`/tmp/claude-${process.getuid()}`, `/private/tmp/claude-${process.getuid()}`] : [];

@@ -70,7 +70,7 @@ export type Tab = FileTab | UntitledTab | DiffTab | BrowserTab | SearchTab | Scm
 export type BrowserAction = "navigate" | "reload" | "zoomIn" | "zoomOut" | "zoomReset" | "find" | "favorite" | "addElement" | "commentElements" | "consoleLogs" | "areaScreenshot" | "share" | "screenshot" | "applyPreset" | "setUserAgent";
 export type BrowserActionRequest = { key: string; action: BrowserAction; url?: string; value?: string; nonce: number };
 
-export type FileTarget = { workspaceId: string; path: string; line?: number; column?: number; endColumn?: number; search?: string };
+export type FileTarget = { workspaceId: string; path: string; line?: number; endLine?: number; column?: number; endColumn?: number; search?: string };
 
 export type ReferenceGroup = { workspaceId: string; path: string; hits: { line: number; column: number; text: string }[] };
 

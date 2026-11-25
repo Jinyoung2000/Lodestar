@@ -8,6 +8,7 @@ import { isOpenableLink, parseMarkdown, shortLinkLabel, type Token } from "../lo
 import type { Preview } from "../logic/previews";
 import { showActionMenu } from "./actionMenu";
 import { DiagramBlock } from "./DiagramBlock";
+import { WalkthroughBlock } from "./WalkthroughBlock";
 import { radius, spacing, useColors } from "../theme/theme";
 import { Icon } from "./Icon";
 import { Text } from "./Text";
@@ -15,15 +16,15 @@ import { Text } from "./Text";
 type Tokens = Token[] | undefined;
 type Any = Token & Record<string, unknown>;
 
-type Diagrams = { itemId: string; onOpen?: (file: Preview) => void } | null;
+type Diagrams = { itemId: string; agentId?: string; onOpen?: (file: Preview) => void } | null;
 const DiagramContext = createContext<Diagrams>(null);
 
-export type MarkdownViewProps = { text: string; selectable?: boolean; previewCards?: boolean; diagramsFor?: string; onOpenPreview?: (file: Preview) => void };
+export type MarkdownViewProps = { text: string; selectable?: boolean; previewCards?: boolean; diagramsFor?: string; agentId?: string; onOpenPreview?: (file: Preview) => void };
 
-export const MarkdownView = memo(function MarkdownView({ text, selectable = true, previewCards = false, diagramsFor, onOpenPreview }: MarkdownViewProps) {
+export const MarkdownView = memo(function MarkdownView({ text, selectable = true, previewCards = false, diagramsFor, agentId, onOpenPreview }: MarkdownViewProps) {
   const source = parseMarkdown(text);
   const tokens = previewCards ? source.flatMap(visibleBlock).map(withMediaFileNames) : source;
-  const diagrams = useMemo<Diagrams>(() => (diagramsFor ? { itemId: diagramsFor, onOpen: onOpenPreview } : null), [diagramsFor, onOpenPreview]);
+  const diagrams = useMemo<Diagrams>(() => (diagramsFor ? { itemId: diagramsFor, agentId, onOpen: onOpenPreview } : null), [diagramsFor, agentId, onOpenPreview]);
   if (tokens.length === 0) return null;
   return (
     <DiagramContext.Provider value={diagrams}>
@@ -200,6 +201,7 @@ function List({ token, selectable, marginBottom }: { token: Any; selectable: boo
 function Code({ code, lang, marginBottom }: { code: string; lang: string; marginBottom: number }) {
   const diagrams = useContext(DiagramContext);
   const renderCode = (bottom: number) => <CodeBlock code={code} lang={lang} marginBottom={bottom} />;
+  if (diagrams?.agentId && /^walkthrough$/i.test(lang.trim())) return <WalkthroughBlock agentId={diagrams.agentId} itemId={diagrams.itemId} source={code} marginBottom={marginBottom} renderCode={renderCode} />;
   if (!diagrams || !isDiagramSource(lang, code)) return renderCode(marginBottom);
   return <DiagramBlock code={code} marginBottom={marginBottom} itemId={diagrams.itemId} onOpen={diagrams.onOpen} renderCode={renderCode} />;
 }
