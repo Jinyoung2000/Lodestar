@@ -1,3 +1,4 @@
+import * as Clipboard from "expo-clipboard";
 import * as Updates from "expo-updates";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -6,6 +7,7 @@ import { hasMixedRoutes, parseConnectionRoutes, routeAddress, routeLabel } from 
 import { relayHost } from "../net/relay";
 import type { ConnFailure } from "../net/rpc";
 import { activitySupported, alertsEnabled, enableAlerts, stopAlerts } from "../state/activity";
+import { crashText, loadCrash } from "../state/crashLog";
 import { client, store, unpair, updateRoutes, useAppState, useConnection } from "../state/app";
 import { setThemeChoice, useThemeChoice, type ThemeChoice } from "../state/themePrefs";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
@@ -33,6 +35,16 @@ function appVersionLabel() {
   if (!runtimeVersion) return "Development";
   if (isEmbeddedLaunch) return `${runtimeVersion} · Built in`;
   return `${runtimeVersion} · OTA${updateId ? ` ${updateId.slice(-8)}` : ""}`;
+}
+
+async function copyLastError() {
+  const report = await loadCrash();
+  if (!report) {
+    Alert.alert("No error recorded on this phone.");
+    return;
+  }
+  await Clipboard.setStringAsync(crashText(report));
+  Alert.alert("Error report copied", `${new Date(report.at).toLocaleString()}\n${report.message}`);
 }
 
 export default function Settings() {
@@ -178,6 +190,7 @@ export default function Settings() {
       <Section title="App updates">
         <Row label="Version" value={appVersionLabel()} />
         <Button title="Check for update" busy={checkingUpdate} onPress={() => void checkUpdate()} />
+        <Button title="Copy last error report" kind="plain" onPress={() => void copyLastError()} />
       </Section>
       <View style={{ gap: spacing.xs }}>
         <Button title="Clear saved sessions" kind="plain" onPress={() => void clearSaved()} />

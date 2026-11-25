@@ -12,12 +12,24 @@ import { applySystemTheme } from "../theme/systemTheme";
 import { scrim, ThemeProvider, useSchemeColors } from "../theme/theme";
 import { ActionMenuHost } from "../ui/ActionMenuHost";
 import { ConnectionStatusProvider } from "../ui/ConnectionTitle";
+import { CrashBoundary, CrashScreen } from "../ui/CrashBoundary";
+import { describeCrash, installCrashRecorder, recordCrash } from "../state/crashLog";
 import { foldRailWidth, FoldLayoutContext, useWindowFontScale } from "../ui/FoldLayout";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
 import { SessionsList } from "../ui/SessionsList";
 import { measureSplitRegion, SplitDragLayer, useSplitDropRegion } from "../ui/SplitDrag";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
+installCrashRecorder();
+
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  const report = useMemo(() => {
+    const described = describeCrash("render", error);
+    recordCrash(described);
+    return described;
+  }, [error]);
+  return <View onLayout={SplashScreen.hide} style={styles.shell}><CrashScreen report={report} onRetry={() => void retry()} /></View>;
+}
 
 export default function RootLayout() {
   const themeChoice = useThemeChoice();
@@ -127,6 +139,7 @@ export default function RootLayout() {
   const pushAnimation = expanded ? "none" : Platform.OS === "android" ? "fade_from_bottom" : "default";
   return (
     <ThemeProvider value={theme}>
+      <CrashBoundary>
       <NavigationThemeProvider value={navigationTheme}>
       <SafeAreaProvider>
         <StatusBar style={scheme === "dark" ? "light" : "dark"} />
@@ -180,6 +193,7 @@ export default function RootLayout() {
         </ConnectionStatusProvider>
       </SafeAreaProvider>
       </NavigationThemeProvider>
+      </CrashBoundary>
     </ThemeProvider>
   );
 }
