@@ -76,14 +76,12 @@ export function ModelSubtitle({ name, effort }: { name: string; effort: EffortLe
 type Props = {
   agentId?: string;
   selection: MobileModelSelection;
-  canResetDraft?: boolean;
-  onResetDraft?: () => void;
   close: () => void;
   keyboardInset?: number;
   apply: (choice: MobileModelSelection) => Promise<MobileModelSelection>;
 };
 
-export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, close, keyboardInset = 0, apply }: Props) {
+export function ModelPicker({ agentId, selection, close, keyboardInset = 0, apply }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { paneWidth, fontScale } = useFoldLayout();
@@ -160,7 +158,8 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
   };
   const choose = (entry: MobileModelProvider, model: string | null) => {
     setError(null);
-    if (entryKey(entry) === selectionKey(selection) && model === selection.model) {
+    const savedModel = selection.model ?? modelOf(entry, null)?.value;
+    if (entryKey(entry) === selectionKey(selection) && model === savedModel) {
       setDraft(null);
       return;
     }
@@ -236,13 +235,12 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
                 {!narrowed && <Icon name={hidden ? "chevron.right" : "chevron.down"} size={14} color="textMuted" />}
               </Pressable>
               {!hidden && <View style={[styles.group, { backgroundColor: colors.surfaceBase }]}>
-                {!needle && <Choice label={defaultChoiceLabel(entry)} checked={key === selectionKey(displayed) && displayed.model === null} disabled={locked} onPress={() => choose(entry, null)} />}
                 {models.map((model) => {
                   const rowKey = `${key}/${model.value}`;
                   const label = modelLabel(entry.harness, model.value, entry);
                   const starred = !!model.pinKey && pinOrder.has(model.pinKey);
                   return <View key={rowKey} style={styles.modelRow}>
-                    <Choice label={label} checked={key === selectionKey(displayed) && displayed.model !== null && model.value === current?.value} disabled={locked} onPress={() => choose(entry, model.value)} />
+                    <Choice label={label} checked={key === selectionKey(displayed) && model.value === current?.value} disabled={locked} onPress={() => choose(entry, model.value)} />
                     <Pressable accessibilityRole="button" accessibilityLabel={`${starred ? "Unfavorite" : "Favorite"} ${label}`} accessibilityState={{ selected: starred }} disabled={!online || !favorites || !model.pinKey || changingPin} style={styles.target} onPress={() => void favorite(entry, model.value, !starred)}>
                       <Image accessible={false} importantForAccessibility="no" source={starred ? require("../../assets/model-picker/favorite.png") : require("../../assets/model-picker/favorite-outline.png")} style={{ width: 17, height: 17, tintColor: starred ? colors.accentText : colors.textMuted }} />
                     </Pressable>
@@ -258,7 +256,6 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
               <Text style={styles.flex}>Reasoning effort</Text><Text variant="secondary" color="textMuted">{effort ? EFFORT_NAMES[effort] : "Default"}</Text><Icon name="chevron.right" size={15} color="textMuted" />
             </Pressable>
           </View>}
-          {!providers.length && canResetDraft && <Button title="Use Mac defaults" kind="plain" onPress={() => { onResetDraft?.(); close(); }} />}
         </>}
         {page === "reasoning" && <View style={[styles.group, { backgroundColor: colors.surfaceBase }]}>
           {current?.levels.map((level) => <Choice key={level} label={level === "medium" ? "Medium" : EFFORT_NAMES[level]} checked={effort === level} disabled={saving} onPress={() => chooseEffort(level)} />)}
@@ -270,11 +267,6 @@ export function ModelPicker({ agentId, selection, canResetDraft, onResetDraft, c
         </View>}
       </ScrollView>
   </View>;
-}
-
-function defaultChoiceLabel(entry: MobileModelProvider) {
-  const base = entry.harness === "claude" && !entry.providerId ? "Mac default" : `${entryName(entry)} default`;
-  return entry.defaultModel ? `${base} (${modelLabel(entry.harness, entry.defaultModel, entry)})` : base;
 }
 
 function Choice({ label, checked, disabled, onPress }: { label: string; checked: boolean; disabled?: boolean; onPress: () => void }) {

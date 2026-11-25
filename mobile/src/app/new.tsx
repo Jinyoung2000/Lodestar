@@ -219,8 +219,6 @@ export default function NewSession() {
       </View>
       {modelOpen && <ModelPicker
         selection={model.selection}
-        canResetDraft={!!modelChoice}
-        onResetDraft={() => setModelChoice(undefined)}
         close={model.close}
         keyboardInset={expanded || keyboardTop === undefined ? 0 : Math.max(0, windowHeight - keyboardTop)}
         apply={async (selection) => {

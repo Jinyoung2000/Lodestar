@@ -9,10 +9,19 @@ import type { MetaService } from "./meta";
 import type { Store } from "./store";
 import { T } from "./strings";
 
+const withoutLongContext = (harness: Harness, id: string) => (harness === "claude" ? id.replace(/\[1m\]$/i, "") : id);
+
+function findModel<M extends { value: string; resolved: string | null }>(harness: Harness, models: readonly M[], id: string | null): M | undefined {
+  if (id === null) return undefined;
+  const base = withoutLongContext(harness, id);
+  return models.find((model) => model.value === id) ?? models.find((model) => model.value === base)
+    ?? models.find((model) => model.value !== "default" && (model.resolved === id || model.resolved === base));
+}
+
 function providerOf(harness: Harness, choices: PickerModel[], defaultId: string | null, defaultEffort: EffortLevel | null): MobileModelProvider | null {
   const visible = choices.filter((model) => mobileModelId(model.value));
   if (!visible.length) return null;
-  const reportedDefault = visible.find((model) => model.value === defaultId) ?? visible.find((model) => defaultId !== null && model.resolved === defaultId);
+  const reportedDefault = findModel(harness, visible, defaultId);
   const advertisedDefault = harness === "claude" ? visible.find((model) => model.value === "default") : undefined;
   const namedDefault = defaultId !== null && mobileModelId(defaultId) ? defaultId : null;
   const defaultModel = reportedDefault?.value ?? namedDefault ?? advertisedDefault?.value ?? null;
@@ -81,7 +90,7 @@ export function mobileModels(store: Store, runner: AgentRunner, metaService: Met
     const origin = await provider(selection.harness);
     if (!origin) throw new Error(T.errMobileProviderUnavailable);
     const id = selection.model ?? origin.defaultModel;
-    const model = origin.models.find((choice) => choice.value === id) ?? origin.models.find((choice) => id !== null && choice.resolved === id);
+    const model = findModel(selection.harness, origin.models, id);
     if (selection.model !== null && !model) throw new Error(T.errMobileModelUnavailable);
     if (selection.effort !== null && !model?.levels.includes(selection.effort)) throw new Error(T.errMobileEffortUnavailable);
     if (selection.harness === "claude") {
