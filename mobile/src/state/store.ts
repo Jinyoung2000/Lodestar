@@ -614,6 +614,10 @@ export class AppStore {
     this.set({ assistant: (await this.call("assistant.cancelReminder", { id })) as AssistantState });
   }
 
+  async undoMateAction(id: string) {
+    await this.call("assistant.undo", { id });
+  }
+
   async setDone(agentId: string, done: boolean) {
     const previous = this.state.agents.find((a) => a.id === agentId)?.done;
     const token = ++this.doneToken;

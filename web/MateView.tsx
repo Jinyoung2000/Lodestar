@@ -68,7 +68,7 @@ function MateChat({ agent, state, panel, onTogglePanel }: MateChatProps) {
   const items = useStore((s) => s.timelines[agent.id]) ?? NO_ITEMS;
   const open = useStore((s) => s.followUps?.items) ?? NO_ITEMS;
   const now = useNow();
-  const entries = useMemo(() => mateFeed({ items, checkIns: state.checkIns, followUps: open, status: agent.status, now }), [items, state.checkIns, open, agent.status, now]);
+  const entries = useMemo(() => mateFeed({ items, checkIns: state.checkIns, followUps: open, status: agent.status, now, actions: state.actions }), [items, state.checkIns, open, agent.status, now, state.actions]);
   const busy = agent.status === "running" || agent.status === "waiting";
   const last = state.lastCheckIn;
   const status = state.busy ? A.checkingIn : agent.status === "running" ? A.working : agent.status === "waiting" ? S.status.waiting : last ? (last.spoke ? A.checkedIn(agoText(last.at, now)) : A.checkedInQuiet(agoText(last.at, now))) : A.idle;

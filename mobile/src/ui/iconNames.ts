@@ -7,6 +7,7 @@ export const MATERIAL_ICONS: Record<string, readonly [AndroidSymbol, number]> = 
   magnifyingglass: ["search", 0xe8b6],
   "arrow.down": ["arrow_downward", 0xe5db],
   "arrow.clockwise": ["refresh", 0xe5d5],
+  "arrow.uturn.backward": ["undo", 0xe166],
   safari: ["explore", 0xe87a],
   bell: ["notifications", 0xe7f4],
   "arrow.right": ["arrow_forward", 0xe5c8],

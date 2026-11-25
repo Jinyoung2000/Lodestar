@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { clockText, type MateEntry } from "../shared/assistant";
+import { useMemo, useState } from "react";
+import { clockText, mateActionView, type AssistantAction, type MateEntry } from "../shared/assistant";
 import { SNOOZE_CHOICES, type FollowUpItem } from "../shared/followups";
 import { dismissFollowUp, itemText, openFollowUpSession, replyToFollowUp, snoozeFollowUp } from "./followUpActions";
 import { ageText, workspaceNameOf } from "./followUpsModel";
-import { DotSpinner } from "./icons";
-import { openMateSession, respondToMate } from "./mateActions";
+import { Codicon, DotSpinner } from "./icons";
+import { openMateSession, respondToMate, undoMateAction } from "./mateActions";
 import { useNow } from "./PrBits";
 import { flash, useStore } from "./store";
 import { S } from "./strings";
@@ -80,6 +80,8 @@ function Entry({ agentId, entry }: EntryProps) {
           </div>
         </div>
       );
+    case "action":
+      return <ActionRow action={entry.action} />;
     case "working":
       return (
         <div className="mate-working">
@@ -148,6 +150,38 @@ function DecisionCard({ item }: DecisionCardProps) {
         </DropdownMenu>
         <Button onClick={() => dismissFollowUp(item.id)}>{A.notNeeded}</Button>
       </div>
+    </div>
+  );
+}
+
+type ActionRowProps = { action: AssistantAction };
+
+function ActionRow({ action }: ActionRowProps) {
+  const agents = useStore((s) => s.agents);
+  const view = useMemo(() => mateActionView(action, agents), [action, agents]);
+  return (
+    <div className="mate-action" data-state={view.state}>
+      <span className="mate-action-icon" aria-hidden="true">
+        <Codicon name={view.state === "undone" ? "discard" : "check"} />
+      </span>
+      <div className="mate-action-main">
+        <span className="mate-action-text">
+          {view.parts.map((part, index) => (part.strong ? <strong key={index} className="mate-action-name">{part.text}</strong> : <span key={index}>{part.text}</span>))}
+        </span>
+        {view.titles && (
+          <span className="mate-action-detail" title={action.targets.map((t) => t.title).join(", ")}>
+            <span className="mate-action-titles">{view.titles}</span>
+            {view.more && <span className="mate-action-more">{view.more}</span>}
+          </span>
+        )}
+        {view.note && <span className="mate-action-note">{view.note}</span>}
+      </div>
+      {view.state === "open" && (
+        <Button variant="secondary" size="sm" data-align-free aria-label={A.undoAria(view.label)} onClick={() => undoMateAction(action.id)}>
+          {A.undo}
+        </Button>
+      )}
+      {view.state === "undone" && <span className="mate-action-state" data-align-free>{view.undoneLabel}</span>}
     </div>
   );
 }

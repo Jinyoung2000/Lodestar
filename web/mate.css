@@ -187,6 +187,80 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.mate-action {
+  justify-self: start;
+  box-sizing: border-box;
+  width: 96%; /* lint-tokens: allow 카드와 같은 폭으로 Undo 가 카드 끝선에 맞게 */
+  max-width: var(--size-chat-min);
+  display: grid;
+  grid-template-columns: var(--size-icon) minmax(0, 1fr) auto;
+  column-gap: var(--space-2);
+  align-items: start;
+  padding-left: var(--space-3);
+}
+.mate-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--size-control-sm);
+  color: var(--fg-muted);
+}
+.mate-action-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-0_5) 0;
+}
+.mate-action-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  overflow-wrap: anywhere;
+}
+.mate-action-name {
+  color: var(--fg-strong);
+  font-weight: var(--weight-ui-strong);
+}
+.mate-action-detail {
+  display: flex;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+  white-space: nowrap;
+}
+.mate-action-titles {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mate-action-more {
+  flex: none;
+}
+.mate-action-note {
+  margin-top: var(--space-1);
+  color: var(--fg-muted);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+}
+.mate-action-state {
+  display: inline-flex;
+  align-items: center;
+  height: var(--size-control-sm);
+  color: var(--fg-muted);
+  font-size: var(--text-ui-sm);
+  line-height: var(--leading-ui-sm);
+}
+.mate-action[data-state="undone"] .mate-action-text,
+.mate-action[data-state="undone"] .mate-action-name {
+  color: var(--fg-muted);
+  font-weight: var(--weight-ui);
+}
 .mate-working {
   display: flex;
   align-items: center;

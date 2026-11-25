@@ -52,6 +52,7 @@ export const MOBILE_METHODS = [
   "assistant.get",
   "assistant.checkIn",
   "assistant.cancelReminder",
+  "assistant.undo",
   "mobile.registerPush",
   "mobile.unregisterPush",
 ] as const;

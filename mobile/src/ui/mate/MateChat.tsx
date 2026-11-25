@@ -1,9 +1,9 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";
-import type { AssistantState } from "@shared/assistant";
+import type { AssistantAction, AssistantState } from "@shared/assistant";
 import type { FollowUpItem } from "@shared/followups";
-import { clockText, mateFeed, SNOOZE_CHOICES, type MateEntry } from "../../logic/mateCore.generated";
+import { clockText, mateActionView, mateFeed, SNOOZE_CHOICES, type MateEntry } from "../../logic/mateCore.generated";
 import type { Agent, EffortLevel, Harness } from "@shared/protocol";
 import { ageText, itemText, SNOOZE_LABEL } from "../../logic/mate";
 import { store, useAppState } from "../../state/app";
@@ -27,7 +27,7 @@ export function MateChat({ agent, assistant, modelControl }: MateChatProps) {
   const colors = useColors();
   const items = useAppState((s) => s.timelines[agent.id]?.items) ?? NO_ITEMS;
   const open = useAppState((s) => s.followUps?.items) ?? NO_ITEMS;
-  const entries = useMemo(() => [...mateFeed({ items, checkIns: assistant.checkIns, followUps: open, status: agent.status, now: Date.now() })].reverse(), [items, assistant.checkIns, open, agent.status]);
+  const entries = useMemo(() => [...mateFeed({ items, checkIns: assistant.checkIns, followUps: open, status: agent.status, now: Date.now(), actions: assistant.actions })].reverse(), [items, assistant.checkIns, open, agent.status, assistant.actions]);
   const [draft, setDraft] = useState("");
   const send = () => {
     const text = draft.trim();
@@ -139,6 +139,8 @@ function Entry({ agentId, entry }: EntryProps) {
           Working…
         </Text>
       );
+    case "action":
+      return <ActionRow action={entry.action} />;
     case "error":
       return (
         <Text variant="secondary" color="danger" style={styles.working}>
@@ -146,6 +148,67 @@ function Entry({ agentId, entry }: EntryProps) {
         </Text>
       );
   }
+}
+
+type ActionRowProps = { action: AssistantAction };
+
+function ActionRow({ action }: ActionRowProps) {
+  const colors = useColors();
+  const agents = useAppState((s) => s.agents);
+  const view = useMemo(() => mateActionView(action, agents), [action, agents]);
+  const undone = view.state === "undone";
+  const undo = () => void store.undoMateAction(action.id).catch(report);
+  return (
+    <View style={[styles.action, view.state === "blocked" && styles.actionBlocked]}>
+      <View style={styles.actionIcon}>
+        <Icon name={undone ? "arrow.uturn.backward" : "checkmark"} size={16} color="textMuted" />
+      </View>
+      <View style={styles.actionMain}>
+        <Text variant="secondary" color={undone ? "textMuted" : "text"} numberOfLines={2}>
+          {view.parts.map((part, index) =>
+            part.strong && !undone ? (
+              <Text key={index} variant="secondary" color="textStrong" style={styles.actionName}>
+                {part.text}
+              </Text>
+            ) : (
+              part.text
+            ),
+          )}
+        </Text>
+        {view.titles && (
+          <View style={styles.actionDetail}>
+            <Text variant="caption" color="textMuted" numberOfLines={1} style={styles.actionTitles}>
+              {view.titles}
+            </Text>
+            {view.more && (
+              <Text variant="caption" color="textMuted" style={styles.actionMore}>
+                {view.more}
+              </Text>
+            )}
+          </View>
+        )}
+        {view.note && (
+          <Text variant="caption" color="textMuted" style={styles.actionNote}>
+            {view.note}
+          </Text>
+        )}
+      </View>
+      {view.state === "open" && (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Undo: ${view.label}`} onPress={undo} style={({ pressed }) => [styles.actionTrail, pressed && { backgroundColor: colors.pressed }]}>
+          <Text variant="secondary" color="accentText" style={styles.actionName}>
+            Undo
+          </Text>
+        </Pressable>
+      )}
+      {undone && (
+        <View style={styles.actionTrail}>
+          <Text variant="secondary" color="textMuted">
+            {view.undoneLabel}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
 }
 
 type DecisionCardProps = { item: FollowUpItem };
@@ -212,6 +275,16 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", gap: spacing.xl },
   footerAction: { minHeight: 32, justifyContent: "center" },
   working: { alignSelf: "flex-start", marginVertical: spacing.xs },
+  action: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingLeft: spacing.md },
+  actionBlocked: { paddingRight: spacing.md },
+  actionIcon: { width: 16, height: MIN_TOUCH, alignItems: "center", justifyContent: "center" },
+  actionMain: { flex: 1, minWidth: 0, paddingVertical: (MIN_TOUCH - 20) / 2 },
+  actionName: { fontWeight: "600" },
+  actionDetail: { flexDirection: "row", gap: spacing.xs, minWidth: 0 },
+  actionTitles: { flexShrink: 1, minWidth: 0 },
+  actionMore: { flexShrink: 0 },
+  actionNote: { marginTop: spacing.xs },
+  actionTrail: { minHeight: MIN_TOUCH, paddingHorizontal: spacing.md, justifyContent: "center", borderRadius: radius.md },
   composer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, marginHorizontal: spacing.md, marginBottom: spacing.sm, paddingLeft: spacing.lg, paddingRight: spacing.xs, paddingVertical: spacing.xs, borderWidth: 1, borderRadius: 22 },
   input: { flex: 1, minHeight: MIN_TOUCH - spacing.sm, maxHeight: 140, paddingVertical: spacing.sm, fontSize: 16, lineHeight: 22 },
   model: { flexShrink: 1, maxWidth: 170, height: 36, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.md, marginBottom: 2 },

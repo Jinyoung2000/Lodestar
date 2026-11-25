@@ -1163,6 +1163,8 @@ export const S = {
     cancel: "Cancel",
     allow: "Allow",
     skip: "Skip",
+    undo: "Undo",
+    undoAria: (label: string) => `Undo: ${label}`,
     approvalFallback: (tool: string) => `Allow ${tool}?`,
     answerInSession: "Mate is asking you something. Answer it in the session view.",
     remindersEmpty: "No reminders are set",

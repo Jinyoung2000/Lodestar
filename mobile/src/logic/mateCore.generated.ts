@@ -189,3 +189,59 @@ export function mateFeed(source: MateFeedSource): MateEntry[] {
   if (status === "running" && !(last?.kind === "mate" && last.streaming)) entries.push({ kind: "working", id: "working" });
   return entries;
 }
+
+export type MateActionPart = { text: string; strong: boolean };
+export type MateActionView = { state: "open" | "undone" | "blocked"; parts: MateActionPart[]; label: string; titles: string | null; more: string | null; note: string | null; undoneLabel: string };
+type ActionAgent = Pick<Agent, "id" | "title" | "done" | "status" | "pinned">;
+
+const plain = (text: string): MateActionPart => ({ text, strong: false });
+const strong = (text: string): MateActionPart => ({ text, strong: true });
+
+function actionParts(action: AssistantAction): MateActionPart[] {
+  const first = action.targets[0];
+  switch (action.kind) {
+    case "markDone":
+      return action.targets.length === 1 ? [plain("Marked "), strong(first.title), plain(" done")] : [plain(`Marked ${action.targets.length} sessions done`)];
+    case "start":
+      return [plain(action.workspace ? `Started a session in ${action.workspace}` : "Started a session")];
+    case "rename":
+      return [plain("Renamed "), strong(first?.before.title ?? first?.title ?? ""), plain(" to "), strong(action.after.title ?? first?.title ?? "")];
+    case "pin":
+      return [plain(action.after.pinned ? "Pinned " : "Unpinned "), strong(first?.title ?? "")];
+  }
+}
+
+function blockedNote(action: AssistantAction, agents: readonly ActionAgent[]): string | null {
+  const live = action.targets.map((target) => agents.find((a) => a.id === target.agentId));
+  const many = action.targets.length > 1;
+  const undoable = (agent: ActionAgent) => {
+    if (action.kind === "markDone") return agent.done === true;
+    if (action.kind === "start") return !(agent.done === true && agent.status !== "running" && agent.status !== "waiting");
+    if (action.kind === "rename") return agent.title === action.after.title;
+    return (agent.pinned === true) === (action.after.pinned === true);
+  };
+  if (live.some((agent) => agent && undoable(agent))) return null;
+  if (live.every((agent) => !agent)) return many ? "Can't undo. The sessions were deleted." : "Can't undo. The session was deleted.";
+  if (live.some((agent) => !agent)) return "Can't undo. The sessions have changed since.";
+  if (action.kind === "markDone") return many ? "Can't undo. The sessions are open again." : "Can't undo. The session is open again.";
+  if (action.kind === "start") return "Can't undo. The session is already done.";
+  if (action.kind === "rename") return "Can't undo. The session was renamed again.";
+  return action.after.pinned ? "Can't undo. The session was unpinned again." : "Can't undo. The session was pinned again.";
+}
+
+export function mateActionView(action: AssistantAction, agents: readonly ActionAgent[]): MateActionView {
+  const parts = actionParts(action);
+  const named = action.kind === "start" || (action.kind === "markDone" && action.targets.length > 1);
+  const titles = named ? action.targets.slice(0, 2).map((t) => agents.find((a) => a.id === t.agentId)?.title ?? t.title) : [];
+  const rest = named ? action.targets.length - titles.length : 0;
+  const note = action.undoneAt ? null : blockedNote(action, agents);
+  return {
+    state: action.undoneAt ? "undone" : note ? "blocked" : "open",
+    parts,
+    label: parts.map((part) => part.text).join(""),
+    titles: titles.length ? titles.join(", ") : null,
+    more: rest > 0 ? `and ${rest} more` : null,
+    note,
+    undoneLabel: action.kind === "start" ? "Stopped" : "Undone",
+  };
+}

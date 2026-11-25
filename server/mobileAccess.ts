@@ -369,6 +369,7 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
       return { id: idOf(p.id, "id"), choice: isSnoozeChoice(p.choice) ? p.choice : fail(T.errMobileParam("choice")) };
     case "followUps.dismiss":
     case "assistant.cancelReminder":
+    case "assistant.undo":
       return { id: idOf(p.id, "id") };
     case "followUps.keepOpen":
       return { agentId: idOf(p.agentId, "agentId") };

@@ -2,8 +2,8 @@ import { followUpSections, isSnoozed, lastActiveAt, type FollowUpItem, type Foll
 import { ASSISTANT_SERVER, ASSISTANT_TOOLS, SILENT_REPLY, assistantToolName, clockText, dayText } from "./mateCore";
 import type { Agent, Workspace } from "./protocol";
 
-export { ASSISTANT_SERVER, ASSISTANT_TOOLS, SILENT_REPLY, assistantApproval, assistantToolName, clockText, dayText, isAssistantTool, isSilentReply, mateFeed } from "./mateCore";
-export type { AssistantApproval, MateEntry, MateFeedSource } from "./mateCore";
+export { ASSISTANT_SERVER, ASSISTANT_TOOLS, SILENT_REPLY, assistantApproval, assistantToolName, clockText, dayText, isAssistantTool, isSilentReply, mateActionView, mateFeed } from "./mateCore";
+export type { AssistantApproval, MateActionView, MateEntry, MateFeedSource } from "./mateCore";
 
 export const ASSISTANT_NAME = "Mate";
 export const ASSISTANT_DEFAULT_MODEL = "sonnet";

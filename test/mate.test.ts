@@ -724,6 +724,37 @@ test("알림: 때가 된 뒤 전하기 전에 취소하면 전하지 않는다",
   return equal(w.calls.send.length, 0, "보낸 체크인");
 });
 
+const viewAgents = (patches: Record<string, Partial<Agent>>) => Object.entries(patches).map(([id, patch]) => makeAgent(id, patch));
+
+test("실행 기록 줄: 세션 하나는 제목을 문장에, 여럿은 수와 앞 2개 제목 + 나머지 수로 보여 준다", () => {
+  const one = shared.mateActionView(action("a1", null, iso(NOW), { targets: [{ agentId: "a", title: "Fix login", before: {} }] }), viewAgents({ a: { done: true, title: "Fix login" } }));
+  equal([one.label, one.titles, one.state], ["Marked Fix login done", null, "open"], "하나");
+  const targets = ["a", "b", "c", "d", "e"].map((id) => ({ agentId: id, title: `T${id}`, before: {} }));
+  const many = shared.mateActionView(action("a2", null, iso(NOW), { targets }), viewAgents({ a: { done: true, title: "Ta" }, b: { done: true, title: "Tb" } }));
+  return equal([many.label, many.titles, many.more], ["Marked 5 sessions done", "Ta, Tb", "and 3 more"], "여럿");
+});
+
+test("실행 기록 줄: 다시 열려 되돌릴 게 없으면 Undo 대신 이유를 보여 준다", () => {
+  const view = shared.mateActionView(action("a1", null, iso(NOW)), viewAgents({ a: { done: false } }));
+  equal([view.state, view.note], ["blocked", "Can't undo. The session is open again."], "다시 열림");
+  const gone = shared.mateActionView(action("a1", null, iso(NOW)), []);
+  return equal(gone.note, "Can't undo. The session was deleted.", "지워짐");
+});
+
+test("실행 기록 줄: 되돌린 기록은 Undone, 세션 시작은 Stopped 으로 끝난다", () => {
+  const undone = shared.mateActionView(action("a1", null, iso(NOW), { undoneAt: iso(NOW) }), viewAgents({ a: { done: false } }));
+  const start = shared.mateActionView(action("a2", null, iso(NOW), { kind: "start", workspace: "Roll", undoneAt: iso(NOW), targets: [{ agentId: "n", title: "New task", before: {} }] }), viewAgents({ n: { done: true, title: "New task" } }));
+  equal([undone.state, undone.undoneLabel, undone.note], ["undone", "Undone", null], "done 되돌림");
+  return equal([start.label, start.titles, start.undoneLabel], ["Started a session in Roll", "New task", "Stopped"], "시작 되돌림");
+});
+
+test("실행 기록 줄: 이름 바꾸기·고정 문장", () => {
+  const rename = shared.mateActionView(action("r", null, iso(NOW), { kind: "rename", targets: [{ agentId: "a", title: "B", before: { title: "A" } }], after: { title: "B" } }), viewAgents({ a: { title: "B" } }));
+  const pin = shared.mateActionView(action("p", null, iso(NOW), { kind: "pin", targets: [{ agentId: "a", title: "A", before: { pinned: false } }], after: { pinned: true } }), viewAgents({ a: { pinned: false } }));
+  equal([rename.label, rename.parts.filter((p) => p.strong).map((p) => p.text)], ["Renamed A to B", ["A", "B"]], "이름");
+  return equal([pin.label, pin.note], ["Pinned A", "Can't undo. The session was unpinned again."], "고정");
+});
+
 let failed = 0;
 for (const c of cases) {
   try {

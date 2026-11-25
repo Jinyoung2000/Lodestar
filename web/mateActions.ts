@@ -82,3 +82,7 @@ export async function writeMateNotes(text: string): Promise<boolean> {
     return false;
   }
 }
+
+export function undoMateAction(id: string) {
+  void rpc.call("assistant.undo", { id }).catch(fail);
+}
