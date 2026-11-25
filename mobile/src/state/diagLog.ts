@@ -20,6 +20,7 @@ type HermesHooks = {
 const MAX_LINES = 800;
 const LINE_CHARS = 3000;
 const EXIT_CHARS = 40_000;
+const LATE_EXIT_CHECKS_MS = [30_000, 300_000];
 const SAVE_DELAY_MS = 1000;
 const UPLOAD_DELAY_MS = 15_000;
 const URGENT_UPLOAD_DELAY_MS = 800;
@@ -140,6 +141,7 @@ async function start() {
     }
   }
   reportPreviousExits();
+  for (const delay of LATE_EXIT_CHECKS_MS) setTimeout(reportPreviousExits, delay);
   started = true;
   save();
   scheduleUpload(URGENT_UPLOAD_DELAY_MS);
