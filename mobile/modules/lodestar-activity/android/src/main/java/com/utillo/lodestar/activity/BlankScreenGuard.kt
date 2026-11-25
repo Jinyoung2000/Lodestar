@@ -2,15 +2,11 @@ package com.utillo.lodestar.activity
 
 import android.app.Activity
 import android.app.Application
-import android.graphics.Bitmap
-import android.graphics.Color
 import android.graphics.Rect
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.view.PixelCopy
 import android.view.View
 import android.view.ViewGroup
 import java.text.SimpleDateFormat
@@ -58,20 +54,13 @@ internal class BlankScreenGuard(private val upload: (String, String) -> String?,
     main.postDelayed(loop, CHECK_EVERY_MS)
     if (activity.isFinishing || activity.isDestroyed || !activity.hasWindowFocus()) return
     val content = activity.findViewById<ViewGroup>(android.R.id.content) ?: return
-    val leaves = visibleLeaves(content)
-    if (leaves < MIN_LEAVES) {
-      judge(activity, content, "$leaves visible views")
+    val leaves = visibleLeaves(content, MIN_LEAVES)
+    if (leaves >= MIN_LEAVES) {
+      armed.add(activity)
+      blankChecks = 0
       return
     }
-    samplePixels(activity) { uniform ->
-      if (watched !== activity) return@samplePixels
-      if (uniform == null) {
-        armed.add(activity)
-        blankChecks = 0
-      } else {
-        judge(activity, content, "$leaves visible views but the window shows one flat color ${uniform}")
-      }
-    }
+    judge(activity, content, "$leaves visible views")
   }
 
   private fun judge(activity: Activity, content: ViewGroup, finding: String) {
@@ -96,37 +85,14 @@ internal class BlankScreenGuard(private val upload: (String, String) -> String?,
     }
   }
 
-  private fun samplePixels(activity: Activity, done: (String?) -> Unit) {
-    if (Build.VERSION.SDK_INT < 26) return done(null)
-    val bitmap = Bitmap.createBitmap(SAMPLE_W, SAMPLE_H, Bitmap.Config.ARGB_8888)
-    try {
-      PixelCopy.request(activity.window, bitmap, { result ->
-        val uniform = if (result == PixelCopy.SUCCESS) flatColor(bitmap) else null
-        bitmap.recycle()
-        done(uniform)
-      }, main)
-    } catch (_: Exception) {
-      bitmap.recycle()
-      done(null)
-    }
-  }
-
-  private fun flatColor(bitmap: Bitmap): String? {
-    val first = bitmap.getPixel(0, bitmap.height / 2)
-    for (y in bitmap.height / 10 until bitmap.height) for (x in 0 until bitmap.width) {
-      val pixel = bitmap.getPixel(x, y)
-      if (Math.abs(Color.red(pixel) - Color.red(first)) > PIXEL_TOLERANCE ||
-        Math.abs(Color.green(pixel) - Color.green(first)) > PIXEL_TOLERANCE ||
-        Math.abs(Color.blue(pixel) - Color.blue(first)) > PIXEL_TOLERANCE) return null
-    }
-    return String.format("#%06x", first and 0xffffff)
-  }
-
-  private fun visibleLeaves(view: View): Int {
+  private fun visibleLeaves(view: View, enough: Int): Int {
     if (!view.isShown || view.alpha < MIN_ALPHA || !view.getGlobalVisibleRect(Rect())) return 0
     if (view !is ViewGroup || view.childCount == 0) return 1
     var count = 0
-    for (i in 0 until view.childCount) count += visibleLeaves(view.getChildAt(i))
+    for (i in 0 until view.childCount) {
+      count += visibleLeaves(view.getChildAt(i), enough - count)
+      if (count >= enough) return count
+    }
     return count
   }
 
@@ -154,9 +120,6 @@ internal class BlankScreenGuard(private val upload: (String, String) -> String?,
     private const val RECREATE_WINDOW_MS = 60_000L
     private const val TAIL_CHARS = 16_000
     private const val BLANK_CHECKS = 2
-    private const val SAMPLE_W = 108
-    private const val SAMPLE_H = 240
-    private const val PIXEL_TOLERANCE = 6
     private const val MIN_LEAVES = 3
     private const val MIN_ALPHA = 0.01f
     private const val MAX_RECREATES = 3
