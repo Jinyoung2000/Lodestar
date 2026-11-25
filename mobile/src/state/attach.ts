@@ -28,6 +28,17 @@ async function prepare(asset: PickedAsset) {
   return { uri: out.uri, thumb: `data:image/jpeg;base64,${thumb.base64 ?? ""}` };
 }
 
+function uploadPhases(started: number) {
+  let connectedAt: number | null = null;
+  let sentAt: number | null = null;
+  const since = (at: number | null) => (at === null ? "-" : `${Math.round(at - started)}ms`);
+  return {
+    connected: () => { connectedAt ??= now(); },
+    progress: (fraction: number) => { if (fraction >= 1) sentAt ??= now(); },
+    detail: () => (connectedAt === null && sentAt === null ? "" : `, connected ${since(connectedAt)}, sent ${since(sentAt)}`),
+  };
+}
+
 export type AttachmentsApi = {
   items: Attachment[];
   addAssets: (assets: PickedAsset[]) => number;
@@ -65,8 +76,9 @@ export function useAttachments(): AttachmentsApi {
         if (!contains(key)) return;
         const target = client.imageUploadTarget();
         if (!target) throw new Error("Not connected to your Mac");
-        const { id } = await uploadToMac(target, blob, asset.fileName || "photo.jpg", "image/jpeg", { onProgress: (progress) => contains(key) && patch(key, { progress }) });
-        record("image-upload", Math.round((now() - started) * 10) / 10, `${Math.round(blob.size / 1024)} KB`);
+        const phases = uploadPhases(started);
+        const { id } = await uploadToMac(target, blob, asset.fileName || "photo.jpg", "image/jpeg", { onConnected: phases.connected, onProgress: (progress) => { phases.progress(progress); if (contains(key)) patch(key, { progress }); } });
+        record("image-upload", Math.round((now() - started) * 10) / 10, `${Math.round(blob.size / 1024)} KB${phases.detail()}`);
         if (contains(key)) patch(key, { status: "done", progress: 1, id });
       } catch (error) {
         if (contains(key)) patch(key, { status: "error", error: error instanceof Error ? error.message : String(error) });
@@ -89,7 +101,10 @@ export function useAttachments(): AttachmentsApi {
         if (!target) throw new Error("Not connected to your Mac");
         patch(key, { status: "uploading", progress: 0 });
         const mediaType = file.mimeType || "application/octet-stream";
-        const uploaded = await uploadToMac(target, blob, file.name, mediaType, { kind: "file", timeoutMs: 10 * 60_000, onProgress: (progress) => contains(key) && patch(key, { progress }) });
+        const started = now();
+        const phases = uploadPhases(started);
+        const uploaded = await uploadToMac(target, blob, file.name, mediaType, { kind: "file", timeoutMs: 10 * 60_000, onConnected: phases.connected, onProgress: (progress) => { phases.progress(progress); if (contains(key)) patch(key, { progress }); } });
+        record("file-upload", Math.round((now() - started) * 10) / 10, `${Math.round(blob.size / 1024)} KB${phases.detail()}`);
         if (contains(key)) patch(key, { status: "done", progress: 1, id: uploaded.id, name: uploaded.name ?? file.name, mediaType });
       } catch (error) {
         if (contains(key)) patch(key, { status: "error", error: error instanceof Error ? error.message : String(error) });

@@ -40,7 +40,7 @@ type XhrLike = {
   ontimeout: (() => void) | null;
 };
 
-export type UploadOptions = { kind?: UploadKind; onProgress?: (fraction: number) => void; signal?: AbortSignal; xhr?: () => XhrLike; timeoutMs?: number };
+export type UploadOptions = { kind?: UploadKind; onProgress?: (fraction: number) => void; onConnected?: () => void; signal?: AbortSignal; xhr?: () => XhrLike; timeoutMs?: number };
 
 function readBlob(blob: Blob): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
@@ -59,7 +59,7 @@ function bodySource(body: unknown): RelayBodySource | Uint8Array {
 
 async function uploadThroughRelay(target: RelayUploadTarget, body: unknown, name: string, mime: string, opts: UploadOptions): Promise<UploadResult> {
   const kind = opts.kind ?? "image";
-  const response = await relayHttp(target.relay, { method: "POST", path: UPLOAD_PATHS[kind], headers: uploadHeaders(target, name, mime, kind), body: bodySource(body) }, { onProgress: opts.onProgress, signal: opts.signal, timeoutMs: opts.timeoutMs });
+  const response = await relayHttp(target.relay, { method: "POST", path: UPLOAD_PATHS[kind], headers: uploadHeaders(target, name, mime, kind), body: bodySource(body) }, { onProgress: opts.onProgress, onConnected: opts.onConnected, signal: opts.signal, timeoutMs: opts.timeoutMs });
   let parsed: Record<string, unknown> = {};
   try {
     parsed = JSON.parse(new TextDecoder().decode(response.body)) as Record<string, unknown>;

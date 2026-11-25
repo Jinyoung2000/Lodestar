@@ -183,7 +183,7 @@ export function pairOverRelay(target: RelayTarget, code: string, deviceName: str
   });
 }
 
-export type RelayUploadOptions = { onProgress?: (fraction: number) => void; onHead?: (head: RelayHttpResponse) => void; onBody?: (chunk: Uint8Array) => void; idleTimeoutMs?: number; signal?: AbortSignal; timeoutMs?: number; factory?: RelaySocketFactory; unackedBytesPerSecond?: number };
+export type RelayUploadOptions = { onProgress?: (fraction: number) => void; onConnected?: () => void; onHead?: (head: RelayHttpResponse) => void; onBody?: (chunk: Uint8Array) => void; idleTimeoutMs?: number; signal?: AbortSignal; timeoutMs?: number; factory?: RelaySocketFactory; unackedBytesPerSecond?: number };
 
 export type RelayBodySource = { size: number; read(from: number, to: number): Promise<Uint8Array> };
 
@@ -252,6 +252,7 @@ export function relayHttp(target: RelayEndpoint, request: { method: "GET" | "POS
         } catch (error) {
           return finish(error instanceof Error ? error : new Error(String(error)));
         }
+        opts.onConnected?.();
         sendBody(welcome.acks === true).catch((error: unknown) => finish(error instanceof Error ? error : new Error(String(error))));
       },
       message: (frame) => {

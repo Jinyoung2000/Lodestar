@@ -310,7 +310,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
               {(a.status === "processing" || a.status === "uploading") && (
                 <View style={styles.thumbOverlay} pointerEvents="none">
                   <ActivityIndicator color={colors.textStrong} />
-                  {a.status === "uploading" && <Text variant="caption" color="textStrong">{`${Math.round(a.progress * 100)}%`}</Text>}
+                  {a.status === "uploading" && a.progress > 0 && a.progress < 1 && <Text variant="caption" color="textStrong">{`${Math.round(a.progress * 100)}%`}</Text>}
                 </View>
               )}
               {a.status === "error" && (
@@ -381,7 +381,7 @@ export const Composer = memo(function Composer({ agent, disabled, placeholder = 
         </View>
       </View>
       {pasting && !pendingSend && <Text variant="caption" color="textMuted" style={styles.note}>Reading clipboard image…</Text>}
-      {pendingSend && <Text variant="caption" color="textMuted" style={styles.note}>{`Sending when the upload finishes${attachments.progress !== null ? ` (${Math.round(attachments.progress * 100)}%)` : ""}`}</Text>}
+      {pendingSend && <Text variant="caption" color="textMuted" style={styles.note}>{`Sending when the upload finishes${attachments.progress !== null && attachments.progress > 0 && attachments.progress < 1 ? ` (${Math.round(attachments.progress * 100)}%)` : ""}`}</Text>}
       {error && <Text variant="caption" color="danger" style={styles.note}>{error}</Text>}
     </View>
   );
