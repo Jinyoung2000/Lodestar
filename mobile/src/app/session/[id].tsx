@@ -217,7 +217,11 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
   const notePinnedPrompt = useCallback(() => {
     const list = listRef.current;
     const data = list?.props.data;
-    const top = list ? scrollOffset.current - list.getFirstItemOffset() : 0;
+    const last = data && data.length > 0 ? list?.getLayout(data.length - 1) : undefined;
+    const itemsBottom = last ? last.y + last.height : 0;
+    const firstItemOffset = list?.getFirstItemOffset() ?? 0;
+    const bottomFill = Math.max(0, (listHeight.current ?? 0) - firstItemOffset - itemsBottom);
+    const top = scrollOffset.current - firstItemOffset - bottomFill;
     let key: string | null = null;
     for (let index = (data?.length ?? 0) - 1; index >= 0 && list && data; index -= 1) {
       if (data[index]?.type !== "user") continue;
