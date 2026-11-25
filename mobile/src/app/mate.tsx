@@ -57,6 +57,20 @@ export default function Mate() {
           headerShown: !modelOpen,
           gestureEnabled: !modelOpen,
           headerBackButtonDisplayMode: "minimal",
+          headerTitleAlign: "center",
+          headerTitle: () => (
+            <View style={styles.identity}>
+              <MateAvatar size={28} busy={busy} />
+              <View style={styles.identityText}>
+                <Text accessibilityRole="header" variant="bodyStrong" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.1}>
+                  {agent.title}
+                </Text>
+                <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.1}>
+                  {mateStatus(agent, assistant, now)}
+                </Text>
+              </View>
+            </View>
+          ),
           headerRight: () => (
             <Pressable accessibilityRole="button" accessibilityLabel="Check in now" disabled={busy} onPress={checkIn} style={styles.headerButton}>
               <Icon name="arrow.clockwise" size={20} color={busy ? "textSubtle" : "textStrong"} />
@@ -64,15 +78,6 @@ export default function Mate() {
           ),
         }}
       />
-      <View style={styles.identity}>
-        <MateAvatar size={40} busy={busy} />
-        <Text accessibilityRole="header" variant="bodyStrong" color="textStrong">
-          {agent.title}
-        </Text>
-        <Text variant="caption" color="textMuted" numberOfLines={1}>
-          {mateStatus(agent, assistant, now)}
-        </Text>
-      </View>
       <Segmented underline options={[{ value: "chat", label: "Chat" }, { value: "tracking", label: "Tracking", count: waiting, countTone: "attention" }, { value: "reminders", label: "Reminders" }]} value={tab} onChange={setTab} />
       {tab === "chat" ? <MateChat agent={agent} assistant={assistant} modelControl={{ harness: model.selection.harness, name: model.name, effort: model.effort, onPress: model.show }} /> : tab === "tracking" ? <MateTracking /> : <MateReminders assistant={assistant} />}
       {modelOpen && <ModelPicker agentId={agent.id} selection={model.selection} close={closeModel} claudeOnly apply={(selection) => store.setModel(agent.id, selection)} />}
@@ -82,6 +87,7 @@ export default function Mate() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  identity: { alignItems: "center", gap: 2, paddingBottom: spacing.sm },
+  identity: { flexDirection: "row", alignItems: "center", gap: spacing.sm, maxWidth: 240 },
+  identityText: { flexShrink: 1 },
   headerButton: { minWidth: MIN_TOUCH, minHeight: MIN_TOUCH, alignItems: "center", justifyContent: "center" },
 });
