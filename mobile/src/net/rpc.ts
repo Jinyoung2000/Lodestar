@@ -157,7 +157,10 @@ export class RpcClient {
     const started = Date.now();
     const done = this.opts.onCall;
     const reply = new Promise<MobileRpc[M]["result"]>((resolve, reject) => {
-      const timer = setTimeout(() => this.rejectRequest(id, new TransportError("The Mac did not answer in time")), timeoutMs);
+      const timer = setTimeout(() => {
+        this.rejectRequest(id, new TransportError("The Mac did not answer in time"));
+        if (method !== "mobile.ping" && socket === this.socket) void this.checkPing();
+      }, timeoutMs);
       this.pending.set(id, {
         resolve: (value) => {
           done?.(method, Date.now() - started, true);
