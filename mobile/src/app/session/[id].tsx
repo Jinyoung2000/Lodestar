@@ -35,6 +35,8 @@ import { SplitPanes } from "../../ui/SplitPanes";
 
 const NEAR_BOTTOM = 120;
 const PAST_THE_END = 1_000_000;
+const PROMPT_HIDDEN_BY = 4;
+const PINNED_PROMPT_ZONE = 48;
 type SessionParams = { id: string; draft?: string; focusQuestion?: string; gallery?: string; viewer?: string };
 
 type PaneUi = { galleryOpen: boolean; viewerOpen: boolean; setGallery: (open: boolean) => void; setViewer: (open: boolean) => void };
@@ -121,6 +123,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
   const restoreAnchor = useRef(hasNews || focusQuestion ? null : memory.anchor);
   const followEnd = useRef(restoreAnchor.current === null);
   const [atBottom, setAtBottom] = useState(followEnd.current);
+  const [pinnedPromptKey, setPinnedPromptKey] = useState<string | null>(null);
   const atBottomRef = useRef(followEnd.current);
   const showGallery = useCallback(() => {
     Keyboard.dismiss();
@@ -211,7 +214,23 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
     [id],
   );
 
+  const notePinnedPrompt = useCallback(() => {
+    const list = listRef.current;
+    const data = list?.props.data;
+    const top = list ? scrollOffset.current - list.getFirstItemOffset() : 0;
+    let key: string | null = null;
+    for (let index = (data?.length ?? 0) - 1; index >= 0 && list && data; index -= 1) {
+      if (data[index]?.type !== "user") continue;
+      const y = list.getLayout(index)?.y;
+      if (y === undefined || y >= top + PINNED_PROMPT_ZONE) continue;
+      if (y < top - PROMPT_HIDDEN_BY) key = data[index].key;
+      break;
+    }
+    setPinnedPromptKey((current) => current === key ? current : key);
+  }, []);
+
   const notePosition = useCallback(() => {
+    notePinnedPrompt();
     const viewport = listHeight.current;
     if (viewport === null || restoreAnchor.current) return;
     const end = Math.max(0, contentHeight.current - viewport);
@@ -227,7 +246,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
       atBottomRef.current = near;
       setAtBottom(near);
     }
-  }, [memory]);
+  }, [memory, notePinnedPrompt]);
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     scrollOffset.current = e.nativeEvent.contentOffset.y;
@@ -265,6 +284,15 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
     },
     [id, toEnd],
   );
+
+  const pinnedPromptIndex = pinnedPromptKey === null ? -1 : messages.findIndex((row) => row.key === pinnedPromptKey);
+  const pinnedPrompt = pinnedPromptIndex >= 0 ? messages[pinnedPromptIndex] : undefined;
+  const jumpToPinnedPrompt = () => {
+    if (pinnedPromptIndex < 0) return;
+    restoreAnchor.current = null;
+    followEnd.current = false;
+    void listRef.current?.scrollToIndex({ index: pinnedPromptIndex, animated: true });
+  };
 
   const running = agent?.status === "running";
   const lastMessage = messages.at(-1);
@@ -377,6 +405,7 @@ function SessionView({ id, draft, focusQuestion, ui, pane }: SessionViewProps) {
                 ListHeaderComponent={timeline?.hasMore ? <View style={styles.olderSlot}>{timeline.loadingOlder && <ActivityIndicator />}</View> : rows.length === 0 ? <Text color="textMuted" style={{ textAlign: "center" }}>No messages yet.</Text> : null}
                 ListFooterComponent={<View style={styles.workingSlot}>{showWorking && <Working />}</View>}
               />
+              {pinnedPrompt?.type === "user" && <PinnedPrompt row={pinnedPrompt} inset={chatPadding} onPress={jumpToPinnedPrompt} />}
               {!atBottom && (
                 <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => toEnd(true)} style={[styles.latestTarget, { right: chatPadding - 6 }]}>
                   {({ pressed }) => <View style={[styles.latest, { backgroundColor: pressed ? colors.pressed : colors.overlay, borderColor: colors.border }]}>
@@ -441,6 +470,20 @@ function ToolbarButton({ icon, label, count, badge, onPress }: { icon: Component
   </Pressable>;
 }
 
+function PinnedPrompt({ row, inset, onPress }: { row: Extract<Row, { type: "user" }>; inset: number; onPress: () => void }) {
+  const colors = useColors();
+  const text = (row.item.shown ?? row.item.text).replace(/\s+/g, " ").trim();
+  const label = text || (row.item.attachments?.length ? "Attachment" : "Message");
+  return <View pointerEvents="box-none" style={[styles.pinnedPromptSlot, { paddingHorizontal: inset }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Your message: ${label}. Scroll to it`} hitSlop={8} onPress={onPress}
+      style={[styles.pinnedPrompt, { backgroundColor: colors.background, borderColor: colors.border }]}>
+      {({ pressed }) => <View style={[styles.pinnedPromptFill, { backgroundColor: pressed ? colors.pressed : colors.userBubble }]}>
+        <Text variant="secondary" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>{label}</Text>
+      </View>}
+    </Pressable>
+  </View>;
+}
+
 const Gap = ({ leadingItem, trailingItem }: { leadingItem?: Row; trailingItem?: Row }) =>
   <View style={{ height: trailingItem?.type === "steps" && leadingItem?.type === "assistant" ? 0 : spacing.sm }} />;
 
@@ -475,6 +518,9 @@ const styles = StyleSheet.create({
   olderSlot: { height: 36, marginBottom: spacing.md, alignItems: "center", justifyContent: "center" },
   workingSlot: { height: 32 },
   working: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingTop: spacing.md },
+  pinnedPromptSlot: { position: "absolute", top: spacing.xs, left: 0, right: 0, alignItems: "flex-end" },
+  pinnedPrompt: { maxWidth: "85%", borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
+  pinnedPromptFill: { minHeight: 32, justifyContent: "center", paddingHorizontal: spacing.md, paddingVertical: 6 },
   latestTarget: { position: "absolute", bottom: spacing.xs, width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   latest: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
 });
