@@ -1,6 +1,6 @@
 import { highlightCode } from "@lezer/highlight";
 import { Suspense, use, useMemo, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
-import { parseWalkthrough, walkthroughSlide, type WalkthroughRow, type WalkthroughSlide, type WalkthroughStep } from "../shared/walkthrough";
+import { expectedWalkthroughRows, parseWalkthrough, walkthroughSlide, type WalkthroughRow, type WalkthroughSlide, type WalkthroughStep } from "../shared/walkthrough";
 import { syntaxHighlighters } from "./editorSyntax";
 import { chatWorkspaceFor, openFileRef } from "./fileRefs";
 import { ChevronLeft, ChevronRight } from "./icons";
@@ -56,10 +56,16 @@ export function WalkthroughCard({ source, workspaceId, agentId }: WalkthroughCar
           ))}
         </div>
       )}
-      {step.note && <div className="walkthrough-note">{noteParts(step.note)}</div>}
-      <Suspense key={current} fallback={<StepPlaceholder step={step} />}>
-        <StepCode file={read(step.path)} step={step} onOpen={openInEditor} />
-      </Suspense>
+      <div className="walkthrough-steps">
+        {steps.map((s, i) => (
+          <div key={i} className="walkthrough-step" data-current={i === current || undefined} aria-hidden={i !== current} inert={i !== current}>
+            {s.note && <div className="walkthrough-note">{noteParts(s.note)}</div>}
+            <Suspense fallback={<StepPlaceholder step={s} />}>
+              <StepCode file={read(s.path)} step={s} onOpen={openInEditor} />
+            </Suspense>
+          </div>
+        ))}
+      </div>
       <div className="walkthrough-foot">
         <Button variant="secondary" disabled={current === 0} onClick={() => go(current - 1)}>
           <ChevronLeft size={14} />
@@ -95,7 +101,11 @@ function StepPlaceholder({ step }: { step: WalkthroughStep }) {
   return (
     <>
       <span className="walkthrough-path">{`${step.path}:${step.start}`}</span>
-      <div className="walkthrough-code walkthrough-loading">{S.walkthroughLoading}</div>
+      <div className="walkthrough-code">
+        <div className="walkthrough-loading" style={{ "--walkthrough-rows": expectedWalkthroughRows(step) } as CSSProperties}>
+          {S.walkthroughLoading}
+        </div>
+      </div>
     </>
   );
 }

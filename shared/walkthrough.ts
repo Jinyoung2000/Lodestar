@@ -81,6 +81,11 @@ export function locateStep(lines: string[], step: WalkthroughStep): { start: num
   return { start: step.start, end: Math.min(step.end, lines.length, step.start + MAX_FOCUS_LINES - 1), matched: !step.removed.length };
 }
 
+export function expectedWalkthroughRows(step: WalkthroughStep): number {
+  const marked = step.removed.length || Math.min(step.end - step.start + 1, MAX_FOCUS_LINES);
+  return Math.min(step.start - 1, CONTEXT_LINES) + marked + step.added.length + CONTEXT_LINES;
+}
+
 export function walkthroughSlide(fileText: string | null, step: WalkthroughStep): WalkthroughSlide {
   const removedRows = step.removed.map((text) => ({ kind: "removed" as const, line: null, text }));
   const addedRows = step.added.map((text) => ({ kind: "added" as const, line: null, text }));
