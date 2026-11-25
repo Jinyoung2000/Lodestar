@@ -7,6 +7,7 @@ import { formatActive, newFileByPath, requestCloseTab, saveTab } from "./editorD
 import { runEditorCommand } from "./editorCommands";
 import { moveEditorToGroup } from "./editorMove";
 import { runGroupCommand } from "./groupCommands";
+import { reopenClosedEditor } from "./groupActions";
 import { cycleSessionSwitcher } from "./sessionSwitcher";
 import { focusActiveSession, toggleChatVisible, toggleFloatCollapsed } from "./floatActions";
 import { copyTypeActive, currentSelection, definitionAsideActive, gotoProblemActive, quickFixActive, startQuickAsk } from "./Editor";
@@ -52,6 +53,7 @@ import {
   openUntitled,
   splitEditor,
   reopenClosedPane,
+  closedEditorIsNewest,
   getState,
   isTopWorkspace,
   openImprovements,
@@ -509,6 +511,7 @@ export function runCommand(command: Command | string) {
       closeAllPanes();
       return;
     case "reopenClosed":
+      if (getState().layoutMode === "editor" && closedEditorIsNewest() && reopenClosedEditor({ quiet: true })) return;
       reopenClosedPane();
       return;
     case "handoff": {

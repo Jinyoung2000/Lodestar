@@ -84,7 +84,7 @@ export type Pane = ({ id: string; kind: "agent"; agentId: string } | { id: strin
 
 export type HandoffSeed = { agentId: string };
 
-export type ClosedPane = { agentId: string };
+export type ClosedPane = { agentId: string; closeSeq: number };
 const CLOSED_PANES_MAX = 10;
 
 export type Attachment = { id: string; workspaceId: string | null; path: string; startLine: number | null; endLine: number | null; text: string | null; inlineRef?: string; session?: { title: string }; quote?: { comment: string }; browser?: BrowserAttachment; handoff?: HandoffAttachment; image?: ImageAttachment; file?: FileAttachment };
@@ -1200,15 +1200,17 @@ async function refreshScoped(agentId: string) {
   }
 }
 
-const closedTabs: Tab[] = [];
-export const popClosedTab = () => closedTabs.pop();
+let lastCloseSeq = 0;
+const nextCloseSeq = () => ++lastCloseSeq;
+const closedTabs: { tab: Tab; closeSeq: number }[] = [];
+export const popClosedTab = () => closedTabs.pop()?.tab;
 
 export function closeTab(key: string, remember = true) {
   setState((s) => {
     const closing = s.tabs.find((t) => t.key === key);
     if (!closing) return {};
     if (remember && (closing.kind === "file" || closing.kind === "diff" || closing.kind === "scm")) {
-      closedTabs.push(closing);
+      closedTabs.push({ tab: closing, closeSeq: nextCloseSeq() });
       closedTabs.splice(0, Math.max(0, closedTabs.length - 20));
     }
     const group = groupOf(closing);
@@ -1774,7 +1776,7 @@ export function closePane(paneId: string) {
 }
 
 function rememberClosed(list: ClosedPane[], closed: Pane[]): ClosedPane[] {
-  const added = closed.flatMap((p) => (p.kind === "agent" ? [{ agentId: p.agentId }] : []));
+  const added = closed.flatMap((p) => (p.kind === "agent" ? [{ agentId: p.agentId, closeSeq: nextCloseSeq() }] : []));
   return added.length ? [...list.filter((c) => !added.some((a) => a.agentId === c.agentId)), ...added].slice(-CLOSED_PANES_MAX) : list;
 }
 
@@ -1805,6 +1807,12 @@ export function closeAllPanes() {
     const others = s.panes.filter((p) => p !== active);
     return { panes: [blankPane(s, active.id)], activePaneId: active.id, closedPanes: rememberClosed(s.closedPanes, [...others, active]) };
   });
+}
+
+export function closedEditorIsNewest(): boolean {
+  const editorSeq = closedTabs.at(-1)?.closeSeq ?? 0;
+  const chatSeq = state.closedPanes.findLast((c) => state.agents.some((a) => a.id === c.agentId))?.closeSeq ?? 0;
+  return editorSeq > chatSeq;
 }
 
 export function reopenClosedPane() {

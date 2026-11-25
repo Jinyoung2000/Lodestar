@@ -231,7 +231,7 @@ export function closeInGroup(group: string, mode: CloseMode, anchor: string | nu
   return keys.length ? requestCloseTabs(keys) : Promise.resolve(true);
 }
 
-export function reopenClosedEditor(): boolean {
+export function reopenClosedEditor({ quiet = false }: { quiet?: boolean } = {}): boolean {
   for (let tab = popClosedTab(); tab; tab = popClosedTab()) {
     const s = getState();
     if (tab.kind === "file") {
@@ -246,6 +246,6 @@ export function reopenClosedEditor(): boolean {
       return true;
     }
   }
-  hint(S.noClosedEditor);
+  if (!quiet) hint(S.noClosedEditor);
   return false;
 }
