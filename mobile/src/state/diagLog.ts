@@ -151,7 +151,7 @@ const exitReasons = Platform.OS === "android" ? requireOptionalNativeModule<Exit
 function watchMainThread() {
   exitReasons?.addListener?.("mainThreadStall", ({ text }) => {
     const ended = text.startsWith("main thread answered");
-    add(ended ? "W" : "E", [`[stall] ${text}`], true, EXIT_CHARS);
+    add(ended ? "W" : "E", [`${text.startsWith("screen blank") ? "[blank]" : "[stall]"} ${text}`], true, EXIT_CHARS);
     if (!ended) setTimeout(() => exitReasons.clearStall?.(), STALL_CLEAR_DELAY_MS);
   });
 }

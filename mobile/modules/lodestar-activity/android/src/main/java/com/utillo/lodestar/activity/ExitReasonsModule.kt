@@ -1,6 +1,7 @@
 package com.utillo.lodestar.activity
 
 import android.app.ActivityManager
+import android.app.Application
 import android.app.ApplicationExitInfo
 import android.content.Context
 import android.os.Build
@@ -20,6 +21,7 @@ class ExitReasonsModule : Module() {
       installJavaCrashRecorder(context)
       stallListener = { text -> runCatching { sendEvent("mainThreadStall", mapOf("text" to text)) } }
       startWatchdog(context)
+      startBlankScreenGuard(context, appContext.currentActivity)
     }
 
     OnDestroy { stallListener = null }
@@ -49,6 +51,17 @@ class ExitReasonsModule : Module() {
       if (watching) return
       watching = true
       MainThreadWatchdog(stallFile(context)) { text -> stallListener?.invoke(text) }.start()
+    }
+
+    @Volatile private var guarding = false
+
+    private fun startBlankScreenGuard(context: Context, current: android.app.Activity?) {
+      if (guarding) return
+      val application = context as? Application ?: return
+      guarding = true
+      val guard = BlankScreenGuard { text -> stallListener?.invoke(text) }
+      guard.alreadyRunning(current)
+      application.registerActivityLifecycleCallbacks(guard)
     }
 
     private fun takeFile(file: File): String? {
