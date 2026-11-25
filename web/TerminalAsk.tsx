@@ -9,6 +9,9 @@ import { flash, useStore } from "./store";
 import { S } from "./strings";
 import { Markdown } from "./Timeline";
 import { modelName } from "./timelineModel";
+import { effortName } from "./Composer";
+import { useDefaults } from "./defaults";
+import { shownEffort } from "./effortLevels";
 import { Button } from "./ui/button";
 import { hint } from "./hint";
 
@@ -16,6 +19,7 @@ type Info = { cwd: string; shell: string; os: string };
 
 export function TerminalAsk({ term, ptyId, selection, onClose }: { term: Terminal; ptyId: string; selection: string | null; onClose: () => void }) {
   const settings = useStore((s) => s.settings);
+  const defaults = useDefaults();
   const meta = useStore((s) => s.meta);
   const [info, setInfo] = useState<Info | null>(null);
   const [question, setQuestion] = useState("");
@@ -226,6 +230,7 @@ export function TerminalAsk({ term, ptyId, selection, onClose }: { term: Termina
           <button ref={modelChipRef} type="button" className="chip" data-chip="model" aria-label={S.terminalAskModel} title={S.terminalAskModel} onClick={() => setModelOpen((open) => !open)}>
             <ModelIcon />
             <span className="chip-label model-label">{modelName(chosenModel, models)}</span>
+            <span className="chip-label">{effortName(shownEffort(chosenModel, null, defaults.effort))}</span>
           </button>
           <span className="spacer" />
           <button

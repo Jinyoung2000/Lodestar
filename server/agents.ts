@@ -1814,7 +1814,7 @@ export class AgentRunner {
           } else if (block.type === "text") {
             const streamedId = run.draftId;
             run.draftId = null;
-            this.upsert(agentId, { id: streamedId ?? id, kind: "assistant", text: block.text, streaming: false, at: new Date().toISOString(), model: message.message.model });
+            this.upsert(agentId, { id: streamedId ?? id, kind: "assistant", text: block.text, streaming: false, at: new Date().toISOString(), model: message.message.model, effort: this.store.agent(agentId).activeEffort ?? run.effort ?? undefined });
             this.dropRepeatedAnswer(agentId, streamedId ?? id, block.text);
           } else if (block.type === "thinking" && block.thinking.trim()) {
             this.upsert(agentId, { id, kind: "thinking", text: block.thinking });

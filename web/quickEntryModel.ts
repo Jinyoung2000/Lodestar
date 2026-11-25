@@ -1,5 +1,5 @@
-import type { Agent, EffortLevel, ModelInfo, PermissionMode, ResolvedDefaults, Settings, Workspace } from "../shared/protocol";
-import { modelNameFromId, versionedDisplayName } from "../shared/modelName";
+import { CLAUDE_EFFORT_LEVELS, type Agent, type EffortLevel, type ModelInfo, type PermissionMode, type ResolvedDefaults, type Settings, type Workspace } from "../shared/protocol";
+import { aliasModelName, modelNameFromId, versionedDisplayName } from "../shared/modelName";
 import { S } from "./strings";
 
 export type QuickTarget = { kind: "new"; workspaceId: string } | { kind: "chat" } | { kind: "session"; agentId: string };
@@ -104,7 +104,15 @@ export function quickModelName(id: string | null, models: readonly QuickModel[])
   const target = id && id !== "default" ? id.replace(/\[[^\]]*\]$/, "") : (fallback?.resolvedModel ?? null);
   if (!target) return fallback?.displayName ?? S.default;
   const known = models.find((m) => m.value !== "default" && (m.value === target || m.resolvedModel === target));
-  return known ? versionedDisplayName(known.displayName, known.resolvedModel ?? (target.startsWith("claude-") ? target : null)) : (modelNameFromId(target) ?? target);
+  return known ? versionedDisplayName(known.displayName, known.resolvedModel ?? (target.startsWith("claude-") ? target : null)) : (modelNameFromId(target) ?? aliasModelName(target, models.map((m) => m.resolvedModel)) ?? target);
+}
+
+export function quickEffort(id: string | null, effort: EffortLevel | null, models: readonly Pick<ModelInfo, "value" | "resolvedModel" | "supportedEffortLevels">[]): EffortLevel | null {
+  const base = id && id !== "default" ? id.replace(/\[[^\]]*\]$/, "") : null;
+  const info = (base ? models.find((m) => m.value === base || m.resolvedModel === base) : undefined) ?? models.find((m) => m.value === "default");
+  const levels: readonly EffortLevel[] = info?.supportedEffortLevels.length ? info.supportedEffortLevels : CLAUDE_EFFORT_LEVELS;
+  if (effort && levels.includes(effort)) return effort;
+  return levels.includes("high") ? "high" : (levels[levels.length - 1] ?? null);
 }
 
 export function modelRows(models: readonly QuickModel[], defaultModel: string | null): ModelRow[] {

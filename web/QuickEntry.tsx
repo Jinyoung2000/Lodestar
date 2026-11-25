@@ -4,7 +4,7 @@ import type { Agent, ImageRef, ModelInfo, ResolvedDefaults, Settings, Workspace 
 import { checkImage, clipboardImageFiles, imageProblemText } from "../shared/images";
 import { ArrowUpCompact, Check, ChevronDown, Close, Codicon, CommentDiscussion, DotSpinner, FolderCompact } from "./icons";
 import { makeThumb, readBase64 } from "./imageAttach";
-import { canQuickSend, chosenModelRow, modelRows, parseDraft, planQuickSend, quickDefaults, quickKeyAction, quickModelName, sameTarget, targetLabel, targetRows, validModel, validTarget, type ModelRow, type QuickTarget, type TargetRow } from "./quickEntryModel";
+import { canQuickSend, chosenModelRow, modelRows, parseDraft, planQuickSend, quickDefaults, quickEffort, quickKeyAction, quickModelName, sameTarget, targetLabel, targetRows, validModel, validTarget, type ModelRow, type QuickTarget, type TargetRow } from "./quickEntryModel";
 import { rpc } from "./rpc";
 import { S } from "./strings";
 
@@ -41,7 +41,9 @@ export function QuickEntry() {
   const modelShown = target.kind !== "session";
   const models = useMemo(() => modelRows(data.models, defaults.model), [data.models, defaults.model]);
   const chosenRow = chosenModelRow(models, model);
-  const modelLabel = chosenRow?.label ?? quickModelName(model ?? defaults.model, data.models);
+  const modelName = chosenRow?.label ?? quickModelName(model ?? defaults.model, data.models);
+  const effort = quickEffort(model ?? defaults.model, defaults.effort, data.models);
+  const modelLabel = effort ? `${modelName} · ${S.effortNames[effort]}` : modelName;
   const menuOpen = menu !== null;
   const menuLength = menu === "model" ? models.length : rows.length;
   const sendable = canQuickSend({ connected: connected !== false, busy, text, imageCount: images.length });

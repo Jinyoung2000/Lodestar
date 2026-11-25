@@ -1,6 +1,6 @@
 import type { ModelInfo, PermissionMode, TimelineItem } from "../shared/protocol";
 import { countLineChanges } from "../shared/lineDiff";
-import { modelNameFromId, versionedDisplayName } from "../shared/modelName";
+import { aliasModelName, modelNameFromId, versionedDisplayName } from "../shared/modelName";
 import { isInternalStep } from "../shared/internalSteps";
 import { planText, QUESTION_TOOL, readQuestions } from "../shared/interactive";
 import { isPreviewTool } from "../shared/previewCard";
@@ -249,7 +249,7 @@ export function modelLabel(id: string, models: Pick<ModelInfo, "value" | "resolv
 export function modelName(id: string, models: Pick<ModelInfo, "value" | "resolvedModel" | "displayName">[]) {
   const base = id.replace(/\[[^\]]*\]$/, "");
   const known = models.find((m) => m.value !== "default" && (m.resolvedModel === base || m.value === base));
-  return known ? versionedDisplayName(known.displayName, known.resolvedModel ?? (base.startsWith("claude-") ? base : null)) : modelNameFromId(base);
+  return known ? versionedDisplayName(known.displayName, known.resolvedModel ?? (base.startsWith("claude-") ? base : null)) : (modelNameFromId(base) ?? aliasModelName(base, models.map((m) => m.resolvedModel)));
 }
 
 export type InteractiveStep = {

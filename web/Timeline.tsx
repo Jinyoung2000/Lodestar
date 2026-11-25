@@ -95,7 +95,7 @@ export const TurnView = memo(function TurnView({ turn, first, last, live }: { tu
             {assistant.model && (
               <>
                 <span className="meta-dot" />
-                <span className="response-meta" title={assistant.model}>{modelLabel(assistant.model, models ?? [], false)}</span>
+                <span className="response-meta" title={assistant.model}>{assistant.effort ? `${modelLabel(assistant.model, models ?? [], false)} · ${S.effortNames[assistant.effort]}` : modelLabel(assistant.model, models ?? [], false)}</span>
               </>
             )}
           </div>

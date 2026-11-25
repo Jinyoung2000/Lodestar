@@ -10,12 +10,15 @@ import type { LayoutMode } from "./floatLayout";
 import { chatDockOf, type ChatDock } from "./focusLayout";
 import type { PinnedSide } from "./pinnedLayout";
 import { supportedLevels } from "./effortLevels";
+import { modelName } from "./timelineModel";
 import { rpc } from "./rpc";
 import { forgetPick, getState, setLayoutMode } from "./store";
 import { chatSizePatch } from "./uiType";
 import { S } from "./strings";
 import { N } from "./notionStrings";
 import { isModified, type GroupId } from "./settingsSchema";
+
+const utilityModels = (values: readonly string[]) => values.map((value) => ({ value, label: modelName(value, getState().meta?.models ?? []) ?? value }));
 
 export type FormatConfig = { formatOnSave: boolean; source: import("../shared/protocol").DefaultSource; languages: FormatLanguage[] };
 
@@ -350,11 +353,7 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     ...plain("followUpsModel", "haiku"),
     value: (c) => c.settings.followUpsModel ?? "haiku",
     set: (v) => save({ followUpsModel: v }),
-    options: () => [
-      { value: "haiku", label: "Haiku" },
-      { value: "sonnet", label: "Sonnet" },
-      { value: "opus", label: "Opus" },
-    ],
+    options: () => utilityModels(["haiku", "sonnet", "opus"]),
   },
   { ...text("autoUpdateWhenIdle"), operatorOnly: true, group: "general", kind: "switch", ...plain("autoUpdateWhenIdle", false), value: (c) => c.settings.autoUpdateWhenIdle ?? false, set: (v) => save({ autoUpdateWhenIdle: v }), keywords: "update restart install build idle away automatic" },
   { ...text("notifyOnResponse"), group: "notifications", kind: "switch", ...plain("notifyOnResponse", true), value: (c) => c.settings.notifyOnResponse ?? true, set: (v) => save({ notifyOnResponse: v }) },
@@ -370,11 +369,7 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     ...plain("mentionAnalysisModel", "sonnet"),
     value: (c) => c.settings.mentionAnalysisModel ?? "sonnet",
     set: (v) => save({ mentionAnalysisModel: v }),
-    options: () => [
-      { value: "sonnet", label: "Sonnet" },
-      { value: "haiku", label: "Haiku" },
-      { value: "opus", label: "Opus" },
-    ],
+    options: () => utilityModels(["sonnet", "haiku", "opus"]),
   },
   {
     ...text("mentionAnalysisBudgetUsd"),

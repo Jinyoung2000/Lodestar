@@ -8,6 +8,22 @@ function claudeName(id: string) {
   return { family, name: family + (match[2] ? ` ${match[2]}${match[3] ? "." + match[3] : ""}` : "") };
 }
 
+function familyName(family: string, models: MobileModelProvider["models"]) {
+  let best: { name: string; version: number } | null = null;
+  for (const model of models) {
+    const match = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?/i.exec(model.resolved ?? model.value);
+    const parsed = match && claudeName((model.resolved ?? model.value).replace(/\[[^\]]*\]$/, ""));
+    if (!match || !parsed || parsed.family !== family || parsed.name === parsed.family) continue;
+    const version = Number(match[2]) * 100 + Number(match[3] ?? 0);
+    if (!best || version > best.version) best = { name: parsed.name, version };
+  }
+  return best?.name ?? null;
+}
+
+export function fallbackEffort<T extends string>(levels: readonly T[]): T | null {
+  return levels.find((level) => level === "high") ?? levels[levels.length - 1] ?? null;
+}
+
 export function modelLabel(harness: Harness, id: string, provider?: MobileModelProvider | null, activeId?: string | null) {
   const base = harness === "claude" ? id.replace(/\[1m\]$/i, "") : id;
   const models = provider?.models ?? [];
@@ -21,5 +37,7 @@ export function modelLabel(harness: Harness, id: string, provider?: MobileModelP
   if (chosen && chosen.name === chosen.family && active && active.family === chosen.family && active.name !== active.family) return active.name;
   const label = match?.displayName.trim();
   if (label && !claudeName(label)) return label;
-  return (resolved && resolved.name) || chosen?.name || label || id;
+  if (resolved) return resolved.name;
+  if (chosen && chosen.name === chosen.family) return familyName(chosen.family, models) ?? chosen.name;
+  return chosen?.name || label || id;
 }

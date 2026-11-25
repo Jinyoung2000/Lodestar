@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SwitchBlock } from "@shared/harnessSwitch";
 import type { MobileModelProvider, MobileModelSelection } from "@shared/mobile";
 import type { Agent, EffortLevel, Harness } from "@shared/protocol";
-import { modelLabel } from "../logic/modelLabel";
+import { fallbackEffort, modelLabel } from "../logic/modelLabel";
 import { store, useAppState } from "../state/app";
 import { MODEL_HARNESSES } from "../state/store";
 import { spacing, useColors } from "../theme/theme";
@@ -52,7 +52,7 @@ export function useModelPicker(agent?: Agent, draft?: MobileModelSelection) {
   const modelId = providerId ? (selected ?? provider?.defaultModel ?? agent?.activeModel ?? null) : (selected ?? agent?.activeModel ?? provider?.defaultModel ?? null);
   const model = provider ? modelOf(provider, modelId) : undefined;
   const name = modelId ? (providerId ? (provider?.models.find((entry) => entry.value === modelId)?.displayName ?? modelId) : modelLabel(harness, modelId, provider, agent?.activeModel)) : "…";
-  const effort = selection.effort ?? agent?.activeEffort ?? model?.defaultLevel ?? null;
+  const effort = selection.effort ?? agent?.activeEffort ?? model?.defaultLevel ?? fallbackEffort(model?.levels ?? []);
   const show = useCallback(() => {
     Keyboard.dismiss();
     setOpen(true);

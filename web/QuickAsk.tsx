@@ -10,6 +10,9 @@ import { rpc } from "./rpc";
 import { getState, openAgent, setState, useStore, type QuickState } from "./store";
 import { Markdown } from "./Timeline";
 import { modelName } from "./timelineModel";
+import { effortName } from "./Composer";
+import { useDefaults } from "./defaults";
+import { shownEffort } from "./effortLevels";
 import { Button } from "./ui/button";
 import { S } from "./strings";
 
@@ -27,6 +30,7 @@ type Edge = "e" | "s" | "se";
 export function QuickAsk({ quick }: { quick: QuickState }) {
   const meta = useStore((s) => s.meta);
   const settings = useStore((s) => s.settings);
+  const defaults = useDefaults();
   const activeTabKey = useStore((s) => s.activeTabKey);
   const tabOpen = useStore((s) => s.tabs.some((t) => t.key === quick.tabKey));
   const [question, setQuestion] = useState("");
@@ -159,6 +163,7 @@ export function QuickAsk({ quick }: { quick: QuickState }) {
           <button ref={modelChipRef} type="button" className="chip" data-chip="model" aria-label={S.quickAskModel} title={S.quickAskModel} onClick={() => setModelOpen((open) => !open)}>
             <ModelIcon />
             <span className="chip-label model-label">{modelLabel}</span>
+            <span className="chip-label">{effortName(shownEffort(chosenModel, null, defaults.effort))}</span>
           </button>
           <span className="spacer" />
           {run && !running && run.sessionId && (

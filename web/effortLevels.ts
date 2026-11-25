@@ -12,3 +12,9 @@ export function supportedLevels(model: string | null): EffortLevel[] {
 export function builtinEffort(levels: readonly EffortLevel[]): EffortLevel | null {
   return levels.includes(BUILTIN_EFFORT) ? BUILTIN_EFFORT : (levels[levels.length - 1] ?? null);
 }
+
+export function shownEffort(model: string | null, effort: EffortLevel | null | undefined, defaultEffort: EffortLevel | null | undefined): EffortLevel | null {
+  const levels = supportedLevels(model);
+  const wanted = effort ?? defaultEffort ?? null;
+  return wanted && levels.includes(wanted) ? wanted : builtinEffort(levels);
+}

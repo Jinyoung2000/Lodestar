@@ -146,7 +146,7 @@ export type MediaInfo = { raw: string; kind: "image" | "video"; mime: string; si
 
 export type TimelineItem =
   | { id: string; kind: "user"; text: string; source?: "user" | "system"; at?: string; messageId?: string; shown?: string; attachments?: UserAttachment[]; preCompact?: boolean }
-  | { id: string; kind: "assistant"; text: string; streaming: boolean; at?: string; model?: string }
+  | { id: string; kind: "assistant"; text: string; streaming: boolean; at?: string; model?: string; effort?: EffortLevel }
   | { id: string; kind: "thinking"; text: string }
   | {
       id: string;
