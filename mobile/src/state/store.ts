@@ -96,7 +96,7 @@ export class AppStore {
   }
 
   async loadCache(): Promise<boolean> {
-    const raw = await this.cache.get(INDEX_KEY);
+    const raw = await this.cache.get(INDEX_KEY).catch(() => null);
     if (!raw) return false;
     try {
       const index = JSON.parse(raw) as { agents: Agent[]; workspaces: Workspace[]; recent: string[]; hostName: string | null; modelProviders?: ModelProviders; modelPins?: string[]; workspaceIcons?: MobileWorkspaceIcons; customProviders?: MobileCustomProvider[] };

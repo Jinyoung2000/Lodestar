@@ -14,10 +14,70 @@ const META_KEY = "lodestar.connection";
 const RELAY_KEY = "lodestar.relayKey";
 const SECRET_OPTIONS = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
+const PART_CHARS = 400_000;
+const PARTS_HEAD = "@lodestar-parts:";
+const partKey = (key: string, index: number) => `${key}#part${index}`;
+const partKeys = (key: string, from: number, to: number) => Array.from({ length: Math.max(0, to - from) }, (_, offset) => partKey(key, from + offset));
+const savedPartCounts = new Map<string, number>();
+
+function splitForStorage(value: string, size = PART_CHARS): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  while (start < value.length) {
+    let end = Math.min(value.length, start + size);
+    const last = value.charCodeAt(end - 1);
+    if (end < value.length && last >= 0xd800 && last <= 0xdbff) end -= 1;
+    parts.push(value.slice(start, end));
+    start = end;
+  }
+  return parts;
+}
+
+async function readHead(key: string): Promise<string | null> {
+  const head = await AsyncStorage.getItem(key);
+  savedPartCounts.set(key, head?.startsWith(PARTS_HEAD) ? Number(head.slice(PARTS_HEAD.length)) || 0 : 0);
+  return head;
+}
+
+async function savedPartCount(key: string): Promise<number> {
+  const known = savedPartCounts.get(key);
+  if (known !== undefined) return known;
+  await readHead(key).catch(() => savedPartCounts.set(key, 0));
+  return savedPartCounts.get(key) ?? 0;
+}
+
+async function readWhole(key: string): Promise<string | null> {
+  const head = await readHead(key);
+  const count = savedPartCounts.get(key) ?? 0;
+  if (head === null || count === 0) return head;
+  const parts = await Promise.all(partKeys(key, 0, count).map((part) => AsyncStorage.getItem(part)));
+  return parts.every((part): part is string => part !== null) ? parts.join("") : null;
+}
+
 export const asyncCache: Cache = {
-  get: (key) => AsyncStorage.getItem(key),
-  set: (key, value) => AsyncStorage.setItem(key, value),
-  remove: (keys) => AsyncStorage.multiRemove(keys),
+  async get(key) {
+    try {
+      return await readWhole(key);
+    } catch (error) {
+      console.warn(`[cache] dropped unreadable ${key}`, error);
+      await AsyncStorage.removeItem(key).catch(() => {});
+      savedPartCounts.set(key, 0);
+      return null;
+    }
+  },
+  async set(key, value) {
+    const before = await savedPartCount(key);
+    const parts = value.length > PART_CHARS ? splitForStorage(value) : [];
+    if (parts.length === 0) await AsyncStorage.setItem(key, value);
+    else await AsyncStorage.multiSet([...parts.map((part, index): [string, string] => [partKey(key, index), part]), [key, `${PARTS_HEAD}${parts.length}`]]);
+    savedPartCounts.set(key, parts.length);
+    if (before > parts.length) await AsyncStorage.multiRemove(partKeys(key, parts.length, before)).catch(() => {});
+  },
+  async remove(keys) {
+    const counts = await Promise.all(keys.map(savedPartCount));
+    await AsyncStorage.multiRemove(keys.flatMap((key, index) => [key, ...partKeys(key, 0, counts[index])]));
+    for (const key of keys) savedPartCounts.set(key, 0);
+  },
 };
 
 export async function loadConnection(): Promise<Connection | null> {

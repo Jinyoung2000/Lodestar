@@ -38,7 +38,7 @@ const setConnection = (next: Connection | null) => {
 let booting: Promise<void> | null = null;
 export function bootstrap(): Promise<void> {
   booting ??= (async () => {
-    const [saved, cached] = await Promise.all([loadConnection(), store.loadCache(), sortPrefs.load()]);
+    const [saved, cached] = await Promise.all([loadConnection(), store.loadCache().catch(() => false), sortPrefs.load()]);
     markEnd("launch-list", cached ? "cache" : "no cache");
     if (saved) {
       setConnection(saved);
