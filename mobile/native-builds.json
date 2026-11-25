@@ -1,5 +1,12 @@
 [
   {
+    "version": "0.2.9",
+    "versionCode": 11,
+    "commit": "6a72ada17331d7b43c023e47823e0cba769f585d",
+    "builtAt": "2026-11-25T17:34:00+09:00",
+    "jsCompatExceptions": []
+  },
+  {
     "version": "0.2.8",
     "versionCode": 10,
     "commit": "45a9142a34806a90ef19478c79ac0b2fd9cf0e61",
