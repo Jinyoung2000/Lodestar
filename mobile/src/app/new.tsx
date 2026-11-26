@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { MobileFileRef, MobileModelSelection } from "@shared/mobile";
-import type { BranchesResult, ImageRef } from "@shared/protocol";
+import type { Agent, BranchesResult, ImageRef, Workspace } from "@shared/protocol";
 import { pickableWorkspaces } from "../logic/agents";
 import { baseChoices, branchLabel, canStartWorktree, defaultBaseBranch, shortPath, topWorkspace, worktreeDisabledReason, worktreePreview } from "../logic/workspaces";
 import { store, useAppState } from "../state/app";
@@ -24,8 +24,11 @@ export default function NewSession() {
   const { expanded, connectionInRail } = useFoldLayout();
   const params = useLocalSearchParams<{ draft?: string; workspace?: string; place?: string; location?: string }>();
   const [contextOpen, setContextOpen] = useState(params.place === "worktree");
-  const workspaces = useAppState((s) => s.workspaces);
-  const agents = useAppState((s) => s.agents);
+  const liveWorkspaces = useAppState((s) => s.workspaces);
+  const liveAgents = useAppState((s) => s.agents);
+  const [frozenLists, setFrozenLists] = useState<{ workspaces: Workspace[]; agents: Agent[] } | null>(null);
+  const workspaces = frozenLists?.workspaces ?? liveWorkspaces;
+  const agents = frozenLists?.agents ?? liveAgents;
   const conn = useAppState((s) => s.conn);
   const [modelChoice, setModelChoice] = useState<MobileModelSelection>();
   const [starting, setStarting] = useState(false);
@@ -114,9 +117,13 @@ export default function NewSession() {
       workspaceId = effectivePlace.existing;
     }
     setStarting(true);
+    setFrozenLists({ workspaces, agents });
     try {
       const agent = await store.createSession(workspaceId, text, images, worktree, modelChoice, files);
       router.replace({ pathname: "/session/[id]", params: { id: agent.id, started: "1" } });
+    } catch (error) {
+      setFrozenLists(null);
+      throw error;
     } finally {
       setStarting(false);
     }
