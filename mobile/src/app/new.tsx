@@ -4,7 +4,7 @@ import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, TextInput, Vi
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { MobileFileRef, MobileModelSelection } from "@shared/mobile";
 import type { Agent, BranchesResult, ImageRef, Workspace } from "@shared/protocol";
-import { pickableWorkspaces } from "../logic/agents";
+import { inFirstOrder, pickableWorkspaces } from "../logic/agents";
 import { baseChoices, branchLabel, canStartWorktree, defaultBaseBranch, shortPath, topWorkspace, worktreeDisabledReason, worktreePreview } from "../logic/workspaces";
 import { store, useAppState } from "../state/app";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
@@ -45,7 +45,8 @@ export default function NewSession() {
     });
     return () => back.remove();
   }, [modelOpen, contextOpen, closeModel]));
-  const choices = useMemo(() => pickableWorkspaces(workspaces, agents), [workspaces, agents]);
+  const [firstOrder] = useState(() => pickableWorkspaces(workspaces, agents).map((w) => w.id));
+  const choices = useMemo(() => inFirstOrder(pickableWorkspaces(workspaces, agents), firstOrder), [workspaces, agents, firstOrder]);
   const fromLink = params.workspace ? topWorkspace(workspaces, params.workspace)?.id : undefined;
   const [picked, setPicked] = useState<string | null | undefined>(undefined);
   const selected = picked === undefined ? (fromLink ?? choices[0]?.id ?? null) : picked;
@@ -165,7 +166,7 @@ export default function NewSession() {
             )}
 
             {project && (
-              <View style={{ gap: spacing.sm }}>
+              <View collapsable={false} style={{ gap: spacing.sm }}>
                 <Text variant="secondary" color="textMuted" style={[styles.label, { marginTop: spacing.md }]}>Start in</Text>
                 <Choice title="This folder" subtitle={info ? (info.current ? `Branch ${info.current}${info.uncommitted > 0 ? ` · ${info.uncommitted} uncommitted` : ""}` : "The folder as it is") : "The folder as it is"} selected={effectivePlace === "here"} onPress={() => setPlace("here")} />
                 <Choice title="New worktree" subtitle={disabledReason ?? "A separate copy on its own new branch"} selected={wantsWorktree} disabled={!worktreeOk} onPress={() => setPlace("worktree")} />
@@ -242,7 +243,7 @@ function Choice({ title, subtitle, selected: on, disabled, icon, onPress }: { ti
   return (
     <Pressable accessibilityRole="radio" accessibilityState={{ checked: on, disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[styles.choice, { borderColor: on ? colors.accent : colors.separator, backgroundColor: colors.surface, opacity: disabled ? 0.5 : 1 }]}>
       {icon && <Icon name={icon} size={18} color="textMuted" />}
-      <View style={{ flex: 1 }}>
+      <View collapsable={false} style={{ flex: 1 }}>
         <Text variant="title" color="textStrong" numberOfLines={1}>{title}</Text>
         <Text variant="secondary" color="textMuted" numberOfLines={2}>{subtitle}</Text>
       </View>

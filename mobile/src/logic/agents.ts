@@ -93,6 +93,12 @@ export function pickableWorkspaces(workspaces: readonly Workspace[], agents: rea
   return workspaces.filter((w) => !w.parentId && !w.feedback).sort((a, b) => (lastUse.get(b.id) ?? "").localeCompare(lastUse.get(a.id) ?? "") || a.name.localeCompare(b.name));
 }
 
+export function inFirstOrder<T extends { id: string }>(items: readonly T[], firstOrder: readonly string[]): T[] {
+  const rank = new Map(firstOrder.map((id, index) => [id, index]));
+  const place = (item: T, index: number) => rank.get(item.id) ?? firstOrder.length + index;
+  return items.map((item, index) => ({ item, at: place(item, index) })).sort((a, b) => a.at - b.at).map(({ item }) => item);
+}
+
 export function waitingCount(agents: readonly Agent[]): number {
   return agents.filter((a) => a.status === "waiting").length;
 }
