@@ -26,11 +26,19 @@ function insideVisible(base: string | null, real: string): boolean {
   return relative(base, real).split(sep).every((part) => part && !part.startsWith("."));
 }
 
+async function insideData(real: string): Promise<boolean> {
+  const data = await realpath(HOME).catch(() => HOME);
+  return real === data || real.startsWith(data + sep);
+}
+
 async function insideHome(real: string): Promise<boolean> {
   const home = await realpath(homedir()).catch(() => null);
-  const data = await realpath(HOME).catch(() => HOME);
-  if (!home || real === data || real.startsWith(data + sep)) return false;
+  if (!home || await insideData(real)) return false;
   return insideVisible(home, real);
+}
+
+async function mentionedImageOutsideData(absolute: string, real: string): Promise<boolean> {
+  return isAbsolute(absolute) && real === absolute && /\.(png|jpe?g|gif|webp)$/i.test(real) && !await insideData(real);
 }
 
 export async function mobilePreview(root: string | null, item: TimelineItem | undefined, target: string, videoKey?: Buffer): Promise<MobilePreview> {
@@ -52,8 +60,9 @@ export async function mobilePreview(root: string | null, item: TimelineItem | un
     const expanded = raw.startsWith("~/") ? join(homedir(), raw.slice(2)) : raw;
     if (root || isAbsolute(expanded)) {
       const base = root ? await realpath(root) : null;
-      const real = await realpath(base ? resolve(base, expanded) : expanded).catch(() => null);
-      if (real && extname(real).toLowerCase() === extname(raw).toLowerCase() && (insideVisible(base, real) || isAgentScratch(real) || await insideHome(real))) path = real;
+      const absolute = base ? resolve(base, expanded) : expanded;
+      const real = await realpath(absolute).catch(() => null);
+      if (real && extname(real).toLowerCase() === extname(raw).toLowerCase() && (insideVisible(base, real) || isAgentScratch(real) || await insideHome(real) || await mentionedImageOutsideData(absolute, real))) path = real;
     }
   }
   if (path && videoKey && /\.(mp4|mov|webm)$/i.test(path)) {
