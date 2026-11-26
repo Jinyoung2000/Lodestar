@@ -83,6 +83,7 @@ export class AutomationService {
   }
 
   start() {
+    this.syncMarks();
     const first = setTimeout(() => this.tick(), FIRST_TICK_MS);
     const every = setInterval(() => this.tick(), TICK_MS);
     first.unref();
@@ -103,6 +104,7 @@ export class AutomationService {
     automation.nextRunAt = this.firstRunAt(automation, now);
     this.automations = [...this.automations, automation];
     this.changed();
+    this.syncMarks();
     return automation;
   }
 
@@ -115,6 +117,7 @@ export class AutomationService {
     const next: Automation = { ...current, ...input, updatedAt: now.toISOString() };
     if (timing) next.nextRunAt = this.firstRunAt(next, now);
     this.replace(next);
+    this.syncMarks();
     return next;
   }
 
@@ -128,6 +131,20 @@ export class AutomationService {
     this.automations = this.automations.filter((a) => a.id !== id);
     this.runs = this.runs.filter((run) => run.automationId !== id);
     this.changed();
+    this.syncMarks();
+  }
+
+  private syncMarks() {
+    const { store } = this.deps;
+    const owners = new Map(this.automations.map((a) => [a.id, a]));
+    const targeted = new Map<string, string>();
+    for (const automation of this.automations) if (automation.target.kind === "session") targeted.set(automation.target.agentId, automation.id);
+    for (const agent of store.agents) {
+      const owner = agent.automationId ? owners.get(agent.automationId) : undefined;
+      const mark = targeted.get(agent.id) ?? (owner?.target.kind === "newSession" ? owner.id : undefined);
+      if (mark === agent.automationId) continue;
+      this.deps.emit({ type: "agent", agent: store.patchAgent(agent.id, { automationId: mark }) });
+    }
   }
 
   async runNow(id: string): Promise<AutomationRun> {

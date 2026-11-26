@@ -44,7 +44,7 @@ const ANNOUNCE_TITLE_MAX = 80;
 
 async function notifyResponse(agentId: string) {
   const agent = getState().agents.find((a) => a.id === agentId);
-  if (!agent || agent.status !== "idle" || getState().settings?.notifyOnResponse === false) return;
+  if (!agent || agent.status !== "idle" || agent.automationId || getState().settings?.notifyOnResponse === false) return;
   const items = getState().timelines[agentId] ?? (await rpc.call("agents.timeline", { agentId }).catch(() => []));
   const last = items.findLast((i) => i.kind === "assistant");
   if (agent.assistant && (last?.kind !== "assistant" || isSilentReply(last.text))) return;
