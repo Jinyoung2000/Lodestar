@@ -1,9 +1,10 @@
 import { memo, useState, type ReactNode } from "react";
-import { Pressable, Image, StyleSheet, View } from "react-native";
+import { Pressable, Image, ScrollView, StyleSheet, View } from "react-native";
 import type { Row } from "../../logic/timeline";
-import { messagePreviews, type Preview } from "../../logic/previews";
+import { formatLabel, messagePreviews, type Preview } from "../../logic/previews";
 import { sessionViewState } from "../../state/sessionView";
-import { PreviewRow } from "../Preview";
+import { PreviewRow, renderDocument } from "../Preview";
+import { PreviewThumbnail } from "../PreviewThumbnail";
 import { radius, spacing, useColors } from "../../theme/theme";
 import { Icon } from "../Icon";
 import { MarkdownView } from "../MarkdownView";
@@ -96,7 +97,7 @@ function AttachmentGroup({ files, agentId, open, showGallery }: { files: Preview
   return <View style={{ gap: spacing.xs }}>
     {documents.length > 0 && <FileRows files={documents} agentId={agentId} open={open} showGallery={showGallery} />}
     {images.length > 0 && <ImageDisclosure key={images[0].itemId} agentId={agentId} itemId={images[0].itemId} count={images.length}>
-      <FileRows files={images} agentId={agentId} open={open} showGallery={showGallery} />
+      <ImageStrip images={images} agentId={agentId} open={open} />
     </ImageDisclosure>}
   </View>;
 }
@@ -117,6 +118,32 @@ function ImageDisclosure({ agentId, itemId, count, children }: { agentId: string
     </Pressable>
     {!collapsed && children}
   </View>;
+}
+
+const singleImageHeight = 360;
+const stripImageHeight = 240;
+
+function ImageStrip({ images, agentId, open }: { images: Preview[]; agentId: string; open: (file: Preview) => void }) {
+  const [width, setWidth] = useState(0);
+  const single = images.length === 1;
+  return <View onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}>
+    {single
+      ? <ImageTile file={images[0]} agentId={agentId} open={open} height={singleImageHeight} maxWidth={width} />
+      : <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
+        {images.map((file, i) => <ImageTile key={i} file={file} agentId={agentId} open={open} height={stripImageHeight} maxWidth={width * 0.8} />)}
+      </ScrollView>}
+  </View>;
+}
+
+function ImageTile({ file, agentId, open, height, maxWidth }: { file: Preview; agentId: string; open: (file: Preview) => void; height: number; maxWidth: number }) {
+  const colors = useColors();
+  const [ratio, setRatio] = useState(3 / 4);
+  const fitted = maxWidth > 0 ? Math.min(maxWidth, height * ratio) : height * ratio;
+  const title = file.path?.split("/").pop() || file.title;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}, ${formatLabel[file.kind]}`} onPress={() => open(file)}
+    style={({ pressed }) => [styles.imageTile, { width: fitted, height: Math.min(height, fitted / ratio), borderColor: colors.separator, opacity: pressed ? 0.8 : 1 }]}>
+    <PreviewThumbnail file={file} agentId={agentId} renderDocument={renderDocument} onImageSize={(w, h) => { if (w > 0 && h > 0) setRatio(Math.min(2, Math.max(0.45, w / h))); }} />
+  </Pressable>;
 }
 
 function FileRows({ files, agentId, open, showGallery }: { files: Preview[]; agentId: string; open: (file: Preview) => void; showGallery: () => void }) {
@@ -144,6 +171,8 @@ const styles = StyleSheet.create({
   singleImage: { width: 160, height: 160, borderRadius: 12 },
   thumbs: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   thumb: { width: 72, height: 72, borderRadius: radius.sm },
+  strip: { gap: spacing.xs },
+  imageTile: { borderRadius: radius.sm, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
   group: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm, overflow: "hidden" },
   fileLine: { flexDirection: "row", alignItems: "stretch" },
   file: { flex: 1, minWidth: 0 },

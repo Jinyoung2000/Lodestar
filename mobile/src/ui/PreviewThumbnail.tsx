@@ -78,10 +78,11 @@ function useThumbnail(agentId: string | undefined, file: Preview, enabled: boole
   return content?.kind === "image" && !/^data:image\/|^https:\/\//i.test(content.uri) ? undefined : content;
 }
 
-export function PreviewThumbnail({ agentId, file, visible = true, renderDocument }: {
+export function PreviewThumbnail({ agentId, file, visible = true, renderDocument, onImageSize }: {
   agentId?: string;
   file: Preview;
   visible?: boolean;
+  onImageSize?: (width: number, height: number) => void;
   renderDocument: (content: MobilePreview, title: string, width: number, height: number) => React.ReactNode;
 }) {
   const colors = useColors();
@@ -91,7 +92,7 @@ export function PreviewThumbnail({ agentId, file, visible = true, renderDocument
   const scale = width / 320;
   return <View onLayout={({ nativeEvent: { layout } }) => setSize(layout)} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={[styles.cover, { backgroundColor: colors.surfaceBase }]}>
     {visible && content?.kind === "image" && content.uri !== failedUri
-      ? <Image source={{ uri: content.uri }} resizeMode="cover" onError={() => setFailedUri(content.uri)} style={StyleSheet.absoluteFill} />
+      ? <Image source={{ uri: content.uri }} resizeMode="cover" onLoad={({ nativeEvent: { source } }) => onImageSize?.(source.width, source.height)} onError={() => setFailedUri(content.uri)} style={StyleSheet.absoluteFill} />
       : visible && width > 0 && height > 0 && (content?.kind === "markdown" || content?.kind === "csv")
         ? <View style={[styles.nativeDocument, { height: height / scale, transform: [{ scale }] }]}>
           {content.kind === "markdown" ? <View style={styles.markdown}><MarkdownView text={content.text.slice(0, 500)} selectable={false} /></View>

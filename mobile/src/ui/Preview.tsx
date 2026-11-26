@@ -22,7 +22,7 @@ import { useKeyboardTop } from "./KeyboardSpacer";
 import { cachedThumbnail, PreviewThumbnail } from "./PreviewThumbnail";
 import { RelayVideoPlayer } from "./RelayVideoPlayer";
 
-function renderDocument(content: MobilePreview, title: string, width: number, height: number) {
+export function renderDocument(content: MobilePreview, title: string, width: number, height: number) {
   return <PreviewContent content={content} title={title} tile={{ width, height }} />;
 }
 
