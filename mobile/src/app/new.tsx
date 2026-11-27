@@ -36,84 +36,96 @@ export default function NewSession() {
   const { open: modelOpen, close: closeModel } = model;
   const keyboardTop = useKeyboardTop();
   const { height: windowHeight } = useWindowDimensions();
+  const [firstOrder] = useState(() => pickableWorkspaces(workspaces, agents).map((w) => w.id));
+  const choices = useMemo(() => inFirstOrder(pickableWorkspaces(workspaces, agents), firstOrder), [workspaces, agents, firstOrder]);
+  const fromLink = params.workspace ? topWorkspace(workspaces, params.workspace)?.id : undefined;
+  const [picked, setPicked] = useState<string | null | undefined>(undefined);
+  const selected = picked === undefined ? fromLink : picked;
+  const [place, setPlace] = useState<Place | undefined>(undefined);
+  const project = selected ? workspaces.find((w) => w.id === selected) : undefined;
+  const choosingWorkspace = !project && selected !== null;
+  const worktrees = useMemo(() => (project ? workspaces.filter((w) => w.parentId === project.id && !w.feedback) : []), [workspaces, project]);
+  const effectivePlace: Place = place ?? (params.location && worktrees.some((w) => w.id === params.location) ? { existing: params.location } : params.place === "worktree" ? "worktree" : "here");
+
   useFocusEffect(useCallback(() => {
-    if (!modelOpen && !contextOpen) return;
+    if (!modelOpen && (!contextOpen || choosingWorkspace)) return;
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
       if (modelOpen) closeModel();
       else setContextOpen(false);
       return true;
     });
     return () => back.remove();
-  }, [modelOpen, contextOpen, closeModel]));
-  const [firstOrder] = useState(() => pickableWorkspaces(workspaces, agents).map((w) => w.id));
-  const choices = useMemo(() => inFirstOrder(pickableWorkspaces(workspaces, agents), firstOrder), [workspaces, agents, firstOrder]);
-  const fromLink = params.workspace ? topWorkspace(workspaces, params.workspace)?.id : undefined;
-  const [picked, setPicked] = useState<string | null | undefined>(undefined);
-  const selected = picked === undefined ? (fromLink ?? choices[0]?.id ?? null) : picked;
-  const [place, setPlace] = useState<Place | undefined>(undefined);
-  const project = selected ? workspaces.find((w) => w.id === selected) : undefined;
-  const worktrees = useMemo(() => (project ? workspaces.filter((w) => w.parentId === project.id && !w.feedback) : []), [workspaces, project]);
-  const effectivePlace: Place = place ?? (params.location && worktrees.some((w) => w.id === params.location) ? { existing: params.location } : params.place === "worktree" ? "worktree" : "here");
+  }, [modelOpen, contextOpen, choosingWorkspace, closeModel]));
 
-  const [info, setInfo] = useState<BranchesResult | null>(null);
+  const [branchInfo, setBranchInfo] = useState<{ workspaceId: string; result: BranchesResult } | null>(null);
   const [branch, setBranch] = useState("");
-  const [base, setBase] = useState("");
+  const [pickedBase, setPickedBase] = useState<string>();
   const [pickingBase, setPickingBase] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [branchCheck, setBranchCheck] = useState<{ workspaceId: string; name: string; problem: string | null } | null>(null);
+  const workspaceId = project?.id;
+  const info = conn === "online" && branchInfo && branchInfo.workspaceId === workspaceId ? branchInfo.result : null;
+  const base = pickedBase ?? (info ? defaultBaseBranch(info) : "");
 
   useEffect(() => {
-    setInfo(null);
-    setBase("");
-    setProblem(null);
-    setPickingBase(false);
-    if (!selected || conn !== "online") return;
+    if (!workspaceId || conn !== "online") return;
     let stale = false;
     void store
-      .branches(selected)
-      .then((result) => {
-        if (stale) return;
-        setInfo(result);
-        setBase(defaultBaseBranch(result));
-      })
+      .branches(workspaceId)
+      .then((result) => { if (!stale) setBranchInfo({ workspaceId, result }); })
       .catch(() => {});
     return () => {
       stale = true;
     };
-  }, [selected, conn]);
+  }, [workspaceId, conn]);
 
   const wantsWorktree = effectivePlace === "worktree";
+  const branchName = branch.trim();
+  const problem = wantsWorktree && conn === "online" && branchCheck?.workspaceId === workspaceId && branchCheck?.name === branchName ? branchCheck.problem : null;
   useEffect(() => {
-    if (!wantsWorktree || !selected || !branch.trim() || conn !== "online") {
-      setProblem(null);
-      return;
-    }
+    if (!wantsWorktree || !workspaceId || !branchName || conn !== "online") return;
     let stale = false;
     const timer = setTimeout(() => {
       void store
-        .checkBranchName(selected, branch.trim())
-        .then((result) => !stale && setProblem(result.problem))
-        .catch(() => !stale && setProblem(null));
+        .checkBranchName(workspaceId, branchName)
+        .then((result) => { if (!stale) setBranchCheck({ workspaceId, name: branchName, problem: result.problem }); })
+        .catch(() => { if (!stale) setBranchCheck(null); });
     }, 200);
     return () => {
       stale = true;
       clearTimeout(timer);
     };
-  }, [wantsWorktree, selected, branch, conn]);
+  }, [wantsWorktree, workspaceId, branchName, conn]);
 
   const worktreeOk = canStartWorktree(info);
   const disabledReason = worktreeDisabledReason(info);
   const existingWorktree = typeof effectivePlace === "object" ? worktrees.find((w) => w.id === effectivePlace.existing) : undefined;
-  const locationLabel = existingWorktree ? branchLabel(existingWorktree, agents) : wantsWorktree ? branch.trim() || "New worktree" : info?.current;
+  const locationLabel = existingWorktree ? branchLabel(existingWorktree, agents) : wantsWorktree ? branchName || "New worktree" : info?.current;
   const contextLabel = project ? [project.name, locationLabel].filter(Boolean).join(" · ") : "Chat";
+  const title = choosingWorkspace ? "Select a workspace" : "New session";
+
+  const selectWorkspace = (id: string | null) => {
+    if (id === selected) {
+      if (id !== null) setPlace(picked === undefined ? undefined : "here");
+      return;
+    }
+    setPicked(id);
+    setPlace("here");
+    setBranchInfo(null);
+    setPickedBase(undefined);
+    setPickingBase(false);
+    setBranchCheck(null);
+    if (choosingWorkspace) setContextOpen(false);
+  };
 
   const start = async (text: string, images: ImageRef[], files: MobileFileRef[]) => {
+    if (selected === undefined || choosingWorkspace) throw new Error("Select a workspace or Chat");
     let workspaceId = selected;
     let worktree: { branch: string; base: string } | undefined;
     if (selected && effectivePlace === "worktree") {
-      if (!branch.trim()) throw new Error("Give the new worktree a branch name");
+      if (!branchName) throw new Error("Give the new worktree a branch name");
       if (problem) throw new Error(problem);
       if (!base) throw new Error("Pick a branch to start from");
-      worktree = { branch: branch.trim(), base };
+      worktree = { branch: branchName, base };
     } else if (selected && typeof effectivePlace === "object") {
       workspaceId = effectivePlace.existing;
     }
@@ -130,7 +142,6 @@ export default function NewSession() {
     }
   };
 
-  const sub = (dir: string) => shortPath(dir);
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: !modelOpen }} />
@@ -142,26 +153,26 @@ export default function NewSession() {
               style={({ pressed }) => [styles.barButton, pressed && { backgroundColor: colors.pressed }]}>
               <Icon name={expanded ? "xmark" : "chevron.left"} size={20} color="textStrong" />
             </Pressable>
-            <ConnectionTitle title="New session" subtitle={contextLabel} hidden={connectionInRail} style={styles.appBarLabels}>
-              <Text accessibilityRole="header" variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>New session</Text>
+            <ConnectionTitle title={title} subtitle={choosingWorkspace ? undefined : contextLabel} hidden={connectionInRail} style={styles.appBarLabels}>
+              <Text accessibilityRole="header" variant="title" color="textStrong" numberOfLines={1} maxFontSizeMultiplier={1.2}>{title}</Text>
             </ConnectionTitle>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Workspace and location, ${contextLabel}`} accessibilityState={{ expanded: contextOpen }}
+            {!choosingWorkspace && <Pressable accessibilityRole="button" accessibilityLabel={`Workspace and location, ${contextLabel}`} accessibilityState={{ expanded: contextOpen }}
               onPress={() => { Keyboard.dismiss(); setContextOpen((open) => !open); }}
               style={({ pressed }) => [styles.barButton, pressed && { backgroundColor: colors.pressed }]}>
               <Icon name="folder" size={20} color={contextOpen ? "accentText" : "textStrong"} />
-            </Pressable>
+            </Pressable>}
           </View>
         </SafeAreaView>}
-        <View style={styles.fill}>
-          {contextOpen && <ScrollView style={styles.fill} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
-            <Text variant="secondary" color="textMuted" style={styles.label}>Folder</Text>
+        <SafeAreaView style={styles.fill} edges={choosingWorkspace ? ["left", "right", "bottom"] : []}>
+          {(choosingWorkspace || contextOpen) && <ScrollView style={styles.fill} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+            {!choosingWorkspace && <Text variant="secondary" color="textMuted" style={styles.label}>Folder</Text>}
             {choices.map((w) => (
-              <Choice key={w.id} title={w.name} subtitle={sub(w.dir)} selected={selected === w.id} onPress={() => { setPicked(w.id); setPlace(undefined); }} />
+              <Choice key={w.id} title={w.name} subtitle={shortPath(w.dir)} selected={choosingWorkspace ? undefined : selected === w.id} onPress={() => selectWorkspace(w.id)} />
             ))}
-            <Choice title="Chat" subtitle="No folder, no files" selected={selected === null} onPress={() => setPicked(null)} />
+            <Choice title="Chat" subtitle="Without a workspace" selected={choosingWorkspace ? undefined : selected === null} onPress={() => selectWorkspace(null)} />
             {choices.length === 0 && (
               <Pressable accessibilityRole="button" onPress={() => router.push("/add-workspace")} style={styles.link}>
-                <Text color="accentText">Add a workspace first</Text>
+                <Text color="accentText">Add workspace</Text>
               </Pressable>
             )}
 
@@ -199,7 +210,7 @@ export default function NewSession() {
                       <View style={[styles.baseList, { borderColor: colors.border }]}>
                         <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
                           {baseChoices(info).map((name) => (
-                            <Pressable key={name} accessibilityRole="radio" accessibilityState={{ checked: name === base }} onPress={() => { setBase(name); setPickingBase(false); }} style={[styles.baseItem, { borderBottomColor: colors.separator }]}>
+                            <Pressable key={name} accessibilityRole="radio" accessibilityState={{ checked: name === base }} onPress={() => { setPickedBase(name); setPickingBase(false); }} style={[styles.baseItem, { borderBottomColor: colors.separator }]}>
                               <Text style={{ flex: 1 }} numberOfLines={1} color={name === base ? "accentText" : "text"}>{name}</Text>
                               {name === base && <Icon name="checkmark" size={16} color="accentText" weight="bold" />}
                             </Pressable>
@@ -212,8 +223,8 @@ export default function NewSession() {
               </View>
             )}
           </ScrollView>}
-        </View>
-        <Composer
+        </SafeAreaView>
+        {!choosingWorkspace && <Composer
           agent={undefined}
           initialText={params.draft}
           draftKey="new"
@@ -222,8 +233,8 @@ export default function NewSession() {
           autoFocus={!contextOpen}
           onSend={(text, images, _steer, files) => start(text, images, files)}
           modelControl={{ harness: model.selection.harness, providerId: model.selection.providerId, name: model.name, effort: model.effort, onPress: model.show, disabled: starting }}
-        />
-        {!expanded && <KeyboardSpacer />}
+        />}
+        {!expanded && !choosingWorkspace && <KeyboardSpacer />}
       </View>
       {modelOpen && <ModelPicker
         selection={model.selection}
@@ -238,10 +249,10 @@ export default function NewSession() {
   );
 }
 
-function Choice({ title, subtitle, selected: on, disabled, icon, onPress }: { title: string; subtitle: string; selected: boolean; disabled?: boolean; icon?: "arrow.triangle.branch"; onPress: () => void }) {
+function Choice({ title, subtitle, selected: on, disabled, icon, onPress }: { title: string; subtitle: string; selected?: boolean; disabled?: boolean; icon?: "arrow.triangle.branch"; onPress: () => void }) {
   const colors = useColors();
   return (
-    <Pressable accessibilityRole="radio" accessibilityState={{ checked: on, disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[styles.choice, { borderColor: on ? colors.accent : colors.separator, backgroundColor: colors.surface, opacity: disabled ? 0.5 : 1 }]}>
+    <Pressable accessibilityRole={on === undefined ? "button" : "radio"} accessibilityState={{ checked: on, disabled: !!disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.choice, { borderColor: on ? colors.accent : colors.separator, backgroundColor: pressed ? colors.pressed : colors.surface, opacity: disabled ? 0.5 : 1 }]}>
       {icon && <Icon name={icon} size={18} color="textMuted" />}
       <View collapsable={false} style={{ flex: 1 }}>
         <Text variant="title" color="textStrong" numberOfLines={1}>{title}</Text>
