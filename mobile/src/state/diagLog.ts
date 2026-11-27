@@ -187,6 +187,7 @@ function reportPreviousExits() {
   }
 }
 
+const SUSPENDED_MS = 120_000;
 let lastBeat = Date.now();
 let leftAt = 0;
 function heartbeat() {
@@ -194,7 +195,9 @@ function heartbeat() {
   const late = now - lastBeat - BEAT_MS;
   const spannedBackground = leftAt >= lastBeat;
   lastBeat = now;
-  if (late > STALL_MS && !spannedBackground && AppState.currentState === "active") add("W", [`js thread stalled ${late}ms`], true);
+  if (late <= STALL_MS || spannedBackground || AppState.currentState !== "active") return;
+  if (late > SUSPENDED_MS) add("D", [`clock jumped ${late}ms while active, the process was suspended`], false);
+  else add("W", [`js thread stalled ${late}ms`], true);
 }
 
 function watchFirstFrame() {
