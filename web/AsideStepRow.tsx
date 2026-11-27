@@ -35,7 +35,7 @@ export function AsideStepRow({ item, state, gate, queued }: { item: ToolItem; st
         </summary>
         {open && gate !== "denied" && <AsideBody item={item} summary={summary} />}
       </details>
-      {gate !== "denied" && summary.images.length > 0 && (
+      {open && gate !== "denied" && summary.images.length > 0 && (
         <div className="aside-shots">
           {summary.images.map((candidates) => (
             <AsideThumb key={candidates[0]} candidates={candidates} />
