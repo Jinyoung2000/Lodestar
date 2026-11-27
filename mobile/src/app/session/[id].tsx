@@ -1,6 +1,6 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { Redirect, Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter, type NativeStackNavigationProp } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, Keyboard, Platform, Pressable, useWindowDimensions, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { MobileFileRef } from "@shared/mobile";
@@ -28,6 +28,7 @@ import { RenameDialog } from "../../ui/RenameDialog";
 import { KeyboardSpacer, useKeyboardTop } from "../../ui/KeyboardSpacer";
 import { ModelPicker, useModelPicker } from "../../ui/ModelPicker";
 import { Text } from "../../ui/Text";
+import { ToolbarButton } from "../../ui/ToolbarButton";
 import { ChatRow, rowType } from "../../ui/chat/ChatRow";
 import { ApprovalCard, QuestionCard, PlanCard, type Actions } from "../../ui/chat/Cards";
 import { useSessionActions } from "../../ui/sessionActions";
@@ -520,18 +521,6 @@ function useSettledReveal(generation: number, hasRows: boolean) {
   return { settled, noteListChange, revealWhenQuiet };
 }
 
-function ToolbarButton({ icon, label, count, badge, onPress }: { icon: ComponentProps<typeof Icon>["name"]; label: string; count?: number; badge?: number; onPress?: () => void }) {
-  const colors = useColors();
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !onPress }} disabled={!onPress} onPress={onPress}
-    style={({ pressed }) => [styles.headerButton, count !== undefined && styles.countButton, pressed && { backgroundColor: colors.pressed }]}>
-    <Icon name={icon} size={20} color={onPress ? "textStrong" : "textSubtle"} />
-    {count !== undefined && <Text variant="caption" color="textMuted" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.count}>{count}</Text>}
-    {badge !== undefined && <View style={[styles.badge, { backgroundColor: colors.warning }]}>
-      <Text variant="caption" color="background" numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.badgeText}>{badge}</Text>
-    </View>}
-  </Pressable>;
-}
-
 function PinnedPrompt({ row, inset, onPress }: { row: Extract<Row, { type: "user" }>; inset: number; onPress: () => void }) {
   const colors = useColors();
   const text = (row.item.shown ?? row.item.text).replace(/\s+/g, " ").trim();
@@ -560,8 +549,6 @@ function Working() {
 }
 
 const styles = StyleSheet.create({
-  headerButton: { width: 48, height: 48, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
-  countButton: { width: "auto", minWidth: 48, flexDirection: "row", gap: spacing.xs, paddingHorizontal: spacing.sm },
   bar: { minHeight: 48, paddingHorizontal: spacing.xs, flexDirection: "row", gap: spacing.xs, alignItems: "center" },
   expandedBar: { paddingLeft: spacing.lg },
   galleryTitle: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
@@ -570,8 +557,6 @@ const styles = StyleSheet.create({
   title: { flex: 1, minWidth: 0 },
   fill: { flex: 1 },
   activeLine: { position: "absolute", top: 0, left: 0, right: 0, height: 2 },
-  badge: { position: "absolute", top: 5, right: 1, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, alignItems: "center", justifyContent: "center" },
-  badgeText: { fontSize: 12, lineHeight: 18, fontWeight: "600", fontVariant: ["tabular-nums"] },
   titleText: { flexShrink: 1, fontSize: 17, lineHeight: 22, fontWeight: "600" },
   titleLine: { flexDirection: "row", alignItems: "center", marginBottom: 1 },
   opening: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.md },

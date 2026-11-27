@@ -47,13 +47,13 @@ export function MateRow({ selected, onPress }: MateRowProps) {
   );
 }
 
-type MateAvatarProps = { size: number; busy?: boolean };
+type MateAvatarProps = { size: number };
 
-export function MateAvatar({ size, busy }: MateAvatarProps) {
+function MateAvatar({ size }: MateAvatarProps) {
   const colors = useColors();
   return (
-    <View style={[styles.avatar, { width: size, height: size, borderColor: busy ? colors.running : colors.border, backgroundColor: colors.surface }]}>
-      <Icon name="safari" size={Math.round(size * 0.56)} color={busy ? "running" : "textStrong"} />
+    <View style={[styles.avatar, { width: size, height: size, borderColor: colors.border, backgroundColor: colors.surface }]}>
+      <Icon name="safari" size={Math.round(size * 0.56)} color="textStrong" />
     </View>
   );
 }
