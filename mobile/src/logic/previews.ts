@@ -3,7 +3,7 @@ import type { MobilePreview } from "@shared/mobile";
 import { parseMarkdown, type Token } from "./markdown";
 
 export type PreviewKind = MobilePreview["kind"];
-export type Preview = { title: string; itemId: string; kind: PreviewKind; thumb?: string; path?: string; at?: string } & ({ content: MobilePreview } | { target: string });
+export type Preview = { title: string; itemId: string; kind: PreviewKind; thumb?: string; path?: string; at?: string; browserShot?: boolean } & ({ content: MobilePreview } | { target: string });
 
 export const formatLabel: Record<PreviewKind, string> = {
   html: "Interactive HTML", image: "Image", video: "Video", svg: "Vector graphic", markdown: "Markdown", csv: "Spreadsheet",
@@ -92,8 +92,9 @@ function previewsOf(item: TimelineItem): Preview[] {
     return files;
   }
   if (item.kind === "tool") {
+    const browserShot = /(?:^|__)aside__/.test(item.name);
     for (let i = 0; i < (item.shotCount ?? 0); i++) {
-      files.push({ itemId, kind: "image", target: `shot:${i}`, title: item.page?.title || `Screenshot ${i + 1}` });
+      files.push({ itemId, kind: "image", target: `shot:${i}`, title: item.page?.title || `Screenshot ${i + 1}`, ...(browserShot && { browserShot }) });
     }
     if (item.status === "done" && /(?:^|__)html_render$/.test(item.name)) {
       const title = typeof item.input.title === "string" ? item.input.title : "HTML preview";

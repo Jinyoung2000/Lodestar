@@ -45,7 +45,7 @@ async function mentionedImageOutsideData(absolute: string, real: string): Promis
 }
 
 const REDUCE_ABOVE_BYTES = 96 * 1024;
-const REDUCED_EDGE_PIXELS = 720;
+export const REDUCED_EDGE_PIXELS = 720;
 const REDUCED_CACHE_BYTES = 24 * 1024 * 1024;
 const reducedCache = new Map<string, Buffer>();
 let reducedCacheBytes = 0;
@@ -60,8 +60,12 @@ function rememberReduced(key: string, bytes: Buffer) {
   }
 }
 
-async function reducedImage(path: string, info: Stats): Promise<Buffer | null> {
-  const key = `${path}\0${info.size}\0${info.mtimeMs}`;
+function sips(args: string[]): Promise<string> {
+  return new Promise((done, failed) => execFile("/usr/bin/sips", args, { timeout: 10_000 }, (error, stdout) => error ? failed(error) : done(stdout)));
+}
+
+async function reducedImage(path: string, info: Stats, edge: number): Promise<Buffer | null> {
+  const key = `${path}\0${info.size}\0${info.mtimeMs}\0${edge}`;
   const saved = reducedCache.get(key);
   if (saved) {
     reducedCache.delete(key);
@@ -70,7 +74,10 @@ async function reducedImage(path: string, info: Stats): Promise<Buffer | null> {
   }
   const out = join(tmpdir(), `agent-nav-thumb-${randomUUID()}.jpg`);
   try {
-    await new Promise<void>((done, failed) => execFile("/usr/bin/sips", ["-s", "format", "jpeg", "-s", "formatOptions", "72", "-Z", String(REDUCED_EDGE_PIXELS), path, "--out", out], { timeout: 10_000 }, (error) => error ? failed(error) : done()));
+    const size = await sips(["-g", "pixelWidth", "-g", "pixelHeight", path]);
+    const longest = Math.max(...[...size.matchAll(/pixel(?:Width|Height):\s*(\d+)/g)].map((m) => Number(m[1])));
+    if (!(longest > edge)) return null;
+    await sips(["-s", "format", "jpeg", "-s", "formatOptions", "72", "-Z", String(edge), path, "--out", out]);
     const bytes = await readFile(out);
     if (!bytes.length || bytes.length >= info.size) return null;
     rememberReduced(key, bytes);
@@ -82,7 +89,7 @@ async function reducedImage(path: string, info: Stats): Promise<Buffer | null> {
   }
 }
 
-export async function mobilePreview(root: string | null, item: TimelineItem | undefined, target: string, videoKey?: Buffer, thumb = false): Promise<MobilePreview> {
+export async function mobilePreview(root: string | null, item: TimelineItem | undefined, target: string, videoKey?: Buffer, thumbEdge = 0): Promise<MobilePreview> {
   if (item?.kind === "tool" && item.status === "done" && /(?:^|__)html_render$/.test(item.name) && target === "rendered-html" && typeof item.input.html === "string") {
     if (Buffer.byteLength(item.input.html) > MAX_IMAGE_BYTES) throw new Error("Previews support files up to 5 MB.");
     return { kind: "html", html: item.input.html };
@@ -133,7 +140,7 @@ export async function mobilePreview(root: string | null, item: TimelineItem | un
     if (textFormat) return { kind: textFormat, text: bytes.toString("utf8") };
     const mime = sniffImageType(bytes);
     if (!mime) throw new Error("Unsupported image format.");
-    const reduced = thumb && bytes.length > REDUCE_ABOVE_BYTES ? await reducedImage(path, info) : null;
+    const reduced = thumbEdge > 0 && bytes.length > REDUCE_ABOVE_BYTES ? await reducedImage(path, info, thumbEdge) : null;
     if (reduced) return { kind: "image", uri: `data:image/jpeg;base64,${reduced.toString("base64")}`, reduced: true };
     return { kind: "image", uri: `data:${mime};base64,${bytes.toString("base64")}` };
   } finally {

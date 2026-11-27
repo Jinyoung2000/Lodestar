@@ -32,7 +32,7 @@ import { loadRelayIdentity, normalizeRelayUrl, RelayLink, RELAY_URL_DEFAULT } fr
 import { createDesktopLink } from "./desktopLinkHost";
 import { LINK_HTTP_PATHS, LINK_WS_PATHS, splitRemotePath, type LinkHttpPath, type LinkWsPath } from "../shared/desktopLink";
 import { WorkspaceIcons } from "./workspaceIcons";
-import { mobilePreview } from "./mobilePreview";
+import { mobilePreview, REDUCED_EDGE_PIXELS } from "./mobilePreview";
 import { mobileWalkthrough } from "./mobileWalkthrough";
 import { listFolder } from "./mobileFolders";
 import { mobileModels } from "./mobileModels";
@@ -756,10 +756,10 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
     if (agent.feedbackId) throw new Error(`Unknown agent: ${agentId}`);
     return pageOfTimeline(store.timeline(agent.id), limit, beforeId);
   },
-  "mobile.preview": ({ agentId, itemId, target, thumb }: { agentId: string; itemId: string; target: string; thumb?: boolean }) => {
+  "mobile.preview": ({ agentId, itemId, target, thumb, edge }: { agentId: string; itemId: string; target: string; thumb?: boolean; edge?: number }) => {
     const agent = phoneAgent(agentId);
     const item = store.timeline(agentId).find((entry) => entry.id === itemId);
-    return mobilePreview(agent.workspaceId ? agent.worktree?.root ?? phoneWorkspace(agent.workspaceId).dir : null, item, target, MOBILE_MEDIA_KEY, thumb === true);
+    return mobilePreview(agent.workspaceId ? agent.worktree?.root ?? phoneWorkspace(agent.workspaceId).dir : null, item, target, MOBILE_MEDIA_KEY, thumb === true ? edge ?? REDUCED_EDGE_PIXELS : 0);
   },
   "mobile.walkthrough": ({ agentId, itemId, source }: { agentId: string; itemId: string; source: string }) => {
     const agent = phoneAgent(agentId);

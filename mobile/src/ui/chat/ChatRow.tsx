@@ -1,5 +1,5 @@
 import { memo, useState, type ReactNode } from "react";
-import { Pressable, Image, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, Image, PixelRatio, ScrollView, StyleSheet, View } from "react-native";
 import type { Row } from "../../logic/timeline";
 import { formatLabel, messagePreviews, type Preview } from "../../logic/previews";
 import { sessionViewState } from "../../state/sessionView";
@@ -96,17 +96,17 @@ function AttachmentGroup({ files, agentId, open, showGallery }: { files: Preview
   const documents = files.filter(file => file.kind !== "image");
   return <View style={{ gap: spacing.xs }}>
     {documents.length > 0 && <FileRows files={documents} agentId={agentId} open={open} showGallery={showGallery} />}
-    {images.length > 0 && <ImageDisclosure key={images[0].itemId} agentId={agentId} itemId={images[0].itemId} count={images.length}>
+    {images.length > 0 && <ImageDisclosure key={images[0].itemId} agentId={agentId} itemId={images[0].itemId} count={images.length} startCollapsed={images.every(image => image.browserShot)}>
       <ImageStrip images={images} agentId={agentId} open={open} />
     </ImageDisclosure>}
   </View>;
 }
 
-function ImageDisclosure({ agentId, itemId, count, children }: { agentId: string; itemId: string; count: number; children: ReactNode }) {
-  const memory = sessionViewState(agentId).collapsedImages;
-  const [collapsed, setCollapsed] = useState(() => memory.has(itemId));
+function ImageDisclosure({ agentId, itemId, count, startCollapsed, children }: { agentId: string; itemId: string; count: number; startCollapsed: boolean; children: ReactNode }) {
+  const memory = sessionViewState(agentId).toggledImages;
+  const [collapsed, setCollapsed] = useState(() => startCollapsed !== memory.has(itemId));
   const toggle = () => {
-    if (collapsed) memory.delete(itemId);
+    if (memory.has(itemId)) memory.delete(itemId);
     else memory.add(itemId);
     setCollapsed(!collapsed);
   };
@@ -140,9 +140,10 @@ function ImageTile({ file, agentId, open, height, maxWidth }: { file: Preview; a
   const [ratio, setRatio] = useState(3 / 4);
   const fitted = maxWidth > 0 ? Math.min(maxWidth, height * ratio) : height * ratio;
   const title = file.path?.split("/").pop() || file.title;
+  const pixelEdge = maxWidth > 0 ? Math.ceil(Math.max(maxWidth, height) * PixelRatio.get()) : 0;
   return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}, ${formatLabel[file.kind]}`} onPress={() => open(file)}
     style={({ pressed }) => [styles.imageTile, { width: fitted, height: Math.min(height, fitted / ratio), borderColor: colors.separator, opacity: pressed ? 0.8 : 1 }]}>
-    <PreviewThumbnail file={file} agentId={agentId} renderDocument={renderDocument} onImageSize={(w, h) => { if (w > 0 && h > 0) setRatio(Math.min(2, Math.max(0.45, w / h))); }} />
+    <PreviewThumbnail file={file} agentId={agentId} pixelEdge={pixelEdge} renderDocument={renderDocument} onImageSize={(w, h) => { if (w > 0 && h > 0) setRatio(Math.min(2, Math.max(0.45, w / h))); }} />
   </Pressable>;
 }
 

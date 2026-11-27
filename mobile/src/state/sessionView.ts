@@ -2,13 +2,13 @@ import type { QuestionState } from "../logic/questions";
 
 export type RequestDraft = { id: string; states?: QuestionState[]; page: number; expanded: boolean; feedback: string | null };
 type ScrollAnchor = { key: string; offset: number };
-type SessionViewState = { anchor: ScrollAnchor | null; activityAtLeave?: string; collapsedImages: Set<string>; request?: RequestDraft };
+type SessionViewState = { anchor: ScrollAnchor | null; activityAtLeave?: string; toggledImages: Set<string>; request?: RequestDraft };
 const sessions = new Map<string, SessionViewState>();
 
 export function sessionViewState(id: string): SessionViewState {
   const saved = sessions.get(id);
   if (saved) return saved;
-  const state: SessionViewState = { anchor: null, collapsedImages: new Set() };
+  const state: SessionViewState = { anchor: null, toggledImages: new Set() };
   sessions.set(id, state);
   return state;
 }

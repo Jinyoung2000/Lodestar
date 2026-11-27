@@ -38,12 +38,21 @@ function rememberThumbnail(key: string, content: MobilePreview) {
   }
 }
 
-function cacheKey(agentId: string, itemId: string, target: string) {
-  return JSON.stringify([agentId, itemId, target]);
+const defaultEdge = 720;
+const edgeStep = 160;
+const largestEdge = 1600;
+
+function requestEdge(pixelEdge: number | undefined) {
+  if (pixelEdge === undefined) return defaultEdge;
+  return Math.min(largestEdge, Math.ceil(pixelEdge / edgeStep) * edgeStep);
 }
 
-export function cachedThumbnail(agentId: string, itemId: string, target: string) {
-  const key = cacheKey(agentId, itemId, target);
+function cacheKey(agentId: string, itemId: string, target: string, edge = defaultEdge) {
+  return JSON.stringify([agentId, itemId, target, edge]);
+}
+
+export function cachedThumbnail(agentId: string, itemId: string, target: string, edge = defaultEdge) {
+  const key = cacheKey(agentId, itemId, target, edge);
   const entry = thumbnails.get(key);
   if (!entry) return;
   if (entry.expires < Date.now()) {
@@ -60,18 +69,20 @@ export function cachedFullPreview(agentId: string, itemId: string, target: strin
   return content?.kind === "image" && content.reduced ? undefined : content;
 }
 
-function useThumbnail(agentId: string | undefined, file: Preview, enabled: boolean) {
+function useThumbnail(agentId: string | undefined, file: Preview, wanted: boolean, pixelEdge: number | undefined) {
   const target = "target" in file ? file.target : undefined;
   const itemId = file.itemId;
   const conn = useAppState(state => state.conn);
-  const key = agentId && target ? cacheKey(agentId, itemId, target) : undefined;
+  const enabled = wanted && pixelEdge !== 0;
+  const edge = requestEdge(pixelEdge);
+  const key = agentId && target ? cacheKey(agentId, itemId, target, edge) : undefined;
   const [loaded, setLoaded] = useState<{ key: string; content: MobilePreview }>();
   useEffect(() => {
     if (!enabled || file.thumb || file.kind === "video" || !agentId || !target || !key) return;
     let active = true;
     async function load() {
       if (!agentId || !target || !key) return;
-      const saved = cachedThumbnail(agentId, itemId, target);
+      const saved = cachedThumbnail(agentId, itemId, target, edge);
       if (saved) {
         setLoaded({ key, content: saved });
         return;
@@ -83,7 +94,7 @@ function useThumbnail(agentId: string | undefined, file: Preview, enabled: boole
       if (!active) return;
       let request = requests.get(key);
       if (!request) {
-        request = client.call("mobile.preview", { agentId, itemId, target, thumb: true }).then(content => {
+        request = client.call("mobile.preview", { agentId, itemId, target, thumb: true, edge }).then(content => {
           rememberThumbnail(key, content);
           return content;
         }).finally(() => requests.delete(key));
@@ -96,27 +107,28 @@ function useThumbnail(agentId: string | undefined, file: Preview, enabled: boole
     }
     void load();
     return () => { active = false; };
-  }, [agentId, conn, enabled, file.thumb, itemId, key, target]);
+  }, [agentId, conn, edge, enabled, file.thumb, itemId, key, target]);
   if (file.thumb?.startsWith("data:image/")) return { kind: "image", uri: file.thumb } as const;
   const content = "content" in file ? file.content : loaded?.key === key ? loaded?.content : undefined;
   return content?.kind === "image" && !/^data:image\/|^https:\/\//i.test(content.uri) ? undefined : content;
 }
 
-export function PreviewThumbnail({ agentId, file, visible = true, renderDocument, onImageSize }: {
+export function PreviewThumbnail({ agentId, file, visible = true, pixelEdge, renderDocument, onImageSize }: {
   agentId?: string;
   file: Preview;
   visible?: boolean;
+  pixelEdge?: number;
   onImageSize?: (width: number, height: number) => void;
   renderDocument: (content: MobilePreview, title: string, width: number, height: number) => React.ReactNode;
 }) {
   const colors = useColors();
-  const content = useThumbnail(agentId, file, visible);
+  const content = useThumbnail(agentId, file, visible, pixelEdge);
   const [failedUri, setFailedUri] = useState<string>();
   const [{ width, height }, setSize] = useState({ width: 0, height: 0 });
   const scale = width / 320;
   return <View onLayout={({ nativeEvent: { layout } }) => setSize(layout)} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={[styles.cover, { backgroundColor: colors.surfaceBase }]}>
     {visible && content?.kind === "image" && content.uri !== failedUri
-      ? <Image source={{ uri: content.uri }} resizeMode="cover" onLoad={({ nativeEvent: { source } }) => onImageSize?.(source.width, source.height)} onError={() => setFailedUri(content.uri)} style={StyleSheet.absoluteFill} />
+      ? <Image source={{ uri: content.uri }} resizeMode="cover" resizeMethod="resize" onLoad={({ nativeEvent: { source } }) => onImageSize?.(source.width, source.height)} onError={() => setFailedUri(content.uri)} style={StyleSheet.absoluteFill} />
       : visible && width > 0 && height > 0 && (content?.kind === "markdown" || content?.kind === "csv")
         ? <View style={[styles.nativeDocument, { height: height / scale, transform: [{ scale }] }]}>
           {content.kind === "markdown" ? <View style={styles.markdown}><MarkdownView text={content.text.slice(0, 500)} selectable={false} /></View>
