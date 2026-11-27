@@ -7,7 +7,7 @@ import { floatSessionChoices } from "./floatLayout";
 import { Close, Codicon, LinkIcon, Plus } from "./icons";
 import { RenameInput } from "./RenameInput";
 import { useSessionList } from "./sessionListState";
-import { closePane, focusPane, moveChatTab, openEditorChatSession, setChatTabSticky, setState, startEditorChatDraft, useStore, type Pane } from "./store";
+import { closeFocusedPane, focusPane, moveChatTab, openEditorChatSession, setChatTabSticky, setState, startEditorChatDraft, useStore, type Pane } from "./store";
 import { S } from "./strings";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
@@ -54,6 +54,7 @@ export function EditorChatTabs({ pane }: { pane: Pane }) {
   }, [agents, recentIds, tabs, workspaces, projectId]);
   const references = tabs.flatMap((tab) => tab.pane.id !== pane.id && tab.agent ? [tab.agent] : []);
   const activeIndex = tabs.findIndex((tab) => tab.pane.id === pane.id);
+  const canClose = (target: Pane) => tabs.length > 1 || target.kind !== "draft";
   const stripRef = useRef<HTMLDivElement>(null);
   const suppressClick = useRef(false);
   const [drag, setDrag] = useState<ChatTabDrag | null>(null);
@@ -122,11 +123,11 @@ export function EditorChatTabs({ pane }: { pane: Pane }) {
       event.stopPropagation();
       focusPane(tabs[index].pane.id, false);
       requestAnimationFrame(() => document.getElementById(chatTabId(tabs[index].pane.id))?.focus());
-    } else if (event.key === "Delete" && tabs.length > 1) {
+    } else if (event.key === "Delete" && canClose(pane)) {
       event.preventDefault();
       event.stopPropagation();
       const next = tabs[activeIndex + 1] ?? tabs[activeIndex - 1];
-      closePane(pane.id);
+      closeFocusedPane(pane.id);
       if (next) requestAnimationFrame(() => document.getElementById(chatTabId(next.pane.id))?.focus());
     }
   }
@@ -139,7 +140,7 @@ export function EditorChatTabs({ pane }: { pane: Pane }) {
             key={tab.pane.id}
             tab={tab}
             active={tab.pane.id === pane.id}
-            closable={tabs.length > 1}
+            closable={canClose(tab.pane)}
             dragging={drag?.paneId === tab.pane.id && !!drag.mark}
             onSelect={() => selectTab(tab.pane.id)}
             onDragStart={(event) => startDrag(event, tab.pane.id)}
@@ -157,7 +158,7 @@ export function EditorChatTabs({ pane }: { pane: Pane }) {
             <DropdownMenuItem onSelect={() => setChatTabSticky(menuTab.pane.id, !menuTab.pane.sticky)}>
               {menuTab.pane.sticky ? S.unpinTab : S.pinTab}
             </DropdownMenuItem>
-            <DropdownMenuItem disabled={tabs.length < 2} onSelect={() => closePane(menuTab.pane.id)}>
+            <DropdownMenuItem disabled={!canClose(menuTab.pane)} onSelect={() => closeFocusedPane(menuTab.pane.id)}>
               {S.close}
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -246,7 +247,7 @@ function EditorChatTab({ tab, active, closable, dragging, onSelect, onDragStart,
           <Codicon name="pinned" />
         </Button>
       ) : closable && (
-        <Button size="icon" className="editor-chat-tab-close" aria-label={S.chatCloseTab(tab.title)} title={S.closePaneKeep} tabIndex={active ? 0 : -1} onClick={() => closePane(tab.pane.id)}>
+        <Button size="icon" className="editor-chat-tab-close" aria-label={S.chatCloseTab(tab.title)} title={S.closePaneKeep} tabIndex={active ? 0 : -1} onClick={() => closeFocusedPane(tab.pane.id)}>
           <Close />
         </Button>
       )}
