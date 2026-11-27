@@ -15,6 +15,7 @@ import { ConnectionStatusProvider } from "../ui/ConnectionTitle";
 import { CrashBoundary, CrashScreen } from "../ui/CrashBoundary";
 import { describeCrash, installCrashRecorder, recordCrash } from "../state/crashLog";
 import { diag, diagState, installDiagLog } from "../state/diagLog";
+import { FeedbackLayer } from "../ui/FeedbackLayer";
 import { foldRailWidth, FoldLayoutContext, useWindowFontScale } from "../ui/FoldLayout";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
 import { SessionsList } from "../ui/SessionsList";
@@ -153,6 +154,7 @@ export default function RootLayout() {
         <ConnectionStatusProvider>
         <FoldLayoutContext.Provider value={layout}>
           <View onLayout={SplashScreen.hide} style={[styles.shell, { backgroundColor: colors.background }]}>
+            <FeedbackLayer>
             <SplitDragLayer>
             <View style={styles.panes}>
             {drawerOpen && <Pressable accessibilityLabel="Close sessions" onPress={closeDrawer} style={[StyleSheet.absoluteFill, styles.drawerScrim]} />}
@@ -194,6 +196,7 @@ export default function RootLayout() {
             </View>
             </View>
             </SplitDragLayer>
+            </FeedbackLayer>
           </View>
           {expanded && <KeyboardSpacer keyboardOnly />}
           <ActionMenuHost />

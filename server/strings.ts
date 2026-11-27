@@ -5,6 +5,7 @@ export const T = {
   errModelPin: "Invalid model pin",
   errModelPins: "Invalid model pins",
   errMobileParam: (name: string) => `Invalid ${name}`,
+  errPhoneFeedbackOff: "Feedback from the phone only works on the Mac that edits the Lodestar source",
   errMobileProviderUnavailable: "That provider is unavailable on your Mac",
   errMobileModelUnavailable: "That model is unavailable on your Mac",
   errMobileEffortUnavailable: "That model does not support this effort",

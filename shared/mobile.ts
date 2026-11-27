@@ -55,6 +55,7 @@ export const MOBILE_METHODS = [
   "assistant.undo",
   "mobile.registerPush",
   "mobile.unregisterPush",
+  "mobile.feedback",
 ] as const;
 export type MobileMethod = (typeof MOBILE_METHODS)[number];
 
@@ -64,7 +65,27 @@ export const MOBILE_EVENT_TYPES = ["workspaces", "agent", "agentRemoved", "timel
 // 연결 직후 인증을 마치면 서버가 한 번 보내는 메시지
 export type MobileReady = { protocol: number; host: string; serverTime: number };
 
-export type MobileDefaults = { requestQueuing: RequestQueuing };
+export type MobileDefaults = { requestQueuing: RequestQueuing; operator?: boolean };
+
+export type PhoneFrame = { x: number; y: number; width: number; height: number };
+
+export type PhoneElement = {
+  tap: { x: number; y: number };
+  frame: PhoneFrame | null;
+  nodeName: string | null;
+  label: string | null;
+  nativeId: string | null;
+  texts: string[];
+  components: string[];
+};
+
+export type PhoneFeedbackRequest = {
+  text: string;
+  route: string;
+  screen: { width: number; height: number; scheme: string; fontScale: number; platform: string; appVersion: string | null; updateId: string | null };
+  element: PhoneElement | null;
+  images?: ImageRef[];
+};
 
 export type MobileWorkspaceIcons = Record<string, string | null>;
 

@@ -189,6 +189,7 @@ export type CreateParams = {
   files?: FileRef[];
   shown?: string;
   automationChip?: Extract<UserAttachment, { kind: "automation" }>;
+  elementChip?: Extract<UserAttachment, { kind: "element" }>;
   notionContext?: { text: string; label: string; url: string; title: string };
   harness?: Harness;
   providerId?: string | null;
@@ -319,7 +320,7 @@ export class AgentRunner {
       resumeFrom: null,
       startCommit: worktree || !workspace ? null : await gitOps.headCommit(cwd),
       feedbackId: null,
-      title: handoff ? (params.shown?.trim() ? titleFrom(params.shown) : T.handoffTitle(handoff.title).slice(0, TITLE_MAX)) : titleFrom(params.prompt.trim() || (params.images?.length ? T.imageTitle : (attached.files[0]?.name ?? ""))),
+      title: handoff ? (params.shown?.trim() ? titleFrom(params.shown) : T.handoffTitle(handoff.title).slice(0, TITLE_MAX)) : titleFrom(params.shown?.trim() || params.prompt.trim() || (params.images?.length ? T.imageTitle : (attached.files[0]?.name ?? ""))),
       sessionId: null,
       status: "idle",
       permissionMode: params.harness === "codex" && !codexSupportsMode(params.permissionMode) ? CODEX_FALLBACK_MODE : params.permissionMode,
@@ -349,6 +350,8 @@ export class AgentRunner {
       ? { display: params.shown ?? "", attachments: [...(params.handoffId ? [{ kind: "handoff" as const, label: T.handoffLabel(handoff.title), id: params.handoffId }] : []), ...imageChips] }
       : params.automationChip
         ? { display: "", attachments: [params.automationChip, ...imageChips] }
+      : params.shown !== undefined
+        ? { display: params.shown, attachments: [...(params.elementChip ? [params.elementChip] : []), ...imageChips] }
       : imageChips.length
         ? { display: params.prompt, attachments: imageChips }
         : {};

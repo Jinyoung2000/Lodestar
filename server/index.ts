@@ -7,7 +7,7 @@ import { homedir, hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { extname, join, resolve } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileStatus } from "../shared/mobile";
+import type { MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelSelection, MobileSessionRequest, MobileStatus, PhoneFeedbackRequest } from "../shared/mobile";
 import { HARNESS_VALUES, harnessOf, OPERATOR_MARK, type FileRef, type Harness, type ImageRef, RuntimeInfo, RpcMethod, RpcRequest, ServerEvent, ServerMessage } from "../shared/protocol";
 import { switchBlock } from "../shared/harnessSwitch";
 import { AgentRunner } from "./agents";
@@ -38,6 +38,7 @@ import { listFolder } from "./mobileFolders";
 import { mobileModels } from "./mobileModels";
 import { modelPinKey } from "../shared/modelChoices";
 import { mobileModelId, pageOfTimeline } from "../shared/mobile";
+import { phoneElementChip, phoneFeedbackPrompt } from "./phoneFeedback";
 import { resolveReadable, terminalDir } from "./files";
 import * as gitOps from "./git";
 import { forgetForkBase } from "./forkBase";
@@ -715,6 +716,25 @@ async function createPhoneSession({ workspaceId, prompt, images, files, worktree
   return runner.create({ ...choice, providerId: "providerId" in choice ? (choice.providerId ?? null) : null, workspaceId: target, prompt, permissionMode: resolved.permissionMode.value, worktree: worktree ?? null, ...(images?.length ? { images } : {}), ...(files?.length ? { files: phoneFiles(files) } : {}) });
 }
 
+async function createPhoneFeedbackSession(request: PhoneFeedbackRequest) {
+  if (!sourceEnabled()) throw new Error(T.errPhoneFeedbackOff);
+  const known = store.workspaces.length;
+  const workspace = store.addWorkspace(SRC_ROOT, null, "Lodestar");
+  if (store.workspaces.length !== known) broadcast({ type: "workspaces", workspaces: store.workspaces });
+  const resolved = defaultsReader.resolve(store.settings);
+  return runner.create({
+    workspaceId: workspace.id,
+    prompt: phoneFeedbackPrompt(request),
+    shown: request.text,
+    elementChip: phoneElementChip(request.element),
+    permissionMode: "bypassPermissions",
+    model: resolved.model.value,
+    effort: resolved.effort.value,
+    worktree: null,
+    ...(request.images?.length ? { images: request.images } : {}),
+  });
+}
+
 const mobileHandlers: Record<string, (params: never, client: WebSocket) => unknown> = {
   "mobile.ping": () => ({ now: Date.now() }),
   "mobile.registerPush": ({ token }: { token: string }, client: WebSocket) => {
@@ -726,7 +746,8 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
     if (deviceId) mobileDevices.setPush(deviceId, null);
     return { registered: false };
   },
-  "mobile.defaults": (): MobileDefaults => ({ requestQueuing: defaultsReader.resolve(store.settings).requestQueuing.value }),
+  "mobile.defaults": (): MobileDefaults => ({ requestQueuing: defaultsReader.resolve(store.settings).requestQueuing.value, operator: sourceEnabled() }),
+  "mobile.feedback": (request: PhoneFeedbackRequest) => createPhoneFeedbackSession(request),
   "mobile.workspaceIcons": (): MobileWorkspaceIcons => Object.fromEntries(store.workspaces.filter((w) => !w.feedback).map((w) => [w.id, workspaceIcons.icon(w.dir)])),
   "workspaces.list": () => store.workspaces.filter((w) => !w.feedback),
   "agents.list": () => store.agents.filter((a) => !a.feedbackId),

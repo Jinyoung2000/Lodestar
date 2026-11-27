@@ -9,7 +9,7 @@ import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 import { dirname } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import { isProviderId } from "../shared/customProviders";
-import { buildManualPairing, buildPairingUri, MAX_MOBILE_FILE_BYTES, MOBILE_EVENT_TYPES, MOBILE_MEDIA_PATH, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, mobileModelId, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileModelSelection, type MobileReady, type MobileRelayPairing, type MobileRoute, type PairingOffer, type PairResult } from "../shared/mobile";
+import { buildManualPairing, buildPairingUri, MAX_MOBILE_FILE_BYTES, MOBILE_EVENT_TYPES, MOBILE_MEDIA_PATH, MOBILE_METHODS, MOBILE_PROTOCOL, compactTimelineItem, mobileModelId, pairingCodeLabel, type MobileDevice, type MobileHost, type MobileModelSelection, type MobileReady, type MobileRelayPairing, type MobileRoute, type PairingOffer, type PairResult, type PhoneElement, type PhoneFeedbackRequest, type PhoneFrame } from "../shared/mobile";
 import { MAX_FILES } from "../shared/files";
 import { MAX_IMAGE_BYTES, MAX_IMAGES } from "../shared/images";
 import { HARNESS_VALUES, isEffortLevel, type Agent, type Harness, type ServerEvent } from "../shared/protocol";
@@ -235,6 +235,67 @@ function imagesOf(value: unknown) {
   });
 }
 
+const FEEDBACK_TEXT_LIMIT = 2000;
+const SHORT_TEXT_LIMIT = 300;
+const MAX_ELEMENT_TEXTS = 12;
+const MAX_COMPONENTS = 24;
+
+function numberOf(value: unknown, name: string): number {
+  return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= 100_000 ? Math.round(value * 10) / 10 : fail(T.errMobileParam(name));
+}
+
+function shortOf(value: unknown, name: string): string | null {
+  if (value === null || value === undefined) return null;
+  return typeof value === "string" ? value.slice(0, SHORT_TEXT_LIMIT) : fail(T.errMobileParam(name));
+}
+
+function shortListOf(value: unknown, name: string, max: number): string[] {
+  if (!Array.isArray(value)) return fail(T.errMobileParam(name));
+  return value.slice(0, max).map((item) => typeof item === "string" ? item.slice(0, SHORT_TEXT_LIMIT) : fail(T.errMobileParam(name)));
+}
+
+function phoneFrameOf(value: unknown): PhoneFrame | null {
+  if (value === null || value === undefined) return null;
+  const f = asObject(value);
+  return { x: numberOf(f.x, "frame"), y: numberOf(f.y, "frame"), width: numberOf(f.width, "frame"), height: numberOf(f.height, "frame") };
+}
+
+function phoneElementOf(value: unknown): PhoneElement | null {
+  if (value === null || value === undefined) return null;
+  const e = asObject(value);
+  const tap = asObject(e.tap);
+  return {
+    tap: { x: numberOf(tap.x, "tap"), y: numberOf(tap.y, "tap") },
+    frame: phoneFrameOf(e.frame),
+    nodeName: shortOf(e.nodeName, "nodeName"),
+    label: shortOf(e.label, "label"),
+    nativeId: shortOf(e.nativeId, "nativeId"),
+    texts: shortListOf(e.texts, "texts", MAX_ELEMENT_TEXTS),
+    components: shortListOf(e.components, "components", MAX_COMPONENTS),
+  };
+}
+
+function phoneFeedbackOf(p: Record<string, unknown>): PhoneFeedbackRequest {
+  const text = textOf(p.text, "text", FEEDBACK_TEXT_LIMIT).trim();
+  if (!text) fail(T.errMobileParam("text"));
+  const screen = asObject(p.screen);
+  return {
+    text,
+    route: shortOf(p.route, "route") ?? "",
+    screen: {
+      width: numberOf(screen.width, "screen"),
+      height: numberOf(screen.height, "screen"),
+      scheme: shortOf(screen.scheme, "screen") ?? "unknown",
+      fontScale: numberOf(screen.fontScale, "screen"),
+      platform: shortOf(screen.platform, "screen") ?? "unknown",
+      appVersion: shortOf(screen.appVersion, "screen"),
+      updateId: shortOf(screen.updateId, "screen"),
+    },
+    element: phoneElementOf(p.element),
+    ...(p.images === undefined ? {} : { images: imagesOf(p.images) }),
+  };
+}
+
 function filesOf(value: unknown) {
   if (!Array.isArray(value) || value.length > MAX_FILES) return fail(T.errMobileParam("files"));
   return value.map((raw) => {
@@ -375,6 +436,8 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
       return { agentId: idOf(p.agentId, "agentId") };
     case "mobile.registerPush":
       return { token: typeof p.token === "string" && PUSH_TOKEN_RE.test(p.token) ? p.token : fail(T.errMobileParam("token")) };
+    case "mobile.feedback":
+      return phoneFeedbackOf(p);
   }
   return fail(T.errMobileMethod(method));
 }

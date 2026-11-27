@@ -1,4 +1,4 @@
-import type { MobileBrowseResult, MobileCustomProvider, MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest } from "@shared/mobile";
+import type { MobileBrowseResult, MobileCustomProvider, MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest, PhoneFeedbackRequest } from "@shared/mobile";
 import type { AssistantState } from "@shared/assistant";
 import type { FollowUpsState } from "@shared/followups";
 import type { SnoozeChoice } from "../logic/mateCore.generated";
@@ -36,6 +36,7 @@ export type State = {
   customModelProviders: MobileModelProvider[] | undefined;
   modelPins: string[] | null;
   requestQueuing: RequestQueuing;
+  operator: boolean;
   workspaceIcons: MobileWorkspaceIcons;
   conn: ConnStatus;
   hostName: string | null;
@@ -63,7 +64,7 @@ const timelineKey = (id: string) => `cache:v1:tl:${id}`;
 const EMPTY: SessionTimeline = { items: [], hasMore: false, synced: false, cached: false, loading: false, loadingOlder: false };
 
 export class AppStore {
-  private state: State = { modelProviders: {}, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null };
+  private state: State = { modelProviders: {}, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", operator: false, workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null };
   private listeners = new Set<() => void>();
   private link: Link | null = null;
   private unsubscribers: (() => void)[] = [];
@@ -147,7 +148,7 @@ export class AppStore {
     this.opened.clear();
     const keys = [INDEX_KEY, MODELS_KEY, ICONS_KEY, ...this.recent.map(timelineKey), ...Object.keys(this.state.timelines).map(timelineKey)];
     this.recent = [];
-    this.set({ modelProviders: {}, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null });
+    this.set({ modelProviders: {}, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", operator: false, workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null });
     await this.cache.remove([...new Set(keys)]).catch(() => {});
   }
 
@@ -215,6 +216,7 @@ export class AppStore {
       const defaults = await link.call("mobile.defaults", {}) as MobileDefaults;
       if (this.connectionGeneration !== generation) return;
       if (defaults.requestQueuing === "queue" || defaults.requestQueuing === "steer") this.set({ requestQueuing: defaults.requestQueuing });
+      this.set({ operator: defaults.operator === true });
     } catch {
       return;
     }
@@ -412,6 +414,10 @@ export class AppStore {
     const params: MobileSessionRequest = { workspaceId, prompt, ...(images?.length ? { images } : {}), ...(files?.length ? { files } : {}), ...(worktree ? { worktree } : {}) };
     if (!selection) return this.call("agents.create", params, worktree ? 90_000 : undefined) as Promise<Agent>;
     return this.modelCall<Agent>("mobile.createSession", { ...params, selection }, MODEL_TIMEOUT_MS + (worktree ? 90_000 : 0));
+  }
+
+  sendFeedback(request: PhoneFeedbackRequest) {
+    return this.call("mobile.feedback", request, 60_000) as Promise<Agent>;
   }
 
   private loadProvider(harness: Harness): Promise<void> {

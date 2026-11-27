@@ -39,6 +39,15 @@ function uploadPhases(started: number) {
   };
 }
 
+export async function uploadPhoto(asset: PickedAsset): Promise<ImageRef> {
+  const prepared = await prepare(asset);
+  const blob = await (await fetch(prepared.uri)).blob();
+  const target = client.imageUploadTarget();
+  if (!target) throw new Error("Not connected to your Mac");
+  const { id } = await uploadToMac(target, blob, asset.fileName || "photo.jpg", "image/jpeg");
+  return { id, label: asset.fileName || "photo.jpg", thumb: prepared.thumb };
+}
+
 export type AttachmentsApi = {
   items: Attachment[];
   addAssets: (assets: PickedAsset[]) => number;
