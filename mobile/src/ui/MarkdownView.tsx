@@ -80,7 +80,7 @@ function Block({ token, selectable, last }: { token: Any; selectable: boolean; l
       return (
         <View style={{ flexDirection: "row", marginBottom: gap }}>
           <View style={{ width: 3, borderRadius: 2, backgroundColor: colors.border, marginRight: spacing.md }} />
-          <View style={{ flex: 1 }}>
+          <View style={styles.fillShrink}>
             {(token.tokens as Token[]).map((t, i, all) => (
               <Block key={i} token={t as Any} selectable={selectable} last={i === all.length - 1} />
             ))}
@@ -186,7 +186,7 @@ function List({ token, selectable, marginBottom }: { token: Any; selectable: boo
             <Text color={token.ordered ? "textMuted" : "textMuted"} style={{ width: token.ordered ? 28 : 20 }}>
               {marker}
             </Text>
-            <View style={{ flex: 1 }}>
+            <View style={styles.fillShrink}>
               {(item.tokens as Token[]).filter((t) => t.type !== "checkbox").map((t, i, all) => (
                 <Block key={i} token={t as Any} selectable={selectable} last={i === all.length - 1 || (t as Any).type === "text"} />
               ))}
@@ -279,3 +279,6 @@ function Table({ token, marginBottom }: { token: Any; marginBottom: number }) {
   );
 }
 
+const styles = StyleSheet.create({
+  fillShrink: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
+});
