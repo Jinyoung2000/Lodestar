@@ -1532,7 +1532,12 @@ export function finishSessionDraft(draft: Pane, agentId: string) {
 }
 
 export function startQuickChat(where: "active" | "new" = "active") {
-  startDraft(null, where);
+  startDraft(null, where === "active" && state.layoutMode === "editor" && !activePaneIsEmptyQuickChat() ? "new" : where);
+}
+
+function activePaneIsEmptyQuickChat() {
+  const pane = activePane();
+  return pane.kind === "draft" && !pane.workspaceId && !activePaneKeepsDraft();
 }
 
 export function withoutPaneDraft<T>(record: Record<string, T>, paneId: string): Record<string, T> {

@@ -8,7 +8,7 @@ import { clampTitle } from "../shared/sessionTitle";
 import { announce } from "./announce";
 import { notify } from "./notices";
 import { rpc } from "./rpc";
-import { focusPane, getState, openAgent, setState } from "./store";
+import { focusPane, getState, openAgent, openEditorChatSession, setState } from "./store";
 import { S } from "./strings";
 import type { PermissionItem } from "./timelineModel";
 
@@ -98,6 +98,7 @@ export function handleNotificationAction({ agentId, action, itemId }: Notificati
   }
   const shown = getState().panes.find((p) => p.kind === "agent" && p.agentId === agentId);
   if (shown) focusPane(shown.id);
+  else if (getState().layoutMode === "editor") openEditorChatSession(agentId);
   else openAgent(agentId);
   setState({ focusComposer: { paneId: getState().activePaneId, nonce: Date.now() } });
 }
