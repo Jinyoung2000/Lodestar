@@ -227,6 +227,8 @@ export function PreviewModal({ selected, close, open, files, agentId }: ReturnTy
 
 type ImageTransform = { zoom: number; x: number; y: number };
 const initialTransform = { zoom: 1, x: 0, y: 0 };
+const SWIPE_MIN = 56;
+const SWIPE_SHARE = 0.18;
 
 function PreviewViewer({ file, content: original, error, thumbnail, files, agentId, close, open }: OpenPreview & {
   files: readonly Preview[];
@@ -253,6 +255,9 @@ function PreviewViewer({ file, content: original, error, thumbnail, files, agent
   const keyboard = useKeyboardTop() !== undefined;
   const [magnification, setMagnification] = useState<{ file: Preview; transform: ImageTransform }>();
   const transform = magnification?.file === file ? magnification.transform : initialTransform;
+  const [swipe, setSwipe] = useState(0);
+  const previous = rail[index - 1];
+  const next = rail[index + 1];
   const bounds = useRef({ width: 0, height: 0 });
   const gesture = useRef<{ x: number; y: number; distance: number; moved: boolean; transform: ImageTransform } | null>(null);
   const tap = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -296,11 +301,24 @@ function PreviewViewer({ file, content: original, error, thumbnail, files, agent
       const dy = event.nativeEvent.pageY - initial.y;
       if (Math.hypot(dx, dy) > 8) initial.moved = true;
       if (initial.moved && initial.transform.zoom > 1) setTransform(initial.transform.zoom, initial.transform.x + dx, initial.transform.y + dy);
+      else if (initial.moved && Math.abs(dx) > Math.abs(dy)) setSwipe((dx > 0 ? previous : next) ? dx : dx / 4);
     }
   };
-  const finish = () => {
+  const showNeighbor = (neighbor: Preview | undefined) => {
+    if (!neighbor) return;
+    setMagnification(undefined);
+    void open(neighbor);
+  };
+  const finish = (event: GestureResponderEvent) => {
     const initial = gesture.current;
     gesture.current = null;
+    setSwipe(0);
+    if (initial?.moved && !initial.distance && initial.transform.zoom === 1) {
+      const dx = event.nativeEvent.pageX - initial.x;
+      const dy = event.nativeEvent.pageY - initial.y;
+      if (Math.abs(dx) > Math.max(SWIPE_MIN, bounds.current.width * SWIPE_SHARE) && Math.abs(dx) > Math.abs(dy) * 1.2) showNeighbor(dx > 0 ? previous : next);
+      return;
+    }
     if (!initial || initial.moved) return;
     if (tap.current) {
       clearTimeout(tap.current);
@@ -351,10 +369,14 @@ function PreviewViewer({ file, content: original, error, thumbnail, files, agent
             onTouchStart={event => { if (event.nativeEvent.touches.length === 2) start(event); }}
             onResponderMove={move}
             onResponderRelease={finish}
-            onResponderTerminate={() => { gesture.current = null; }}
-            accessibilityActions={[{ name: "activate", label: "Toggle preview controls" }]}
-            onAccessibilityAction={() => setHidden(value => !value)}>
-            <View pointerEvents="none" style={[styles.fill, { transform: [{ translateX: transform.x }, { translateY: transform.y }, { scale: transform.zoom }] }]}>{body}</View>
+            onResponderTerminate={() => { gesture.current = null; setSwipe(0); }}
+            accessibilityActions={[{ name: "activate", label: "Toggle preview controls" }, ...(previous ? [{ name: "previous", label: "Previous preview" }] : []), ...(next ? [{ name: "next", label: "Next preview" }] : [])]}
+            onAccessibilityAction={({ nativeEvent }) => {
+              if (nativeEvent.actionName === "previous") showNeighbor(previous);
+              else if (nativeEvent.actionName === "next") showNeighbor(next);
+              else setHidden(value => !value);
+            }}>
+            <View pointerEvents="none" style={[styles.fill, { transform: [{ translateX: transform.x + swipe }, { translateY: transform.y }, { scale: transform.zoom }] }]}>{body}</View>
           </View> : <View style={styles.fill}>{body}</View>}
         {showStrip && <FlatList
           ref={strip} horizontal data={rail} showsHorizontalScrollIndicator={false}
@@ -365,7 +387,7 @@ function PreviewViewer({ file, content: original, error, thumbnail, files, agent
           ItemSeparatorComponent={() => <View style={{ width: 8 }} />}
           keyExtractor={(candidate, position) => `${candidate.itemId}:${position}`}
           renderItem={({ item, index: position }) => <Pressable accessibilityRole="button" accessibilityLabel={item.title}
-            accessibilityState={{ selected: index === position }} onPress={() => { setHidden(false); setMagnification(undefined); void open(item); }}
+            accessibilityState={{ selected: index === position }} onPress={() => { setHidden(false); showNeighbor(item); }}
             style={[styles.ring, { borderColor: index === position ? colors.accent : "transparent" }]}>
             <View style={styles.stripThumb}><PreviewThumbnail agentId={agentId} file={item} visible={visibleThumbs.has(position)} renderDocument={renderDocument} /></View>
           </Pressable>}
