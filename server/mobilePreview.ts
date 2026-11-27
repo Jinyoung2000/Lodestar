@@ -7,6 +7,7 @@ import { findMediaPaths } from "../shared/media";
 import { MOBILE_MEDIA_PATH, type MobilePreview } from "../shared/mobile";
 import type { TimelineItem } from "../shared/protocol";
 import { HOME } from "./store";
+import { asideShotCopy } from "./asideImages";
 import { imagePath } from "./images";
 import { inspectMediaFile, isAgentScratch, mediaUrl } from "./media";
 
@@ -62,6 +63,8 @@ export async function mobilePreview(root: string | null, item: TimelineItem | un
       const base = root ? await realpath(root) : null;
       const absolute = base ? resolve(base, expanded) : expanded;
       const real = await realpath(absolute).catch(() => null);
+      const copy = real ? null : await asideShotCopy(absolute);
+      if (copy) path = copy;
       if (real && extname(real).toLowerCase() === extname(raw).toLowerCase() && (insideVisible(base, real) || isAgentScratch(real) || await insideHome(real) || await mentionedImageOutsideData(absolute, real))) path = real;
     }
   }

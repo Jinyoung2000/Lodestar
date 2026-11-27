@@ -1,6 +1,6 @@
 import { lstat, mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, extname, join } from "node:path";
 import { HOME } from "./store";
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -24,10 +24,12 @@ export function asideImageAllowed(path: string, home = homedir(), data = HOME): 
 
 export async function readAsideImage(paths: unknown, home = homedir(), data = HOME): Promise<{ mime: string; data: string } | null> {
   if (!Array.isArray(paths)) return null;
-  for (const path of paths.slice(0, 4)) {
-    if (typeof path !== "string") continue;
-    const mime = asideImageAllowed(path, home, data);
-    if (!mime) continue;
+  for (const asked of paths.slice(0, 4)) {
+    if (typeof asked !== "string") continue;
+    if (!asideImageAllowed(asked, home, data)) continue;
+    const path = (await lstat(asked).then(() => asked, () => null)) ?? (await asideShotCopy(asked, join(data, "tool-shots")));
+    const mime = path ? asideImageAllowed(path, home, data) : null;
+    if (!path || !mime) continue;
     try {
       const info = await lstat(path);
       if (!info.isFile() || info.size === 0 || info.size > MAX_BYTES) continue;
@@ -45,17 +47,40 @@ const SIGNATURES: { ext: string; test: (b: Buffer) => boolean }[] = [
   { ext: "gif", test: (b) => b.subarray(0, 4).toString("latin1") === "GIF8" },
 ];
 
+const DISPLAY_SAVED = /Displayed image saved to: \S*\/(repl-display-[\w-]+)\.(?:png|jpe?g|webp|gif)\b/g;
+const SHOT_SUFFIX = "--";
+
+function displayStem(path: string): string | null {
+  const name = basename(path);
+  return /^repl-display-[\w-]+\.(png|jpe?g|webp|gif)$/i.test(name) ? name.slice(0, -extname(name).length) : null;
+}
+
+export async function asideShotCopy(path: string, dir = join(HOME, "tool-shots")): Promise<string | null> {
+  if (!path.includes("/.aside/") || !path.includes("/tmp/")) return null;
+  const stem = displayStem(path);
+  if (!stem) return null;
+  const names = await readdir(dir).catch(() => [] as string[]);
+  const hit = names.find((n) => n.slice(0, -extname(n).length).endsWith(`${SHOT_SUFFIX}${stem}`));
+  return hit ? join(dir, hit) : null;
+}
+
 export async function saveAsideShots(content: unknown, dir = join(HOME, "tool-shots"), keep = 200): Promise<string[]> {
-  const parts = Array.isArray(content) ? (content as { type?: string; source?: { type?: string; data?: unknown } }[]) : [];
+  const parts = Array.isArray(content) ? (content as { type?: string; text?: unknown; source?: { type?: string; data?: unknown } }[]) : [];
   const saved: string[] = [];
+  const displayed: string[] = [];
   for (const part of parts) {
+    if (part?.type === "text" && typeof part.text === "string") {
+      for (const m of part.text.matchAll(DISPLAY_SAVED)) displayed.push(m[1]);
+      continue;
+    }
     if (part?.type !== "image" || part.source?.type !== "base64" || typeof part.source.data !== "string") continue;
+    const stem = displayed.shift();
     const bytes = Buffer.from(part.source.data, "base64");
     const kind = bytes.length > 12 && bytes.length <= MAX_BYTES ? SIGNATURES.find((s) => s.test(bytes)) : undefined;
     if (!kind) continue;
     try {
       await mkdir(dir, { recursive: true });
-      const path = join(dir, `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}.${kind.ext}`);
+      const path = join(dir, `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}${stem ? SHOT_SUFFIX + stem : ""}.${kind.ext}`);
       await writeFile(path, bytes);
       saved.push(path);
     } catch {

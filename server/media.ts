@@ -5,6 +5,7 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { sniffImageType } from "../shared/images";
 import { findMediaPaths, isPlausibleMediaPath, mediaKindOf, type MediaKind } from "../shared/media";
 import type { MediaInfo, TimelineItem } from "../shared/protocol";
+import { asideShotCopy } from "./asideImages";
 import { realDir } from "./paths";
 
 export const MAX_INLINE_IMAGE_BYTES = 32 * 1024 * 1024;
@@ -79,7 +80,9 @@ export async function resolveMedia(raw: string, ctx: MediaContext): Promise<Medi
   if (!isPlausibleMediaPath(raw)) return null;
   const relativePath = !raw.startsWith("/") && !raw.startsWith("~/");
   const absolute = raw.startsWith("~/") ? join(ctx.userHome ?? homedir(), raw.slice(2)) : relativePath ? resolve(ctx.cwd, raw) : raw;
-  const real = await realpath(absolute).catch(() => null);
+  const found = await realpath(absolute).catch(() => null);
+  const copy = found || relativePath ? null : await asideShotCopy(absolute, join(ctx.daemonHome, "tool-shots"));
+  const real = found ?? (copy ? await realpath(copy).catch(() => null) : null);
   if (!real) return null;
   const file = await inspectMediaFile(real);
   if (!file) return null;
