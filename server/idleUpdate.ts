@@ -137,9 +137,16 @@ export class IdleUpdater {
   }
 
   private install(source: string) {
-    if (!existsSync(this.releaseApp())) return;
+    if (!existsSync(this.releaseApp())) {
+      this.note("install: skipped, the packaged app is missing");
+      return;
+    }
     const appPid = this.deps.daemonControl ? installedAppPid() : process.ppid;
-    if (!appPid) return;
+    if (!appPid) {
+      this.lastFailure = { at: Date.now(), step: "install", source };
+      this.note("install: skipped, the running app was not found");
+      return;
+    }
     this.working = true;
     const script = join(this.deps.home, "auto-update-install.sh");
     writeFileSync(script, installScript(this.releaseApp(), this.deps.home, source, appPid, this.deps.daemonControl));
@@ -162,7 +169,7 @@ export class IdleUpdater {
 
 function installedAppPid() {
   try {
-    const pid = Number(execFileSync("/usr/bin/pgrep", ["-fx", APP_EXE], { encoding: "utf8", timeout: 1000 }).trim());
+    const pid = Number(execFileSync("/usr/bin/pgrep", ["-afx", APP_EXE], { encoding: "utf8", timeout: 1000 }).trim());
     return Number.isSafeInteger(pid) && pid > 1 ? pid : null;
   } catch {
     return null;
@@ -229,7 +236,7 @@ for i in $(seq 1 30); do
 done
 say "new app did not respond, restoring the previous one"
 echo "{\\"source\\":\\"${source}\\",\\"at\\":$(( $(date +%s) * 1000 ))}" > ${q(join(home, "auto-update-rollback.json"))}
-P=$(/usr/bin/pgrep -fx "$APP_EXE"); [ -n "$P" ] && kill -TERM $P
+P=$(/usr/bin/pgrep -afx "$APP_EXE"); [ -n "$P" ] && kill -TERM $P
 sleep 5
 stop_service || { say "daemon did not stop, keeping the new app"; launch; exit 1; }
 rm -rf ${q(INSTALLED_APP)}; mv ${q(prev)} ${q(INSTALLED_APP)}
