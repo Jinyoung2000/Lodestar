@@ -75,7 +75,7 @@ export async function readWorkspaceFileWithStat(dir: string, path: string) {
   const absolute = await resolveReadable(dir, path);
   const mtimeMs = await mtimeOf(absolute);
   if (mtimeMs === null) return { text: null, mtimeMs: null };
-  const skillOutside = !isUnder(dir, absolute) && !isUnder(realDir(dir), absolute) && (skillFileRealPath(absolute) !== null || (!(await inRepoOf(dir, absolute)) && outsideReadable(absolute) !== null));
+  const skillOutside = !isUnder(dir, absolute) && !isUnder(realDir(dir), absolute) && (skillFileRealPath(absolute) !== null || (!(await inRepoOf(dir, absolute)) && anywhereReadable(absolute) !== null));
   const [size, readOnly] = await Promise.all([stat(absolute).then((info) => info.size), skillOutside ? true : access(absolute, constants.W_OK).then(() => false, () => true)]);
   if (await looksBinary(absolute)) return { text: "", mtimeMs, binary: true as const, size, readOnly };
   const text = await readAbsolute(absolute);
@@ -265,7 +265,9 @@ export function resolveInside(dir: string, path: string) {
   throw new Error(T.errOutsideWorkspace(path));
 }
 
-export async function resolveReadable(dir: string, path: string) {
+export type ReadReach = "anywhere" | "nearby";
+
+export async function resolveReadable(dir: string, path: string, reach: ReadReach = "anywhere") {
   try {
     return resolveInside(dir, path);
   } catch (error) {
@@ -277,7 +279,7 @@ export async function resolveReadable(dir: string, path: string) {
     }
     const skill = skillFileRealPath(absolute);
     if (skill) return skill;
-    const outside = outsideReadable(absolute);
+    const outside = reach === "anywhere" ? anywhereReadable(absolute) : outsideReadable(absolute);
     if (outside) return outside;
     throw error;
   }
@@ -290,6 +292,18 @@ export function outsideReadable(absolute: string): string | null {
   if (!OUTSIDE_ROOTS.some((root) => isUnder(root, real))) return null;
   const lower = real.toLowerCase();
   if (SECRET_DIRS.some((secret) => lower === secret || isUnder(secret, lower))) return null;
+  try {
+    return statSync(real).isFile() ? real : null;
+  } catch {
+    return null;
+  }
+}
+
+const CREDENTIAL_PATHS = ["Library/Keychains", ".agent-nav/token", ".codex/auth.json", ".claude/.credentials.json"].map((p) => join(homedir(), p).toLowerCase());
+function anywhereReadable(absolute: string): string | null {
+  const real = realPathLoose(absolute);
+  const lower = real.toLowerCase();
+  if (CREDENTIAL_PATHS.some((secret) => lower === secret || isUnder(secret, lower))) return null;
   try {
     return statSync(real).isFile() ? real : null;
   } catch {

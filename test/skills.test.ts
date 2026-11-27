@@ -1,5 +1,5 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { MOBILE_METHODS } from "../shared/mobile";
 import { paletteCommands } from "../web/commands";
@@ -182,11 +182,11 @@ try {
   check("워크스페이스 안 SKILL.md 는 기존대로 쓰기 가능", inside.text?.includes("Gamma") === true && inside.readOnly === false);
   let refused = "";
   try {
-    await readWorkspaceFileWithStat(ws, join(home, ".claude", "settings.json"));
+    await readWorkspaceFileWithStat(ws, join(homedir(), ".claude", ".credentials.json"));
   } catch (error) {
     refused = (error as Error).message;
   }
-  check("목록에 없는 워크스페이스 밖 파일은 여전히 거절", refused !== "", refused);
+  check("워크스페이스 밖 자격 증명 파일은 거절", refused !== "", refused);
 
   put(join(home, ".claude", "skills", "fresh", "SKILL.md"), md("description: Fresh"));
   handlers["skills.list"]({});

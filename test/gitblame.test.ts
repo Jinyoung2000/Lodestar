@@ -75,9 +75,7 @@ try {
   writeFileSync(join(plain, "a.txt"), "x\n");
   same("저장소가 아닌 폴더", await blameOf(plain, "a.txt"), null);
   same("없는 파일", await blameOf(repo, "nope.ts").catch(() => null), null);
-  let rejected = false;
-  await blameOf(repo, join(plain, "a.txt")).catch(() => (rejected = true));
-  expect(rejected, "저장소 밖 경로는 거절");
+  same("저장소 밖 경로", await blameOf(repo, join(plain, "a.txt")), null);
   writeFileSync(join(repo, "crlf.txt"), "a\r\nb\r\n");
   commit("Add crlf", "bob", AT_BOB);
   same("CRLF 버퍼", (await blameOf(repo, "crlf.txt", "a\r\nb\r\n"))?.commits.map((c) => c.uncommitted), [false]);

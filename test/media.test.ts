@@ -62,7 +62,7 @@ symlinkSync(inWs, join(ws, "link-in.png"));
 let mentioned = new Set<string>();
 const ctx = (cwd = ws) => ({
   cwd,
-  inWorkspace: (real: string) => resolveReadable(cwd, real).then(() => true, () => false),
+  inWorkspace: (real: string) => resolveReadable(cwd, real, "nearby").then(() => true, () => false),
   daemonHome,
   userHome: home,
   mentioned: () => mentioned,

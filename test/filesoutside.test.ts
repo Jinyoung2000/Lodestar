@@ -21,9 +21,8 @@ try {
   expect(outside.text === "<p>hi</p>" && outside.readOnly === true, `/tmp 아래 밖 파일은 읽기 전용으로 연다: ${JSON.stringify(outside)}`);
 
   const rejected = async (path: string) => readWorkspaceFileWithStat(workspace, path).then(() => false, () => true);
-  expect(await rejected(join(homedir(), ".ssh", "config")), "~/.ssh 는 거절");
+  expect(!(await rejected("/etc/hosts")), "홈과 /tmp 밖 파일도 연다");
   expect(await rejected(join(homedir(), ".agent-nav", "token")), "Lodestar 토큰은 거절");
-  expect(await rejected("/etc/hosts"), "홈과 /tmp 밖은 거절");
   expect(await rejected(outsideDir), "폴더는 거절");
 
   const writeRejected = await writeWorkspaceFile(workspace, join(outsideDir, "report.html"), "x").then(() => false, () => true);

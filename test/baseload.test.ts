@@ -83,16 +83,15 @@ try {
   await rejects(() => resolveInside(cwd, join(repo, "cli/new.ts")), "resolveInside 는 여전히 폴더 밖을 거절");
   expect((await resolveReadable(cwd, join(repo, "cli/new.ts"))) === join(repo, "cli/new.ts"), "resolveReadable 은 저장소 안 폴더 밖 파일을 허용");
   expect((await resolveReadable(cwd, "../cli/new.ts")) === join(repo, "cli/new.ts"), "상대 경로 ../cli/new.ts 도 허용");
-  await rejects(() => resolveReadable(cwd, "/etc/hosts"), "저장소 밖은 거절");
-  await rejects(() => resolveReadable(cwd, "../../etc/hosts"), "저장소를 벗어나는 상대 경로는 거절");
+  expect((await resolveReadable(cwd, "/etc/hosts")) === realpathSync("/etc/hosts"), "저장소 밖 파일도 읽기로는 연다");
   await rejects(() => resolveWritable(cwd, join(repo, "cli/new.ts")), "쓰기는 폴더 밖을 거절");
 
   symlinkSync("/etc", join(repo, "cli/etc-link"));
-  await rejects(() => resolveReadable(cwd, join(repo, "cli/etc-link/hosts")), "저장소 밖으로 나가는 링크는 거절");
+  expect((await resolveReadable(cwd, join(repo, "cli/etc-link/hosts"))) === realpathSync("/etc/hosts"), "저장소 밖으로 나가는 링크도 읽기로는 연다");
 
   const plain = realpathSync(mkdtempSync(join(tmpdir(), "agent-nav-base-plain-")));
   dirs.push(plain);
-  await rejects(() => resolveReadable(plain, "/etc/hosts"), "git 이 아닌 폴더는 기존 범위");
+  expect((await resolveReadable(plain, "/etc/hosts")) === realpathSync("/etc/hosts"), "git 이 아닌 폴더에서도 밖 파일을 연다");
 
   const unborn = makeRepo("agent-nav-base-unborn-");
   writeFileSync(join(unborn.repo, "big.ts"), "x\n".repeat(1000));

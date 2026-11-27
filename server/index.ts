@@ -868,7 +868,7 @@ function mediaContext(agentId: string): MediaContext {
       return null;
     }
   })();
-  const readable = (dir: string, real: string) => resolveReadable(dir, real).then(() => true, () => false);
+  const readable = (dir: string, real: string) => resolveReadable(dir, real, "nearby").then(() => true, () => false);
   return {
     cwd: agent.cwd,
     inWorkspace: async (real) => {

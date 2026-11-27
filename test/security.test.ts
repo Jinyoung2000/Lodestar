@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { request } from "node:http";
 import WebSocket from "ws";
@@ -89,9 +90,9 @@ test("Reading a file outside the workspace is rejected", async () => {
   const reply = await rpc("files.read", { workspaceId: result[0].id, path: "../../.ssh/id_rsa" });
   return expect(typeof reply.error === "string" && reply.error.includes("outside the workspace"), reply.error ?? "allowed");
 });
-test("Absolute paths outside the workspace are rejected", async () => {
+test("Credential files outside the workspace are rejected", async () => {
   const { result } = (await rpc("workspaces.list", {})) as { result: { id: string }[] };
-  const reply = await rpc("files.read", { workspaceId: result[0].id, path: "/etc/passwd" });
+  const reply = await rpc("files.read", { workspaceId: result[0].id, path: join(homedir(), ".codex", "auth.json") });
   return expect(typeof reply.error === "string", reply.error ?? "allowed");
 });
 test("Creating or saving a file outside the workspace is rejected, even through ..", async () => {
