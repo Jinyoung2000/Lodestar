@@ -39,6 +39,7 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-deps.mjs",
     "start": "expo start",
     "tokens": "node scripts/sync-tokens.mjs",
     "typecheck": "tsc --noEmit",
