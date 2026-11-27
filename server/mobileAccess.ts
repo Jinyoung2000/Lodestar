@@ -394,7 +394,7 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
     case "agents.markRead":
       return { agentId: idOf(p.agentId, "agentId"), read: p.read !== false };
     case "mobile.preview":
-      return { agentId: idOf(p.agentId, "agentId"), itemId: idOf(p.itemId, "itemId"), target: textOf(p.target, "target", 2048) };
+      return { agentId: idOf(p.agentId, "agentId"), itemId: idOf(p.itemId, "itemId"), target: textOf(p.target, "target", 2048), thumb: p.thumb === true };
     case "mobile.walkthrough":
       return { agentId: idOf(p.agentId, "agentId"), itemId: idOf(p.itemId, "itemId"), source: textOf(p.source, "source", 64 * 1024) };
     case "mobile.browse": {

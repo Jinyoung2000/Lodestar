@@ -13,6 +13,30 @@ export const previewGlyph = { html: "rectangle.and.hand.point.up.left", svg: "sc
 const thumbnails = new Map<string, { content: MobilePreview; expires: number }>();
 const requests = new Map<string, Promise<MobilePreview>>();
 const thumbnailLimit = 4;
+const thumbnailLifetimeMs = 10 * 60_000;
+const thumbnailCacheChars = 16 * 1024 * 1024;
+let thumbnailChars = 0;
+
+function contentChars(content: MobilePreview) {
+  return "uri" in content ? content.uri.length : "html" in content ? content.html.length : content.text.length;
+}
+
+function forgetThumbnail(key: string) {
+  const entry = thumbnails.get(key);
+  if (!entry) return;
+  thumbnails.delete(key);
+  thumbnailChars -= contentChars(entry.content);
+}
+
+function rememberThumbnail(key: string, content: MobilePreview) {
+  forgetThumbnail(key);
+  thumbnails.set(key, { content, expires: Date.now() + thumbnailLifetimeMs });
+  thumbnailChars += contentChars(content);
+  for (const oldest of thumbnails.keys()) {
+    if (thumbnailChars <= thumbnailCacheChars || thumbnails.size <= 1) break;
+    forgetThumbnail(oldest);
+  }
+}
 
 function cacheKey(agentId: string, itemId: string, target: string) {
   return JSON.stringify([agentId, itemId, target]);
@@ -23,12 +47,17 @@ export function cachedThumbnail(agentId: string, itemId: string, target: string)
   const entry = thumbnails.get(key);
   if (!entry) return;
   if (entry.expires < Date.now()) {
-    thumbnails.delete(key);
+    forgetThumbnail(key);
     return;
   }
   thumbnails.delete(key);
   thumbnails.set(key, entry);
   return entry.content;
+}
+
+export function cachedFullPreview(agentId: string, itemId: string, target: string) {
+  const content = cachedThumbnail(agentId, itemId, target);
+  return content?.kind === "image" && content.reduced ? undefined : content;
 }
 
 function useThumbnail(agentId: string | undefined, file: Preview, enabled: boolean) {
@@ -54,13 +83,8 @@ function useThumbnail(agentId: string | undefined, file: Preview, enabled: boole
       if (!active) return;
       let request = requests.get(key);
       if (!request) {
-        request = client.call("mobile.preview", { agentId, itemId, target }).then(content => {
-          thumbnails.set(key, { content, expires: Date.now() + 60_000 });
-          while (thumbnails.size > 12) {
-            const oldest = thumbnails.keys().next().value;
-            if (oldest === undefined) break;
-            thumbnails.delete(oldest);
-          }
+        request = client.call("mobile.preview", { agentId, itemId, target, thumb: true }).then(content => {
+          rememberThumbnail(key, content);
           return content;
         }).finally(() => requests.delete(key));
         requests.set(key, request);

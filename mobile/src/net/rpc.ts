@@ -22,7 +22,7 @@ type MobileOnly = {
   "mobile.models": { params: { agentId?: string; harness?: Harness; switchOnly?: boolean; providerId?: string }; result: MobileModelCatalog };
   "mobile.providers": { params: Record<string, never>; result: MobileCustomProvider[] };
   "mobile.setModel": { params: { agentId: string; selection: MobileModelSelection }; result: MobileModelSelection };
-  "mobile.preview": { params: { agentId: string; itemId: string; target: string }; result: MobilePreview };
+  "mobile.preview": { params: { agentId: string; itemId: string; target: string; thumb?: boolean }; result: MobilePreview };
   "mobile.walkthrough": { params: { agentId: string; itemId: string; source: string }; result: MobileWalkthrough };
   "mobile.browse": { params: { path?: string }; result: MobileBrowseResult };
   "mobile.feedback": { params: PhoneFeedbackRequest; result: Agent };

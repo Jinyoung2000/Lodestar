@@ -756,10 +756,10 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
     if (agent.feedbackId) throw new Error(`Unknown agent: ${agentId}`);
     return pageOfTimeline(store.timeline(agent.id), limit, beforeId);
   },
-  "mobile.preview": ({ agentId, itemId, target }: { agentId: string; itemId: string; target: string }) => {
+  "mobile.preview": ({ agentId, itemId, target, thumb }: { agentId: string; itemId: string; target: string; thumb?: boolean }) => {
     const agent = phoneAgent(agentId);
     const item = store.timeline(agentId).find((entry) => entry.id === itemId);
-    return mobilePreview(agent.workspaceId ? agent.worktree?.root ?? phoneWorkspace(agent.workspaceId).dir : null, item, target, MOBILE_MEDIA_KEY);
+    return mobilePreview(agent.workspaceId ? agent.worktree?.root ?? phoneWorkspace(agent.workspaceId).dir : null, item, target, MOBILE_MEDIA_KEY, thumb === true);
   },
   "mobile.walkthrough": ({ agentId, itemId, source }: { agentId: string; itemId: string; source: string }) => {
     const agent = phoneAgent(agentId);

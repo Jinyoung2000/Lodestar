@@ -19,7 +19,7 @@ import { ConnectionTitle } from "./ConnectionTitle";
 import { useFoldLayout } from "./FoldLayout";
 import { useKeyboardTop } from "./KeyboardSpacer";
 
-import { cachedThumbnail, PreviewThumbnail } from "./PreviewThumbnail";
+import { cachedFullPreview, PreviewThumbnail } from "./PreviewThumbnail";
 import { RelayVideoPlayer } from "./RelayVideoPlayer";
 
 export function renderDocument(content: MobilePreview, title: string, width: number, height: number) {
@@ -157,7 +157,7 @@ export function usePreview(agentId: string, files: readonly Preview[] = []) {
     setSelected(request);
     if (!("target" in file)) return;
     try {
-      const cached = cachedThumbnail(agentId, file.itemId, file.target);
+      const cached = cachedFullPreview(agentId, file.itemId, file.target);
       const content = cached ?? (client.status === "online"
         ? await client.call("mobile.preview", { agentId, itemId: file.itemId, target: file.target })
         : undefined);
