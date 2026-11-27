@@ -65,7 +65,7 @@ export type Row =
   | { type: "notice"; key: string; text: string; detail?: string }
   | { type: "error"; key: string; item: ErrorItem };
 
-const NOTION_PROPOSE = /^mcp__lodestar_notion__notion_(update_page|create_pages)$/;
+export const needsDesktopReview = (tool: string) => /^mcp__lodestar_notion__notion_(update_page|create_pages)$/.test(tool);
 
 export function buildRows(items: readonly TimelineItem[]): Row[] {
   const decisions = new Map<string, PermissionItem>();
@@ -112,7 +112,7 @@ export function buildRows(items: readonly TimelineItem[]): Row[] {
           flush();
           if (item.toolName === QUESTION_TOOL) rows.push({ type: "question", key: item.id, item });
           else if (item.toolName === PLAN_TOOL) rows.push({ type: "plan", key: item.id, item });
-          else rows.push({ type: "approval", key: item.id, item, tool: item.toolUseId ? (toolById.get(item.toolUseId) ?? null) : null, reviewOnDesktop: NOTION_PROPOSE.test(item.toolName) });
+          else rows.push({ type: "approval", key: item.id, item, tool: item.toolUseId ? (toolById.get(item.toolUseId) ?? null) : null, reviewOnDesktop: needsDesktopReview(item.toolName) });
         } else if (item.toolName === QUESTION_TOOL && Object.keys(item.outcome?.answers ?? {}).length > 0) {
           flush();
           rows.push({ type: "answered", key: item.id, item });

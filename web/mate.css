@@ -1,21 +1,30 @@
 .mate {
+  --mate-text-inset: calc(var(--space-3) + 1px);
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   display: flex;
+  flex-direction: column;
   background: var(--surface-raised);
   container-type: inline-size;
 }
+.mate-body {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  justify-content: center;
+}
 .mate-chat {
   flex: 0 1 var(--size-chat-editing);
-  min-width: var(--size-chat-floor);
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-subtle);
 }
-.mate[data-panel="closed"] {
-  justify-content: center;
+.mate[data-panel="closed"] .mate-head {
+  width: min(100%, var(--size-chat-session));
+  align-self: center;
 }
 .mate[data-panel="closed"] .mate-chat {
   flex-basis: var(--size-chat-session);
@@ -29,18 +38,16 @@
   flex-direction: column;
 }
 .mate-head {
-  flex: none;
+  box-sizing: border-box;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: start;
-  padding: var(--space-3) var(--space-2) var(--space-2);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) calc(var(--mate-text-inset) + var(--space-1_5)) var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
 }
 .mate-identity {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-0_5);
+  display: grid;
   min-width: 0;
 }
 .mate-avatar {
@@ -59,6 +66,9 @@
   color: var(--running);
 }
 .mate-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   margin: 0;
   color: var(--fg-strong);
   font-size: var(--text-ui);
@@ -76,6 +86,7 @@
 }
 .mate-head-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--space-1);
 }
@@ -111,6 +122,9 @@
   line-height: var(--leading-chat);
   overflow-wrap: anywhere;
 }
+.mate-bubble[data-from="mate"] {
+  padding-inline: var(--mate-text-inset);
+}
 .mate-bubble[data-from="user"] {
   justify-self: end;
   background: var(--chat-user-bg);
@@ -122,16 +136,36 @@
 .mate-bubble .row-assistant > :last-child {
   margin-bottom: 0;
 }
+.mate-decisions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.mate-more-decisions {
+  justify-self: start;
+  margin-inline-start: var(--mate-text-inset);
+  padding-inline-start: 0;
+}
+.mate-feed .approval-hints {
+  display: none;
+}
 .mate-card {
   justify-self: start;
   box-sizing: border-box;
-  width: 96%; /* lint-tokens: allow 카드가 말풍선보다 조금 넓고 칸 끝에는 닿지 않게 */
+  width: 100%;
+  max-width: var(--size-chat-editing);
   display: flex;
   flex-direction: column;
-  gap: var(--space-1_5);
-  padding: var(--space-2) var(--space-3) var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
+}
+.mate-card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
 }
 .mate-card-meta {
   all: unset;
@@ -153,14 +187,16 @@
   outline-offset: 1px;
 }
 .mate-card-session {
+  font-weight: var(--weight-ui-strong);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .mate-card-title {
+  overflow-wrap: anywhere;
   color: var(--fg-strong);
-  font-size: var(--text-ui);
-  line-height: var(--leading-ui);
+  font-size: var(--text-chat);
+  line-height: var(--leading-chat);
   font-weight: var(--weight-ui-strong);
 }
 .mate-card-text {
@@ -176,16 +212,74 @@
   align-items: center;
   gap: var(--space-1_5);
 }
-.mate-card-confirm {
-  flex: 1 1 100%;
-  color: var(--fg);
-  font-size: var(--text-ui-sm);
-  line-height: var(--leading-ui-sm);
-}
-.mate-choice {
-  max-width: 100%;
+.mate-replies {
+  display: grid;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+.mate-reply-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--size-control);
+  background: var(--surface-base);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-ui);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.mate-reply-option + .mate-reply-option {
+  border-top: 1px solid var(--border-subtle);
+}
+.mate-reply-option > :last-child {
+  flex: none;
+  color: var(--fg-muted);
+}
+.mate-reply-option:hover:not(:disabled),
+.mate-reply-option:focus-visible {
+  background: var(--surface-hover);
+  color: var(--fg-strong);
+}
+.mate-reply-option:focus-visible {
+  outline: 1px solid var(--focus-border);
+  outline-offset: -1px;
+}
+.mate-reply-option:active:not(:disabled) {
+  background: var(--surface-selected);
+}
+.mate-reply-option:disabled {
+  color: var(--fg-subtle);
+  cursor: default;
+}
+.mate-reply-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+}
+.mate-reply-form:focus-within {
+  border-color: var(--focus-border);
+}
+.mate-reply-form input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg-strong);
+  font: inherit;
+  font-size: var(--text-ui);
+}
+.mate-review {
+  align-self: flex-start;
 }
 .mate-action {
   justify-self: start;
@@ -425,11 +519,10 @@
   line-height: var(--leading-chat);
 }
 @container (max-width: 720px) { /* lint-tokens: allow 컨테이너 쿼리는 var() 를 못 쓴다. 대화와 패널이 나란히 읽히는 최소 폭 */
-  .mate-panel {
+  .mate[data-panel="open"] .mate-chat {
     display: none;
   }
-  .mate-chat {
-    flex: 1 1 0;
-    border-right: 0;
+  .mate-panel {
+    width: 100%;
   }
 }

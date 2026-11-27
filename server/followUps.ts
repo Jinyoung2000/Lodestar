@@ -33,6 +33,7 @@ import { T } from "./strings";
 
 export const FOLLOW_UPS_FILE = join(HOME, "followups.json");
 const FILE_VERSION = 1;
+const ANALYSIS_VERSION = 2;
 const TICK_MS = 60_000;
 const FIRST_TICK_MS = 8_000;
 const QUICK_MS = 1_500;
@@ -55,7 +56,7 @@ export type FollowUpDeps = {
 };
 
 type Ledger = { day: string; calls: number };
-type Saved = { version: number; items: FollowUpItem[]; notes: WorkNote[]; analyzed: Record<string, string>; dismissed: Record<string, string>; checkedAt: string | null; ledger: Ledger };
+type Saved = { version: number; analysisVersion: number; items: FollowUpItem[]; notes: WorkNote[]; analyzed: Record<string, string>; dismissed: Record<string, string>; checkedAt: string | null; ledger: Ledger };
 
 const dayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
@@ -68,6 +69,7 @@ export class FollowUpsService {
   private dirty = new Set<string>();
   private primed = false;
   private checking = false;
+  private replying = new Set<string>();
   private checkedAt: string | null = null;
   private error: string | null = null;
   private nudge: FollowUpNudge | null = null;
@@ -199,19 +201,25 @@ export class FollowUpsService {
   }
 
   remind() {
-    if (this.deps.store.settings.followUpsReminders === false) return;
     const now = this.now();
     const at = now.getTime();
+    let advanced = false;
     const due: string[] = [];
+    const requestedItemIds: string[] = [];
     this.items = this.items.map((item) => {
       if (isSnoozed(item, at) || !item.remindAt || Date.parse(item.remindAt) > at) return item;
-      due.push(item.id);
+      if (item.snoozedUntil) requestedItemIds.push(item.id);
+      else if (this.deps.store.settings.followUpsReminders === false) return item;
+      advanced = true;
+      if (item.kind !== "ask" || item.snoozedUntil) due.push(item.id);
       const reminded = item.reminded + 1;
       return { ...item, reminded, snoozedUntil: null, remindAt: nextReminder(now, reminded, this.morning)?.toISOString() ?? null };
     });
-    if (due.length === 0) return;
-    this.nudge = { id: randomUUID(), at: now.toISOString(), itemIds: due };
-    console.log(`[followups] reminded ${due.length}`);
+    if (!advanced) return;
+    if (due.length) {
+      this.nudge = { id: randomUUID(), at: now.toISOString(), itemIds: due, requestedItemIds };
+      console.log(`[followups] reminded ${due.length}`);
+    }
     this.changed();
   }
 
@@ -238,6 +246,24 @@ export class FollowUpsService {
     this.items = this.items.filter((i) => i.id !== item.id);
     this.changed();
     return this.state();
+  }
+
+  async reply(id: string, text: string, send: (agentId: string, text: string) => Promise<unknown>): Promise<FollowUpsState> {
+    if (!this.enabled) throw new Error(T.errFollowUpsOff);
+    const item = this.item(id);
+    const agent = this.deps.store.agents.find((candidate) => candidate.id === item.agentId);
+    if (item.kind !== "ask" || !agent || !isTracked(agent) || agent.queue?.length || scanSession(agent, this.deps.store.timeline(agent.id)).anchorId !== item.anchorId) throw new Error(T.errFollowUpStale);
+    if (typeof text !== "string" || !text.trim()) throw new Error(T.errFollowUpReplyEmpty);
+    if (this.replying.has(id)) throw new Error(T.errFollowUpReplyBusy);
+    this.replying.add(id);
+    try {
+      await send(agent.id, text.trim());
+      this.items = this.items.filter((open) => open.id !== id);
+      this.changed();
+      return this.state();
+    } finally {
+      this.replying.delete(id);
+    }
   }
 
   keepOpen(agentId: string): FollowUpsState {
@@ -310,16 +336,20 @@ export class FollowUpsService {
         if (results.length === 0) throw new Error(T.errFollowUpsEmpty);
         read += results.length;
         const now = this.now();
+        this.refresh();
         for (const result of results) {
           const scan = this.scans.get(result.agentId);
           const agent = this.deps.store.agents.find((a) => a.id === result.agentId);
           if (!agent || !isTracked(agent) || agent.status !== "idle" || scan?.anchorId !== result.anchorId) continue;
           this.analyzed.set(agent.id, result.anchorId);
+          const existing = this.items.find((item) => item.agentId === agent.id && item.anchorId === result.anchorId);
+          if (this.dismissed.get(agent.id) === result.anchorId || existing?.snoozedUntil) continue;
           this.items = this.items.filter((item) => item.agentId !== agent.id);
           this.notes = this.notes.filter((note) => note.agentId !== agent.id);
           if (result.state === "decision") {
             const since = scan.anchorAt && Number.isFinite(Date.parse(scan.anchorAt)) ? new Date(scan.anchorAt) : now;
-            this.items = [...this.items, this.newItem(agent.id, "ask", result.anchorId, result.text, result.options, since, now)];
+            const decision = existing ? { ...existing, text: result.text, options: result.options } : this.newItem(agent.id, "ask", result.anchorId, result.text, result.options, since, now);
+            this.items = [...this.items, decision];
             found++;
           } else this.notes = [...this.notes, { agentId: agent.id, phase: result.state, text: result.text, anchorId: result.anchorId, at: now.toISOString() }];
         }
@@ -363,7 +393,7 @@ export class FollowUpsService {
   }
 
   private save() {
-    const saved: Saved = { version: FILE_VERSION, items: this.items, notes: this.notes, analyzed: Object.fromEntries(this.analyzed), dismissed: Object.fromEntries(this.dismissed), checkedAt: this.checkedAt, ledger: this.ledger };
+    const saved: Saved = { version: FILE_VERSION, analysisVersion: ANALYSIS_VERSION, items: this.items, notes: this.notes, analyzed: Object.fromEntries(this.analyzed), dismissed: Object.fromEntries(this.dismissed), checkedAt: this.checkedAt, ledger: this.ledger };
     const tmp = `${this.file}.${process.pid}.tmp`;
     writeFileSync(tmp, JSON.stringify(saved, null, 2));
     renameSync(tmp, this.file);
@@ -377,6 +407,9 @@ export class FollowUpsService {
       this.items = (Array.isArray(raw.items) ? raw.items : []).flatMap((item) => sanitizeItem(item) ?? []);
       this.notes = (Array.isArray(raw.notes) ? raw.notes : []).flatMap((note) => sanitizeNote(note) ?? []);
       this.analyzed = stringMap(raw.analyzed);
+      if (raw.analysisVersion !== ANALYSIS_VERSION) {
+        for (const item of this.items) if (item.kind === "ask" && !item.snoozedUntil) this.analyzed.delete(item.agentId);
+      }
       this.dismissed = stringMap(raw.dismissed);
       this.checkedAt = typeof raw.checkedAt === "string" ? raw.checkedAt : null;
       if (raw.ledger && typeof raw.ledger.day === "string" && Number.isInteger(raw.ledger.calls)) this.ledger = { day: raw.ledger.day, calls: raw.ledger.calls };

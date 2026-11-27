@@ -600,6 +600,15 @@ export class AppStore {
     return this.call("agents.setPinned", { agentId, pinned });
   }
 
+  async replyToFollowUp(id: string, text: string) {
+    try {
+      this.set({ followUps: (await this.call("followUps.reply", { id, text })) as FollowUpsState });
+    } catch (error) {
+      if (error instanceof Error && error.message === "The phone app cannot call followUps.reply") throw new Error("Open the session to reply, or update Lodestar on your Mac to reply here.");
+      throw error;
+    }
+  }
+
   async snoozeFollowUp(id: string, choice: SnoozeChoice) {
     this.set({ followUps: (await this.call("followUps.snooze", { id, choice })) as FollowUpsState });
   }

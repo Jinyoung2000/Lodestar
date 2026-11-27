@@ -149,7 +149,7 @@ test("승인 카드 문구: done 처리·세션 시작은 더 이상 카드를 �
   equal(shared.assistantApproval(tool(T.markDone), { session: "a", session_title: "Fix login" }), null, "mark_done 카드");
   equal(shared.assistantApproval(tool(T.startSession), { workspace: "Roll", prompt: "x" }), null, "start_session 카드");
   const send = shared.assistantApproval(tool(T.sendToSession), { session: "a", session_title: "Fix login", text: "go" });
-  return equal(send, { title: "Send to Fix login?", message: "go" }, "send_to_session 카드");
+  return equal(send, { title: "Send to Fix login?", message: "go", confirmLabel: "Send message" }, "send_to_session 카드");
 });
 
 test("Claude 경로: mark_done 은 ask 없이 허용, send_to_session 은 ask 를 부른다", async () => {

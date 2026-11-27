@@ -1,16 +1,18 @@
 import { useMemo, useState } from "react";
-import { clockText, mateActionView, type AssistantAction, type MateEntry } from "../shared/assistant";
+import { clockText, mateActionView, type AssistantAction, type AssistantApproval, type MateEntry } from "../shared/assistant";
+import { reviewFollowUpLabel } from "../shared/mateCore";
 import { SNOOZE_CHOICES, type FollowUpItem } from "../shared/followups";
 import { dismissFollowUp, itemText, openFollowUpSession, replyToFollowUp, snoozeFollowUp } from "./followUpActions";
 import { ageText, workspaceNameOf } from "./followUpsModel";
 import { Codicon, DotSpinner } from "./icons";
-import { openMateSession, respondToMate, undoMateAction } from "./mateActions";
+import { respondToMate, undoMateAction } from "./mateActions";
 import { useNow } from "./PrBits";
 import { flash, useStore } from "./store";
 import { S } from "./strings";
+import { ApprovalCard } from "./Approval";
 import { Markdown } from "./Timeline";
 import { Button } from "./ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 const A = S.assistant;
 
@@ -47,39 +49,12 @@ function Entry({ agentId, entry }: EntryProps) {
         </div>
       );
     case "decisions":
-      return (
-        <>
-          {entry.items.map((item) => (
-            <DecisionCard key={item.id} item={item} />
-          ))}
-        </>
-      );
+      return <DecisionStack items={entry.items} />;
     case "approval":
-      return (
-        <div className="mate-card" role="group" aria-label={entry.approval?.title ?? A.approvalFallback(entry.item.toolName)}>
-          <div className="mate-card-title">{entry.approval?.title ?? A.approvalFallback(entry.item.toolName)}</div>
-          {(entry.approval?.message || typeof entry.item.input.command === "string") && <div className="mate-card-text">{entry.approval?.message || String(entry.item.input.command)}</div>}
-          <div className="mate-card-actions">
-            <Button variant="primary" size="default" onClick={() => respondToMate(agentId, entry.item.id, "allow")}>
-              {A.allow}
-            </Button>
-            <Button variant="secondary" size="default" onClick={() => respondToMate(agentId, entry.item.id, "deny")}>
-              {A.skip}
-            </Button>
-          </div>
-        </div>
-      );
+      if (entry.approval) return <MateApprovalCard agentId={agentId} itemId={entry.item.id} approval={entry.approval} />;
+      return <ApprovalCard agentId={agentId} item={entry.item} />;
     case "question":
-      return (
-        <div className="mate-card">
-          <div className="mate-card-text">{A.answerInSession}</div>
-          <div className="mate-card-actions">
-            <Button variant="secondary" onClick={openMateSession}>
-              {A.openAsSession}
-            </Button>
-          </div>
-        </div>
-      );
+      return <ApprovalCard agentId={agentId} item={entry.item} />;
     case "action":
       return <ActionRow action={entry.action} />;
     case "working":
@@ -98,58 +73,90 @@ function Entry({ agentId, entry }: EntryProps) {
   }
 }
 
-type DecisionCardProps = { item: FollowUpItem };
+function MateApprovalCard({ agentId, itemId, approval }: { agentId: string; itemId: string; approval: AssistantApproval }) {
+  const [busy, setBusy] = useState(false);
+  const respond = async (decision: "allow" | "deny") => {
+    if (busy) return;
+    setBusy(true);
+    if (!(await respondToMate(agentId, itemId, decision))) setBusy(false);
+  };
+  return (
+    <div className="mate-card" role="group" aria-label={approval.title}>
+      <div className="mate-card-title">{approval.title}</div>
+      {approval.message && <div className="mate-card-text">{approval.message}</div>}
+      <div className="mate-card-actions">
+        <Button variant="primary" size="default" disabled={busy} onClick={() => void respond("allow")}>{approval.confirmLabel}</Button>
+        <Button size="default" disabled={busy} onClick={() => void respond("deny")}>{A.cancel}</Button>
+      </div>
+    </div>
+  );
+}
 
-function DecisionCard({ item }: DecisionCardProps) {
-  const agent = useStore((s) => s.agents.find((a) => a.id === item.agentId) ?? null);
+function DecisionStack({ items }: { items: FollowUpItem[] }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="mate-decisions">
+      {(expanded ? items : items.slice(0, 1)).map((item) => <DecisionCard key={item.id} item={item} />)}
+      {items.length > 1 && <Button aria-expanded={expanded} className="mate-more-decisions" onClick={() => setExpanded(!expanded)}>
+        {expanded ? A.showFewer : A.moreDecisions(items.length - 1)}<Codicon name={expanded ? "chevron-up" : "chevron-down"} size={14} />
+      </Button>}
+    </div>
+  );
+}
+
+function DecisionCard({ item }: { item: FollowUpItem }) {
+  const agent = useStore((s) => s.agents.find((a) => a.id === item.agentId));
   const workspace = useStore((s) => workspaceNameOf(s.workspaces, agent?.workspaceId ?? null));
   const now = useNow();
-  const [sending, setSending] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState<string | null>(null);
   if (!agent) return null;
   const openSession = () => openFollowUpSession(agent.id);
-  const choose = async (option: string) => {
-    if (item.kind !== "ask") return openSession();
-    if (sending) return;
-    setSending(true);
-    const sent = await replyToFollowUp(item, option);
-    setSending(false);
-    if (sent) flash(A.sentTo(option, agent.title));
+  const reply = async (text: string) => {
+    if (!text.trim() || sending !== null) return;
+    setSending(text);
+    if (await replyToFollowUp(item, text)) flash(A.sentTo(text.trim(), agent.title));
+    else setSending(null);
   };
   return (
     <div className="mate-card" role="group" aria-label={agent.title}>
-      <button type="button" className="mate-card-meta" title={A.openSession} onClick={openSession}>
-        <span className="mate-card-session">{agent.title}</span>
-        {workspace && <span className="session-separator" aria-hidden="true" />}
-        {workspace && <span>{workspace}</span>}
-        <span className="session-separator" aria-hidden="true" />
-        <span>{A.waitingFor(ageText(item.since, now))}</span>
-      </button>
-      <div className="mate-card-text">{itemText(item)}</div>
-      <div className="mate-card-actions">
-        {item.options.map((option) => (
-          <Button key={option} variant="secondary" className="mate-choice" disabled={sending} onClick={() => void choose(option)}>
-            {option}
-          </Button>
-        ))}
-        {item.options.length === 0 && (
-          <Button variant="secondary" onClick={openSession}>
-            {A.openSession}
-          </Button>
-        )}
+      <div className="mate-card-head">
+        <button type="button" className="mate-card-meta" title={[agent.title, workspace].filter(Boolean).join(" · ")} onClick={openSession}>
+          <span className="mate-card-session">{agent.title}</span>
+          <span className="session-separator" aria-hidden="true" />
+          <span>{A.waitingFor(ageText(item.since, now))}</span>
+        </button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button>{A.later}</Button>
+            <Button size="icon" aria-label={A.decisionMenu(agent.title)} disabled={sending !== null}><Codicon name="ellipsis" /></Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {SNOOZE_CHOICES.map((choice) => (
-              <DropdownMenuItem key={choice} onSelect={() => snoozeFollowUp(item.id, choice)}>
-                {S.followUp.snooze[choice]}
-              </DropdownMenuItem>
-            ))}
+          <DropdownMenuContent align="end">
+            {SNOOZE_CHOICES.map((choice) => <DropdownMenuItem key={choice} onSelect={() => snoozeFollowUp(item.id, choice)}>{A.remind[choice]}</DropdownMenuItem>)}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => dismissFollowUp(item.id)}>{A.dismiss}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button onClick={() => dismissFollowUp(item.id)}>{A.notNeeded}</Button>
       </div>
+      <div className="mate-card-title">{itemText(item)}</div>
+      {item.kind === "ask" ? (
+        <>
+          {item.options.length > 0 && <div className="mate-replies">
+            {item.options.map((option) => (
+              <button key={option} type="button" className="mate-reply-option" aria-label={A.sendOption(option, agent.title)} title={A.sendOption(option, agent.title)} disabled={sending !== null} onClick={() => void reply(option)}>
+                <span>{option}</span><Codicon name={sending === option ? "loading" : "reply"} spin={sending === option} size={14} />
+              </button>
+            ))}
+          </div>}
+          <form className="mate-reply-form" onSubmit={(event) => { event.preventDefault(); void reply(draft); }}>
+            <input value={draft} disabled={sending !== null} aria-label={S.followUp.replyAria(agent.title)} placeholder={S.followUp.replyPlaceholder} onChange={(event) => setDraft(event.target.value)} />
+            <Button type="submit" size="icon" variant={draft.trim() ? "primary" : "ghost"} aria-label={A.sendReply(agent.title)} disabled={!draft.trim() || sending !== null}><Codicon name="arrow-up" /></Button>
+          </form>
+        </>
+      ) : (
+        <Button className="mate-review" variant="secondary" size="default" onClick={openSession}>
+          {reviewFollowUpLabel[item.kind]}<Codicon name="arrow-right" size={14} />
+        </Button>
+      )}
     </div>
   );
 }

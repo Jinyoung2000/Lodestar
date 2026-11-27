@@ -46,6 +46,7 @@ export const MOBILE_METHODS = [
   "agents.setDone",
   "agents.rename",
   "followUps.get",
+  "followUps.reply",
   "followUps.snooze",
   "followUps.dismiss",
   "followUps.keepOpen",

@@ -3,7 +3,7 @@ import { mateFeed, type AssistantState } from "../shared/assistant";
 import { harnessOf, type Agent } from "../shared/protocol";
 import { effortName, modelChip } from "./Composer";
 import { useDefaults } from "./defaults";
-import { builtinEffort, supportedLevels } from "./effortLevels";
+import { builtinEffort, shownEffort, supportedLevels } from "./effortLevels";
 import { agoText } from "./followUpsModel";
 import { codexDefaultModel, codexLevels, codexModelChip, useCustomProvider, useToolMeta } from "./harness";
 import { Codicon, ModelIcon } from "./icons";
@@ -56,52 +56,55 @@ export function MateView() {
   }
   return (
     <div className="mate" data-panel={panel ? "open" : "closed"}>
-      <MateChat agent={agent} state={state} panel={panel} onTogglePanel={togglePanel} />
-      {panel && <MatePanel state={state} />}
+      <MateHeader agent={agent} state={state} panel={panel} onTogglePanel={togglePanel} />
+      <div className="mate-body">
+        <MateChat agent={agent} state={state} />
+        {panel && <MatePanel state={state} />}
+      </div>
     </div>
   );
 }
 
-type MateChatProps = { agent: Agent; state: AssistantState; panel: boolean; onTogglePanel: () => void };
+type MateChatProps = { agent: Agent; state: AssistantState };
+type MateHeaderProps = MateChatProps & { panel: boolean; onTogglePanel: () => void };
 
-function MateChat({ agent, state, panel, onTogglePanel }: MateChatProps) {
-  const items = useStore((s) => s.timelines[agent.id]) ?? NO_ITEMS;
-  const open = useStore((s) => s.followUps?.items) ?? NO_ITEMS;
+function MateHeader({ agent, state, panel, onTogglePanel }: MateHeaderProps) {
   const now = useNow();
-  const entries = useMemo(() => mateFeed({ items, checkIns: state.checkIns, followUps: open, status: agent.status, now, actions: state.actions }), [items, state.checkIns, open, agent.status, now, state.actions]);
   const busy = agent.status === "running" || agent.status === "waiting";
   const last = state.lastCheckIn;
   const status = state.busy ? A.checkingIn : agent.status === "running" ? A.working : agent.status === "waiting" ? S.status.waiting : last ? (last.spoke ? A.checkedIn(agoText(last.at, now)) : A.checkedInQuiet(agoText(last.at, now))) : A.idle;
   return (
+    <header className="mate-head">
+      <span className="mate-avatar" data-busy={busy || undefined}><Codicon name="compass" size={20} /></span>
+      <div className="mate-identity">
+        <h1 className="mate-name">{agent.title}</h1>
+        <span className="mate-status">{status}</span>
+      </div>
+      <div className="mate-head-actions" role="group" aria-label={A.actions}>
+        <Button variant={panel ? "ghost-on" : "ghost"} size="default" aria-label={panel ? A.hidePanel : A.showPanel} aria-expanded={panel} onClick={onTogglePanel}>
+          <Codicon name="layout-sidebar-right" size={14} />{A.tabs.tracking}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" aria-label={A.more}><Codicon name="ellipsis" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem disabled={state.busy || busy} onSelect={checkInMate}>{A.checkInNow}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={openMateSession}>{A.openAsSession}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  );
+}
+
+function MateChat({ agent, state }: MateChatProps) {
+  const items = useStore((s) => s.timelines[agent.id]) ?? NO_ITEMS;
+  const open = useStore((s) => s.followUps?.enabled ? s.followUps.items : NO_ITEMS);
+  const now = useNow();
+  const entries = useMemo(() => mateFeed({ items, checkIns: state.checkIns, followUps: open, status: agent.status, now, actions: state.actions }), [items, state.checkIns, open, agent.status, now, state.actions]);
+  return (
     <section className="mate-chat" aria-label={A.name}>
-      <header className="mate-head">
-        <span />
-        <div className="mate-identity">
-          <span className="mate-avatar" data-busy={busy || undefined}>
-            <Codicon name="compass" size={20} />
-          </span>
-          <h1 className="mate-name">{agent.title}</h1>
-          <span className="mate-status">{status}</span>
-        </div>
-        <div className="mate-head-actions">
-          <Button size="icon" aria-label={A.checkInNow} disabled={state.busy || busy} onClick={checkInMate}>
-            <Codicon name="refresh" spin={state.busy} />
-          </Button>
-          <Button size="icon" aria-label={panel ? A.hidePanel : A.showPanel} title={panel ? A.hidePanel : A.showPanel} aria-pressed={panel} onClick={onTogglePanel}>
-            <Codicon name="layout-sidebar-right" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" aria-label={A.more}>
-                <Codicon name="ellipsis" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={openMateSession}>{A.openAsSession}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
       <MateFeed agentId={agent.id} entries={entries} />
       <MateComposer agent={agent} />
     </section>
@@ -122,7 +125,7 @@ function MateComposer({ agent }: MateComposerProps) {
   const defaults = useDefaults();
   const model = provider ? (agent.model ?? provider.defaultModel) : harness === "claude" ? (agent.model ?? defaults.model) : (agent.model ?? codexDefaultModel(toolMeta));
   const levels = provider ? NO_ITEMS : harness === "claude" ? supportedLevels(model) : codexLevels(toolMeta, model);
-  const effort = agent.effort ?? (harness === "claude" ? defaults.effort : (toolMeta?.models.find((m) => m.value === model)?.defaultEffort ?? toolMeta?.defaultEffort)) ?? builtinEffort(levels);
+  const effort = harness === "claude" ? shownEffort(model, agent.effort, defaults.effort) : agent.effort ?? toolMeta?.models.find((m) => m.value === model)?.defaultEffort ?? toolMeta?.defaultEffort ?? builtinEffort(levels);
   const chipName = provider ? (provider.models.find((m) => m.id === model)?.name ?? model ?? provider.name) : harness === "claude" ? modelChip(model, agent.activeModel, models).name : codexModelChip(model, agent.activeModel, toolMeta, S.harnessNames[harness]).name;
   const group = harness === "claude" && !provider ? null : sourceOf(harness, provider?.id);
   const running = agent.status === "running";
@@ -149,12 +152,12 @@ function MateComposer({ agent }: MateComposerProps) {
       }}
     >
       <textarea className="mate-input" rows={1} value={draft} placeholder={A.placeholder} aria-label={A.placeholder} onChange={(event) => setDraft(event.target.value)} onKeyDown={onKeyDown} />
-      <button ref={modelRef} type="button" className="chip" data-chip="model" aria-haspopup="dialog" aria-expanded={menu === "model"} aria-label={A.model} title={A.model} onClick={() => toggle("model")}>
+      <button ref={modelRef} type="button" className="chip" data-chip="model" data-align-free aria-haspopup="dialog" aria-expanded={menu === "model"} aria-label={A.model} title={A.model} onClick={() => toggle("model")}>
         <ModelIcon />
         <span className="chip-label chip-main">{chipName}</span>
       </button>
       {levels.length > 0 && (
-        <button ref={effortRef} type="button" className="chip" data-chip aria-haspopup="listbox" aria-expanded={menu === "effort"} aria-label={A.effort} title={A.effort} onClick={() => toggle("effort")}>
+        <button ref={effortRef} type="button" className="chip" data-chip data-align-free aria-haspopup="listbox" aria-expanded={menu === "effort"} aria-label={A.effort} title={A.effort} onClick={() => toggle("effort")}>
           <span className="chip-label">{effortName(effort)}</span>
         </button>
       )}

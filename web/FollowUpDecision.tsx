@@ -20,7 +20,6 @@ export function FollowUpDecision({ row, workspace, now }: FollowUpDecisionProps)
   const [sending, setSending] = useState(false);
   const openSession = () => openFollowUpSession(agent.id);
   const pick = async (option: string) => {
-    if (!canReply) return openSession();
     if (sending) return;
     setSending(true);
     const sent = await replyToFollowUp(item, option);
@@ -63,7 +62,7 @@ export function FollowUpDecision({ row, workspace, now }: FollowUpDecisionProps)
           <span className="followup-swap-label">{F.notNeeded}</span>
         </Button>
       </div>
-      {item.options.length > 0 && !snoozed && (
+      {canReply && item.options.length > 0 && !snoozed && (
         <div className="followup-extra followup-options">
           {item.options.map((option) => (
             <Button key={option} variant="secondary" className="followup-option" disabled={sending} onClick={() => void pick(option)}>

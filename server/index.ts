@@ -561,7 +561,7 @@ const handlers: Handlers = {
   ...inboxHandlers({ inbox, inboxStore, mentions, broadcast, topWorkspaceOf }),
   ...notionPinHandlers({ notionPins, broadcast }),
   ...automationHandlers(automations),
-  ...followUpHandlers(followUps),
+  ...followUpHandlers(followUps, (agentId, text) => runner.send(agentId, text)),
   "assistant.get": () => assistantService.state(),
   "assistant.checkIn": () => assistantService.checkIn(),
   "assistant.cancelReminder": ({ id }) => assistantService.cancelReminder(String(id)),

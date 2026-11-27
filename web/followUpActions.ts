@@ -74,7 +74,7 @@ export async function replyToFollowUp(item: FollowUpItem, text: string): Promise
   const prompt = text.trim();
   if (!prompt) return false;
   try {
-    await rpc.call("agents.send", { agentId: item.agentId, prompt });
+    receive(await rpc.call("followUps.reply", { id: item.id, text: prompt }));
     return true;
   } catch (error) {
     fail(error);

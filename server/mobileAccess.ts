@@ -426,6 +426,8 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
     case "assistant.checkIn":
     case "mobile.unregisterPush":
       return {};
+    case "followUps.reply":
+      return { id: idOf(p.id, "id"), text: textOf(p.text, "text") };
     case "followUps.snooze":
       return { id: idOf(p.id, "id"), choice: isSnoozeChoice(p.choice) ? p.choice : fail(T.errMobileParam("choice")) };
     case "followUps.dismiss":

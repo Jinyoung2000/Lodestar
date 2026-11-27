@@ -941,6 +941,7 @@ export type RpcMethods = PrRpcMethods & SimulatorRpcMethods & SkillsRpcMethods &
   "review.markSeen": { params: { date: string }; result: ReviewState };
   "followUps.get": { params: Record<string, never>; result: FollowUpsState };
   "followUps.check": { params: Record<string, never>; result: FollowUpsState };
+  "followUps.reply": { params: { id: string; text: string }; result: FollowUpsState };
   "followUps.snooze": { params: { id: string; choice: SnoozeChoice }; result: FollowUpsState };
   "followUps.wake": { params: { id: string }; result: FollowUpsState };
   "followUps.dismiss": { params: { id: string }; result: FollowUpsState };

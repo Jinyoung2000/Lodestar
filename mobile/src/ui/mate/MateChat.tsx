@@ -1,17 +1,23 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";
-import type { AssistantAction, AssistantState } from "@shared/assistant";
+import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
+import type { AssistantAction, AssistantApproval, AssistantState } from "@shared/assistant";
 import type { FollowUpItem } from "@shared/followups";
-import { clockText, mateActionView, mateFeed, SNOOZE_CHOICES, type MateEntry } from "../../logic/mateCore.generated";
+import { clockText, mateActionView, mateFeed, reviewFollowUpLabel, SNOOZE_CHOICES, type MateEntry } from "../../logic/mateCore.generated";
 import type { Agent, EffortLevel, Harness } from "@shared/protocol";
-import { ageText, itemText, SNOOZE_LABEL } from "../../logic/mate";
+import { ageText, itemText } from "../../logic/mate";
+import { PLAN_TOOL, QUESTION_TOOL } from "../../logic/questions";
+import { type PermissionItem, needsDesktopReview } from "../../logic/timeline";
+import { requestDraft, sessionViewState } from "../../state/sessionView";
 import { store, useAppState } from "../../state/app";
 import { MIN_TOUCH, radius, spacing, useColors } from "../../theme/theme";
 import { showActionMenu } from "../actionMenu";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
-import { KeyboardSpacer } from "../KeyboardSpacer";
+import { ApprovalCard, PlanCard, QuestionCard, type Actions } from "../chat/Cards";
+import { PreviewModal, usePreview } from "../Preview";
+import { ToolbarButton } from "../ToolbarButton";
+import { KeyboardSpacer, useKeyboardTop } from "../KeyboardSpacer";
 import { MarkdownView } from "../MarkdownView";
 import { ModelSubtitle, modelPickerLabel } from "../ModelPicker";
 import { ProviderMark, PROVIDER_NAMES } from "../ProviderMark";
@@ -26,7 +32,7 @@ type MateChatProps = { agent: Agent; assistant: AssistantState; modelControl: Ma
 export function MateChat({ agent, assistant, modelControl }: MateChatProps) {
   const colors = useColors();
   const items = useAppState((s) => s.timelines[agent.id]?.items) ?? NO_ITEMS;
-  const open = useAppState((s) => s.followUps?.items) ?? NO_ITEMS;
+  const open = useAppState((s) => s.followUps?.enabled ? s.followUps.items : NO_ITEMS);
   const entries = useMemo(() => [...mateFeed({ items, checkIns: assistant.checkIns, followUps: open, status: agent.status, now: Date.now(), actions: assistant.actions })].reverse(), [items, assistant.checkIns, open, agent.status, assistant.actions]);
   const [draft, setDraft] = useState("");
   const send = () => {
@@ -69,7 +75,7 @@ export function MateChat({ agent, assistant, modelControl }: MateChatProps) {
           <ProviderMark harness={modelControl.harness} size={18} selected />
           <ModelSubtitle name={modelControl.name} effort={modelControl.effort} />
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Send" disabled={!draft.trim()} onPress={send} style={[styles.send, { backgroundColor: draft.trim() ? colors.accent : colors.overlay }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Send to Mate" disabled={!draft.trim()} onPress={send} style={[styles.send, { backgroundColor: draft.trim() ? colors.accent : colors.overlay }]}>
           <Icon name="arrow.up" size={20} color={draft.trim() ? "onAccent" : "textSubtle"} />
         </Pressable>
       </View>
@@ -104,35 +110,12 @@ function Entry({ agentId, entry }: EntryProps) {
         </View>
       );
     case "decisions":
-      return (
-        <View style={styles.cards}>
-          {entry.items.map((item) => (
-            <DecisionCard key={item.id} item={item} />
-          ))}
-        </View>
-      );
-    case "approval": {
-      const respond = (decision: "allow" | "deny") => void store.respondPermission(agentId, entry.item.id, decision).catch(report);
-      const command = typeof entry.item.input.command === "string" ? entry.item.input.command : "";
-      return (
-        <View style={[styles.card, { borderColor: colors.border }]}>
-          <Text variant="bodyStrong" color="textStrong">
-            {entry.approval?.title ?? `Allow ${entry.item.toolName}?`}
-          </Text>
-          {(entry.approval?.message || command) !== "" && <Text color="textStrong">{entry.approval?.message || command}</Text>}
-          <View style={styles.actions}>
-            <Button title="Allow" kind="primary" flex onPress={() => respond("allow")} />
-            <Button title="Skip" flex onPress={() => respond("deny")} />
-          </View>
-        </View>
-      );
-    }
+      return <DecisionStack items={entry.items} />;
+    case "approval":
+      if (entry.approval) return <MateApproval agentId={agentId} itemId={entry.id} approval={entry.approval} />;
+      return <MateRequest agentId={agentId} item={entry.item} />;
     case "question":
-      return (
-        <View style={[styles.card, { borderColor: colors.border }]}>
-          <Text color="textStrong">Mate is asking you something. Answer it on your Mac.</Text>
-        </View>
-      );
+      return <MateRequest agentId={agentId} item={entry.item} />;
     case "working":
       return (
         <Text variant="secondary" color="textMuted" style={styles.working}>
@@ -148,6 +131,46 @@ function Entry({ agentId, entry }: EntryProps) {
         </Text>
       );
   }
+}
+
+function MateRequest({ agentId, item }: { agentId: string; item: PermissionItem }) {
+  const height = useWindowDimensions().height;
+  const available = useKeyboardTop() ?? height;
+  const offline = useAppState((s) => s.conn !== "online");
+  const preview = usePreview(agentId);
+  const actions: Actions = {
+    allow: (id) => store.respondPermission(agentId, id, "allow"),
+    deny: (id) => store.respondPermission(agentId, id, "deny"),
+    answer: (id, answers) => store.answerQuestion(agentId, id, answers),
+    plan: (id, decision) => store.respondPlan(agentId, id, decision),
+  };
+  const layout = { draft: requestDraft(sessionViewState(agentId), item.id), limit: available * 0.7, compact: available < 480, short: available < 320, offline, focusOnOpen: false, onOpen: () => {} };
+  if (item.toolName === PLAN_TOOL) return <PlanCard {...layout} item={item} actions={actions} />;
+  if (item.toolName !== QUESTION_TOOL) return <ApprovalCard {...layout} item={item} actions={actions} tool={null} reviewOnDesktop={needsDesktopReview(item.toolName)} />;
+  return <>
+    <QuestionCard {...layout} item={item} actions={actions} openPreview={preview.open} />
+    {preview.selected && <Modal onRequestClose={preview.close}><PreviewModal {...preview} /></Modal>}
+  </>;
+}
+
+function MateApproval({ agentId, itemId, approval }: { agentId: string; itemId: string; approval: AssistantApproval }) {
+  const colors = useColors();
+  const [pending, setPending] = useState<"allow" | "deny" | null>(null);
+  const respond = (decision: "allow" | "deny") => {
+    if (pending) return;
+    setPending(decision);
+    void store.respondPermission(agentId, itemId, decision).catch((error: unknown) => { setPending(null); report(error); });
+  };
+  return (
+    <View style={[styles.card, { borderColor: colors.border }]}>
+      <Text variant="bodyStrong" color="textStrong">{approval.title}</Text>
+      {!!approval.message && <Text color="textStrong" selectable>{approval.message}</Text>}
+      <View style={styles.actions}>
+        <Button title={approval.confirmLabel} kind="primary" flex disabled={!!pending} busy={pending === "allow"} onPress={() => respond("allow")} />
+        <Button title="Cancel" kind="plain" disabled={!!pending} busy={pending === "deny"} onPress={() => respond("deny")} />
+      </View>
+    </View>
+  );
 }
 
 type ActionRowProps = { action: AssistantAction };
@@ -211,52 +234,74 @@ function ActionRow({ action }: ActionRowProps) {
   );
 }
 
-type DecisionCardProps = { item: FollowUpItem };
+function DecisionStack({ items }: { items: FollowUpItem[] }) {
+  const colors = useColors();
+  const [expanded, setExpanded] = useState(false);
+  const more = items.length - 1;
+  return (
+    <View style={styles.cards}>
+      {(expanded ? items : items.slice(0, 1)).map((item) => <DecisionCard key={item.id} item={item} />)}
+      {more > 0 && <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded(!expanded)}
+        style={({ pressed }) => [styles.moreDecisions, pressed && { backgroundColor: colors.pressed }]}>
+        <Text variant="secondary" color="textMuted">{expanded ? "Show fewer decisions" : `Show ${more} more ${more === 1 ? "decision" : "decisions"}`}</Text>
+        <Icon name={expanded ? "chevron.up" : "chevron.down"} size={16} color="textMuted" />
+      </Pressable>}
+    </View>
+  );
+}
 
-function DecisionCard({ item }: DecisionCardProps) {
+const REMIND = { "2h": "Remind me in 2 hours", tomorrow: "Remind me tomorrow morning", nextWeek: "Remind me next week" } as const;
+
+function DecisionCard({ item }: { item: FollowUpItem }) {
   const colors = useColors();
   const router = useRouter();
   const agent = useAppState((s) => s.agents.find((a) => a.id === item.agentId));
-  const workspace = useAppState((s) => s.workspaces.find((w) => w.id === agent?.workspaceId)?.name ?? "");
+  const [draft, setDraft] = useState("");
   const [sending, setSending] = useState<string | null>(null);
   if (!agent) return null;
-  const openSession = () => router.push({ pathname: "/session/[id]", params: { id: agent.id } });
-  const choose = (option: string) => {
-    if (item.kind !== "ask") return openSession();
-    if (sending) return;
-    setSending(option);
-    store
-      .send(agent.id, option)
-      .catch(report)
-      .finally(() => setSending(null));
+  const openSession = () => router.push({ pathname: "/session/[id]", params: { id: agent.id, focusQuestion: "1" } });
+  const reply = (text: string) => {
+    if (!text.trim() || sending !== null) return;
+    setSending(text);
+    Keyboard.dismiss();
+    void store.replyToFollowUp(item.id, text.trim()).catch((error: unknown) => { setSending(null); report(error); });
   };
-  const later = () => showActionMenu("Remind me", SNOOZE_CHOICES.map((choice) => ({ label: SNOOZE_LABEL[choice], onPress: () => void store.snoozeFollowUp(item.id, choice).catch(report) })));
+  const more = () => showActionMenu(agent.title, [
+    ...SNOOZE_CHOICES.map((choice) => ({ label: REMIND[choice], onPress: () => void store.snoozeFollowUp(item.id, choice).catch(report) })),
+    { label: "Dismiss from Mate", onPress: () => void store.dismissFollowUp(item.id).catch(report) },
+  ]);
+  const canSend = !!draft.trim() && sending === null;
   return (
     <View style={[styles.card, { borderColor: colors.border }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${agent.title}`} onPress={openSession} hitSlop={8}>
-        <Text variant="caption" color="textMuted" numberOfLines={1}>
-          {[agent.title, workspace, `waiting ${ageText(item.since, Date.now())}`].filter(Boolean).join(", ")}
-        </Text>
-      </Pressable>
-      <Text color="textStrong">{itemText(item)}</Text>
-      <View style={styles.choices}>
-        {item.options.map((option) => (
-          <Button key={option} title={option} busy={sending === option} disabled={sending !== null} onPress={() => choose(option)} />
-        ))}
-        {item.options.length === 0 && <Button title="Open session" onPress={openSession} />}
-      </View>
-      <View style={styles.footer}>
-        <Pressable accessibilityRole="button" onPress={later} hitSlop={10} style={styles.footerAction}>
-          <Text variant="secondary" color="textMuted">
-            Later
-          </Text>
+      <View style={styles.cardHead}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Open ${agent.title}`} onPress={openSession} style={styles.sessionLink}>
+          <Text variant="secondary" color="textStrong" numberOfLines={1}>{agent.title}</Text>
+          <Text variant="caption" color="textMuted">{`Waiting ${ageText(item.since, Date.now())}`}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => void store.dismissFollowUp(item.id).catch(report)} hitSlop={10} style={styles.footerAction}>
-          <Text variant="secondary" color="textMuted">
-            Not needed
-          </Text>
-        </Pressable>
+        <ToolbarButton icon="ellipsis" label={`More actions for ${agent.title}`} onPress={sending === null ? more : undefined} />
       </View>
+      <Text variant="bodyStrong" color="textStrong" selectable>{itemText(item)}</Text>
+      {item.kind === "ask" ? (
+        <>
+          {item.options.length > 0 && <View style={[styles.choices, { borderColor: colors.separator }]}>
+            {item.options.map((option, index) => (
+              <Pressable key={option} accessibilityRole="button" accessibilityLabel={`Send reply: ${option}`} disabled={sending !== null}
+                onPress={() => reply(option)} style={({ pressed }) => [styles.choice, { backgroundColor: pressed ? colors.pressed : colors.surface, borderTopWidth: index ? StyleSheet.hairlineWidth : 0, borderColor: colors.separator }]}>
+                <Text style={styles.choiceText} color={sending !== null ? "textMuted" : "textStrong"}>{option}</Text>
+                {sending === option ? <ActivityIndicator color={colors.textMuted} /> : <Icon name="arrow.up" size={16} color="textMuted" />}
+              </Pressable>
+            ))}
+          </View>}
+          <View style={[styles.replyField, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground }]}>
+            <TextInput value={draft} onChangeText={setDraft} editable={sending === null} accessibilityLabel={`Reply to ${agent.title}`} placeholder="Reply to this session"
+              placeholderTextColor={colors.textSubtle} returnKeyType="send" onSubmitEditing={() => reply(draft)} style={[styles.replyInput, { color: colors.textStrong }]} />
+            <Pressable accessibilityRole="button" accessibilityLabel={`Send reply to ${agent.title}`} accessibilityState={{ disabled: !canSend }}
+              disabled={!canSend} onPress={() => reply(draft)} style={({ pressed }) => [styles.replySend, pressed && { backgroundColor: colors.pressed }]}>
+              <Icon name="arrow.up" color={canSend ? "accentText" : "textSubtle"} />
+            </Pressable>
+          </View>
+        </>
+      ) : <Button title={reviewFollowUpLabel[item.kind]} onPress={openSession} />}
     </View>
   );
 }
@@ -269,11 +314,17 @@ const styles = StyleSheet.create({
   fromMate: { alignSelf: "flex-start" },
   fromUser: { alignSelf: "flex-end" },
   cards: { gap: spacing.sm, marginVertical: spacing.xs },
-  card: { alignSelf: "flex-start", width: "94%", gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderRadius: radius.lg, marginVertical: spacing.xs },
-  choices: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.sm },
+  card: { alignSelf: "flex-start", width: "100%", gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderRadius: radius.lg, marginVertical: spacing.xs },
+  moreDecisions: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: MIN_TOUCH, paddingHorizontal: spacing.md, borderRadius: radius.md },
+  cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  sessionLink: { flex: 1, minWidth: 0, minHeight: MIN_TOUCH, justifyContent: "center" },
+  choices: { overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md },
+  choice: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: MIN_TOUCH, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  choiceText: { minWidth: 0, flex: 1 },
+  replyField: { flexDirection: "row", alignItems: "center", borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.md },
+  replyInput: { flex: 1, minWidth: 0, minHeight: MIN_TOUCH, fontSize: 16, paddingHorizontal: spacing.md },
+  replySend: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, justifyContent: "center", alignItems: "center", borderRadius: radius.md },
   actions: { flexDirection: "row", gap: spacing.sm },
-  footer: { flexDirection: "row", gap: spacing.xl },
-  footerAction: { minHeight: 32, justifyContent: "center" },
   working: { alignSelf: "flex-start", marginVertical: spacing.xs },
   action: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingLeft: spacing.md },
   actionBlocked: { paddingRight: spacing.md },

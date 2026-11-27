@@ -47,8 +47,14 @@ export function setMateEffort(agentId: string, effort: EffortLevel) {
   void rpc.call("agents.setEffort", { agentId, effort }).catch(fail);
 }
 
-export function respondToMate(agentId: string, itemId: string, decision: PermissionDecision) {
-  void rpc.call("agents.respondPermission", { agentId, itemId, decision }).catch(fail);
+export async function respondToMate(agentId: string, itemId: string, decision: PermissionDecision) {
+  try {
+    await rpc.call("agents.respondPermission", { agentId, itemId, decision });
+    return true;
+  } catch (error) {
+    fail(error);
+    return false;
+  }
 }
 
 export function cancelMateReminder(id: string) {

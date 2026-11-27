@@ -66,6 +66,8 @@ export function openDecisionCount(agents: readonly Agent[], items: readonly Foll
   return items.filter((item) => tracked.has(item.agentId) && !isSnoozed(item, now)).length;
 }
 
+export const reviewFollowUpLabel = { question: "Review question", plan: "Review plan", approval: "Review tool call" } as const;
+
 export const ASSISTANT_SERVER = "lodestar_work";
 
 export const ASSISTANT_TOOLS = {
@@ -104,7 +106,7 @@ export function clockText(date: Date): string {
 
 export const dayText = (date: Date) => `${WEEKDAYS[date.getDay()]} ${MONTHS[date.getMonth()]} ${date.getDate()}`;
 
-export type AssistantApproval = { title: string; message: string; code?: string; disclaimer?: string };
+export type AssistantApproval = { title: string; message: string; confirmLabel: string; code?: string; disclaimer?: string };
 
 export function assistantApproval(toolName: string, input: Record<string, unknown>): AssistantApproval | null {
   if (!isAssistantTool(toolName)) return null;
@@ -112,13 +114,13 @@ export function assistantApproval(toolName: string, input: Record<string, unknow
   const session = text("session_title") || text("session");
   switch (toolName.slice(PREFIX.length)) {
     case ASSISTANT_TOOLS.sendToSession:
-      return { title: `Send to ${session}?`, message: text("text") };
+      return { title: `Send to ${session}?`, message: text("text"), confirmLabel: "Send message" };
     case ASSISTANT_TOOLS.answerQuestion:
-      return { title: `Answer ${session}?`, message: [text("pending"), text("answer")].filter(Boolean).join("\n") };
+      return { title: `Answer ${session}?`, message: [text("pending"), text("answer")].filter(Boolean).join("\n"), confirmLabel: "Send answer" };
     case ASSISTANT_TOOLS.respondToApproval:
-      return { title: `${input.decision === "deny" ? "Deny" : "Allow"} the tool call in ${session}?`, message: text("pending") };
+      return { title: `${input.decision === "deny" ? "Deny" : "Allow"} the tool call in ${session}?`, message: text("pending"), confirmLabel: input.decision === "deny" ? "Deny tool call" : "Allow tool call" };
     case ASSISTANT_TOOLS.stopSession:
-      return { title: `Stop ${session}?`, message: "" };
+      return { title: `Stop ${session}?`, message: "", confirmLabel: "Stop session" };
     default:
       return null;
   }
@@ -143,6 +145,11 @@ export function mateFeed(source: MateFeedSource): MateEntry[] {
   const { items, checkIns, followUps, status, now } = source;
   const byAnchor = new Map(checkIns.flatMap((c) => (c.anchorId ? [[c.anchorId, c] as const] : [])));
   const itemIds = new Set(items.map((item) => item.id));
+  const latestCardAnchor = new Map<string, string>();
+  for (const record of checkIns) {
+    if (!record.anchorId || !itemIds.has(record.anchorId)) continue;
+    for (const id of record.itemIds) if (!latestCardAnchor.has(id)) latestCardAnchor.set(id, record.anchorId);
+  }
   const actionsAfter = new Map<string, AssistantAction[]>();
   const loose: AssistantAction[] = [];
   for (const action of [...(source.actions ?? [])].sort((a, b) => a.at.localeCompare(b.at))) {
@@ -167,7 +174,7 @@ export function mateFeed(source: MateFeedSource): MateEntry[] {
       if (item.source === "system") {
         const record = byAnchor.get(item.id);
         entries.push({ kind: "checkIn", id: item.id, at: item.at ?? record?.at ?? null, reason: record?.reason ?? null });
-        if (record?.itemIds.length) pendingCards = { id: item.id, ids: record.itemIds };
+        if (record?.itemIds.length) pendingCards = { id: item.id, ids: record.itemIds.filter((id) => latestCardAnchor.get(id) === item.id) };
       } else if (item.text.trim()) entries.push({ kind: "user", id: item.id, text: item.shown ?? item.text });
     } else if (item.kind === "assistant" && item.text.trim() && (item.streaming || !isSilentReply(item.text))) {
       const last = entries[entries.length - 1];

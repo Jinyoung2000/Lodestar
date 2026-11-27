@@ -32,7 +32,8 @@ import {
   type CheckInEvent,
   type CheckInReason,
 } from "../shared/assistant";
-import { FOLLOW_UP_LIMITS, isTracked, parseMorning, scanSession, type FollowUpItem, type FollowUpsState, type SnoozeChoice } from "../shared/followups";
+import { FOLLOW_UP_LIMITS, isSnoozed, isTracked, parseMorning, scanSession, type FollowUpItem, type FollowUpsState, type SnoozeChoice } from "../shared/followups";
+import { isInteractiveTool } from "../shared/interactive";
 import type { Agent, ServerEvent, TimelineItem } from "../shared/protocol";
 import type { AssistantAsk, CreateParams } from "./agents";
 import { assistantToolServer, callAssistantTool, isAssistantToolDef, type AssistantToolHost, type CallToolResult } from "./assistantTools";
@@ -85,6 +86,18 @@ const quoted = (agents: readonly { title: string }[]) => agents.map((a) => `"${a
 const dayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const clip = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
 const tail = (text: string, max: number) => (text.length <= max ? text : `…${text.slice(text.length - max + 1)}`);
+
+function currentFollowUpEvents(events: readonly CheckInEvent[], state: FollowUpsState, now: number): CheckInEvent[] {
+  const active = new Set(state.enabled ? state.items.filter((item) => !isSnoozed(item, now)).map((item) => item.id) : []);
+  return events.flatMap((event): CheckInEvent[] => {
+    if (event.kind === "decision") return active.has(event.itemId) ? [event] : [];
+    if (event.kind === "reminder") {
+      const itemIds = event.itemIds.filter((id) => active.has(id));
+      return itemIds.length ? [{ ...event, itemIds }] : [];
+    }
+    return [event];
+  });
+}
 
 export class AssistantService {
   private reminders: AssistantReminder[] = [];
@@ -193,6 +206,7 @@ export class AssistantService {
       mcpServers: { [ASSISTANT_SERVER]: assistantToolServer(host) },
       canUseTool: async (toolName, input, { signal, toolUseID }) => {
         const allow = { behavior: "allow" as const, updatedInput: input };
+        if (this.wake && isInteractiveTool(toolName)) return { behavior: "deny", message: T.errAssistantCheckInAct };
         if (isAssistantTool(toolName)) {
           const refusal = this.refusal(toolName, input);
           if (refusal) return { behavior: "deny" as const, message: refusal };
@@ -260,12 +274,15 @@ export class AssistantService {
 
   private onFollowUps(state: FollowUpsState) {
     if (!this.enabled) return;
+    const now = this.now().getTime();
     const live = new Set(state.items.map((item) => item.id));
+    if (this.queue.length) this.queue = currentFollowUpEvents(this.queue, state, now);
     let changed = false;
     for (const item of state.items) {
       if (this.told.has(item.id)) continue;
       this.told.add(item.id);
       changed = true;
+      if (!state.enabled || isSnoozed(item, now)) continue;
       if (item.kind === "ask") this.queue.push({ kind: "decision", itemId: item.id });
       else this.pushWaiting(item);
     }
@@ -278,7 +295,12 @@ export class AssistantService {
     if (nudge && nudge.id !== this.lastNudgeId) {
       this.lastNudgeId = nudge.id;
       changed = true;
-      if (this.now().getTime() - Date.parse(nudge.at) < ASSISTANT_LIMITS.nudgeFreshMs) this.queue.push({ kind: "reminder", itemIds: nudge.itemIds });
+      if (state.enabled && now - Date.parse(nudge.at) < ASSISTANT_LIMITS.nudgeFreshMs) {
+        const requested = new Set(nudge.requestedItemIds);
+        if (requested.size) this.queue.push({ kind: "reminder", itemIds: [...requested], requested: true });
+        const routine = nudge.itemIds.filter((id) => !requested.has(id));
+        if (routine.length) this.queue.push({ kind: "reminder", itemIds: routine });
+      }
     }
     if (changed) this.save();
   }
@@ -356,7 +378,11 @@ export class AssistantService {
     if (now.getHours() * 60 + now.getMinutes() < morning.hour * 60 + morning.minute) return;
     this.morningDate = today;
     this.save();
-    const tracked = this.deps.store.agents.some((a) => isTracked(a) && a.status !== "idle") || this.deps.followUps.state().items.length > 0 || this.deps.followUps.state().notes.length > 0;
+    const { agents, followUps } = this.source();
+    const deferred = new Set(followUps.items.filter((item) => isSnoozed(item, now.getTime())).map((item) => item.agentId));
+    const fresh = new Set(checkInItemIds(this.queue));
+    const waiting = followUps.items.some((item) => !deferred.has(item.agentId) && (item.kind !== "ask" || fresh.has(item.id)));
+    const tracked = waiting || agents.some((a) => isTracked(a) && a.status !== "idle" && !deferred.has(a.id)) || followUps.notes.length > 0;
     if (tracked) this.queue.push({ kind: "morning" });
   }
 
@@ -391,7 +417,8 @@ export class AssistantService {
   }
 
   private source() {
-    return { agents: this.deps.store.agents, workspaces: this.deps.store.workspaces, followUps: this.deps.followUps.state(), now: this.now().getTime() };
+    const state = this.deps.followUps.state();
+    return { agents: this.deps.store.agents, workspaces: this.deps.store.workspaces, followUps: state.enabled ? state : { items: [], notes: [] }, now: this.now().getTime() };
   }
 
   private async flush() {
@@ -408,37 +435,23 @@ export class AssistantService {
     const agent = this.agent();
     if (!agent || isBusy(agent) || agent.queue?.length) return;
     const now = this.now();
-    const urgent = this.queue.some((e) => e.kind === "manual" || e.kind === "morning" || e.kind === "ownReminder");
-    if (!urgent) {
-      const gapMinutes = this.deps.store.settings.assistantCheckInGap ?? CHECK_IN_GAP_DEFAULT;
-      if (gapMinutes === 0) {
-        this.queue = [];
-        return;
-      }
-      if (this.quiet(now) || now.getTime() - this.lastWakeAt < gapMinutes * 60_000) return;
-    }
+    const overview = manual || this.queue.some((event) => event.kind === "morning");
+    const gap = this.deps.store.settings.assistantCheckInGap ?? CHECK_IN_GAP_DEFAULT;
+    const routineDue = overview || (gap > 0 && !this.quiet(now) && now.getTime() - this.lastWakeAt >= gap * 60_000);
+    const routine = (event: CheckInEvent) => event.kind === "decision" || (event.kind === "reminder" && !event.requested);
+    const pending = this.queue;
+    this.queue = routineDue || gap === 0 ? [] : pending.filter(routine);
+    const ready = routineDue ? pending : pending.filter((event) => !routine(event));
+    if (!ready.length) return;
     const today = dayKey(now);
     if (this.ledger.day !== today) this.ledger = { day: today, wakes: 0 };
     if (!manual && this.ledger.wakes >= ASSISTANT_LIMITS.wakesPerDay) {
       this.queue = [];
       return;
     }
-    const live = new Set(this.deps.followUps.state().items.map((item) => item.id));
-    const seen = new Set<string>();
-    const events = this.queue.flatMap((event): CheckInEvent[] => {
-      if (event.kind === "decision") {
-        if (!live.has(event.itemId) || seen.has(event.itemId)) return [];
-        seen.add(event.itemId);
-        return [event];
-      }
-      if (event.kind === "reminder") {
-        const itemIds = event.itemIds.filter((id) => live.has(id));
-        return itemIds.length ? [{ kind: "reminder", itemIds }] : [];
-      }
-      if (event.kind === "ownReminder") return this.reminders.some((r) => r.id === event.reminder.id) ? [event] : [];
-      return [event];
-    });
-    this.queue = [];
+    this.deps.followUps.refresh();
+    const events = currentFollowUpEvents(ready, this.deps.followUps.state(), now.getTime())
+      .filter((event) => event.kind !== "ownReminder" || this.reminders.some((r) => r.id === event.reminder.id));
     if (events.length === 0) return;
     const wake: Wake = { startedAt: now.getTime(), before: this.deps.store.timeline(agent.id).length, reason: checkInReason(events), itemIds: checkInItemIds(events), running: false };
     this.wake = wake;
