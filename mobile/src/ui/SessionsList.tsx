@@ -159,6 +159,7 @@ export function SessionsList({ docked = false, sessionId, onOpenSession, splitCh
           <Empty offline={conn !== "online" && agents.length === 0} searching={query.trim().length > 0} onNew={() => router.push("/new")} />
         ) : (
           <FlashList
+            key={query.trim().toLowerCase()}
             onLoad={revealSelection}
             ref={list}
             data={data}
