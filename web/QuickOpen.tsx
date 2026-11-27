@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { targetEditorKey } from "./activeEditor";
 import { activeAgentOf } from "./activeAgentOf";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { Close, Split } from "./icons";
@@ -147,8 +148,8 @@ export function QuickOpen() {
       setState({ overlay: { kind: "commands", query: value } });
       return;
     }
-    if (route?.kind === "symbols") {
-      setState({ overlay: { kind: "symbols", query: route.query } });
+    if (route?.kind === "gotoSymbol") {
+      setState({ overlay: { ...route, tabKey: targetEditorKey() } });
       return;
     }
     armed.current = false;

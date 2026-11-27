@@ -329,7 +329,7 @@ export type Overlay =
   | { kind: "device"; request: DeviceRequest }
   | { kind: "choice"; id: string }
   | { kind: "gotoLine"; tabKey: string | null }
-  | { kind: "gotoSymbol"; tabKey: string | null }
+  | { kind: "gotoSymbol"; tabKey: string | null; query?: string }
   | { kind: "editorPick"; id: string }
   | { kind: "customizeLayout" }
   | null;

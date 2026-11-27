@@ -38,7 +38,7 @@ export function Overlays() {
       {overlay?.kind === "device" && <DevicePicker key={overlay.request.requestId} request={overlay.request} />}
       {overlay?.kind === "choice" && <ChoiceOverlay key={overlay.id} id={overlay.id} />}
       {overlay?.kind === "gotoLine" && <GoToLine tabKey={overlay.tabKey} />}
-      {overlay?.kind === "gotoSymbol" && <GoToSymbol tabKey={overlay.tabKey} />}
+      {overlay?.kind === "gotoSymbol" && <GoToSymbol tabKey={overlay.tabKey} initialQuery={overlay.query} />}
       {overlay?.kind === "editorPick" && <EditorPickOverlay key={overlay.id} id={overlay.id} />}
       {overlay?.kind === "customizeLayout" && <CustomizeLayout />}
     </>

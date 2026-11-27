@@ -10,9 +10,9 @@ import { Palette } from "./Palette";
 import { setState } from "./store";
 import "./quickGoto.css";
 
-export function GoToSymbol({ tabKey }: { tabKey: string | null }) {
+export function GoToSymbol({ tabKey, initialQuery = "@" }: { tabKey: string | null; initialQuery?: string }) {
   const view = tabKey ? viewFor(tabKey) : null;
-  const [value, setValue] = useState("@");
+  const [value, setValue] = useState(initialQuery);
   const [index, setIndex] = useState<number | null>(null);
   const [tree, setTree] = useState<SymbolNode[] | null | undefined>(undefined);
   const startScroll = useRef(view?.scrollDOM.scrollTop ?? 0);
@@ -70,6 +70,7 @@ export function GoToSymbol({ tabKey }: { tabKey: string | null }) {
       query={value}
       onQuery={(next) => {
         if (!next.startsWith("@")) {
+          if (view) view.scrollDOM.scrollTop = startScroll.current;
           setState({ overlay: { kind: "quickOpen" }, quickOpenQuery: next });
           return;
         }

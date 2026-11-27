@@ -96,7 +96,7 @@ check("보통 파일은 제외 안 함", !isExcludedPath("src/node_modules_notes
 {
   check("> 는 명령 팔레트", routeOf(">go")?.kind === "commands");
   const at = routeOf("@render");
-  check("@ 는 심볼 검색, 뒤의 글자를 넘김", at?.kind === "symbols" && at.query === "render");
+  check("@ 는 현재 편집기의 심볼 검색에 전체 입력을 넘김", at?.kind === "gotoSymbol" && at.query === "@render");
   check("보통 질의는 라우팅 없음", routeOf("cli.ts") === null && routeOf("a@b") === null);
   const parts = splitByRanges("cli.ts", [{ start: 0, end: 3 }, { start: 5, end: 6 }]);
   check("강조 조각", JSON.stringify(parts) === JSON.stringify([{ text: "cli", hit: true }, { text: ".t", hit: false }, { text: "s", hit: true }]), JSON.stringify(parts));

@@ -123,9 +123,9 @@ export function usableRecent(recent: { workspaceId: string; path: string }[], wo
   return recent.filter((f) => f.workspaceId === workspaceId && (!known || known.has(f.path) || f.path.startsWith("../") || f.path.startsWith("/"))).map((f) => f.path);
 }
 
-export function routeOf(value: string): { kind: "commands" } | { kind: "symbols"; query: string } | null {
+export function routeOf(value: string): { kind: "commands" } | { kind: "gotoSymbol"; query: string } | null {
   if (value.startsWith(">")) return { kind: "commands" };
-  if (value.startsWith("@")) return { kind: "symbols", query: value.slice(1) };
+  if (value.startsWith("@")) return { kind: "gotoSymbol", query: value };
   return null;
 }
 
