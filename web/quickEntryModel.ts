@@ -28,7 +28,7 @@ export function workspacesByRecency(workspaces: readonly Workspace[], agents: re
 
 export function recentSessions(agents: readonly Agent[], limit = RECENT_SESSION_LIMIT): Agent[] {
   return agents
-    .filter((a) => !a.done && !a.feedbackId)
+    .filter((a) => !a.done && !a.feedbackId && !a.automationId)
     .slice()
     .sort((a, b) => (a.updatedAt === b.updatedAt ? 0 : a.updatedAt < b.updatedAt ? 1 : -1))
     .slice(0, limit);

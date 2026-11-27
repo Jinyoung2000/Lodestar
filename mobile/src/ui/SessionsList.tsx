@@ -49,7 +49,7 @@ export function SessionsList({ docked = false, paneWidth, sessionId, workspaceId
   const router = useRouter();
   const colors = useColors();
   const everyAgent = useAppState((s) => s.agents);
-  const agents = useMemo(() => everyAgent.filter((agent) => !agent.assistant), [everyAgent]);
+  const agents = useMemo(() => everyAgent.filter((agent) => !agent.assistant && !agent.automationId), [everyAgent]);
   const workspaces = useAppState((s) => s.workspaces);
   const conn = useAppState((s) => s.conn);
   const loaded = useAppState((s) => s.loaded);

@@ -57,7 +57,7 @@ export function buildGroups(input: GroupInput): SessionGroup[] {
   const { view, now } = input;
   const ordering = view.ordering ?? input.defaultOrdering;
   const timeOf = (a: Agent) => (ordering === "created" ? a.createdAt : a.updatedAt);
-  const sessions = input.agents.filter((a) => !a.feedbackId && !a.assistant);
+  const sessions = input.agents.filter((a) => !a.feedbackId && !a.assistant && !a.automationId);
   const active = sessions.filter((a) => !a.done);
   const finished = sessions.filter((a) => a.done);
 

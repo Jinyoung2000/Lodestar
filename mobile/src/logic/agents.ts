@@ -10,7 +10,7 @@ export function stateOf(agent: Agent): SessionState {
   return "idle";
 }
 
-export type Section = { key: string; title: string; agents: Agent[]; kind: "pinned" | "workspace" | "chats" | "time" | "automations" | "done" };
+export type Section = { key: string; title: string; agents: Agent[]; kind: "pinned" | "workspace" | "chats" | "time" | "done" };
 export type GroupView = { grouping: "workspace" | "time"; ordering: SessionSort };
 
 const TIME_BUCKETS = [["today", "Today"], ["yesterday", "Yesterday"], ["week", "Last 7 days"], ["older", "Older"]] as const;
@@ -46,13 +46,11 @@ export function groupAgents(agents: readonly Agent[], workspaces: readonly Works
 
   const pinned: Agent[] = [];
   const done: Agent[] = [];
-  const automations: Agent[] = [];
   const groups = new Map<string, Section>();
   for (const agent of [...agents].sort(newestFirst)) {
-    if (!matches(agent)) continue;
+    if (agent.automationId || !matches(agent)) continue;
     if (agent.pinned) pinned.push(agent);
     else if (agent.done) done.push(agent);
-    else if (agent.automationId) automations.push(agent);
     else if (view.grouping === "time") {
       const key = timeBucket(stamp(agent), now);
       const group = groups.get(key) ?? { key, title: key, agents: [], kind: "time" as const };
@@ -73,7 +71,6 @@ export function groupAgents(agents: readonly Agent[], workspaces: readonly Works
       if (group) sections.push({ ...group, key: `time:${key}`, title });
     }
   } else sections.push(...groups.values());
-  if (automations.length) sections.push({ key: "automations", title: "Automations", agents: automations, kind: "automations" });
   if (done.length) sections.push({ key: "done", title: "Done", agents: done, kind: "done" });
   return sections;
 }
