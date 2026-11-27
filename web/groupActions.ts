@@ -4,6 +4,7 @@ import { evenLayout, flipLayout, groupAtIndex, groupInDirection, moveGroup, next
 import { closable, findInGroup, shiftTarget, stepTab, stickyAnchor } from "./editorTabs";
 import {
   activeKeyOfGroup,
+  closeEmptyMainGroup,
   focusGroup,
   getState,
   moveTabToGroup,
@@ -69,7 +70,8 @@ export function newEmptyGroup(side: Side) {
 
 export function removeEmptyGroup(id: string): boolean {
   const s = getState();
-  if (id === MAIN_GROUP || !hasGroup(s.editorLayout, id) || tabsOfGroup(s.tabs, id).length) return false;
+  if (id === MAIN_GROUP) return closeEmptyMainGroup();
+  if (!hasGroup(s.editorLayout, id) || tabsOfGroup(s.tabs, id).length) return false;
   const ids = groupIdsOf(s.editorLayout);
   const heir = ids[ids.indexOf(id) - 1] ?? ids[ids.indexOf(id) + 1] ?? MAIN_GROUP;
   const { [id]: _gone, ...groupActive } = s.groupActive;

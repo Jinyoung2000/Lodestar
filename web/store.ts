@@ -17,7 +17,7 @@ import type { BrowserAttachment } from "./browserAttach";
 import { partitionFor, type EffectiveStorage } from "./browserUrl";
 import type { DeviceRequest } from "./browserDevices";
 import { noteActive, pickAfterClose, type TabMru } from "./tabMru";
-import { adjacentGroup, groupIdsOf, groupOf, hasGroup, MAIN_GROUP, mainTabs, moveToGroup, normalizeLayout, removeGroup, setSplitSizes, SINGLE_LAYOUT, splitGroup, tabsOfGroup, type EditorLayout } from "./editorGroups";
+import { adjacentGroup, groupIdsOf, groupOf, hasGroup, MAIN_GROUP, mainTabs, moveToGroup, normalizeLayout, removeGroup, renameGroup, setSplitSizes, SINGLE_LAYOUT, splitGroup, tabsOfGroup, withoutGroup, type EditorLayout } from "./editorGroups";
 import { insertNextToActive, removedFilesIndex } from "./tabOrder";
 import { pinTab, planOpen } from "./previewTabs";
 import { baseKeyOf, clampDrop, findInGroup, isDuplicable, sameContent, uniqueKey } from "./editorTabs";
@@ -1239,8 +1239,8 @@ export function closeTab(key: string, remember = true) {
       if (s.activeGroupId !== group) return { tabs, filesIndex, dirtyTabs, editorLayout, groupActive };
       return { tabs, filesIndex, dirtyTabs, editorLayout, groupActive, activeGroupId: heir, activeTabKey: activeKeyOfGroup({ ...s, tabs, groupActive, activeGroupId: group, activeTabKey: null }, heir) };
     }
-    if (group === s.activeGroupId) return { tabs, filesIndex, dirtyTabs, activeTabKey: nextActive };
-    return { tabs, filesIndex, dirtyTabs, groupActive: { ...s.groupActive, [group]: nextActive } };
+    const settled = group === s.activeGroupId ? { tabs, filesIndex, dirtyTabs, activeTabKey: nextActive } : { tabs, filesIndex, dirtyTabs, groupActive: { ...s.groupActive, [group]: nextActive } };
+    return group === MAIN_GROUP ? { ...settled, ...promotedOverEmptyMain({ ...s, ...settled }) } : settled;
   });
 }
 
@@ -1250,6 +1250,25 @@ let splitSeq = Math.max(0, ...splitIdsOf(state.editorLayout).map((id) => Number(
 
 export const newGroupId = () => `g${++groupSeq}`;
 export const newSplitId = () => `s${++splitSeq}`;
+function promotedOverEmptyMain(s: State): Partial<State> {
+  const heir = adjacentGroup(s.editorLayout, MAIN_GROUP, 1) ?? adjacentGroup(s.editorLayout, MAIN_GROUP, -1);
+  if (!heir || mainTabs(shownTabsOf(s)).length) return {};
+  const heirKey = activeKeyOfGroup(s, heir);
+  const tabs = [...mainTabs(s.tabs), ...tabsOfGroup(s.tabs, heir).map(withoutGroup), ...s.tabs.filter((t) => t.group && t.group !== heir)];
+  const editorLayout = normalizeLayout(renameGroup(removeGroup(s.editorLayout, MAIN_GROUP), heir, MAIN_GROUP));
+  const { [heir]: _heir, [MAIN_GROUP]: _main, ...groupActive } = s.groupActive;
+  const maximizedGroup = s.maximizedGroup === heir ? MAIN_GROUP : s.maximizedGroup === MAIN_GROUP ? null : s.maximizedGroup;
+  if (s.activeGroupId === heir || s.activeGroupId === MAIN_GROUP) return { tabs, editorLayout, groupActive, maximizedGroup, activeGroupId: MAIN_GROUP, activeTabKey: heirKey };
+  return { tabs, editorLayout, groupActive: { ...groupActive, [MAIN_GROUP]: heirKey }, maximizedGroup };
+}
+
+export function closeEmptyMainGroup(): boolean {
+  const patch = promotedOverEmptyMain(state);
+  if (!patch.editorLayout) return false;
+  setState(patch);
+  return true;
+}
+
 
 export function sideGroup(): string {
   const found = groupInDirection(state.editorLayout, state.activeGroupId, "right");
@@ -1371,7 +1390,8 @@ export function moveTabToGroup(key: string, group: string, beforeKey: string | n
       editorLayout = normalizeLayout(removeGroup(editorLayout, source));
       delete groupActive[source];
     }
-    return { ...base, editorLayout, groupActive, activeGroupId: group, activeTabKey: key };
+    const settled = { ...base, editorLayout, groupActive, activeGroupId: group, activeTabKey: key };
+    return source === MAIN_GROUP && group !== MAIN_GROUP ? { ...settled, ...promotedOverEmptyMain({ ...cur, ...settled }) } : settled;
   });
 }
 

@@ -99,6 +99,7 @@ export const BINDINGS: Binding[] = [
   { keys: ["Shift+Meta+KeyI"], command: "cycleEffort" },
   { keys: ["Shift+Meta+KeyM"], command: "models" },
   { keys: ["Ctrl+KeyC"], command: "interrupt", when: "notTerminal" },
+  { keys: ["Meta+KeyN"], command: "newUntitled", when: "editor" },
   { keys: ["Meta+KeyN"], command: "newSession" },
   { keys: ["Shift+Meta+Escape"], command: "newSession" },
   { keys: [K, "Meta+KeyN"], command: "quickChat" },

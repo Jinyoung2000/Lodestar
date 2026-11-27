@@ -74,6 +74,11 @@ export function setSplitSizes(layout: EditorLayout, splitId: string, sizes: numb
   return { ...layout, children: layout.children.map((c) => setSplitSizes(c, splitId, sizes)) };
 }
 
+export function renameGroup(layout: EditorLayout, from: string, to: string): EditorLayout {
+  if (layout.type === "group") return layout.id === from ? { ...layout, id: to } : layout;
+  return { ...layout, children: layout.children.map((c) => renameGroup(c, from, to)) };
+}
+
 export function hasGroup(layout: EditorLayout, id: string): boolean {
   return groupIdsOf(layout).includes(id);
 }
@@ -107,7 +112,7 @@ export function moveToGroup<T extends GroupedTab>(state: TabState<T>, key: strin
   return { tabs: [...nextMain.tabs, ...nextOthers], filesIndex: nextMain.filesIndex };
 }
 
-function withoutGroup<T extends GroupedTab>(tab: T): T {
+export function withoutGroup<T extends GroupedTab>(tab: T): T {
   const { group: _gone, ...rest } = tab;
   return rest as T;
 }

@@ -119,7 +119,7 @@ export function GroupMoreMenu({ group, activeKey }: { group: string; activeKey: 
         <DropdownMenuItem disabled={groupCount < 2} onSelect={() => joinAll()}>
           {S.joinAllGroups}
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={group === MAIN_GROUP && !inGroup.length} onSelect={() => void closeGroup(group)}>
+        <DropdownMenuItem disabled={groupCount < 2 && !inGroup.length} onSelect={() => void closeGroup(group)}>
           {S.closeGroup}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
