@@ -77,7 +77,7 @@ export default function WorkspaceScreen() {
             <WorkspaceIcon workspaceId={top.id} size={18} fallback={<ProjectIcon />} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text variant="title" color="textStrong" numberOfLines={1}>{top.name}</Text>
-              <Text variant="secondary" color="textMuted" numberOfLines={2} selectable>{shortPath(top.dir)}</Text>
+              <Text variant="secondary" color="textMuted" selectable>{shortPath(top.dir)}</Text>
             </View>
           </View>
           <View style={styles.facts}>

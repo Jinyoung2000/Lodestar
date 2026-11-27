@@ -153,7 +153,7 @@ export function SessionsList({ docked = false, sessionId, onOpenSession, splitCh
       />}
       <View style={styles.fill}>
         <View style={{ paddingTop: Platform.OS === "ios" ? headerHeight : 0 }}>
-          <MateRow onPress={() => router.push("/mate")} />
+          {!query.trim() && <MateRow onPress={() => router.push("/mate")} />}
         </View>
         {data.length === 0 ? (
           <Empty offline={conn !== "online" && agents.length === 0} searching={query.trim().length > 0} onNew={() => router.push("/new")} />
