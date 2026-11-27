@@ -24,12 +24,10 @@ export const SessionRow = memo(function SessionRow({ agent, selected, subtitle, 
   </SessionRowFrame>;
 });
 
-export const rowSwipeGate = { claimed: false };
-
 const SWIPE_COMMIT = 88;
 export const ROW_INSET = 22;
 
-export function SessionRowFrame({ agent, selected, state, stamp, emphasized, showPin, detailsLabel, children, onPress, onLongPress }: RowActions & {
+function SessionRowFrame({ agent, selected, state, stamp, emphasized, showPin, detailsLabel, children, onPress, onLongPress }: RowActions & {
   state: SessionState; stamp: string; emphasized: boolean; showPin?: boolean; detailsLabel?: string; children: ReactNode;
 }) {
   const colors = useColors();
@@ -39,7 +37,7 @@ export function SessionRowFrame({ agent, selected, state, stamp, emphasized, sho
   const actionColor = agent.done ? "textStrong" : "onAccent";
   const toggleDone = () => void store.setDone(agent.id, !agent.done).catch((error: unknown) => Alert.alert("Could not update the session", error instanceof Error ? error.message : String(error)));
   const swipe = useRowSwipe(toggleDone);
-  return <View onTouchStart={() => { rowSwipeGate.claimed = true; }} style={{ backgroundColor: agent.done ? colors.overlay : colors.success }}>
+  return <View style={{ backgroundColor: agent.done ? colors.overlay : colors.success }}>
     <Animated.View pointerEvents="none" style={[styles.action, { opacity: swipe.reveal }]}>
       <Icon name={agent.done ? "circle" : "checkmark"} size={18} color={actionColor} />
       <Text variant="secondary" color={actionColor} style={styles.strong}>{agent.done ? "Not done" : "Done"}</Text>

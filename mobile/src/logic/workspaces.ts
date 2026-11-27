@@ -34,8 +34,6 @@ export function aggregateState(agents: readonly Agent[]): SessionState {
   return STATE_RANK[best];
 }
 
-export type ProjectSort = "activity" | "name" | "manual";
-export const PROJECT_SORTS: readonly ProjectSort[] = ["activity", "name", "manual"];
 export const DEFAULT_SESSION_SORT: SessionSort = "updated";
 
 const byTimeDesc = (a: string, b: string) => (a < b ? 1 : a > b ? -1 : 0);
@@ -74,40 +72,6 @@ export function buildProject(workspace: Workspace, workspaces: readonly Workspac
     done: all.reduce((n, l) => n + l.done.length, 0),
     lastActivity: everyone.reduce((best, a) => (a.updatedAt > best ? a.updatedAt : best), ""),
   };
-}
-
-export function buildProjects(workspaces: readonly Workspace[], agents: readonly Agent[], query = "", sort: ProjectSort = "activity", manualOrder: readonly string[] = []): Project[] {
-  const needle = query.trim().toLowerCase();
-  const projects = workspaces
-    .filter((w) => !w.parentId && !w.feedback)
-    .filter((w) => needle === "" || w.name.toLowerCase().includes(needle) || shortPath(w.dir).toLowerCase().includes(needle))
-    .map((w) => buildProject(w, workspaces, agents));
-  return sortProjects(projects, sort, manualOrder);
-}
-
-const byActivity = (a: Project, b: Project) => byTimeDesc(a.lastActivity, b.lastActivity) || a.workspace.name.localeCompare(b.workspace.name);
-const byName = (a: Project, b: Project) => a.workspace.name.localeCompare(b.workspace.name) || a.workspace.dir.localeCompare(b.workspace.dir);
-
-export function sortProjects(projects: readonly Project[], sort: ProjectSort, manualOrder: readonly string[] = []): Project[] {
-  if (sort === "name") return [...projects].sort(byName);
-  if (sort === "activity") return [...projects].sort(byActivity);
-  const byId = new Map(projects.map((p) => [p.workspace.id, p]));
-  const placed = [...new Set(manualOrder)].flatMap((id) => byId.get(id) ?? []);
-  const known = new Set(placed.map((p) => p.workspace.id));
-  return [...placed, ...projects.filter((p) => !known.has(p.workspace.id)).sort(byActivity)];
-}
-
-export const orderOf = (projects: readonly Project[]): string[] => projects.map((p) => p.workspace.id);
-
-export function moveInOrder(order: readonly string[], id: string, direction: "up" | "down" | "top" | "bottom"): string[] {
-  const from = order.indexOf(id);
-  if (from < 0) return [...order];
-  const to = direction === "up" ? from - 1 : direction === "down" ? from + 1 : direction === "top" ? 0 : order.length - 1;
-  if (to < 0 || to >= order.length || to === from) return [...order];
-  const next = [...order];
-  next.splice(from, 1);
-  next.splice(to, 0, id);
-  return next;
 }
 
 export function topWorkspace(workspaces: readonly Workspace[], id: string): Workspace | null {

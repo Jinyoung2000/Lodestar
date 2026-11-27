@@ -1,6 +1,6 @@
 import { Redirect, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import type { Agent, SessionSort } from "@shared/protocol";
 import { buildProject, compareAgents, shortPath, topWorkspace, type Location } from "../../logic/workspaces";
 import { sortPrefs, store, useAppState, useSessionSort } from "../../state/app";
@@ -15,7 +15,6 @@ import { RenameDialog } from "../../ui/RenameDialog";
 import { SessionRow } from "../../ui/SessionRow";
 import { SESSION_SORT_OPTIONS, SortButton } from "../../ui/SortButton";
 import { Text } from "../../ui/Text";
-import { confirmRemove } from "../../ui/WorkspacesView";
 import { useSessionActions } from "../../ui/sessionActions";
 
 export default function WorkspaceScreen() {
@@ -147,6 +146,21 @@ function LocationSection({ location, branch, time, onStart, onOpen, onMore }: { 
       )}
     </View>
   );
+}
+
+function confirmRemove(id: string, name: string, then?: () => void) {
+  Alert.alert(`Remove “${name}” from the list?`, "Files on your Mac are not changed. Its sessions are hidden and come back if you add the folder again.", [
+    { text: "Cancel", style: "cancel" },
+    {
+      text: "Remove",
+      style: "destructive",
+      onPress: () =>
+        void store
+          .removeWorkspace(id)
+          .then(() => then?.())
+          .catch((error: unknown) => Alert.alert("Could not remove the folder", error instanceof Error ? error.message : String(error))),
+    },
+  ]);
 }
 
 const styles = StyleSheet.create({

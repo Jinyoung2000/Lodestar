@@ -160,8 +160,7 @@ export default function RootLayout() {
               <SafeAreaView edges={["top", "left", "bottom"]} pointerEvents={showRail ? "auto" : "none"}
                 accessibilityElementsHidden={!showRail} importantForAccessibility={showRail ? "auto" : "no-hide-descendants"}
                 style={[styles.rail, railCollapsed && [styles.drawer, { backgroundColor: colors.background }], { width: railWidth, display: showRail ? "flex" : "none", borderRightColor: colors.separator }]}>
-                <SessionsList docked sessionId={sessionId} workspaceId={route === "workspace" ? id : undefined}
-                  paneWidth={railWidth} onOpenSession={openSession} splitChoices={splitChoices}
+                <SessionsList docked sessionId={sessionId} onOpenSession={openSession} splitChoices={splitChoices}
                   onHide={dockedRail && sessionId ? hideRail : undefined} />
               </SafeAreaView>
             )}
