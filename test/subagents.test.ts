@@ -136,7 +136,7 @@ function harness() {
   return { id, store, runner, run, feed, items, item, events };
 }
 
-test("흐름: 백그라운드 서브에이전트가 턴이 끝난 뒤에도 돌다가 알림으로 끝난다", async () => {
+test("흐름: 턴이 끝난 뒤 완료된 백그라운드 서브에이전트의 상태가 도구 행에 남는다", async () => {
   const h = harness();
   await h.feed({ type: "assistant", parent_tool_use_id: null, uuid: "m1", message: { model: "claude-haiku-5-5", usage: { input_tokens: 2, cache_read_input_tokens: 22530, cache_creation_input_tokens: 4367, output_tokens: 17 }, content: [{ type: "tool_use", id: "T1", name: "Agent", input: { description: "Read a.txt", subagent_type: "general-purpose", run_in_background: true } }] } });
   expect(h.item("T1")?.task?.status === "running" && h.item("T1")?.task?.backgrounded === true, "task at tool_use");
@@ -162,7 +162,7 @@ test("흐름: 백그라운드 서브에이전트가 턴이 끝난 뒤에도 돌�
   const t = h.item("T1")!.task!;
   expect(t.status === "completed" && t.summary === "ALPHA", JSON.stringify(t));
   expect(shared.runningBackground(h.items()).length === 0, "chip count back to 0");
-  expect(h.items().some((i) => i.kind === "notice" && i.text.includes("ALPHA")), "notice kept");
+  expect(!h.items().some((i) => i.kind === "notice"), "completion does not add a notice");
   const upserts = h.events.filter((e) => e.type === "timelineUpsert" && e.item.kind === "tool" && e.item.id === "T1").length;
   return expect(upserts >= 5, `${upserts} upserts of the Agent row`);
 });
