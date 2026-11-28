@@ -16,6 +16,7 @@ import { Text } from "./Text";
 
 export const DEFAULT_MODEL_SELECTION: MobileModelSelection = { harness: "claude", model: null, effort: null };
 const EFFORT_NAMES: Record<EffortLevel, string> = { low: "Low", medium: "Med", high: "High", xhigh: "XHigh", max: "Max", ultra: "Ultra" };
+export const effortLevels = Object.keys(EFFORT_NAMES) as EffortLevel[];
 export const effortName = (level: EffortLevel) => (level === "medium" ? "Medium" : EFFORT_NAMES[level]);
 const SWITCH_MESSAGES: Record<SwitchBlock, string> = {
   running: "Wait for the reply to finish before switching tools",

@@ -7,7 +7,7 @@ import type { WalkthroughSlide } from "./walkthrough";
 
 export const MOBILE_PROTOCOL = 1;
 
-// 모바일 연결에 허용하는 RPC 의 전부. 여기 없는 메서드(파일 쓰기, 설정 변경, 터미널, 셸 실행, 페어링 관리 등)는 데몬이 실행하기 전에 거절한다.
+// 모바일 연결에 허용하는 RPC 의 전부. 여기 없는 메서드(파일 쓰기, 터미널, 셸 실행, 페어링 관리 등)는 데몬이 실행하기 전에 거절한다.
 // 이미지와 파일 올리기는 RPC 가 아니라 HTTP(POST /mobile/images, /mobile/files)로 한다.
 export const MOBILE_METHODS = [
   "mobile.ping",
@@ -37,6 +37,7 @@ export const MOBILE_METHODS = [
   "models.pins",
   "models.setPin",
   "mobile.setModel",
+  "mobile.setCodexDefaults",
   "mobile.createSession",
   "workspaces.add",
   "workspaces.remove",
@@ -61,12 +62,13 @@ export const MOBILE_METHODS = [
 export type MobileMethod = (typeof MOBILE_METHODS)[number];
 
 // 모바일에 보내는 서버 이벤트 종류. 설정, 받은편지함, 보드, 메모, Notion, 피드백 같은 데스크톱 전용 이벤트는 보내지 않는다.
-export const MOBILE_EVENT_TYPES = ["workspaces", "agent", "agentRemoved", "timelineUpsert", "timelineRemove", "modelPins", "followUps", "assistant", "customProviders"] as const;
+export const MOBILE_EVENT_TYPES = ["workspaces", "agent", "agentRemoved", "timelineUpsert", "timelineRemove", "modelPins", "followUps", "assistant", "customProviders", "codexDefaults"] as const;
 
 // 연결 직후 인증을 마치면 서버가 한 번 보내는 메시지
 export type MobileReady = { protocol: number; host: string; serverTime: number };
 
-export type MobileDefaults = { requestQueuing: RequestQueuing; operator?: boolean };
+export type MobileCodexDefaults = { model: string | null; effort: EffortLevel | null };
+export type MobileDefaults = { requestQueuing: RequestQueuing; operator?: boolean; codex?: MobileCodexDefaults };
 
 export type PhoneFrame = { x: number; y: number; width: number; height: number };
 

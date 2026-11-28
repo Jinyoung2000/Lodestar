@@ -1,4 +1,4 @@
-import type { MobileBrowseResult, MobileCustomProvider, MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest, PhoneFeedbackRequest } from "@shared/mobile";
+import type { MobileCodexDefaults, MobileBrowseResult, MobileCustomProvider, MobileDefaults, MobileFileRef, MobileWorkspaceIcons, MobileModelCatalog, MobileModelProvider, MobileModelSelection, MobileSessionRequest, MobileWorktreeRequest, PhoneFeedbackRequest } from "@shared/mobile";
 import type { AssistantState } from "@shared/assistant";
 import type { FollowUpsState } from "@shared/followups";
 import type { SnoozeChoice } from "../logic/mateCore.generated";
@@ -32,6 +32,7 @@ export const MODEL_HARNESSES: Harness[] = ["claude", "codex", "antigravity", "cu
 
 export type State = {
   modelProviders: ModelProviders;
+  codexDefaults: MobileCodexDefaults | null | undefined;
   customProviders: MobileCustomProvider[];
   customModelProviders: MobileModelProvider[] | undefined;
   modelPins: string[] | null;
@@ -64,7 +65,7 @@ const timelineKey = (id: string) => `cache:v1:tl:${id}`;
 const EMPTY: SessionTimeline = { items: [], hasMore: false, synced: false, cached: false, loading: false, loadingOlder: false };
 
 export class AppStore {
-  private state: State = { modelProviders: {}, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", operator: false, workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null };
+  private state: State = { modelProviders: {}, codexDefaults: undefined, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", operator: false, workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null };
   private listeners = new Set<() => void>();
   private link: Link | null = null;
   private unsubscribers: (() => void)[] = [];
@@ -114,12 +115,13 @@ export class AppStore {
   attach(link: Link) {
     this.detach();
     this.link = link;
-    this.set({ conn: link.status });
+    this.set({ conn: link.status, codexDefaults: undefined });
     this.unsubscribers = [
       link.onStatus((conn) => this.set({ conn })),
       link.onEvent((event) => this.onEvent(event)),
       link.onReady((ready) => {
         this.set({ hostName: ready.host });
+        this.invalidateCodexModels();
         void this.sync();
         void this.warmModels().catch(() => {});
         void this.loadModelPins().catch(() => {});
@@ -148,7 +150,7 @@ export class AppStore {
     this.opened.clear();
     const keys = [INDEX_KEY, MODELS_KEY, ICONS_KEY, ...this.recent.map(timelineKey), ...Object.keys(this.state.timelines).map(timelineKey)];
     this.recent = [];
-    this.set({ modelProviders: {}, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", operator: false, workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null });
+    this.set({ modelProviders: {}, codexDefaults: undefined, customProviders: [], customModelProviders: undefined, modelPins: null, requestQueuing: "queue", operator: false, workspaceIcons: {}, conn:"idle", hostName: null, loaded: false, syncedAt: null, agents: [], workspaces: [], git: {}, timelines: {}, followUps: null, assistant: null, error: null });
     await this.cache.remove([...new Set(keys)]).catch(() => {});
   }
 
@@ -177,7 +179,7 @@ export class AppStore {
       markEnd("list-sync", `${agents.length} sessions`);
       this.touchIndex();
       if (this.opened.size > 0) void link.call("agents.setOpen", { agentIds: [...this.opened] }).catch(() => {});
-      void this.loadDefaults(link, generation);
+      void this.loadDefaults(link, generation).catch(() => {});
       void this.loadMate(link, generation);
       void this.loadCustomProviders();
       if (this.iconsGeneration !== generation || workspaces.some((w) => !(w.id in this.state.workspaceIcons))) void this.loadWorkspaceIcons(link, generation);
@@ -212,18 +214,44 @@ export class AppStore {
   }
 
   private async loadDefaults(link: Link, generation: number) {
-    try {
-      const defaults = await link.call("mobile.defaults", {}) as MobileDefaults;
-      if (this.connectionGeneration !== generation) return;
-      if (defaults.requestQueuing === "queue" || defaults.requestQueuing === "steer") this.set({ requestQueuing: defaults.requestQueuing });
-      this.set({ operator: defaults.operator === true });
-    } catch {
-      return;
-    }
+    const defaults = await link.call("mobile.defaults", {}) as MobileDefaults;
+    if (this.connectionGeneration !== generation) return;
+    this.set({
+      ...(defaults.requestQueuing === "queue" || defaults.requestQueuing === "steer" ? { requestQueuing: defaults.requestQueuing } : {}),
+      operator: defaults.operator === true,
+      codexDefaults: defaults.codex ?? null,
+    });
+  }
+
+  async loadCodexSettings() {
+    const link = this.link;
+    if (!link || link.status !== "online") return;
+    await Promise.all([this.loadDefaults(link, this.connectionGeneration), this.loadProvider("codex")]);
+  }
+
+  async setCodexDefaults(patch: Partial<MobileCodexDefaults>) {
+    const generation = this.connectionGeneration;
+    const defaults = await this.call("mobile.setCodexDefaults", patch, MODEL_TIMEOUT_MS) as MobileCodexDefaults;
+    if (generation === this.connectionGeneration) this.acceptCodexDefaults(defaults);
+  }
+
+  private acceptCodexDefaults(defaults: MobileCodexDefaults) {
+    if (this.state.codexDefaults?.model === defaults.model && this.state.codexDefaults?.effort === defaults.effort) return;
+    this.set({ codexDefaults: defaults });
+    this.invalidateCodexModels();
+    void this.loadProvider("codex").catch(() => {});
+  }
+
+  private invalidateCodexModels() {
+    this.providerFreshUntil.delete("codex");
+    this.providerRequests.delete("codex");
   }
 
   private onEvent(event: ServerEvent) {
     switch (event.type) {
+      case "codexDefaults":
+        this.acceptCodexDefaults(event.defaults);
+        break;
       case "modelPins":
         this.acceptModelPins(event.pins);
         break;

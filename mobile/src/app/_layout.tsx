@@ -7,6 +7,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { bootstrap, store, useAppState, useConnection } from "../state/app";
 import { releasePreview, useExpandedPreview } from "../state/expandedPreview";
 import { applyDrop, commitPanes, PANE_MIN, paneCapacity, setDrawerOpen, setRailHidden, shownPanes, useSplitState, type DropTarget } from "../state/split";
+import { loadSessionTool } from "../state/sessionTool";
 import { loadThemeChoice, useThemeChoice } from "../state/themePrefs";
 import { applySystemTheme } from "../theme/systemTheme";
 import { scrim, ThemeProvider, useSchemeColors } from "../theme/theme";
@@ -136,6 +137,7 @@ export default function RootLayout() {
   useEffect(() => {
     void bootstrap();
     void loadThemeChoice();
+    void loadSessionTool();
   }, []);
 
   useEffect(() => {

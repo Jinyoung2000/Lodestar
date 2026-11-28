@@ -20,7 +20,7 @@ import type { NotionWritePreview } from "./notionWrite";
 import type { NotionBypassWrites } from "./notionApproval";
 import type { ReplaceFileRequest, ReplaceFileResult } from "./searchReplace";
 import type { TermAskContext } from "./termAsk";
-import type { MobileStatus, PairingOffer, TimelinePage } from "./mobile";
+import type { MobileCodexDefaults, MobileStatus, PairingOffer, TimelinePage } from "./mobile";
 import type { SessionOrders } from "./sessionOrder";
 import type { RetentionPolicy, TidyPlan, TidyResult } from "./feedbackRetention";
 export type Workspace = {
@@ -993,6 +993,7 @@ export type ServerEvent =
   | { type: "timelineRemove"; agentId: string; itemId: string }
   | { type: "meta"; meta: Meta }
   | { type: "settings"; settings: Settings; defaults?: ResolvedDefaults }
+  | { type: "codexDefaults"; defaults: MobileCodexDefaults }
   | { type: "changes"; agentId: string; changes: FileChange[] }
   | { type: "workspaceChanged"; workspaceIds: string[] }
   | { type: "diffFeedback"; agentId: string; items: DiffFeedback[] }

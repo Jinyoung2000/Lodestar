@@ -1,4 +1,4 @@
-import type { MobileCustomProvider, MobileBrowseResult, PhoneFeedbackRequest, MobileMethod, MobileModelCatalog, MobileModelSelection, MobilePreview, MobileReady, MobileSessionRequest, MobileWalkthrough } from "@shared/mobile";
+import type { MobileCodexDefaults, MobileDefaults, MobileCustomProvider, MobileBrowseResult, PhoneFeedbackRequest, MobileMethod, MobileModelCatalog, MobileModelSelection, MobilePreview, MobileReady, MobileSessionRequest, MobileWalkthrough } from "@shared/mobile";
 import type { Agent, Harness, RpcMethods, ServerEvent } from "@shared/protocol";
 import { reconnectDelay } from "../logic/backoff";
 import { hasMixedRoutes, routeAddress, routeLabel, routesFromAddress, routeSocketUrl, type ConnectionRoute } from "../logic/routes";
@@ -17,6 +17,8 @@ const RELAY_MAC_OFFLINE = 4404;
 export type { MobileMethod };
 
 type MobileOnly = {
+  "mobile.defaults": { params: Record<string, never>; result: MobileDefaults };
+  "mobile.setCodexDefaults": { params: Partial<MobileCodexDefaults>; result: MobileCodexDefaults };
   "agents.create": { params: MobileSessionRequest; result: Agent };
   "mobile.createSession": { params: MobileSessionRequest & { selection: MobileModelSelection }; result: Agent };
   "mobile.models": { params: { agentId?: string; harness?: Harness; switchOnly?: boolean; providerId?: string }; result: MobileModelCatalog };

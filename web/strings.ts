@@ -847,7 +847,7 @@ export const S = {
     formatLanguages: ["Languages", "Pick the formatter each language uses. Empty follows your VS Code settings."],
     mcpServers: ["Servers", "Reconnect, enable, or disable MCP servers. Enable and Disable apply to this screen only, not to sessions."],
     daemon: ["Daemon", "Connection, account and where Lodestar is running from."],
-    mobileAccess: ["Mobile access", "Lets the Lodestar iPhone app on the same network connect to this Mac. Off by default. While on, a separate port accepts only paired phones, and each phone can read and answer sessions but cannot change files, settings or run commands."],
+    mobileAccess: ["Mobile access", "Lets Lodestar on your phone connect to this Mac on the same network. Off by default. While on, a separate port accepts only paired phones, and each phone can read and answer sessions and set Codex defaults."],
     mobileRelay: ["Connect from anywhere", "Lets paired phones reach this Mac from any network through a relay server run by the Lodestar team on Cloudflare. Traffic is end-to-end encrypted, so the relay cannot read it. While off, phones connect only on the same network or over Tailscale."],
     mobilePairing: ["Pair a phone", "Create a one-time code, then scan the QR code with the iPhone app or type the address and code. A code works once and expires in 5 minutes."],
     desktopLink: ["Desktop link", "Lets Lodestar on another Mac open this Mac in a window. Off by default. While on, a separate port accepts only paired Macs, all traffic is end-to-end encrypted, and a connected Mac can use this Mac's sessions, terminal and files."],

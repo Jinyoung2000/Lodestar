@@ -6,6 +6,7 @@ import type { MobileFileRef, MobileModelSelection } from "@shared/mobile";
 import type { Agent, BranchesResult, ImageRef, Workspace } from "@shared/protocol";
 import { inFirstOrder, pickableWorkspaces } from "../logic/agents";
 import { baseChoices, branchLabel, canStartWorktree, defaultBaseBranch, shortPath, topWorkspace, worktreeDisabledReason, worktreePreview } from "../logic/workspaces";
+import { useSessionTool } from "../state/sessionTool";
 import { store, useAppState } from "../state/app";
 import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Composer } from "../ui/Composer";
@@ -32,7 +33,9 @@ export default function NewSession() {
   const conn = useAppState((s) => s.conn);
   const [modelChoice, setModelChoice] = useState<MobileModelSelection>();
   const [starting, setStarting] = useState(false);
-  const model = useModelPicker(undefined, modelChoice);
+  const tool = useSessionTool();
+  const selection = modelChoice ?? (tool === "codex" ? { harness: tool, model: null, effort: null } : undefined);
+  const model = useModelPicker(undefined, selection);
   const { open: modelOpen, close: closeModel } = model;
   const keyboardTop = useKeyboardTop();
   const { height: windowHeight } = useWindowDimensions();
@@ -132,7 +135,8 @@ export default function NewSession() {
     setStarting(true);
     setFrozenLists({ workspaces, agents });
     try {
-      const agent = await store.createSession(workspaceId, text, images, worktree, modelChoice, files);
+      const useDefaultClaude = selection?.harness === "claude" && !selection.model && !selection.effort && !selection.providerId;
+      const agent = await store.createSession(workspaceId, text, images, worktree, useDefaultClaude ? undefined : selection, files);
       router.replace({ pathname: "/session/[id]", params: { id: agent.id, started: "1" } });
     } catch (error) {
       setFrozenLists(null);
@@ -241,7 +245,7 @@ export default function NewSession() {
         close={model.close}
         keyboardInset={expanded || keyboardTop === undefined ? 0 : Math.max(0, windowHeight - keyboardTop)}
         apply={async (selection) => {
-          setModelChoice(selection.harness === "claude" && !selection.providerId && selection.model === null && selection.effort === null ? undefined : selection);
+          setModelChoice(selection);
           return selection;
         }}
       />}

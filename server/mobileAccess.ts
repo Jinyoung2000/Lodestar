@@ -357,6 +357,13 @@ export function guardMobileCall(method: string, raw: unknown, browseRoot?: strin
       return { ...(p.switchOnly === true ? { switchOnly: true } : {}), ...(p.agentId === undefined ? {} : { agentId: idOf(p.agentId, "agentId") }), ...(p.harness === undefined ? {} : { harness: harnessOfParam(p.harness) }), ...(providerIdOf(p.providerId) ? { providerId: providerIdOf(p.providerId) } : {}) };
     case "mobile.setModel":
       return { agentId: idOf(p.agentId, "agentId"), selection: modelSelectionOf(p.selection) };
+    case "mobile.setCodexDefaults": {
+      const keys = Object.keys(p);
+      if (keys.length === 0 || keys.some((key) => key !== "model" && key !== "effort")) fail(T.errMobileParam("Codex defaults"));
+      if ("model" in p && p.model !== null && !mobileModelId(p.model)) fail(T.errMobileParam("model"));
+      if ("effort" in p && p.effort !== null && !isEffortLevel(p.effort)) fail(T.errMobileParam("effort"));
+      return { ...("model" in p ? { model: p.model } : {}), ...("effort" in p ? { effort: p.effort } : {}) };
+    }
     case "agents.timelinePage": {
       const limit = typeof p.limit === "number" && Number.isInteger(p.limit) && p.limit >= 1 && p.limit <= 200 ? p.limit : fail(T.errMobileParam("limit"));
       return { agentId: idOf(p.agentId, "agentId"), limit, ...(p.beforeId === undefined ? {} : { beforeId: idOf(p.beforeId, "beforeId") }) };

@@ -14,6 +14,7 @@ import { MIN_TOUCH, radius, spacing, useColors } from "../theme/theme";
 import { Button } from "../ui/Button";
 import { useReconnect } from "../ui/ConnectionTitle";
 import { KeyboardSpacer } from "../ui/KeyboardSpacer";
+import { SessionDefaultsSettings } from "../ui/SessionDefaultsSettings";
 import { Segmented, type SegmentedOption } from "../ui/Segmented";
 import { Text } from "../ui/Text";
 
@@ -140,6 +141,9 @@ export default function Settings() {
   const statusText = conn === "online" ? `Connected${client.route ? ` via ${routeLabel(client.route)}` : ""}` : conn === "unauthorized" ? "Removed from your Mac" : conn === "idle" ? "Not connected" : conn === "offline" ? `Offline · ${client.failure ? FAILURE_TEXT[client.failure] : "Retrying"}` : "Reconnecting…";
   return <>
     <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled">
+      <Section title="New sessions">
+        <SessionDefaultsSettings />
+      </Section>
       <Section title="Appearance">
         <Segmented flush options={themeOptions} value={theme} onChange={setThemeChoice} />
         {theme === "system" && <Text variant="caption" color="textMuted">Follows your phone's setting.</Text>}

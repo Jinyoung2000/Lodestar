@@ -1,13 +1,17 @@
-import { mobileModelId, type MobileModelProvider, type MobileModelSelection } from "../shared/mobile";
+import { mobileModelId, type MobileCodexDefaults, type MobileModelProvider, type MobileModelSelection } from "../shared/mobile";
 import { claudeModels, codexModelEffort, modelPinKey, toolModels, type PickerModel } from "../shared/modelChoices";
 import { modelNameFromId } from "../shared/modelName";
-import type { EffortLevel, Harness } from "../shared/protocol";
+import type { EffortLevel, Harness, Settings } from "../shared/protocol";
 import type { AgentRunner } from "./agents";
 import type { CustomProviders } from "./customProviders";
 import { defaultsReader } from "./defaults";
 import type { MetaService } from "./meta";
 import type { Store } from "./store";
 import { T } from "./strings";
+
+export function codexDefaultsOf(settings: Settings): MobileCodexDefaults {
+  return { model: settings.defaultCodexModel, effort: settings.defaultCodexEffort };
+}
 
 const withoutLongContext = (harness: Harness, id: string) => (harness === "claude" ? id.replace(/\[1m\]$/i, "") : id);
 

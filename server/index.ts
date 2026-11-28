@@ -35,9 +35,9 @@ import { WorkspaceIcons } from "./workspaceIcons";
 import { mobilePreview, REDUCED_EDGE_PIXELS } from "./mobilePreview";
 import { mobileWalkthrough } from "./mobileWalkthrough";
 import { listFolder } from "./mobileFolders";
-import { mobileModels } from "./mobileModels";
-import { modelPinKey } from "../shared/modelChoices";
-import { mobileModelId, pageOfTimeline } from "../shared/mobile";
+import { codexDefaultsOf, mobileModels } from "./mobileModels";
+import { codexModelInfo, modelPinKey } from "../shared/modelChoices";
+import { mobileModelId, pageOfTimeline, type MobileCodexDefaults } from "../shared/mobile";
 import { phoneElementChip, phoneFeedbackPrompt } from "./phoneFeedback";
 import { resolveReadable, terminalDir } from "./files";
 import * as gitOps from "./git";
@@ -502,6 +502,14 @@ const sessionChanges = createSessionChanges({ store, feedback });
 const settingsEffects: SettingsEffect[] = [
   { keys: ["mobileAccess", "mobileRelay"], apply: () => applyMobileAccess() },
   { keys: ["desktopLink"], apply: () => desktopLink.apply() },
+  {
+    keys: ["defaultCodexModel", "defaultCodexEffort"],
+    apply: (next, previous) => {
+      if (next.defaultCodexModel !== previous.defaultCodexModel || next.defaultCodexEffort !== previous.defaultCodexEffort) {
+        broadcast({ type: "codexDefaults", defaults: codexDefaultsOf(next) });
+      }
+    },
+  },
   { keys: ["inboxIntervalMinutes", "showSlack"], apply: () => armInboxTimer() },
   { keys: ["showSlack"], apply: () => mentions.kick() },
   { keys: ["keepIdleSessionsWarmMinutes"], apply: () => runner.rearmIdleCloses() },
@@ -746,7 +754,18 @@ const mobileHandlers: Record<string, (params: never, client: WebSocket) => unkno
     if (deviceId) mobileDevices.setPush(deviceId, null);
     return { registered: false };
   },
-  "mobile.defaults": (): MobileDefaults => ({ requestQueuing: defaultsReader.resolve(store.settings).requestQueuing.value, operator: sourceEnabled() }),
+  "mobile.defaults": (): MobileDefaults => ({ requestQueuing: defaultsReader.resolve(store.settings).requestQueuing.value, operator: sourceEnabled(), codex: codexDefaultsOf(store.settings) }),
+  "mobile.setCodexDefaults": async ({ model, effort }: Partial<MobileCodexDefaults>) => {
+    if (model || effort) {
+      const meta = await runner.codexMeta();
+      if (!meta.installed || !meta.loggedIn) throw new Error(T.errMobileProviderUnavailable);
+      const info = codexModelInfo(meta, model === undefined ? store.settings.defaultCodexModel : model);
+      if (model && !info) throw new Error(T.errMobileModelUnavailable);
+      if (effort && info && !info.supportedEffortLevels.includes(effort)) throw new Error(T.errMobileEffortUnavailable);
+    }
+    const patch = { ...(model !== undefined ? { defaultCodexModel: model } : {}), ...(effort !== undefined ? { defaultCodexEffort: effort } : {}) };
+    return codexDefaultsOf(await handlers["settings.set"](patch, null as never));
+  },
   "mobile.feedback": (request: PhoneFeedbackRequest) => createPhoneFeedbackSession(request),
   "mobile.workspaceIcons": (): MobileWorkspaceIcons => Object.fromEntries(store.workspaces.filter((w) => !w.feedback).map((w) => [w.id, workspaceIcons.icon(w.dir)])),
   "workspaces.list": () => store.workspaces.filter((w) => !w.feedback),
