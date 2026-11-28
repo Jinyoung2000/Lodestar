@@ -16,7 +16,7 @@ import { type BranchesResult, type FileRef, type Harness, type ImageRef, type Wo
 import { parentDisplay } from "./sessionFolders";
 import { codexSupportsMode, CODEX_FALLBACK_MODE } from "../shared/codexPermission";
 import { toolStatus, useCustomProvider, usePaneProvider, useToolMeta } from "./harness";
-import { useDraftDefaults } from "./defaults";
+import { codexDraftChoice, useDraftDefaults } from "./defaults";
 import { S } from "./strings";
 
 type GitInfo = BranchesResult;
@@ -39,8 +39,8 @@ export function NewAgentView({ paneId, workspaceId, extraWorkspaceIds, seed, han
   const lastProviderModel = useStore((s) => (provider ? (s.lastPicked.providerModels?.[provider.id] ?? null) : null));
   const codexMeta = useToolMeta(harness);
   const claudeMissing = useStore((s) => s.meta?.claudeMissing === true);
-  const lastCodexModel = useStore((s) => s.lastPicked.codexModel);
-  const lastCodexEffort = useStore((s) => s.lastPicked.codexEffort);
+  const settings = useStore((s) => s.settings);
+  const lastPicked = useStore((s) => s.lastPicked);
   const lastAntigravityModel = useStore((s) => s.lastPicked.antigravityModel);
   const lastAntigravityEffort = useStore((s) => s.lastPicked.antigravityEffort);
   const lastCursorModel = useStore((s) => s.lastPicked.cursorModel);
@@ -83,9 +83,12 @@ export function NewAgentView({ paneId, workspaceId, extraWorkspaceIds, seed, han
   if (!chat && !workspace) return <EmptyStart />;
   const rawMode = mode ?? draft.permissionMode;
   const permissionMode = harness === "codex" && !codexSupportsMode(rawMode) ? CODEX_FALLBACK_MODE : rawMode;
-  const chosenModel = provider ? (model ?? lastProviderModel ?? provider.defaultModel) : model === undefined ? (harness === "codex" ? (lastCodexModel ?? null) : harness === "antigravity" ? (lastAntigravityModel ?? null) : harness === "cursor" ? (lastCursorModel ?? null) : draft.model) : model;
-  const chosenEffort = provider ? null : effort === undefined ? (harness === "codex" ? (lastCodexEffort ?? null) : harness === "antigravity" ? (lastAntigravityEffort ?? null) : harness === "cursor" ? (lastCursorEffort ?? null) : draft.effort) : effort;
-  const missingDefault = harness === "codex" && !!codexMeta && chosenModel === null && !!codexMeta.defaultModel && codexMeta.models.length > 0 && !codexMeta.models.some((m) => m.value === codexMeta.defaultModel);
+  const codex = harness === "codex" ? codexDraftChoice(settings, lastPicked, codexMeta, model, effort) : null;
+  const chosenModel = provider ? (model ?? lastProviderModel ?? provider.defaultModel) : codex ? codex.model : model === undefined ? (harness === "antigravity" ? (lastAntigravityModel ?? null) : harness === "cursor" ? (lastCursorModel ?? null) : draft.model) : model;
+  const chosenEffort = provider ? null : codex ? codex.effort : effort === undefined ? (harness === "antigravity" ? (lastAntigravityEffort ?? null) : harness === "cursor" ? (lastCursorEffort ?? null) : draft.effort) : effort;
+  const configuredCodexModel = settings?.defaultCodexModel ?? codexMeta?.defaultModel;
+  const missingDefault = harness === "codex" && (chosenModel === null || chosenModel === settings?.defaultCodexModel) &&
+    !!configuredCodexModel && !!codexMeta?.models.length && !codexMeta.models.some((m) => m.value === configuredCodexModel);
   const canWorktree = !!git?.repoRoot && git.branches.length > 0;
   const worktreeDisabledReason = !git ? null : !git.repoRoot ? S.notGitRepo : git.branches.length === 0 ? S.repoNoCommits : null;
   const worktreeParams = () => {
@@ -129,7 +132,7 @@ export function NewAgentView({ paneId, workspaceId, extraWorkspaceIds, seed, han
           )}
           {harness === "codex" && codexMeta && (!codexMeta.installed || !codexMeta.loggedIn || codexMeta.error || missingDefault) && (
             <div className="new-session-codex-note" role="status">
-              {!codexMeta.installed ? S.codexNotInstalled : !codexMeta.loggedIn ? S.codexNotSignedIn : codexMeta.error ? S.codexLoadFailed(codexMeta.error) : S.codexDefaultModelMissing(codexMeta.defaultModel ?? "")}
+              {!codexMeta.installed ? S.codexNotInstalled : !codexMeta.loggedIn ? S.codexNotSignedIn : codexMeta.error ? S.codexLoadFailed(codexMeta.error) : S.codexDefaultModelMissing(configuredCodexModel ?? "")}
             </div>
           )}
           {(harness === "antigravity" || harness === "cursor") && codexMeta && toolStatus(harness, codexMeta) && (

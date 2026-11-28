@@ -1,5 +1,5 @@
 import type { EffortLevel, Harness } from "../shared/protocol";
-import { currentDraftDefaults } from "./defaults";
+import { codexDraftChoice, currentDraftDefaults } from "./defaults";
 import { activeHarness, activeProviderId } from "./harness";
 import { rpc } from "./rpc";
 import { activePane, flash, getState, rememberPick, setState, type LastPicked } from "./store";
@@ -73,8 +73,9 @@ export function currentModelAndEffort() {
   const harness = activeHarness();
   const providerId = activeProviderId();
   if (providerId) return { model: pane.id in s.draftModel ? s.draftModel[pane.id] : lastPickedModel(harness, providerId), effort: null };
+  if (harness === "codex") return codexDraftChoice(s.settings, s.lastPicked, s.codexMeta, s.draftModel[pane.id], s.draftEffort[pane.id]);
   if (harness !== "claude") {
-    const lastEffort = harness === "codex" ? s.lastPicked.codexEffort : harness === "cursor" ? s.lastPicked.cursorEffort : s.lastPicked.antigravityEffort;
+    const lastEffort = harness === "cursor" ? s.lastPicked.cursorEffort : s.lastPicked.antigravityEffort;
     return {
       model: pane.id in s.draftModel ? s.draftModel[pane.id] : lastPickedModel(harness),
       effort: pane.id in s.draftEffort ? s.draftEffort[pane.id] : (lastEffort ?? null),

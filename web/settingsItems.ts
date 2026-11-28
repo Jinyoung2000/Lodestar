@@ -1,15 +1,17 @@
-import { BROWSER_PAGE_ZOOMS, BROWSER_SEARCH_ENGINES, BROWSER_STORAGES, DIFF_VIEWS, EDITOR_FONT_DEFAULTS, EFFORT_LEVELS, KEYMAP_PRESETS, THEME_STYLES, UI_TYPE_DEFAULTS, UI_TYPE_RANGES, type DiffView, type EffortLevel, type KeymapPreset, type FormatLanguage, type ModelInfo, type PermissionMode, type RequestQueuing, type ResolvedDefaults, type Settings, type Theme, type ThemeStyle } from "../shared/protocol";
+import { BROWSER_PAGE_ZOOMS, BROWSER_SEARCH_ENGINES, BROWSER_STORAGES, DIFF_VIEWS, EDITOR_FONT_DEFAULTS, EFFORT_LEVELS, KEYMAP_PRESETS, THEME_STYLES, UI_TYPE_DEFAULTS, UI_TYPE_RANGES, type CodexMeta, type DiffView, type EffortLevel, type KeymapPreset, type FormatLanguage, type ModelInfo, type PermissionMode, type RequestQueuing, type ResolvedDefaults, type Settings, type Theme, type ThemeStyle } from "../shared/protocol";
+import { codexModelEffort, codexModelInfo, compatibleCodexEffort } from "../shared/modelChoices";
 import { analysisBudgetUsd } from "../shared/analysisBudget";
 import { parseReviewTime } from "../shared/morningReview";
 import { QUICK_ENTRY_DEFAULT_SHORTCUT } from "../shared/quickEntry";
 import { EDITOR_OPTION_DEFS, type EditorOptionDef, type EditorOptionKey } from "../shared/editorOptions";
 import { currentEditorOptions, resetEditorOption, saveEditorOption } from "./editorOptions";
 import { PERMISSION_MODES, effortName } from "./Composer";
-import type { DraftDefaults } from "./defaults";
+import type { codexDraftChoice, DraftDefaults } from "./defaults";
 import type { LayoutMode } from "./floatLayout";
 import { chatDockOf, type ChatDock } from "./focusLayout";
 import type { PinnedSide } from "./pinnedLayout";
 import { supportedLevels } from "./effortLevels";
+import { codexModelChip, toolStatus } from "./harness";
 import { modelName } from "./timelineModel";
 import { rpc } from "./rpc";
 import { forgetPick, getState, setLayoutMode } from "./store";
@@ -29,6 +31,8 @@ export type SettingsCtx = {
   diffView: DiffView;
   format: FormatConfig | null;
   models: ModelInfo[];
+  codexMeta: CodexMeta | null;
+  codexDraft: ReturnType<typeof codexDraftChoice>;
 };
 
 export type CustomKind = "formatLanguages" | "mcpServers" | "daemon" | "quickEntryShortcut" | "mobileAccess" | "desktopLinkIncoming" | "desktopLinkOutgoing" | "customProviders";
@@ -78,6 +82,13 @@ function text(id: string) {
 }
 
 const SOURCE_NOTE = (source: keyof typeof S.defaultSource | null) => (source ? S.defaultSource[source] : null);
+
+const FOLLOW_LAST_CODEX_PICK = "follow-last-codex-pick";
+
+function codexModelOption(c: SettingsCtx, value: string): Option {
+  const level = compatibleCodexEffort(c.codexMeta, value, c.codexDraft.effort) ?? codexModelEffort(c.codexMeta, value);
+  return { value, label: `${codexModelChip(value, null, c.codexMeta).name} · ${effortName(level)}` };
+}
 
 const modelValue = (c: SettingsCtx) => {
   const models = c.models.filter((m) => m.value !== "default");
@@ -490,6 +501,7 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   {
     ...text("defaultEffort"),
     group: "sessions",
+    keywords: "thinking level reasoning",
     kind: "enum",
     placeholder: S.defaultEffortNone,
     value: (c) => c.draft.effort ?? "",
@@ -501,6 +513,41 @@ export const SETTING_DEFS: readonly SettingDef[] = [
       const levels = supportedLevels(c.draft.model);
       const list: EffortLevel[] = c.draft.effort && !levels.includes(c.draft.effort) ? EFFORT_LEVELS.filter((l) => levels.includes(l) || l === c.draft.effort) : levels;
       return list.map((l) => ({ value: l, label: effortName(l) }));
+    },
+  },
+
+  {
+    ...text("defaultCodexModel"),
+    group: "sessions",
+    kind: "enum",
+    description: (c) => toolStatus("codex", c.codexMeta) ?? S.settingText.defaultCodexModel[1],
+    value: (c) => c.settings.defaultCodexModel ?? FOLLOW_LAST_CODEX_PICK,
+    set: (v) => save({ defaultCodexModel: v === FOLLOW_LAST_CODEX_PICK ? null : v }),
+    modified: (c) => c.settings.defaultCodexModel != null,
+    reset: () => save({ defaultCodexModel: null }),
+    options: (c) => {
+      const models = toolStatus("codex", c.codexMeta) ? [] : (c.codexMeta?.models.map((model) => model.value) ?? []);
+      const current = c.settings.defaultCodexModel;
+      if (current && !models.includes(current)) models.push(current);
+      return [{ value: FOLLOW_LAST_CODEX_PICK, label: S.codexFollowLastModel }, ...models.map((model) => codexModelOption(c, model))];
+    },
+  },
+  {
+    ...text("defaultCodexEffort"),
+    group: "sessions",
+    kind: "enum",
+    keywords: "thinking level",
+    value: (c) => c.settings.defaultCodexEffort ?? FOLLOW_LAST_CODEX_PICK,
+    set: (v) => save({ defaultCodexEffort: v === FOLLOW_LAST_CODEX_PICK ? null : v as EffortLevel }),
+    modified: (c) => c.settings.defaultCodexEffort != null,
+    reset: () => save({ defaultCodexEffort: null }),
+    options: (c) => {
+      const info = codexModelInfo(c.codexMeta, c.codexDraft.model);
+      const levels = info?.supportedEffortLevels ?? (toolStatus("codex", c.codexMeta) ? [] : EFFORT_LEVELS);
+      const current = c.settings.defaultCodexEffort;
+      const list: Option[] = levels.map((value) => ({ value, label: effortName(value) }));
+      if (current && !levels.includes(current)) list.push({ value: current, label: S.codexEffortUnavailable(effortName(current)) });
+      return [{ value: FOLLOW_LAST_CODEX_PICK, label: S.codexFollowLastEffort }, ...list];
     },
   },
 

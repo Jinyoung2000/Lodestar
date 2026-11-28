@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { CLAUDE_EFFORT_LEVELS, HARNESS_VALUES, type EffortLevel, type Harness } from "../shared/protocol";
+import { codexModelEffort } from "../shared/modelChoices";
 import { switchBlock } from "../shared/harnessSwitch";
 import { effortName } from "./Composer";
 import { useDefaults } from "./defaults";
@@ -85,6 +86,8 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
   useToolMeta("cursor");
   const claudeMeta = useStore((s) => s.meta);
   const codexMeta = useStore((s) => s.codexMeta);
+  const defaultCodexModel = useStore((s) => s.settings?.defaultCodexModel);
+  const defaultCodexEffort = useStore((s) => s.settings?.defaultCodexEffort);
   const antigravityMeta = useStore((s) => s.antigravityMeta);
   const cursorMeta = useStore((s) => s.cursorMeta);
   const modelPins = useStore((s) => s.modelPins);
@@ -126,7 +129,7 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
   const currentModel = ownProvider ? (stored.model ?? ownProvider.defaultModel) : harness === "claude" ? (stored.model ?? defaults.model ?? "default") : (stored.model ?? codexDefaultModel(ownMeta));
   const currentProvider = providers.find((p) => sourceOf(p.tool, p.providerId) === source);
   const currentInfo = currentProvider?.models.find((m) => isModel(m, currentModel));
-  const currentEffort = ownProvider ? null : harness === "claude" ? (stored.effort ?? defaults.effort ?? currentInfo?.defaultLevel ?? null) : (stored.effort ?? currentInfo?.defaultLevel ?? ownMeta?.defaultEffort ?? null);
+  const currentEffort = ownProvider ? null : harness === "claude" ? (stored.effort ?? defaults.effort ?? currentInfo?.defaultLevel ?? null) : (stored.effort ?? (harness === "codex" ? codexModelEffort(ownMeta, stored.model) : currentInfo?.defaultLevel ?? ownMeta?.defaultEffort ?? null));
 
   const rows = pickerRows(providers, tab, query, pinned, tab === "pinned" || providerIdOf(tab) ? harness : toolOfSource(tab));
   const choices = choiceRows(rows);
@@ -136,7 +139,8 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
     if (custom) return landingKey(list, [[next, lastPickedModel("claude", custom)], [next, customProviders.find((p) => p.id === custom)?.defaultModel ?? null]]);
     const tool = toolOfSource(next);
     const meta = tool === "claude" ? null : toolMetaOf(metas, tool);
-    return landingKey(list, [[next, lastPickedModel(tool)], [next, tool === "claude" ? (defaults.model ?? "default") : codexDefaultModel(meta)]]);
+    const preferredModel = (tool === "codex" ? defaultCodexModel : null) ?? lastPickedModel(tool);
+    return landingKey(list, [[next, preferredModel], [next, tool === "claude" ? (defaults.model ?? "default") : codexDefaultModel(meta)]]);
   };
   const activeKey = highlight && choices.some((r) => rowKey(r) === highlight) ? highlight : landingFor(tab, choices);
   const activeRow = choices.find((r) => rowKey(r) === activeKey);
@@ -144,7 +148,12 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
   const isCurrent = (row: ChoiceRow) => rowSource(row) === source && row.kind === "model" && isModel(row.model, currentModel);
   const levels = levelsOf(activeRow);
   const levelDefault = defaultLevelOf(activeRow);
-  const chosenLevel = activeRow && isCurrent(activeRow) ? currentEffort : carryLevel(currentEffort, levels, levelDefault);
+  const levelFor = (row: ChoiceRow) => {
+    if (isCurrent(row)) return currentEffort;
+    const preferred = !agentId && harness !== "codex" && rowTool(row) === "codex" ? defaultCodexEffort ?? currentEffort : currentEffort;
+    return carryLevel(preferred, levelsOf(row), defaultLevelOf(row));
+  };
+  const chosenLevel = activeRow ? levelFor(activeRow) : null;
   const levelHighlight = levelPick && levelPick.row === activeKey ? levelPick.level : (chosenLevel ?? levels[0] ?? null);
   const showWarning = agentId !== null && harness === "claude" && !providerId && warned;
 
@@ -188,7 +197,7 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
   };
   const pickNth = (n: number, alt: boolean) => {
     const row = choices[n - 1];
-    if (row) choose(row, isCurrent(row) ? currentEffort : carryLevel(currentEffort, levelsOf(row), defaultLevelOf(row)), { model: alt, effort: false });
+    if (row) choose(row, levelFor(row), { model: alt, effort: false });
     return true;
   };
   const strokes = useRef<(stroke: string) => boolean>(() => false);
@@ -300,7 +309,7 @@ function ModelPopover({ area: firstArea }: { area: Area }) {
                 continuesIn={agentId !== null && activeSource !== source ? S.continuesIn(nameOf(activeSource)) : null}
                 pinned={pinned}
                 onHover={(key) => setHighlight(key)}
-                onChoose={(choice, alt) => choose(choice, isCurrent(choice) ? currentEffort : carryLevel(currentEffort, levelsOf(choice), defaultLevelOf(choice)), { model: alt, effort: false })}
+                onChoose={(choice, alt) => choose(choice, levelFor(choice), { model: alt, effort: false })}
                 onPin={modelPins === null ? undefined : setModelPin}
               />
             ))}

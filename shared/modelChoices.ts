@@ -21,6 +21,22 @@ export function claudeModels(models: ModelInfo[], defaultModel: string | null): 
   });
 }
 
+export function codexModelInfo(meta: CodexMeta | null, model: string | null) {
+  const id = model ?? meta?.defaultModel ?? meta?.models.find((item) => item.isDefault)?.value;
+  return meta?.models.find((item) => item.value === id);
+}
+
+export function compatibleCodexEffort(meta: CodexMeta | null, model: string | null, effort: EffortLevel | null): EffortLevel | null {
+  const info = codexModelInfo(meta, model);
+  return effort && info && !info.supportedEffortLevels.includes(effort) ? null : effort;
+}
+
+export function codexModelEffort(meta: CodexMeta | null, model: string | null): EffortLevel | null {
+  const defaultModel = meta?.defaultModel ?? meta?.models.find((item) => item.isDefault)?.value;
+  const configured = model === null || model === defaultModel ? compatibleCodexEffort(meta, model, meta?.defaultEffort ?? null) : null;
+  return configured ?? codexModelInfo(meta, model)?.defaultEffort ?? null;
+}
+
 export function toolModels(tool: Harness, meta: CodexMeta | null): PickerModel[] {
   const fallback = meta?.defaultModel ?? meta?.models.find((m) => m.isDefault)?.value ?? null;
   return (meta?.models ?? []).map((m) => ({

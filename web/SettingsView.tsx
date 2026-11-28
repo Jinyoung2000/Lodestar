@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useDraftDefaults } from "./defaults";
+import { codexDraftChoice, useDraftDefaults } from "./defaults";
+import { useToolMeta } from "./harness";
 import { useDiffView } from "./diffMode";
 import { Close, Codicon, Search } from "./icons";
 import { rpc } from "./rpc";
@@ -224,7 +225,13 @@ function useSettingsCtx(): SettingsCtx | null {
   const draft = useDraftDefaults();
   const [diffView] = useDiffView();
   const format = useFormatConfig();
-  return useMemo(() => (settings ? { settings, draft, defaults, diffView, format, models: meta?.models ?? [] } : null), [settings, draft, defaults, diffView, format, meta]);
+  const codexMeta = useToolMeta("codex");
+  const lastPicked = useStore((s) => s.lastPicked);
+  return useMemo(() => {
+    if (!settings) return null;
+    const codexDraft = codexDraftChoice(settings, lastPicked, codexMeta);
+    return { settings, draft, defaults, diffView, format, models: meta?.models ?? [], codexMeta, codexDraft };
+  }, [settings, draft, defaults, diffView, format, meta, codexMeta, lastPicked]);
 }
 
 function useFormatConfig() {

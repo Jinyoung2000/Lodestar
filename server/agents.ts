@@ -22,6 +22,7 @@ import type {
 import { HARNESS_VALUES, PERMISSION_MODE_VALUES, claudeEffort, harnessOf, isEffortLevel, type ClaudeEffortLevel, type Harness } from "../shared/protocol";
 import { carryAfterCut, carryTranscript, checkpointLocked, HARNESS_NAMES, lastSwitchDividerId, remapSeen, switchBlock, switchedState } from "../shared/harnessSwitch";
 import { CODEX_FALLBACK_MODE, codexSupportsMode } from "../shared/codexPermission";
+import { codexModelEffort, compatibleCodexEffort } from "../shared/modelChoices";
 import { CodexRunner, type CodexHost } from "./codex/runner";
 import { AntigravityRunner } from "./antigravity/runner";
 import { CursorRunner } from "./cursor/runner";
@@ -282,6 +283,16 @@ export class AgentRunner {
     return this.codex.meta(refresh);
   }
 
+  private async codexSessionDefaults(model: string | null, effort: EffortLevel | null) {
+    const settings = this.store.settings;
+    const selectedModel = model ?? settings.defaultCodexModel;
+    const preferred = settings.defaultCodexEffort;
+    if (effort || !preferred) return { model: selectedModel, effort };
+    const meta = await this.codexMeta();
+    const selectedEffort = compatibleCodexEffort(meta, selectedModel, preferred) ?? codexModelEffort(meta, selectedModel);
+    return { model: selectedModel, effort: selectedEffort };
+  }
+
   assertClaude(agentId: string, what: string) {
     const harness = harnessOf(this.store.agent(agentId));
     if (harness !== "claude") throw new Error(T.harnessUnsupported(HARNESS_NAMES[harness], what));
@@ -290,6 +301,7 @@ export class AgentRunner {
   async create(params: CreateParams) {
     const id = randomUUID();
     const attached = await resolveFiles(params.files);
+    const codexDefaults = params.harness === "codex" ? await this.codexSessionDefaults(params.model, params.effort) : null;
     if (params.harness && params.harness !== "claude" && params.notionContext) throw new Error(T.harnessUnsupported(HARNESS_NAMES[params.harness], "Notion page chat"));
     const workspace = params.workspaceId === null ? null : this.store.workspace(params.workspaceId);
     if (!workspace && params.worktree) throw new Error(T.errChatNoWorktree);
@@ -324,8 +336,8 @@ export class AgentRunner {
       sessionId: null,
       status: "idle",
       permissionMode: params.harness === "codex" && !codexSupportsMode(params.permissionMode) ? CODEX_FALLBACK_MODE : params.permissionMode,
-      model: params.model,
-      effort: params.effort,
+      model: codexDefaults ? codexDefaults.model : params.model,
+      effort: codexDefaults ? codexDefaults.effort : params.effort,
       activeModel: null,
       activeEffort: null,
       backgroundTasks: 0,

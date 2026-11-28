@@ -268,6 +268,8 @@ export type Settings = {
   defaultPermissionMode: PermissionMode | null;
   defaultModel: string | null;
   defaultEffort: EffortLevel | null;
+  defaultCodexModel: string | null;
+  defaultCodexEffort: EffortLevel | null;
   diffInlineWhenNarrow: boolean | null;
   requestQueuing: RequestQueuing | null;
   previewEditors: boolean | null;

@@ -1,4 +1,5 @@
 import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type FocusEvent, type MouseEvent, type ReactNode } from "react";
+import { codexModelEffort } from "../shared/modelChoices";
 import { defaultChangeScope, type Agent, type EffortLevel, type FileRef, type ImageRef, type PermissionMode } from "../shared/protocol";
 import { AttachMenu } from "./AttachMenu";
 import { changesChipTitle, openSessionChanges } from "./changesChip";
@@ -460,7 +461,7 @@ export const Composer = memo(function Composer({ paneId, agent, workspaceId, bus
   const models = meta?.models ?? [];
   const providerModel = provider ? (provider.models.some((m) => m.id === model) ? model : provider.defaultModel) : null;
   const shown = provider ? { name: provider.models.find((m) => m.id === providerModel)?.name ?? providerModel ?? provider.name, id: providerModel } : harness !== "claude" ? codexModelChip(model, activeModel, codexMeta, S.harnessNames[harness]) : modelChip(model ?? defaults.model, activeModel, models);
-  const effortLabel = provider ? null : effortName(harness !== "claude" ? (effort ?? codexMeta?.defaultEffort ?? null) : (effort ?? defaults.effort ?? builtinEffort(supportedLevels(model ?? defaults.model))));
+  const effortLabel = provider ? null : effortName(harness === "codex" ? (effort ?? codexModelEffort(codexMeta, model ?? activeModel)) : harness !== "claude" ? (effort ?? codexMeta?.defaultEffort ?? null) : (effort ?? defaults.effort ?? builtinEffort(supportedLevels(model ?? defaults.model))));
   const permissionLabel = S.permissionModes[permissionMode];
   const files = sessionChanges?.files ?? [];
   const additions = files.reduce((n, f) => n + f.additions, 0);

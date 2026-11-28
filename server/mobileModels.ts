@@ -1,5 +1,5 @@
 import { mobileModelId, type MobileModelProvider, type MobileModelSelection } from "../shared/mobile";
-import { claudeModels, modelPinKey, toolModels, type PickerModel } from "../shared/modelChoices";
+import { claudeModels, codexModelEffort, modelPinKey, toolModels, type PickerModel } from "../shared/modelChoices";
 import { modelNameFromId } from "../shared/modelName";
 import type { EffortLevel, Harness } from "../shared/protocol";
 import type { AgentRunner } from "./agents";
@@ -18,7 +18,7 @@ function findModel<M extends { value: string; resolved: string | null }>(harness
     ?? models.find((model) => model.value !== "default" && (model.resolved === id || model.resolved === base));
 }
 
-function providerOf(harness: Harness, choices: PickerModel[], defaultId: string | null, defaultEffort: EffortLevel | null): MobileModelProvider | null {
+function providerOf(harness: Harness, choices: PickerModel[], defaultId: string | null, defaultEffort: EffortLevel | null, preferredEffort: EffortLevel | null = null): MobileModelProvider | null {
   const visible = choices.filter((model) => mobileModelId(model.value));
   if (!visible.length) return null;
   const reportedDefault = findModel(harness, visible, defaultId);
@@ -27,6 +27,7 @@ function providerOf(harness: Harness, choices: PickerModel[], defaultId: string 
   const defaultModel = reportedDefault?.value ?? namedDefault ?? advertisedDefault?.value ?? null;
   const models = visible.map((model) => {
     const resolved = mobileModelId(model.resolved) ? model.resolved : null;
+    const effort = preferredEffort && model.levels.includes(preferredEffort) ? preferredEffort : (harness === "claude" || model.value === defaultModel ? defaultEffort : null);
     const displayName = model.value === "default" && resolved ? modelNameFromId(resolved) ?? model.displayName : model.displayName;
     return {
       value: model.value,
@@ -34,7 +35,7 @@ function providerOf(harness: Harness, choices: PickerModel[], defaultId: string 
       resolved,
       displayName: displayName.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").trim().slice(0, 120) || model.value,
       levels: [...new Set(model.levels)],
-      defaultLevel: (harness === "claude" || model.value === defaultModel) && defaultEffort && model.levels.includes(defaultEffort) ? defaultEffort : model.defaultLevel,
+      defaultLevel: effort && model.levels.includes(effort) ? effort : model.defaultLevel,
     };
   });
   return { harness, models, defaultModel, defaultModelKnown: !!reportedDefault };
@@ -65,7 +66,12 @@ export function mobileModels(store: Store, runner: AgentRunner, metaService: Met
     }
     const meta = await (harness === "codex" ? runner.codexMeta() : harness === "cursor" ? runner.cursorMeta() : runner.antigravityMeta());
     if (!meta.installed || !meta.loggedIn) return null;
-    return providerOf(harness, toolModels(harness, meta), meta.defaultModel ?? meta.models.find((model) => model.isDefault)?.value ?? null, meta.defaultEffort);
+    const model = meta.defaultModel ?? meta.models.find((item) => item.isDefault)?.value ?? null;
+    const choices = toolModels(harness, meta);
+    if (harness !== "codex") return providerOf(harness, choices, model, meta.defaultEffort);
+    const settings = store.settings;
+    const codexModel = settings.defaultCodexModel ?? model;
+    return providerOf(harness, choices, codexModel, codexModelEffort(meta, settings.defaultCodexModel), settings.defaultCodexEffort);
   };
 
   function provider(harness: Harness) {

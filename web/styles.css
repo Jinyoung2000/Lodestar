@@ -9176,6 +9176,14 @@ body[data-session-dragging] iframe {
   width: calc(var(--space-8) * 6);
   justify-content: space-between;
 }
+.setting-select > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.setting-select > .chip-chevron {
+  flex-shrink: 0;
+}
 .setting-quick-shortcut {
   display: flex;
   align-items: center;

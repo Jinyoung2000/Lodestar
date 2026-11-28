@@ -1,4 +1,5 @@
-import type { DefaultSource, EffortLevel, PermissionMode, RequestQueuing, ResolvedDefaults, Settings } from "../shared/protocol";
+import { compatibleCodexEffort } from "../shared/modelChoices";
+import type { CodexMeta, DefaultSource, EffortLevel, PermissionMode, RequestQueuing, ResolvedDefaults, Settings } from "../shared/protocol";
 import { getState, useStore, type LastPicked } from "./store";
 
 export type EffectiveDefaults = { model: string | null; effort: EffortLevel | null; permissionMode: PermissionMode; diffInlineWhenNarrow: boolean; requestQueuing: RequestQueuing; previewEditors: boolean };
@@ -62,6 +63,12 @@ export function useDraftDefaults(): DraftDefaults {
 export function currentDraftDefaults(): DraftDefaults {
   const s = getState();
   return draftDefaults(s.settings, s.defaults, s.lastPicked);
+}
+
+export function codexDraftChoice(settings: Settings | null, last: LastPicked, meta: CodexMeta | null, model?: string | null, effort?: EffortLevel | null) {
+  const chosenModel = model ?? settings?.defaultCodexModel ?? last.codexModel ?? null;
+  const preferred = effort ?? settings?.defaultCodexEffort ?? last.codexEffort ?? null;
+  return { model: chosenModel, effort: compatibleCodexEffort(meta, chosenModel, preferred) };
 }
 
 export function sideChatEffort(picked: EffortLevel | null | undefined, agentEffort: EffortLevel | null | undefined, defaults: EffectiveDefaults, levels: readonly EffortLevel[]): EffortLevel | null {

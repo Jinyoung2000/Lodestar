@@ -111,6 +111,8 @@ const DEFAULT_SETTINGS: Settings = {
   defaultPermissionMode: null,
   defaultModel: null,
   defaultEffort: null,
+  defaultCodexModel: null,
+  defaultCodexEffort: null,
   diffInlineWhenNarrow: null,
   requestQueuing: null,
   previewEditors: null,
@@ -241,6 +243,8 @@ function sanitizeSettings(patch: Partial<Settings>): Partial<Settings> {
     else if (next.defaultModel !== null && typeof next.defaultModel !== "string") delete next.defaultModel;
   }
   if ("defaultEffort" in next && next.defaultEffort !== null && !EFFORT_LEVELS.includes(next.defaultEffort as never)) delete next.defaultEffort;
+  if ("defaultCodexModel" in next && next.defaultCodexModel !== null && (typeof next.defaultCodexModel !== "string" || !next.defaultCodexModel.trim())) delete next.defaultCodexModel;
+  if ("defaultCodexEffort" in next && next.defaultCodexEffort !== null && !isEffortLevel(next.defaultCodexEffort)) delete next.defaultCodexEffort;
   if ("diffInlineWhenNarrow" in next && next.diffInlineWhenNarrow !== null && typeof next.diffInlineWhenNarrow !== "boolean") delete next.diffInlineWhenNarrow;
   if ("requestQueuing" in next && next.requestQueuing !== null && next.requestQueuing !== "queue" && next.requestQueuing !== "steer") delete next.requestQueuing;
   if ("previewEditors" in next && next.previewEditors !== null && typeof next.previewEditors !== "boolean") delete next.previewEditors;
